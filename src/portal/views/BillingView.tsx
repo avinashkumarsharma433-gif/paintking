@@ -12,7 +12,9 @@ import {
   Download,
   Building2,
   CreditCard,
-  QrCode
+  Truck,
+  CheckCircle2,
+  FileText
 } from 'lucide-react';
 
 // Number to Words Converter for INR Currency
@@ -50,19 +52,7 @@ export const BillingView: React.FC = () => {
     billingInvoices[0]?.invoiceNo || ''
   );
   const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
-  const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState<boolean>(false);
-
-  // New Invoice Form State
-  const [newInvForm, setNewInvForm] = useState({
-    customer: 'ROOP POLYMERS LTD',
-    woNo: 'WO-1043',
-    challanNo: 'RP/CH/99825',
-    vehicleNo: 'UK-08-AL-4412',
-    colorName: 'Monza Red Gloss',
-    orderedQty: 250,
-    billableQty: 250,
-    unitRate: 25.00
-  });
+  const [docType, setDocType] = useState<'TAX_INVOICE' | 'DELIVERY_CHALLAN'>('TAX_INVOICE');
 
   // Active Invoice lookup (defaults to first available or selected)
   const activeInv = billingInvoices.find(inv => inv.invoiceNo === selectedInvoiceNo) || billingInvoices[0] || null;
@@ -72,10 +62,21 @@ export const BillingView: React.FC = () => {
     r => r.pdiStatus === 'Cleared for Invoicing'
   );
 
-  const handleCreateCustomInvoice = (e: React.FormEvent) => {
-    e.preventDefault();
-    generateNewInvoiceFromPDI(newInvForm.woNo);
-    setShowCreateInvoiceModal(false);
+  // Instant Green Button Handler: Auto-Generates Invoice & Triggers PDF Download!
+  const handleAutoGenerateAndDownloadPdf = () => {
+    if (availableOqcOrders.length > 0) {
+      const firstWo = availableOqcOrders[0].woNo;
+      generateNewInvoiceFromPDI(firstWo);
+      setShowPrintModal(true);
+      setTimeout(() => {
+        window.print();
+      }, 400);
+    } else if (activeInv) {
+      setShowPrintModal(true);
+      setTimeout(() => {
+        window.print();
+      }, 400);
+    }
   };
 
   return (
@@ -85,38 +86,38 @@ export const BillingView: React.FC = () => {
         <div>
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5">
             <span className="px-2 sm:px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[9px] sm:text-[10px] font-mono uppercase tracking-widest font-bold">
-              PK-ACC-INV-001 • COMMERCIAL DESK
+              PK-ACC-INV-001 • AUTOMATED COMMERCIAL DESK
             </span>
             <span className="text-[10px] sm:text-xs text-[#777b86]">
-              GST Tax Invoice (HSN 9988) • 3-Way Reconciliation • Instant PDF Print
+              Zero-Touch Auto-Invoicing • GST Tax Invoice & Delivery Challan (Rule 55)
             </span>
           </div>
           <h1 className="text-xl sm:text-3xl font-serif font-normal text-[#17191c] tracking-tight">
-            Smart Billing & Tax Invoice Engine
+            Automated Billing & Dispatch Engine
           </h1>
           <p className="text-[11px] sm:text-xs text-[#777b86] mt-1">
-            Billed strictly on inspected & passed pieces with transparent color line-item breakdown
+            Work finishes in OQC ➔ Invoice & Challan auto-generated with 0 human effort
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           {activeInv && (
             <button
-              onClick={() => setShowPrintModal(true)}
+              onClick={() => { setDocType('TAX_INVOICE'); setShowPrintModal(true); }}
               className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold shadow-xs transition cursor-pointer w-full md:w-auto active:scale-95"
             >
               <Printer className="w-4 h-4 text-[#17191c]" />
-              <span>Print Official Tax Invoice</span>
+              <span>Print Tax Invoice</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Invoice Selector Dropdown & Cleared OQC Work Orders Bar */}
+      {/* Invoice Selector & Instant PDF Download Green Button Bar */}
       <div className="bg-white rounded-[18px] sm:rounded-[20px] p-4 border border-[#ececec] shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex-1 w-full sm:w-auto">
           <label className="block text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#777b86] mb-1">
-            Select Active Tax Invoice / Customer Order ({billingInvoices.length} Invoices Available):
+            Select Active Tax Invoice / Order ({billingInvoices.length} Auto-Generated):
           </label>
           <select
             value={activeInv?.invoiceNo || ''}
@@ -131,39 +132,39 @@ export const BillingView: React.FC = () => {
           </select>
         </div>
 
-        {availableOqcOrders.length > 0 && (
-          <div className="shrink-0 w-full sm:w-auto">
-            <button
-              onClick={() => {
-                const firstWo = availableOqcOrders[0].woNo;
-                generateNewInvoiceFromPDI(firstWo);
-              }}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
-            >
-              <ShieldCheck className="w-4 h-4 text-white" />
-              <span>Generate Invoice for Cleared OQC ({availableOqcOrders.length} Ready)</span>
-            </button>
-          </div>
-        )}
+        <div className="shrink-0 w-full sm:w-auto">
+          <button
+            onClick={handleAutoGenerateAndDownloadPdf}
+            className="w-full sm:w-auto px-5 py-3 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-sm transition flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+            title="Auto-generates invoice and opens instant PDF print download window"
+          >
+            <Download className="w-4 h-4 text-white" />
+            <span>Generate & Download PDF Invoice ({availableOqcOrders.length} Ready)</span>
+          </button>
+        </div>
       </div>
 
-      {/* Ground Problem 1 Reality Card */}
-      <div className="bg-[#faf3e0] border border-[#f4e5be] rounded-[20px] sm:rounded-[24px] p-4 sm:p-5 shadow-xs text-xs text-[#17191c] space-y-2">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-          <div className="font-serif font-normal text-sm sm:text-base text-[#17191c] flex items-center gap-2">
-            <ReceiptText className="w-4 h-4 text-[#c09748]" />
-            PaintKing Commercial Billing Rule: Zero Over-Run Overbilling
+      {/* Difference Clarification Banner: Delivery Challan vs Tax Invoice */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-4 rounded-[20px] bg-white border border-[#ececec] shadow-xs space-y-1.5">
+          <div className="font-bold text-xs text-[#17191c] flex items-center gap-1.5">
+            <Truck className="w-4 h-4 text-[#c09748]" />
+            1. Delivery Challan (Goods Transport Note - Rule 55)
           </div>
-          <span className="px-2.5 py-0.5 rounded-full bg-[#c09748] text-[#17191c] text-[10px] font-bold self-start sm:self-auto">
-            Zero Floor Over-Billing
-          </span>
+          <p className="text-[11px] text-[#777b86] leading-relaxed">
+            Truck driver, security gate officer, aur customer stores receiving ke liye. Material Qty, Vehicle No, aur HSN Code specify karta hai (Zero Payment Demand).
+          </p>
         </div>
-        <p className="leading-relaxed text-[#777b86] text-[11px] sm:text-xs">
-          When a customer supplies raw material for multiple colors (e.g. 250 Red + 750 Black), billing is generated 
-          <strong className="text-[#17191c]"> strictly for accepted and cleared pieces</strong>. 
-          If the floor paints 300 Red (+50 excess), the extra 50 are placed in a <em>"Finished Goods Buffer"</em> and 
-          <strong className="text-[#17191c]"> NOT charged to the customer</strong> unless commercial approval is confirmed.
-        </p>
+
+        <div className="p-4 rounded-[20px] bg-white border border-[#ececec] shadow-xs space-y-1.5">
+          <div className="font-bold text-xs text-[#17191c] flex items-center gap-1.5">
+            <FileText className="w-4 h-4 text-[#c09748]" />
+            2. Tax Invoice (Commercial Accounting Bill - Section 31)
+          </div>
+          <p className="text-[11px] text-[#777b86] leading-relaxed">
+            Accounts desk & payment collection ke liye. Unit Rate (₹/pc), CGST (9%), SGST (9%), Grand Total in Words, aur Bank Remittance Details specify karta hai.
+          </p>
+        </div>
       </div>
 
       {/* Active Invoices List & Reconciliation Canvas */}
@@ -187,13 +188,21 @@ export const BillingView: React.FC = () => {
               </div>
 
               <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto shrink-0">
-                <span className="px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] sm:text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  OQC & PDI Cleared
-                </span>
-                <span className="px-3 py-1 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[11px] sm:text-xs font-semibold whitespace-nowrap">
-                  Status: {activeInv.status}
-                </span>
+                <button
+                  onClick={() => { setDocType('TAX_INVOICE'); setShowPrintModal(true); }}
+                  className="px-3 py-1 rounded-full bg-white border border-[#ececec] text-[#17191c] text-xs font-semibold hover:border-[#c09748] transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <FileText className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span>Tax Invoice</span>
+                </button>
+
+                <button
+                  onClick={() => { setDocType('DELIVERY_CHALLAN'); setShowPrintModal(true); }}
+                  className="px-3 py-1 rounded-full bg-white border border-[#ececec] text-[#17191c] text-xs font-semibold hover:border-[#c09748] transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <Truck className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span>Delivery Challan</span>
+                </button>
               </div>
             </div>
 
@@ -333,16 +342,35 @@ export const BillingView: React.FC = () => {
         </div>
       )}
 
-      {/* OFFICIAL GST TAX INVOICE PRINT MODAL */}
+      {/* OFFICIAL GST DOCUMENT PRINT & PDF DOWNLOAD MODAL */}
       {showPrintModal && activeInv && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4">
           <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-3xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] max-h-[94vh] overflow-y-auto no-scrollbar space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
+              {/* Document Type Switcher */}
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono text-[#c09748] font-bold px-2.5 py-0.5 rounded-full bg-[#faf7ed] border border-[#f4e5be]">
-                  PK-TAX-INV-PRINT • OFFICIAL GST DOCUMENT (HSN 9988)
-                </span>
+                <button
+                  onClick={() => setDocType('TAX_INVOICE')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition cursor-pointer ${
+                    docType === 'TAX_INVOICE'
+                      ? 'bg-[#17191c] text-white'
+                      : 'bg-[#fafafb] text-[#777b86] border border-[#ececec]'
+                  }`}
+                >
+                  Tax Invoice (Bill)
+                </button>
+                <button
+                  onClick={() => setDocType('DELIVERY_CHALLAN')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition cursor-pointer ${
+                    docType === 'DELIVERY_CHALLAN'
+                      ? 'bg-[#17191c] text-white'
+                      : 'bg-[#fafafb] text-[#777b86] border border-[#ececec]'
+                  }`}
+                >
+                  Delivery Challan (Rule 55)
+                </button>
               </div>
+
               <button
                 onClick={() => setShowPrintModal(false)}
                 className="text-[#979799] hover:text-[#17191c] text-base font-bold cursor-pointer transition p-1"
@@ -351,54 +379,73 @@ export const BillingView: React.FC = () => {
               </button>
             </div>
 
-            {/* Official GST Paper Invoice Layout - Editorial Industrial Luxury Design */}
+            {/* Official Paper Document Layout with PaintKing Crown Business Logo */}
             <div id="printable-gst-invoice" className="border-2 border-[#17191c] p-4 sm:p-6 text-xs text-[#17191c] space-y-3 font-sans bg-white shadow-xs">
               
-              {/* Header Box: PaintKing Crown Brand Banner */}
-              <div className="text-center border-b-2 border-[#17191c] pb-3 space-y-1">
-                <div className="flex items-center justify-center gap-2 text-[#c09748] font-bold uppercase tracking-widest text-[11px]">
-                  <Building2 className="w-4 h-4" />
-                  PaintKing Surface Solutions Pvt. Ltd.
+              {/* Header Box: PaintKing Official Crown Logo Emblem & Company Details */}
+              <div className="border-b-2 border-[#17191c] pb-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  {/* Business Logo Emblem */}
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-[#17191c] flex items-center justify-center text-[#c09748] border border-[#c09748]/40 shadow-sm shrink-0">
+                      <svg className="w-7 h-7 fill-current text-[#c09748]" viewBox="0 0 24 24">
+                        <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-serif font-bold tracking-tight text-[#17191c]">
+                        PAINTKING SURFACE SOLUTIONS
+                      </h2>
+                      <div className="text-[9px] text-[#8a6521] font-mono tracking-widest uppercase font-bold">
+                        B2B Surface Finishing & Industrial Coating Enterprise
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right text-[10px] font-mono">
+                    <div className="font-bold text-[#c09748] text-xs">
+                      {docType === 'TAX_INVOICE' ? 'TAX INVOICE (SEC 31)' : 'DELIVERY CHALLAN (RULE 55)'}
+                    </div>
+                    <div>Plant: {activeInv.plant}</div>
+                  </div>
                 </div>
-                <h2 className="text-xl sm:text-2xl font-serif font-normal text-[#17191c] tracking-wide">
-                  TAX INVOICE & DELIVERY CHALLAN
-                </h2>
-                <div className="text-[10px] text-gray-600 font-mono">
-                  Plot No. 42, Sector 8A, SIDCUL Industrial Estate, Haridwar, Uttarakhand - 249403
-                </div>
-                <div className="text-[10px] font-mono text-[#17191c] font-semibold">
-                  GSTIN: 05AABCP9912K1Z4 • PAN: AABCP9912K • State Code: 05 (Uttarakhand) • ISO 9001:2015 Certified
+
+                <div className="text-[10px] text-gray-600 font-mono pt-1 flex justify-between items-center border-t border-gray-200">
+                  <span>Plot No. 42, Sector 8A, SIDCUL Industrial Area, Haridwar, Uttarakhand - 249403</span>
+                  <span className="font-semibold text-[#17191c]">GSTIN: 05AABCP9912K1Z4 • PAN: AABCP9912K</span>
                 </div>
               </div>
 
               {/* Billed To vs Dispatch Metadata Grid */}
               <div className="grid grid-cols-2 gap-4 border-b border-[#17191c] pb-3 text-[11px]">
                 <div className="space-y-1">
-                  <div className="text-gray-500 font-bold uppercase tracking-wider text-[10px]">BILLED TO (CUSTOMER):</div>
+                  <div className="text-gray-500 font-bold uppercase tracking-wider text-[10px]">
+                    {docType === 'TAX_INVOICE' ? 'BILLED TO (CUSTOMER):' : 'CONSIGNEE / SHIPPED TO:'}
+                  </div>
                   <div className="font-bold text-sm text-[#17191c]">{activeInv.customer}</div>
                   <div className="text-gray-700">Plot No. 18, Industrial Area Phase II, Gurugram, Haryana - 122002</div>
                   <div className="font-mono text-gray-600">GSTIN: 06AABCR1234M1Z2 • State Code: 06</div>
                 </div>
 
                 <div className="text-right space-y-1 font-mono text-[11px]">
-                  <div>Invoice No: <strong className="text-[#17191c]">{activeInv.invoiceNo}</strong></div>
-                  <div>Invoice Date: <strong className="text-[#17191c]">{activeInv.invoiceDate}</strong></div>
+                  <div>{docType === 'TAX_INVOICE' ? 'Invoice No:' : 'Challan No:'} <strong className="text-[#17191c]">{activeInv.invoiceNo}</strong></div>
+                  <div>Date: <strong className="text-[#17191c]">{activeInv.invoiceDate}</strong></div>
                   <div>Work Order Ref: <strong>{activeInv.woNo}</strong></div>
-                  <div>Challan No: <strong>RP/CH/99824</strong></div>
+                  <div>Challan Ref: <strong>RP/CH/99824</strong></div>
                   <div>Vehicle No: <strong>UK-08-AL-4412</strong></div>
                 </div>
               </div>
 
-              {/* HSN 9988 Table */}
+              {/* Table (HSN 9988) */}
               <table className="w-full text-left text-[10px] sm:text-[11px] border border-[#17191c] border-collapse">
                 <thead className="bg-[#fafafb] border-b border-[#17191c] font-bold text-[#17191c]">
                   <tr>
                     <th className="p-2 border-r border-[#17191c]">Sr.</th>
-                    <th className="p-2 border-r border-[#17191c]">Description of Job Work Service</th>
+                    <th className="p-2 border-r border-[#17191c]">Description of Material / Job Work</th>
                     <th className="p-2 border-r border-[#17191c] text-center">HSN/SAC</th>
-                    <th className="p-2 border-r border-[#17191c] text-center">Billed Qty</th>
-                    <th className="p-2 border-r border-[#17191c] text-right">Unit Rate ₹</th>
-                    <th className="p-2 text-right">Taxable Amount ₹</th>
+                    <th className="p-2 border-r border-[#17191c] text-center">Qty (Pcs)</th>
+                    {docType === 'TAX_INVOICE' && <th className="p-2 border-r border-[#17191c] text-right">Rate ₹</th>}
+                    {docType === 'TAX_INVOICE' && <th className="p-2 text-right">Taxable Amount ₹</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#17191c]">
@@ -411,57 +458,65 @@ export const BillingView: React.FC = () => {
                       </td>
                       <td className="p-2 border-r border-[#17191c] text-center font-mono font-semibold">9988</td>
                       <td className="p-2 border-r border-[#17191c] text-center font-bold">{li.billableQty} pcs</td>
-                      <td className="p-2 border-r border-[#17191c] text-right font-mono">₹{li.unitRate.toFixed(2)}</td>
-                      <td className="p-2 text-right font-mono font-bold">
-                        ₹{li.lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </td>
+                      {docType === 'TAX_INVOICE' && <td className="p-2 border-r border-[#17191c] text-right font-mono">₹{li.unitRate.toFixed(2)}</td>}
+                      {docType === 'TAX_INVOICE' && (
+                        <td className="p-2 text-right font-mono font-bold">
+                          ₹{li.lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
 
-              {/* Amount In Words & Tax Totals Box */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-b border-[#17191c] pb-3 pt-1">
-                <div className="space-y-2">
-                  <div className="p-2.5 bg-[#fafafb] border border-[#ececec] rounded-[10px]">
-                    <span className="text-[10px] text-gray-500 font-bold block uppercase tracking-wider">AMOUNT IN WORDS:</span>
-                    <span className="font-serif font-normal text-sm text-[#8a6521] italic font-semibold">
-                      {numberToWordsINR(activeInv.grandTotal)}
-                    </span>
-                  </div>
-
-                  {/* Bank Payment & UPI QR Box */}
-                  <div className="p-2.5 bg-white border border-[#ececec] rounded-[10px] text-[10px] space-y-1 font-mono">
-                    <div className="font-bold text-[#17191c] flex items-center gap-1 font-sans">
-                      <CreditCard className="w-3.5 h-3.5 text-[#c09748]" />
-                      BANK REMITTANCE DETAILS:
+              {/* Amount In Words & Tax Totals Box (Only for Tax Invoice) */}
+              {docType === 'TAX_INVOICE' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-b border-[#17191c] pb-3 pt-1">
+                  <div className="space-y-2">
+                    <div className="p-2.5 bg-[#fafafb] border border-[#ececec] rounded-[10px]">
+                      <span className="text-[10px] text-gray-500 font-bold block uppercase tracking-wider">AMOUNT IN WORDS:</span>
+                      <span className="font-serif font-normal text-sm text-[#8a6521] italic font-semibold">
+                        {numberToWordsINR(activeInv.grandTotal)}
+                      </span>
                     </div>
-                    <div>Bank: <strong>HDFC Bank Ltd (Haridwar Branch)</strong></div>
-                    <div>A/C No: <strong>50200088991122</strong> • IFSC: <strong>HDFC0000123</strong></div>
-                    <div>UPI ID: <strong className="text-[#8a6521]">paintking@hdfcbank</strong></div>
-                  </div>
-                </div>
 
-                {/* Tax Breakdown Grid */}
-                <div className="space-y-1.5 text-xs text-right font-mono self-end">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 font-sans">Taxable Subtotal:</span>
-                    <span className="font-bold">₹{activeInv.subTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    {/* Bank Payment & UPI Details */}
+                    <div className="p-2.5 bg-white border border-[#ececec] rounded-[10px] text-[10px] space-y-1 font-mono">
+                      <div className="font-bold text-[#17191c] flex items-center gap-1 font-sans">
+                        <CreditCard className="w-3.5 h-3.5 text-[#c09748]" />
+                        BANK REMITTANCE DETAILS:
+                      </div>
+                      <div>Bank: <strong>HDFC Bank Ltd (Haridwar Branch)</strong></div>
+                      <div>A/C No: <strong>50200088991122</strong> • IFSC: <strong>HDFC0000123</strong></div>
+                      <div>UPI ID: <strong className="text-[#8a6521]">paintking@hdfcbank</strong></div>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span className="font-sans">CGST (9%):</span>
-                    <span>₹{(activeInv.cgstAmount ?? Math.round(activeInv.subTotal * 0.09 * 100) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span className="font-sans">SGST (9%):</span>
-                    <span>₹{(activeInv.sgstAmount ?? Math.round(activeInv.subTotal * 0.09 * 100) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                  </div>
-                  <div className="border-t border-black pt-1 flex justify-between font-bold text-sm text-[#17191c]">
-                    <span className="font-serif">Grand Total (INR):</span>
-                    <span className="text-[#8a6521]">₹{activeInv.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+
+                  {/* Tax Breakdown Grid */}
+                  <div className="space-y-1.5 text-xs text-right font-mono self-end">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 font-sans">Taxable Subtotal:</span>
+                      <span className="font-bold">₹{activeInv.subTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span className="font-sans">CGST (9%):</span>
+                      <span>₹{(activeInv.cgstAmount ?? Math.round(activeInv.subTotal * 0.09 * 100) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span className="font-sans">SGST (9%):</span>
+                      <span>₹{(activeInv.sgstAmount ?? Math.round(activeInv.subTotal * 0.09 * 100) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="border-t border-black pt-1 flex justify-between font-bold text-sm text-[#17191c]">
+                      <span className="font-serif">Grand Total (INR):</span>
+                      <span className="text-[#8a6521]">₹{activeInv.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-3 bg-[#fafafb] border border-black text-[11px] leading-relaxed">
+                  <strong>Delivery Note Declaration (Rule 55):</strong> This Delivery Challan is issued under Rule 55 of CGST Rules 2017 for transport of finished coated goods. Goods are dispatched on job work basis (HSN 9988) and returned to owner. Non-commercial transport document.
+                </div>
+              )}
 
               {/* QC Stamp & Signatures */}
               <div className="pt-2 flex justify-between items-end text-[10px] text-gray-700">
@@ -487,14 +542,14 @@ export const BillingView: React.FC = () => {
                 onClick={() => setShowPrintModal(false)}
                 className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium text-xs cursor-pointer hover:bg-[#fafafb] transition"
               >
-                Close Preview
+                Close
               </button>
               <button
                 onClick={() => window.print()}
                 className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-semibold text-xs shadow-sm cursor-pointer transition flex items-center gap-2 active:scale-95"
               >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print Official PDF / A4 Invoice</span>
+                <Download className="w-3.5 h-3.5" />
+                <span>Download / Print PDF</span>
               </button>
             </div>
           </div>
