@@ -8,8 +8,9 @@ import {
   Layers, 
   FileCheck,
   X,
-  ShieldCheck,
-  ChevronRight
+  Sparkles,
+  Search,
+  Check
 } from 'lucide-react';
 import { 
   IQCInspectionRecord, 
@@ -27,6 +28,8 @@ export const QAView: React.FC = () => {
     addIQCRecord,
     qualityReleases,
     addOQCRelease,
+    jobCards,
+    grnList,
     activePlant, 
     currentUser 
   } = usePortalStore();
@@ -38,6 +41,34 @@ export const QAView: React.FC = () => {
   const [showIpqcModal, setShowIpqcModal] = useState<boolean>(false);
   const [showIqcModal, setShowIqcModal] = useState<boolean>(false);
   const [showOqcModal, setShowOqcModal] = useState<boolean>(false);
+
+  // Auto-Fill Source List from active Job Cards / GRNs
+  const availableOrders = jobCards.length > 0 ? jobCards : [
+    {
+      woNo: 'WO-1042',
+      jobCardNo: 'JC-1042-RED',
+      customer: 'ROOP POLYMERS LTD',
+      partCode: 'RP-8841',
+      color: 'Monza Red Gloss',
+      painterName: 'Ramesh Sharma',
+      boothNo: 'Booth #2',
+      paintBatch: 'BAT-PPG-2609-R4',
+      targetQty: 250,
+      sprayedQty: 300
+    },
+    {
+      woNo: 'WO-1042',
+      jobCardNo: 'JC-1042-BLK',
+      customer: 'ROOP POLYMERS LTD',
+      partCode: 'RP-8841',
+      color: 'Matte Jet Black',
+      painterName: 'Kailash Yadav',
+      boothNo: 'Booth #1',
+      paintBatch: 'BAT-PPG-2609-K1',
+      targetQty: 750,
+      sprayedQty: 700
+    }
+  ];
 
   // 1. FPA Golden Gate Form State
   const [fpaForm, setFpaForm] = useState({
@@ -130,6 +161,93 @@ export const QAView: React.FC = () => {
     plantHeadSign: 'Satish Sharma'
   });
 
+  // Auto-Fill Selectors
+  const selectOrderForIqc = (jcNo: string) => {
+    const found = availableOrders.find(o => o.jobCardNo === jcNo || o.woNo === jcNo);
+    if (found) {
+      setIqcForm(prev => ({
+        ...prev,
+        supplierCustomer: found.customer,
+        partCode: found.partCode,
+        batchNo: `B-${found.partCode}-2026`,
+        totalQty: found.targetQty || 1000
+      }));
+    }
+  };
+
+  const selectOrderForIpqc = (jcNo: string) => {
+    const found = availableOrders.find(o => o.jobCardNo === jcNo || o.woNo === jcNo);
+    if (found) {
+      setIpqcForm(prev => ({
+        ...prev,
+        woNo: found.woNo,
+        partCode: found.partCode,
+        color: found.color,
+        painter: found.painterName || 'Ramesh Sharma',
+        booth: found.boothNo || 'Booth #2'
+      }));
+    }
+  };
+
+  const selectOrderForOqc = (jcNo: string) => {
+    const found = availableOrders.find(o => o.jobCardNo === jcNo || o.woNo === jcNo);
+    if (found) {
+      setOqcForm(prev => ({
+        ...prev,
+        woNo: found.woNo,
+        customer: found.customer,
+        partCode: found.partCode,
+        color: found.color,
+        offeredQty: found.sprayedQty || found.targetQty || 300,
+        passedQty: found.sprayedQty || found.targetQty || 300
+      }));
+    }
+  };
+
+  const selectOrderForFpa = (jcNo: string) => {
+    const found = availableOrders.find(o => o.jobCardNo === jcNo || o.woNo === jcNo);
+    if (found) {
+      setFpaForm(prev => ({
+        ...prev,
+        woNo: found.woNo,
+        jobCardNo: found.jobCardNo,
+        customer: found.customer,
+        partCode: found.partCode,
+        color: found.color,
+        painter: found.painterName || 'Ramesh Sharma',
+        booth: found.boothNo || 'Booth #2',
+        paintBatch: found.paintBatch || 'BAT-PPG-2609-R4'
+      }));
+    }
+  };
+
+  // 1-Tap "Set All Pass" Presets
+  const setAllIqcPass = () => {
+    setIqcForm(prev => ({
+      ...prev,
+      damage: 'Pass', scratch: 'Pass', sinkMark: 'Pass', shortFill: 'Pass',
+      bubble: 'Pass', pinMark: 'Pass', dustSpot: 'Pass', overPaint: 'Pass',
+      paintMissing: 'Pass', colour: 'Pass', overallFinishing: 'Pass'
+    }));
+  };
+
+  const setAllIpqcPass = () => {
+    setIpqcForm(prev => ({
+      ...prev,
+      bubble: 'Pass', dustSpot: 'Pass', overPaint: 'Pass',
+      paintMissing: 'Pass', overallFinishing: 'Pass', adhesionTest: 'Pass', deltaE: 0.40
+    }));
+  };
+
+  const setAllOqcPass = () => {
+    setOqcForm(prev => ({
+      ...prev,
+      packingBoxCondition: 'Pass', traceabilityBatchNo: 'Pass',
+      quantityMatch: 'Pass', physicalInspection: 'Pass',
+      conductivity: 'Pass', adhesion: 'Pass', deltaE: 0.42
+    }));
+  };
+
   // Handlers
   const handleFpaSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -205,7 +323,7 @@ export const QAView: React.FC = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* ISO Header Banner - Fully Responsive Grid & Buttons */}
+      {/* ISO Header Banner */}
       <div className="bg-white rounded-[20px] sm:rounded-[24px] p-4 sm:p-6 border border-[#ececec] shadow-xs sm:shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5">
@@ -224,7 +342,7 @@ export const QAView: React.FC = () => {
           </p>
         </div>
 
-        {/* Responsive Mobile Button Grid */}
+        {/* Action Button Grid */}
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full md:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-[#ececec]">
           <button
             onClick={() => setShowFpaModal(true)}
@@ -293,7 +411,7 @@ export const QAView: React.FC = () => {
         </div>
       </div>
 
-      {/* Sub-Tab Navigation Bar - Touch Horizontal Scroll on Mobile */}
+      {/* Sub-Tab Navigation Bar */}
       <div className="border-b border-[#ececec] pb-2 overflow-x-auto no-scrollbar scrollbar-none">
         <div className="flex items-center gap-2 min-w-max">
           <button
@@ -403,7 +521,7 @@ export const QAView: React.FC = () => {
             </div>
           </div>
 
-          {/* 3-Hourly IPQC Inspection - Responsive Table (Desktop) & Card List (Mobile) */}
+          {/* 3-Hourly IPQC Inspection */}
           <div className="bg-white rounded-[20px] sm:rounded-[24px] border border-[#ececec] p-4 sm:p-6 shadow-xs sm:shadow-sm space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#f2f2f3]">
               <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#777b86]">
@@ -712,14 +830,14 @@ export const QAView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 1: NEW IQC INCOMING SUBSTRATE FORM (FULLY RESPONSIVE MOBILE FORM) */}
+      {/* MODAL 1: NEW IQC INCOMING SUBSTRATE FORM (WITH SMART PARTY SEARCH & 1-TAP ALL PASS) */}
       {showIqcModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-2xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
             <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
               <div>
                 <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">New IQC Substrate Inspection (PK-STR-IQC-001)</h3>
-                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Select physical & surface defect parameters for raw material acceptance</p>
+                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Select Party Name / WO to auto-fill all substrate details below</p>
               </div>
               <button onClick={() => setShowIqcModal(false)} className="text-[#979799] hover:text-[#17191c] cursor-pointer p-1">
                 <X className="w-5 h-5" />
@@ -727,6 +845,25 @@ export const QAView: React.FC = () => {
             </div>
 
             <form onSubmit={handleIqcSubmit} className="space-y-3 sm:space-y-4">
+              {/* SMART PARTY / WORK ORDER DROPDOWN AUTO-FILL */}
+              <div className="p-3 bg-[#faf3e0]/50 rounded-[14px] border border-[#f4e5be] space-y-1.5">
+                <label className="block text-[#8a6521] font-bold text-xs flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
+                  Select Party Name / Active Work Order (Auto-Fill Details):
+                </label>
+                <select
+                  onChange={e => selectOrderForIqc(e.target.value)}
+                  className="w-full p-2.5 rounded-[12px] border border-[#f4e5be] bg-white font-medium text-xs text-[#17191c] cursor-pointer focus:outline-none"
+                >
+                  <option value="">-- Choose Party / WO to Auto-Populate Form --</option>
+                  {availableOrders.map(o => (
+                    <option key={o.jobCardNo} value={o.jobCardNo}>
+                      {o.customer} • {o.woNo} ({o.partCode} - {o.color})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block text-[#777b86] font-medium mb-1">Supplier / Customer</label>
@@ -760,9 +897,20 @@ export const QAView: React.FC = () => {
                 </div>
               </div>
 
-              {/* IQC Selection Grid - Mobile Responsive 1 to 3 columns */}
+              {/* IQC Selection Grid with 1-Tap "Set All Pass" Button */}
               <div className="p-3.5 sm:p-4 bg-[#fafafb] rounded-[16px] sm:rounded-[20px] border border-[#ececec] space-y-2.5 sm:space-y-3">
-                <div className="font-semibold text-[#17191c] text-xs">Substrate Defect Checklist Options:</div>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-[#17191c] text-xs">Substrate Defect Checklist Options:</span>
+                  <button
+                    type="button"
+                    onClick={setAllIqcPass}
+                    className="px-3 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition flex items-center gap-1 active:scale-95 cursor-pointer"
+                  >
+                    <Check className="w-3 h-3" />
+                    <span>✓ Set All Pass (100% Clean)</span>
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                   {[
                     { label: 'Damage', key: 'damage' },
@@ -782,7 +930,9 @@ export const QAView: React.FC = () => {
                       <select
                         value={(iqcForm as any)[item.key]}
                         onChange={e => setIqcForm({ ...iqcForm, [item.key]: e.target.value })}
-                        className="p-1 rounded-[6px] sm:rounded-[8px] text-xs font-bold bg-[#fafafb] border border-[#ececec] cursor-pointer"
+                        className={`p-1 rounded-[6px] text-xs font-bold border cursor-pointer ${
+                          (iqcForm as any)[item.key] === 'Pass' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'
+                        }`}
                       >
                         <option value="Pass">Pass</option>
                         <option value="Fail">Fail</option>
@@ -801,14 +951,14 @@ export const QAView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 2: NEW IPQC 3-HOURLY AUDIT FORM (FULLY RESPONSIVE MOBILE FORM) */}
+      {/* MODAL 2: NEW IPQC 3-HOURLY AUDIT FORM (WITH SMART PARTY SEARCH & 1-TAP ALL PASS) */}
       {showIpqcModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-2xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
             <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
               <div>
                 <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">New 3-Hourly IPQC Line Inspection (PK-QA-IPQ-001)</h3>
-                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Record floor spray quality & spectrophotometer ΔE values</p>
+                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Select Party / Work Order to auto-fill line details below</p>
               </div>
               <button onClick={() => setShowIpqcModal(false)} className="text-[#979799] hover:text-[#17191c] cursor-pointer p-1">
                 <X className="w-5 h-5" />
@@ -816,6 +966,25 @@ export const QAView: React.FC = () => {
             </div>
 
             <form onSubmit={handleIpqcSubmit} className="space-y-3 sm:space-y-4">
+              {/* SMART PARTY / WORK ORDER DROPDOWN AUTO-FILL */}
+              <div className="p-3 bg-[#faf3e0]/50 rounded-[14px] border border-[#f4e5be] space-y-1.5">
+                <label className="block text-[#8a6521] font-bold text-xs flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
+                  Select Party Name / Active Job Card (Auto-Fill Details):
+                </label>
+                <select
+                  onChange={e => selectOrderForIpqc(e.target.value)}
+                  className="w-full p-2.5 rounded-[12px] border border-[#f4e5be] bg-white font-medium text-xs text-[#17191c] cursor-pointer focus:outline-none"
+                >
+                  <option value="">-- Choose Party / Job Card to Auto-Populate --</option>
+                  {availableOrders.map(o => (
+                    <option key={o.jobCardNo} value={o.jobCardNo}>
+                      {o.customer} • {o.woNo} ({o.partCode} - {o.color})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block text-[#777b86] font-medium mb-1">Work Order No</label>
@@ -849,9 +1018,20 @@ export const QAView: React.FC = () => {
                 </div>
               </div>
 
-              {/* IPQC Selection Grid - Mobile Responsive 1 to 3 columns */}
+              {/* IPQC Selection Grid with 1-Tap "Set All Pass" Button */}
               <div className="p-3.5 sm:p-4 bg-[#fafafb] rounded-[16px] sm:rounded-[20px] border border-[#ececec] space-y-2.5 sm:space-y-3">
-                <div className="font-semibold text-[#17191c] text-xs">IPQC Parameter Options:</div>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-[#17191c] text-xs">IPQC Parameter Options:</span>
+                  <button
+                    type="button"
+                    onClick={setAllIpqcPass}
+                    className="px-3 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition flex items-center gap-1 active:scale-95 cursor-pointer"
+                  >
+                    <Check className="w-3 h-3" />
+                    <span>✓ Set All Pass (100% Clean)</span>
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                   {[
                     { label: 'Bubble', key: 'bubble' },
@@ -866,7 +1046,9 @@ export const QAView: React.FC = () => {
                       <select
                         value={(ipqcForm as any)[item.key]}
                         onChange={e => setIpqcForm({ ...ipqcForm, [item.key]: e.target.value })}
-                        className="p-1 rounded-[6px] sm:rounded-[8px] text-xs font-bold bg-[#fafafb] border border-[#ececec] cursor-pointer"
+                        className={`p-1 rounded-[6px] text-xs font-bold border cursor-pointer ${
+                          (ipqcForm as any)[item.key] === 'Pass' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'
+                        }`}
                       >
                         <option value="Pass">Pass</option>
                         <option value="Fail">Fail</option>
@@ -887,19 +1069,19 @@ export const QAView: React.FC = () => {
                 <div className="grid grid-cols-4 gap-2">
                   <div>
                     <label className="block text-[10px] text-[#777b86]">L*</label>
-                    <input type="number" step="0.01" value={ipqcForm.L} onChange={e => setIpqcForm({ ...ipqcForm, L: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[10px] border border-[#ececec] bg-white font-mono text-xs" />
+                    <input type="number" step="0.01" value={ipqcForm.L} onChange={e => setIpqcForm({ ...ipqcForm, L: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] border border-[#ececec] bg-white font-mono text-xs" />
                   </div>
                   <div>
                     <label className="block text-[10px] text-[#777b86]">a*</label>
-                    <input type="number" step="0.01" value={ipqcForm.a} onChange={e => setIpqcForm({ ...ipqcForm, a: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[10px] border border-[#ececec] bg-white font-mono text-xs" />
+                    <input type="number" step="0.01" value={ipqcForm.a} onChange={e => setIpqcForm({ ...ipqcForm, a: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] border border-[#ececec] bg-white font-mono text-xs" />
                   </div>
                   <div>
                     <label className="block text-[10px] text-[#777b86]">b*</label>
-                    <input type="number" step="0.01" value={ipqcForm.b} onChange={e => setIpqcForm({ ...ipqcForm, b: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[10px] border border-[#ececec] bg-white font-mono text-xs" />
+                    <input type="number" step="0.01" value={ipqcForm.b} onChange={e => setIpqcForm({ ...ipqcForm, b: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] border border-[#ececec] bg-white font-mono text-xs" />
                   </div>
                   <div>
                     <label className="block text-[10px] text-[#777b86] font-bold">ΔE (Delta)</label>
-                    <input type="number" step="0.01" min={0} value={ipqcForm.deltaE} onChange={e => setIpqcForm({ ...ipqcForm, deltaE: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[10px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs" />
+                    <input type="number" step="0.01" min={0} value={ipqcForm.deltaE} onChange={e => setIpqcForm({ ...ipqcForm, deltaE: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs" />
                   </div>
                 </div>
               </div>
@@ -913,14 +1095,14 @@ export const QAView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 3: NEW OQC / PDI RELEASE FORM (FULLY RESPONSIVE MOBILE FORM) */}
+      {/* MODAL 3: NEW OQC / PDI RELEASE FORM (WITH SMART PARTY SEARCH & 1-TAP ALL PASS) */}
       {showOqcModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-2xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
             <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
               <div>
                 <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">New OQC / PDI Quality Release (PK-QA-OQC-001)</h3>
-                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Final pre-dispatch verification & invoicing authorization</p>
+                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Select Party / Work Order to auto-fill release details below</p>
               </div>
               <button onClick={() => setShowOqcModal(false)} className="text-[#979799] hover:text-[#17191c] cursor-pointer p-1">
                 <X className="w-5 h-5" />
@@ -928,6 +1110,25 @@ export const QAView: React.FC = () => {
             </div>
 
             <form onSubmit={handleOqcSubmit} className="space-y-3 sm:space-y-4">
+              {/* SMART PARTY / WORK ORDER DROPDOWN AUTO-FILL */}
+              <div className="p-3 bg-[#faf3e0]/50 rounded-[14px] border border-[#f4e5be] space-y-1.5">
+                <label className="block text-[#8a6521] font-bold text-xs flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
+                  Select Party Name / Work Order (Auto-Fill Details):
+                </label>
+                <select
+                  onChange={e => selectOrderForOqc(e.target.value)}
+                  className="w-full p-2.5 rounded-[12px] border border-[#f4e5be] bg-white font-medium text-xs text-[#17191c] cursor-pointer focus:outline-none"
+                >
+                  <option value="">-- Choose Party / WO to Auto-Populate --</option>
+                  {availableOrders.map(o => (
+                    <option key={o.jobCardNo} value={o.jobCardNo}>
+                      {o.customer} • {o.woNo} ({o.partCode} - {o.color})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block text-[#777b86] font-medium mb-1">Customer Name</label>
@@ -961,9 +1162,20 @@ export const QAView: React.FC = () => {
                 </div>
               </div>
 
-              {/* OQC Selection Grid - Mobile Responsive 1 to 3 columns */}
+              {/* OQC Selection Grid with 1-Tap "Set All Pass" Button */}
               <div className="p-3.5 sm:p-4 bg-[#fafafb] rounded-[16px] sm:rounded-[20px] border border-[#ececec] space-y-2.5 sm:space-y-3">
-                <div className="font-semibold text-[#17191c] text-xs">OQC Outgoing Checklist Options:</div>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-[#17191c] text-xs">OQC Outgoing Checklist Options:</span>
+                  <button
+                    type="button"
+                    onClick={setAllOqcPass}
+                    className="px-3 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition flex items-center gap-1 active:scale-95 cursor-pointer"
+                  >
+                    <Check className="w-3 h-3" />
+                    <span>✓ Set All Pass (100% Clean)</span>
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                   {[
                     { label: 'Packing (Box Condition)', key: 'packingBoxCondition' },
@@ -978,7 +1190,9 @@ export const QAView: React.FC = () => {
                       <select
                         value={(oqcForm as any)[item.key]}
                         onChange={e => setOqcForm({ ...oqcForm, [item.key]: e.target.value })}
-                        className="p-1 rounded-[6px] sm:rounded-[8px] text-xs font-bold bg-[#fafafb] border border-[#ececec] cursor-pointer"
+                        className={`p-1 rounded-[6px] text-xs font-bold border cursor-pointer ${
+                          (oqcForm as any)[item.key] === 'Pass' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'
+                        }`}
                       >
                         <option value="Pass">Pass</option>
                         <option value="Fail">Fail</option>
@@ -998,14 +1212,14 @@ export const QAView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 4: FPA GOLDEN GATE FORM */}
+      {/* MODAL 4: FPA GOLDEN GATE FORM (WITH SMART AUTO-FILL) */}
       {showFpaModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
             <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
               <div>
                 <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">New First Part Approval (FPA) Test</h3>
-                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Mass production cannot run until FPA is approved (ΔE ≤ 0.70 & 100% Adhesion)</p>
+                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Select Party / Work Order to auto-fill FPA details below</p>
               </div>
               <button 
                 onClick={() => setShowFpaModal(false)} 
@@ -1016,6 +1230,25 @@ export const QAView: React.FC = () => {
             </div>
 
             <form onSubmit={handleFpaSubmit} className="space-y-3">
+              {/* SMART PARTY / WORK ORDER DROPDOWN AUTO-FILL */}
+              <div className="p-3 bg-[#faf3e0]/50 rounded-[14px] border border-[#f4e5be] space-y-1.5">
+                <label className="block text-[#8a6521] font-bold text-xs flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
+                  Select Party Name / Job Card (Auto-Fill Details):
+                </label>
+                <select
+                  onChange={e => selectOrderForFpa(e.target.value)}
+                  className="w-full p-2.5 rounded-[12px] border border-[#f4e5be] bg-white font-medium text-xs text-[#17191c] cursor-pointer focus:outline-none"
+                >
+                  <option value="">-- Choose Party / Job Card to Auto-Populate --</option>
+                  {availableOrders.map(o => (
+                    <option key={o.jobCardNo} value={o.jobCardNo}>
+                      {o.customer} • {o.woNo} ({o.partCode} - {o.color})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block text-[#777b86] font-medium mb-1">Work Order</label>
