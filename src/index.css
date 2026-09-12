@@ -1,0 +1,242 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Newsreader", "Source Serif 4", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  
+  /* PaintKing Editorial System Palette */
+  --color-ink: #17191c;
+  --color-paper: #ffffff;
+  --color-mist: #f2f2f3;
+  --color-fog: #fafafb;
+  --color-slate: #777b86;
+  --color-ash: #979799;
+  --color-smoke: #a3a6af;
+  
+  /* PaintKing Brand Gold Accent Scale */
+  --color-accent-50: #faf7ed;
+  --color-accent-100: #faf3e0;
+  --color-accent-200: #f4e5be;
+  --color-accent-300: #edd397;
+  --color-accent-400: #dfb768;
+  --color-accent-500: #c09748;
+  --color-accent-600: #a97e35;
+  --color-accent-700: #8a6521;
+  --color-accent-800: #6d4e1d;
+  --color-accent-900: #4f3714;
+}
+
+html {
+  font-family: var(--font-sans);
+  color: #17191c;
+  background-color: #ffffff;
+}
+
+/* Enable smooth scrolling for anchor jumps, but disable on active mouse drag to prevent browser freeze */
+@media (prefers-reduced-motion: no-preference) {
+  html:not(:active) {
+    scroll-behavior: smooth;
+  }
+}
+
+html:active,
+body:active {
+  scroll-behavior: auto !important;
+}
+
+/* Prevent native HTML5 ghost dragging across the website */
+*, *::before, *::after {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+img, svg, video, a {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+/* Typography Scale */
+body, p, span, li, a, button, input, select, textarea {
+  font-family: var(--font-sans);
+}
+
+h1, h2, h3, h4, h5, h6, .font-serif, .font-editorial {
+  font-family: var(--font-serif);
+  font-weight: 400;
+}
+
+/* 
+ * Standardized Geometry & Elevation Architecture:
+ * - Content Cards: 24px
+ * - Small Cards: 16px
+ * - Inputs: 16px
+ * - Buttons / Pills: 9999px (Fully rounded)
+ * - Floating Product Artifacts: 20px with subtle 10% elevation
+ */
+
+.pill-btn {
+  border-radius: 9999px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pill-btn-filled {
+  background-color: #17191c;
+  color: #ffffff;
+  border-radius: 9999px;
+  padding: 0.625rem 1.35rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.pill-btn-filled:hover {
+  background-color: #2b2e33;
+  transform: translateY(-1px);
+}
+
+.pill-btn-gold {
+  background-color: #c09748;
+  color: #ffffff;
+  border-radius: 9999px;
+  padding: 0.625rem 1.35rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px -2px rgba(192, 151, 72, 0.35);
+}
+.pill-btn-gold:hover {
+  background-color: #a97e35;
+  transform: translateY(-1px);
+}
+
+.pill-btn-ghost {
+  background-color: transparent;
+  color: #17191c;
+  border: 1px solid #17191c;
+  border-radius: 9999px;
+  padding: 0.625rem 1.35rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.pill-btn-ghost:hover {
+  background-color: #f2f2f3;
+}
+
+/* Floating Product Artifact */
+.floating-artifact {
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 0 0 1px rgba(4,23,43,0.05), 0 20px 25px -5px rgba(0,0,0,0.08), 0 8px 10px -6px rgba(0,0,0,0.05);
+}
+
+/* Neutral Card */
+.card-neutral {
+  background: #f2f2f3;
+  border-radius: 24px;
+}
+
+/* Accent Champagne Card */
+.card-champagne {
+  background: #faf3e0;
+  color: #8a6521;
+  border-radius: 24px;
+}
+
+/* Inputs & Form Controls */
+.input-editorial,
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+input[type="url"],
+input[type="search"],
+input[type="number"],
+select,
+textarea {
+  border-radius: 16px;
+  border: 1px solid #ececec;
+  background-color: #ffffff;
+  color: #17191c;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-editorial:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #c09748;
+  box-shadow: 0 0 0 3px rgba(192, 151, 72, 0.18);
+}
+
+/* Accessibility & Keyboard Navigation */
+:focus-visible {
+  outline: 2px solid #c09748;
+  outline-offset: 2px;
+}
+
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+a {
+  cursor: pointer;
+}
+
+/* Reduced Motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #fafafb;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #dcdce0;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #c09748;
+}
+
+/* Hide scrollbar utility for sleek horizontal swipe containers */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none !important; /* IE and Edge */
+  scrollbar-width: none !important; /* Firefox */
+}
+
+/* Global suppression of horizontal scrollbars on touch / mobile devices */
+@media (max-width: 1024px) {
+  ::-webkit-scrollbar:horizontal {
+    display: none !important;
+    height: 0 !important;
+  }
+}
+
+

@@ -1,0 +1,8 @@
+{
+  "name": "Paintking Website V2",
+  "description": "This is Version 2 of PaintKing Website.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

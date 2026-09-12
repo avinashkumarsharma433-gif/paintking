@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PaintKing Brand Assets Suite • Email Signatures & Advertisement Banner</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Exact Website Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f4f5f8; color: #17191c; }
+    .font-serif { font-family: 'Newsreader', Georgia, serif; }
+    .font-mono { font-family: 'Space Mono', monospace; }
+    
+    /* Smooth tab switching animation */
+    .tab-btn.active {
+      background-color: #17191c;
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    }
+    .tab-btn:not(.active) {
+      background-color: #ffffff;
+      color: #555a64;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 sm:p-8 md:p-12">
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-8 right-8 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-[#17191c] text-white px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 border border-[#c09748]/30">
+    <div class="w-6 h-6 rounded-full bg-[#c09748] flex items-center justify-center text-white text-xs font-bold">✓</div>
+    <div>
+      <div id="toast-title" class="font-bold text-xs">Copied to Clipboard!</div>
+      <div id="toast-desc" class="text-[11px] text-slate-300">Ready to direct paste (Ctrl+V) in Gmail or Outlook.</div>
+    </div>
+  </div>
+
+  <!-- Header & Navigation Hub -->
+  <header class="max-w-6xl mx-auto mb-10">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white p-8 rounded-3xl border border-slate-200/80 shadow-sm">
+      <div>
+        <div class="inline-flex items-center gap-2 px-3.5 py-1 bg-[#faf3e0] border border-[#f4e5be] rounded-full text-[#8a6521] text-xs font-bold uppercase tracking-widest mb-3">
+          PaintKing Marketing &amp; Email Hub
+        </div>
+        <h1 class="text-3xl sm:text-4xl font-serif text-[#17191c]">Brand Assets &amp; Signatures Studio</h1>
+        <p class="text-sm text-slate-500 mt-1.5">One-click copy tool for official email signatures and 3:2 landscape advertisement banners.</p>
+      </div>
+
+      <!-- Segment Tabs -->
+      <div class="flex items-center bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+        <button onclick="switchTab('signatures')" id="tab-signatures-btn" class="tab-btn active px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer">
+          ✉️ Email Signatures
+        </button>
+        <button onclick="switchTab('banner')" id="tab-banner-btn" class="tab-btn px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer">
+          🖼️ Advertisement Banner
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-6xl mx-auto space-y-12">
+
+    <!-- ========================================================================= -->
+    <!-- TAB 1: EMAIL SIGNATURES (REACT-EMAIL ARCHITECTURE) -->
+    <!-- ========================================================================= -->
+    <div id="tab-signatures" class="space-y-10">
+
+      <!-- MD SIGNATURE CARD -->
+      <section class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-slate-100 pb-5">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-[#c09748]">Executive Official Format</span>
+            <h2 class="text-2xl font-serif text-slate-900 mt-0.5">Managing Director (Gurpreet Singh)</h2>
+            <p class="text-xs text-slate-500 mt-1">IVORY Gradient Surface • Centered Circular Badges • Units Only • Official Tagline</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="copyVisualSignature('sig-md')" class="px-5 py-2.5 bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold rounded-full transition-all flex items-center gap-2 shadow-md cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+              Copy for Gmail / Outlook
+            </button>
+            <button onclick="copyRawHtml('sig-md')" class="px-4 py-2.5 bg-[#17191c] hover:bg-black text-white text-xs font-bold rounded-full transition-all flex items-center gap-2 shadow-sm cursor-pointer">
+              Copy HTML Code
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Signature Preview Window -->
+        <div class="p-8 bg-[#f8f9fa] rounded-2xl border border-slate-200 overflow-x-auto flex justify-center">
+          <div id="sig-md">
+<!-- START HTML SIGNATURE: MANAGING DIRECTOR -->
+<table cellpadding="0" cellspacing="0" border="0" style="font-family: 'Plus Jakarta Sans', Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.4; color: #17191c; max-width: 630px; width: 100%; border-radius: 20px; overflow: hidden; background: linear-gradient(135deg, #ffffff 0%, #faf8f2 50%, #f4eee0 100%); border: 1px solid #f0e6cf; box-shadow: 0 10px 30px -8px rgba(192,151,72,0.18);">
+  <tbody>
+    <tr>
+      <td style="padding: 26px 24px;">
+        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr>
+            <!-- Left: Logo & Larger Tagline Column -->
+            <td style="vertical-align: middle; width: 180px; text-align: center; padding-right: 22px;">
+              <a href="https://paintking.in/" target="_blank" style="text-decoration: none; display: inline-block;">
+                <img src="https://paintking.in/wp-content/uploads/2024/05/Paintking-logo-PNG-hi-rez-e1729592247105-1024x405.png" alt="PaintKing" width="155" style="display: block; width: 155px; height: auto; border: 0;" />
+              </a>
+              <div style="margin-top: 12px; font-size: 11.5px; font-weight: 700; color: #8a6521; line-height: 1.4; font-family: 'Plus Jakarta Sans', Arial, sans-serif; text-align: center; letter-spacing: 0.1px;">
+                Innovative Kingdom of<br>Paint &amp; Print Solutions
+              </div>
+            </td>
+
+            <!-- Middle: Vertical Gold Separator -->
+            <td style="width: 2px; background-color: #c09748; padding: 0; font-size: 0; line-height: 0;">&nbsp;</td>
+
+            <!-- Right: Executive Info & Circular Icons -->
+            <td style="vertical-align: middle; padding-left: 24px;">
+              <div>
+                <div style="font-size: 23px; font-weight: normal; color: #17191c; letter-spacing: -0.3px; font-family: 'Newsreader', Georgia, serif; line-height: 1.15;">
+                  Gurpreet Singh
+                </div>
+                <div style="font-size: 11px; font-weight: 700; color: #c09748; text-transform: uppercase; letter-spacing: 1.8px; margin-top: 3px; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
+                  Managing Director &bull; PaintKing
+                </div>
+              </div>
+
+              <!-- Contact Rows with Perfect Circular Badges -->
+              <table cellpadding="0" cellspacing="0" border="0" style="margin-top: 14px; font-size: 12px; color: #475569; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
+                <!-- Phone -->
+                <tr>
+                  <td style="padding-bottom: 7px; width: 28px; vertical-align: middle;">
+                    <table cellpadding="0" cellspacing="0" border="0" style="width: 22px; height: 22px; border-collapse: separate;">
+                      <tr>
+                        <td align="center" valign="middle" style="width: 22px; height: 22px; border-radius: 50%; -webkit-border-radius: 50%; -moz-border-radius: 50%; background-color: #faf3e0; border: 1px solid #f4e5be; padding: 0; text-align: center; vertical-align: middle;">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8a6521" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="display: block; margin: 0 auto;">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                          </svg>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td style="padding-bottom: 7px; vertical-align: middle; padding-left: 6px;">
+                    <a href="tel:+919594591313" style="color: #17191c; text-decoration: none; font-weight: 600;">+91 9594591313</a>
+                  </td>
+                </tr>
+
+                <!-- Email -->
+                <tr>
+                  <td style="padding-bottom: 7px; width: 28px; vertical-align: middle;">
+                    <table cellpadding="0" cellspacing="0" border="0" style="width: 22px; height: 22px; border-collapse: separate;">
+                      <tr>
+                        <td align="center" valign="middle" style="width: 22px; height: 22px; border-radius: 50%; -webkit-border-radius: 50%; -moz-border-radius: 50%; background-color: #faf3e0; border: 1px solid #f4e5be; padding: 0; text-align: center; vertical-align: middle;">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8a6521" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="display: block; margin: 0 auto;">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                            <polyline points="22,6 12,13 2,6"></polyline>
+                          </svg>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td style="padding-bottom: 7px; vertical-align: middle; padding-left: 6px;">
+                    <a href="mailto:gurpritsingh@paintking.in" style="color: #c09748; text-decoration: none; font-weight: 700;">gurpritsingh@paintking.in</a>
+                  </td>
+                </tr>
+
+                <!-- Website -->
+                <tr>
+                  <td style="padding-bottom: 7px; width: 28px; vertical-align: middle;">
+                    <table cellpadding="0" cellspacing="0" border="0" style="width: 22px; height: 22px; border-collapse: separate;">
+                      <tr>
+                        <td align="center" valign="middle" style="width: 22px; height: 22px; border-radius: 50%; -webkit-border-radius: 50%; -moz-border-radius: 50%; background-color: #faf3e0; border: 1px solid #f4e5be; padding: 0; text-align: center; vertical-align: middle;">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8a6521" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="display: block; margin: 0 auto;">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"></path>
+                          </svg>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td style="padding-bottom: 7px; vertical-align: middle; padding-left: 6px;">
+                    <a href="https://paintking.in/" target="_blank" style="color: #17191c; text-decoration: none; font-weight: 500;">www.paintking.in</a>
+                  </td>
+                </tr>
+
+                <!-- Units Only Row -->
+                <tr>
+                  <td style="padding-top: 2px; width: 28px; vertical-align: middle;">
+                    <table cellpadding="0" cellspacing="0" border="0" style="width: 22px; height: 22px; border-collapse: separate;">
+                      <tr>
+                        <td align="center" valign="middle" style="width: 22px; height: 22px; border-radius: 50%; -webkit-border-radius: 50%; -moz-border-radius: 50%; background-color: #faf3e0; border: 1px solid #f4e5be; padding: 0; text-align: center; vertical-align: middle;">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8a6521" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="display: block; margin: 0 auto;">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                          </svg>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td style="padding-top: 2px; font-size: 11.5px; color: #17191c; font-weight: 600; vertical-align: middle; padding-left: 6px;">
+                    <span style="color: #8a6521; font-weight: 700;">Units:</span> Mumbai HO &bull; Haridwar &bull; Vapi &bull; Vasai
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<!-- END HTML SIGNATURE: MANAGING DIRECTOR -->
+          </div>
+        </div>
+      </section>
+
+
+      <!-- GENERAL BUSINESS / TECHNICAL RFQ SIGNATURE -->
+      <section class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-slate-100 pb-5">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-[#c09748]">Corporate Official Format</span>
+            <h2 class="text-2xl font-serif text-slate-900 mt-0.5">General Business / Technical RFQ Team</h2>
+            <p class="text-xs text-slate-500 mt-1">Best for Sales, Client Inquiries, Estimations &amp; Central Support</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="copyVisualSignature('sig-corp')" class="px-5 py-2.5 bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold rounded-full transition-all flex items-center gap-2 shadow-md cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+              Copy for Gmail / Outlook
+            </button>
+            <button onclick="copyRawHtml('sig-corp')" class="px-4 py-2.5 bg-[#17191c] hover:bg-black text-white text-xs font-bold rounded-full transition-all flex items-center gap-2 shadow-sm cursor-pointer">
+              Copy HTML Code
+            </button>
+          </div>
+        </div>
+
+        <div class="p-8 bg-[#f8f9fa] rounded-2xl border border-slate-200 overflow-x-auto flex justify-center">
+          <div id="sig-corp">
+<!-- START HTML SIGNATURE: CORPORATE -->
+<table cellpadding="0" cellspacing="0" border="0" style="font-family: 'Plus Jakarta Sans', Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.4; color: #17191c; max-width: 630px; width: 100%; border-radius: 20px; overflow: hidden; background: linear-gradient(135deg, #ffffff 0%, #faf8f2 50%, #f4eee0 100%); border: 1px solid #f0e6cf; box-shadow: 0 10px 30px -8px rgba(192,151,72,0.18);">
+  <tbody>
+    <tr>
+      <td style="padding: 26px 24px;">
+        <table cellpadding="0" cellspacing="0" border="0" width="100%">
+          <tr>
+            <!-- Left Logo & Larger Tagline -->
+            <td style="vertical-align: middle; width: 180px; text-align: center; padding-right: 22px;">
+              <a href="https://paintking.in/" target="_blank" style="text-decoration: none; display: inline-block;">
+                <img src="https://paintking.in/wp-content/uploads/2024/05/Paintking-logo-PNG-hi-rez-e1729592247105-1024x405.png" alt="PaintKing" width="155" style="display: block; width: 155px; height: auto; border: 0;" />
+              </a>
+              <div style="margin-top: 12px; font-size: 11.5px; font-weight: 700; color: #8a6521; line-height: 1.4; font-family: 'Plus Jakarta Sans', Arial, sans-serif; text-align: center; letter-spacing: 0.1px;">
+                Innovative Kingdom of<br>Paint &amp; Print Solutions
+              </div>
+            </td>
+
+            <!-- Center Divider -->
+            <td style="width: 2px; background-color: #c09748; padding: 0; font-size: 0; line-height: 0;">&nbsp;</td>
+
+            <!-- Right Info -->
+            <td style="vertical-align: middle; padding-left: 24px;">
+              <div>
+                <div style="font-size: 23px; font-weight: normal; color: #17191c; letter-spacing: -0.3px; font-family: 'Newsreader', Georgia, serif; line-height: 1.15;">
+                  PaintKing Technical Team
+                </div>
+                <div style="font-size: 11px; font-weight: 700; color: #c09748; text-transform: uppercase; letter-spacing: 1.8px; margin-top: 3px; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
+                  Surface Solutions &bull; Technical RFQ
+                </div>
+              </div>
+
+              <!-- Contact Rows -->
+              <table cellpadding="0" cellspacing="0" border="0" style="margin-top: 14px; font-size: 12px; color: #475569; font-family: 'Plus Jakarta Sans', Arial, sans-serif;">
+                <tr>
+                  <td style="padding-bottom: 7px; width: 28px; vertical-align: middle;">
+                    <table cellpadding="0" cellspacing="0" border="0" style="width: 22px; height: 22px; border-collapse: separate;">
+                      <tr>
+                        <td align="center" valign="middle" style="width: 22px; height: 22px; border-radius: 50%; -webkit-border-radius: 50%; -moz-border-radius: 50%; background-color: #faf3e0; border: 1px solid #f4e5be; padding: 0; text-align: center; vertical-align: middle;">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8a6521" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="display: block; margin: 0 auto;">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                          </svg>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td style="padding-bottom: 7px; vertical-align: middle; padding-left: 6px;">
+                    <a href="tel:+919594591313" style="color: #17191c; text-decoration: none; font-weight: 600;">+91 9594591313</a>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding-bottom: 7px; width: 28px; vertical-align: middle;">
+                    <table cellpadding="0" cellspacing="0" border="0" style="width: 22px; height: 22px; border-collapse: separate;">
+                      <tr>
+                        <td align="center" valign="middle" style="width: 22px; height: 22px; border-radius: 50%; -webkit-border-radius: 50%; -moz-border-radius: 50%; background-color: #faf3e0; border: 1px solid #f4e5be; padding: 0; text-align: center; vertical-align: middle;">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8a6521" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="display: block; margin: 0 auto;">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                            <polyline points="22,6 12,13 2,6"></polyline>
+                          </svg>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td style="padding-bottom: 7px; vertical-align: middle; padding-left: 6px;">
+                    <a href="mailto:info@paintking.in" style="color: #c09748; text-decoration: none; font-weight: 700;">info@paintking.in</a>
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding-bottom: 7px; width: 28px; vertical-align: middle;">
+                    <table cellpadding="0" cellspacing="0" border="0" style="width: 22px; height: 22px; border-collapse: separate;">
+                      <tr>
+                        <td align="center" valign="middle" style="width: 22px; height: 22px; border-radius: 50%; -webkit-border-radius: 50%; -moz-border-radius: 50%; background-color: #faf3e0; border: 1px solid #f4e5be; padding: 0; text-align: center; vertical-align: middle;">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8a6521" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="display: block; margin: 0 auto;">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"></path>
+                          </svg>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td style="padding-bottom: 7px; vertical-align: middle; padding-left: 6px;">
+                    <a href="https://paintking.in/" target="_blank" style="color: #17191c; text-decoration: none; font-weight: 500;">www.paintking.in</a>
+                  </td>
+                </tr>
+
+                <!-- Units Only Row -->
+                <tr>
+                  <td style="padding-top: 2px; width: 28px; vertical-align: middle;">
+                    <table cellpadding="0" cellspacing="0" border="0" style="width: 22px; height: 22px; border-collapse: separate;">
+                      <tr>
+                        <td align="center" valign="middle" style="width: 22px; height: 22px; border-radius: 50%; -webkit-border-radius: 50%; -moz-border-radius: 50%; background-color: #faf3e0; border: 1px solid #f4e5be; padding: 0; text-align: center; vertical-align: middle;">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8a6521" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="display: block; margin: 0 auto;">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                          </svg>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td style="padding-top: 2px; font-size: 11.5px; color: #17191c; font-weight: 600; vertical-align: middle; padding-left: 6px;">
+                    <span style="color: #8a6521; font-weight: 700;">Units:</span> Mumbai HO &bull; Haridwar &bull; Vapi &bull; Vasai
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<!-- END HTML SIGNATURE: CORPORATE -->
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: ADVERTISEMENT BANNER (3:2 LANDSCAPE) -->
+    <!-- ========================================================================= -->
+    <div id="tab-banner" class="hidden space-y-10">
+
+      <section class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-sm">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-slate-100 pb-5">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-[#c09748]">Official 3:2 Landscape Graphic</span>
+            <h2 class="text-2xl font-serif text-slate-900 mt-0.5">PaintKing 4 Services Showcase Banner</h2>
+            <p class="text-xs text-slate-500 mt-1">Resolution: 1800 × 1200px (3:2 Aspect Ratio) • Ready for Social Ads, Portfolios &amp; Client Proposals</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <a href="banner_advertisement.png" download="PaintKing_3x2_Banner.png" class="px-5 py-2.5 bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold rounded-full transition-all flex items-center gap-2 shadow-md cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+              Download PNG Image
+            </a>
+            <a href="banner_advertisement.html" target="_blank" class="px-4 py-2.5 bg-[#17191c] hover:bg-black text-white text-xs font-bold rounded-full transition-all flex items-center gap-2 shadow-sm cursor-pointer">
+              Open Full HTML Banner &rarr;
+            </a>
+          </div>
+        </div>
+
+        <!-- Rendered Image Preview -->
+        <div class="p-4 bg-slate-100 rounded-2xl border border-slate-200 overflow-hidden shadow-inner">
+          <img src="banner_advertisement.png" alt="PaintKing Advertisement Banner" class="w-full h-auto rounded-xl shadow-lg border border-slate-200/80" />
+        </div>
+      </section>
+
+    </div>
+
+  </main>
+
+  <!-- JavaScript Hub Functionality -->
+  <script>
+    function switchTab(tab) {
+      const sigTab = document.getElementById('tab-signatures');
+      const banTab = document.getElementById('tab-banner');
+      const sigBtn = document.getElementById('tab-signatures-btn');
+      const banBtn = document.getElementById('tab-banner-btn');
+
+      if (tab === 'signatures') {
+        sigTab.classList.remove('hidden');
+        banTab.classList.add('hidden');
+        sigBtn.classList.add('active');
+        banBtn.classList.remove('active');
+      } else {
+        sigTab.classList.add('hidden');
+        banTab.classList.remove('hidden');
+        sigBtn.classList.remove('active');
+        banBtn.classList.add('active');
+      }
+    }
+
+    function showToast(title, desc) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-title').innerText = title;
+      document.getElementById('toast-desc').innerText = desc;
+
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 3500);
+    }
+
+    function copyVisualSignature(id) {
+      const el = document.getElementById(id);
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      try {
+        document.execCommand('copy');
+        showToast('✓ Signature Copied!', 'Ab direct Gmail ya Outlook settings me Paste (Ctrl + V) kar dein.');
+      } catch (err) {
+        navigator.clipboard.writeText(el.innerHTML);
+        showToast('✓ HTML Code Copied!', 'Signature HTML code clipboard me copy ho gaya hai.');
+      }
+      sel.removeAllRanges();
+    }
+
+    function copyRawHtml(id) {
+      const el = document.getElementById(id);
+      navigator.clipboard.writeText(el.innerHTML).then(() => {
+        showToast('✓ HTML Source Copied!', 'Signature ka raw HTML code clipboard me save ho gaya hai.');
+      }).catch(err => {
+        console.error('Copy failed:', err);
+      });
+    }
+  </script>
+
+</body>
+</html>

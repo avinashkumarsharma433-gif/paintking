@@ -1,0 +1,220 @@
+# SEO STRATEGY & KEYWORD RESEARCH REPORT
+## Website: PaintKing.in
+### Prepared: [Date yahan daal do]
+
+---
+
+## 1. EXECUTIVE SUMMARY
+
+PaintKing.in is a B2B industrial surface-finishing company (est. 2000, 51-200 employees) with two units — Kandivali West, Mumbai and SIDCUL, Haridwar. Core services: Spray Painting, Hydrographic (Water Transfer) Printing, Digital Printing, and Injection Moulding — serving OEMs in automotive, toys, appliances, and consumer durables.
+
+CURRENT GAPS IDENTIFIED:
+- Blog exists but is thin (7 posts), poorly interlinked, not built on a keyword map
+- No dedicated Injection Moulding page despite it being a core service
+- No city/location landing pages (Mumbai, Haridwar, SIDCUL)
+- No pricing/cost content — high-intent queries going unfulfilled
+- No industry vertical pages
+
+STRATEGY: Target "industrial coating + India" long-tail. Competitors (Mefron, Rustagi Polymers, Hydrographics India) rank with generic content — nobody systematically targets cost queries, city-specific B2B searches, and paint-defect educational content. 90-day sprint of ~24 blogs across 8 clusters recommended.
+
+---
+
+## 2. KEYWORD STRATEGY — 8 CLUSTERS
+
+| # | Cluster | Funnel Stage | Business Value |
+|---|---------|--------------|----------------|
+| 1 | Cost & Pricing | BOFU | High - Direct enquiries |
+| 2 | Service + Location | BOFU | High - Local SEO + GBP |
+| 3 | Industry Verticals | MOFU | High - Qualified B2B leads |
+| 4 | Comparisons | MOFU | Medium - Decision stage |
+| 5 | Process / How-it-works | TOFU/MOFU | Medium - Authority building |
+| 6 | Problem-Solution / Defects | MOFU | Medium - Expertise signal |
+| 7 | Materials & Substrates | TOFU | Medium - Topical depth |
+| 8 | Sustainability & QC | TOFU | Medium - E-E-A-T |
+
+---
+
+## 3. KEYWORD LIST — BLOG TOPICS BY CLUSTER
+
+### CLUSTER 1: COST & PRICING (BOFU — Start Here)
+
+| # | Keyword / Topic | Intent | Priority |
+|---|----------------|--------|----------|
+| 1 | hydro dipping cost per square inch India | Commercial | P1 |
+| 2 | hydrographic printing price in India | Commercial | P1 |
+| 3 | spray painting service cost per sq ft Mumbai | Commercial | P1 |
+| 4 | water transfer printing charges for helmet India | Commercial | P1 |
+| 5 | how much does it cost to hydro dip alloy wheels India | Commercial | P1 |
+| 6 | injection moulding cost per part India | Commercial | P1 |
+| 7 | industrial spray painting rates per square foot | Commercial | P1 |
+| 8 | digital printing on plastic products price India | Commercial | P2 |
+| 9 | factors affecting hydro dipping cost (film, size, quantity) | Commercial | P1 |
+| 10 | minimum order quantity MOQ for spray painting India | Commercial | P1 |
+
+### CLUSTER 2: SERVICE + LOCATION (BOFU — Local SEO)
+
+| # | Keyword / Topic | Intent | Priority |
+|---|----------------|--------|----------|
+| 11 | hydrographic printing services in Mumbai | Commercial | P1 |
+| 12 | spray painting services Kandivali West | Commercial | P1 |
+| 13 | industrial painting contractors SIDCUL Haridwar | Commercial | P1 |
+| 14 | water transfer printing Mumbai | Commercial | P1 |
+| 15 | injection moulding manufacturer Mumbai | Commercial | P1 |
+| 16 | hydro dipping services near me Maharashtra | Commercial | P2 |
+| 17 | industrial coating services Haridwar Uttarakhand | Commercial | P1 |
+| 18 | spray painting job work in Mumbai | Commercial | P1 |
+| 19 | hydrographic film printing service India | Commercial | P2 |
+| 20 | OEM spray painting contractor Pan India | Commercial | P2 |
+
+### CLUSTER 3: INDUSTRY VERTICALS (MOFU — Highest Lead Quality)
+
+| # | Keyword / Topic | Intent | Priority |
+|---|----------------|--------|----------|
+| 21 | hydro dipping for car interior parts India (dashboard, trims) | Commercial | P1 |
+| 22 | helmet hydro dipping services India | Commercial | P1 |
+| 23 | spray painting for toys manufacturer India | Commercial | P1 |
+| 24 | coating services for home appliances (mixer, juicer, hair dryer) | Commercial | P1 |
+| 25 | hydro dipping motorcycle parts fuel tank India | Commercial | P2 |
+| 26 | gaming console controller hydro dipping India | Commercial | P2 |
+| 27 | mobile phone cover hydro dipping custom design | Commercial | P2 |
+| 28 | alloy wheel hydro dipping carbon fiber India | Commercial | P2 |
+| 29 | spray painting for electrical switch boards India | Commercial | P2 |
+| 30 | furniture spray painting services India (wooden/MDF) | Commercial | P2 |
+| 31 | coating for electronic appliance casings India | Commercial | P2 |
+| 32 | sports equipment spray painting customization | Commercial | P3 |
+
+### CLUSTER 4: COMPARISON KEYWORDS (MOFU)
+
+| # | Keyword / Topic | Intent | Priority |
+|---|----------------|--------|----------|
+| 33 | powder coating vs spray painting which is better | Informational | P1 |
+| 34 | hydro dipping vs spray painting difference | Informational | P1 |
+| 35 | PU paint vs epoxy coating industrial | Informational | P2 |
+| 36 | DIY hydro dipping vs professional service | Informational | P1 |
+| 37 | water transfer printing vs vinyl wrap | Informational | P2 |
+| 38 | liquid coating vs powder coating for plastics | Informational | P2 |
+| 39 | matte vs gloss finish spray painting | Informational | P3 |
+| 40 | digital printing vs screen printing on products | Informational | P2 |
+| 41 | hydro dipping vs hydrographic film lamination | Informational | P3 |
+
+### CLUSTER 5: PROCESS / EDUCATIONAL (TOFU — Topical Authority)
+
+| # | Keyword / Topic | Intent | Priority |
+|---|----------------|--------|----------|
+| 42 | what is hydrographic printing how it works | Informational | P1 |
+| 43 | water transfer printing process step by step | Informational | P1 |
+| 44 | how does hydro dipping work on plastic | Informational | P1 |
+| 45 | spray painting process for industrial products | Informational | P1 |
+| 46 | surface preparation before spray painting guide | Informational | P2 |
+| 47 | injection moulding process explained | Informational | P2 |
+| 48 | types of spray painting finishes (matte, gloss, metallic, textured) | Informational | P1 |
+| 49 | what is conveyorised spray painting line | Informational | P3 |
+| 50 | hydro dipping film patterns types (carbon fiber, wood grain, camo, marble) | Informational | P2 |
+| 51 | automated spray painting vs manual which is better | Informational | P2 |
+
+### CLUSTER 6: PROBLEM-SOLUTION / PAINT DEFECTS (MOFU)
+
+| # | Keyword / Topic | Intent | Priority |
+|---|----------------|--------|----------|
+| 52 | how to fix orange peel in spray paint | Informational | P1 |
+| 53 | causes of paint peeling off plastic | Informational | P1 |
+| 54 | spray painting defects and solutions | Informational | P1 |
+| 55 | how to improve paint adhesion on polypropylene | Informational | P2 |
+| 56 | why paint bubbles on plastic surface | Informational | P2 |
+| 57 | paint sagging runs causes solutions | Informational | P2 |
+| 58 | color mismatch in spray painting how to fix | Informational | P2 |
+| 59 | hydro dipping common mistakes problems | Informational | P2 |
+| 60 | fish eyes in paint causes prevention | Informational | P3 |
+
+### CLUSTER 7: MATERIALS & SUBSTRATES (TOFU)
+
+| # | Keyword / Topic | Intent | Priority |
+|---|----------------|--------|----------|
+| 61 | best paint for ABS plastic | Informational | P1 |
+| 62 | can you hydro dip polypropylene PP plastic | Informational | P2 |
+| 63 | painting on polycarbonate PC surfaces | Informational | P2 |
+| 64 | spray painting on steel vs aluminium | Informational | P2 |
+| 65 | adhesion promoter for low surface energy plastics | Informational | P2 |
+| 66 | hydro dipping on metal glass wood | Informational | P2 |
+| 67 | which materials can be hydro dipped | Informational | P1 |
+| 68 | primer for plastic before spray painting | Informational | P1 |
+
+### CLUSTER 8: SUSTAINABILITY & QUALITY CONTROL (TOFU — E-E-A-T)
+
+| # | Keyword / Topic | Intent | Priority |
+|---|----------------|--------|----------|
+| 69 | low VOC industrial coatings India | Informational | P2 |
+| 70 | eco friendly spray painting solutions | Informational | P2 |
+| 71 | spectrophotometer color matching in paint QC | Informational | P2 |
+| 72 | how color consistency is maintained in industrial painting | Informational | P2 |
+| 73 | RoHS compliant coatings India | Informational | P3 |
+| 74 | powder coating sustainability benefits | Informational | P3 |
+| 75 | ISO certified painting company India | Commercial | P2 |
+
+---
+
+## 4. 90-DAY CONTENT CALENDAR (Cadence: 2 blogs/week)
+
+| Month | Focus | Posts | Sample Topics |
+|-------|-------|-------|---------------|
+| Month 1 | BOFU quick wins | 8 | Topics #1, #2, #3, #11, #21, #22, #23, #24 |
+| Month 2 | Verticals + Comparisons | 8 | Topics #25-32, #33, #34, #36, #4, #5 |
+| Month 3 | Educational + Defects | 8 | Topics #42, #43, #44, #48, #52, #53, #54, #61 |
+
+PILLAR-CLUSTER MAPPING: Each service (Hydrographics / Spray Painting / Injection Moulding / Digital Printing) becomes a pillar page. Every blog in that cluster links back to the pillar with exact-match anchor text.
+
+---
+
+## 5. ON-PAGE & TECHNICAL RECOMMENDATIONS
+
+1. TITLE TAGS: Pattern = {Keyword} in {City} | PaintKing
+   Example: "Hydrographic Printing Services in Mumbai | PaintKing"
+
+2. SCHEMA MARKUP: Add LocalBusiness, Service, FAQPage, and Organization JSON-LD. FAQ schema on every blog targeting a People-Also-Ask question.
+
+3. INTERNAL LINKING: Every blog → pillar page → service page → contact. Fix orphan pages.
+
+4. IMAGE SEO: Rename gallery images (e.g., hydro-dipped-alloy-wheels-mumbai.jpg), add descriptive alt text.
+
+5. MISSING PAGE: Add dedicated Injection Moulding service page.
+
+6. CITY PAGES: Create /spray-painting-services-mumbai/ and /industrial-coating-haridwar/ with NAP consistency for local pack ranking.
+
+7. PAGE SPEED: Compress gallery images; enable lazy loading.
+
+---
+
+## 6. OFF-PAGE & AUTHORITY BUILDING
+
+| Tactic | Target |
+|--------|--------|
+| B2B Directories | IndiaMART, TradeIndia, Justdial, Kompass — claim and optimize all listings |
+| Industry Associations | Paint & Coating associations, SIDCUL industrial bodies |
+| Guest Posts | Manufacturing / plastics / automotive blogs and forums (Team-BHP style for automotive hydrographics) |
+| LinkedIn Thought Leadership | Founder-led posts on paint defects, QC processes |
+| Case Studies with PDFs | "How we coated 50K toy units for XYZ brand" — attracts trade media backlinks |
+
+---
+
+## 7. QUICK WINS (WEEK 1 ACTION ITEMS)
+
+1. Fix blog internal linking + add "Get a Quote" CTA buttons on all posts
+2. Add FAQ schema to the 7 existing blogs
+3. Publish "Hydro Dipping Cost in India" blog — near-zero Indian competition, high buyer intent
+4. Create Google Business Profile posts 2x/week linking to new blogs
+5. Add Injection Moulding service page
+
+---
+
+## 8. CONCLUSION
+
+PaintKing's biggest SEO opportunity is owning the "industrial coating + India" long-tail. A 90-day sprint of ~24 blogs across the 8 clusters should move the site from invisible to page-1 for a meaningful set of BOFU (bottom-of-funnel) keywords, driving qualified B2B enquiries.
+
+**PRIORITY LEGEND:**
+- P1 = Immediate (Month 1-2)
+- P2 = Near-term (Month 2-3)
+- P3 = Later (Month 3+)
+```
+
+---
+
