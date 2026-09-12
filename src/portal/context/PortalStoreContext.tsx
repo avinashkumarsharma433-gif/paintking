@@ -5,6 +5,7 @@ import {
   PlantLocation,
   ShiftType,
   GoodsReceiptNote,
+  IQCInspectionRecord,
   CustodyHandover,
   JobCard,
   FPARecord,
@@ -20,6 +21,7 @@ import {
 import {
   INITIAL_USER_PROFILES,
   INITIAL_GRN_DATA,
+  INITIAL_IQC_RECORDS,
   INITIAL_HANDOVERS,
   INITIAL_JOB_CARDS,
   INITIAL_FPA_RECORDS,
@@ -43,6 +45,7 @@ interface PortalContextType {
 
   // Data Collections
   grnList: GoodsReceiptNote[];
+  iqcRecords: IQCInspectionRecord[];
   handovers: CustodyHandover[];
   jobCards: JobCard[];
   fpaRecords: FPARecord[];
@@ -56,6 +59,9 @@ interface PortalContextType {
 
   // Logic Engine Actions
   addGRN: (grn: GoodsReceiptNote) => void;
+  addIQCRecord: (iqc: IQCInspectionRecord) => void;
+  addIPQCRecord: (ipqc: IPQCRecord) => void;
+  addOQCRelease: (release: FinalQualityRelease) => void;
   addJobCard: (jc: JobCard) => void;
   
   // Problem 2: Inter-stage Handover & Custody Logic
@@ -131,6 +137,11 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [grnList, setGrnList] = useState<GoodsReceiptNote[]>(() => {
     const s = localStorage.getItem('pk_grn_data');
     return s ? JSON.parse(s) : INITIAL_GRN_DATA;
+  });
+
+  const [iqcRecords, setIqcRecords] = useState<IQCInspectionRecord[]>(() => {
+    const s = localStorage.getItem('pk_iqc_data');
+    return s ? JSON.parse(s) : INITIAL_IQC_RECORDS;
   });
 
   const [handovers, setHandovers] = useState<CustodyHandover[]>(() => {
@@ -572,6 +583,17 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const updateGatePassStatus = (gatePassNo: string, status: GatePassRecord['status']) => {
     setGatePasses(prev => prev.map(gp => gp.gatePassNo === gatePassNo ? { ...gp, status } : gp));
   };
+  const addIQCRecord = (iqc: IQCInspectionRecord) => {
+    setIqcRecords(prev => [iqc, ...prev]);
+  };
+
+  const addIPQCRecord = (ipqc: IPQCRecord) => {
+    setIpqcRecords(prev => [ipqc, ...prev]);
+  };
+
+  const addOQCRelease = (release: FinalQualityRelease) => {
+    setQualityReleases(prev => [release, ...prev]);
+  };
 
   // Counts for Top Notification badges
   const unresolvedHandoversCount = handovers.filter(h => h.status === 'Discrepancy Halt').length;
@@ -587,6 +609,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         activeShift,
         setActiveShift,
         grnList,
+        iqcRecords,
         handovers,
         jobCards,
         fpaRecords,
@@ -598,6 +621,9 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         gatePasses,
         defects,
         addGRN,
+        addIQCRecord,
+        addIPQCRecord,
+        addOQCRelease,
         addJobCard,
         sendHandover,
         receiveHandover,

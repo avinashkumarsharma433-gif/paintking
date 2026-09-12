@@ -315,6 +315,34 @@ export const INITIAL_PAINT_MIXING: PaintMixingRecord[] = [
   }
 ];
 
+// IQC Incoming Inspection Records (PK-STR-IQC-001)
+export const INITIAL_IQC_RECORDS: IQCInspectionRecord[] = [
+  {
+    reportNo: 'IQC-2026-0912-01',
+    date: '2026-09-12',
+    plant: 'Haridwar',
+    supplierCustomer: 'ROOP POLYMERS LTD',
+    partCode: 'RP-8841',
+    batchNo: 'B-RP-202609-01',
+    totalQty: 1000,
+    sampledQty: 50,
+    damage: 'Pass',
+    scratch: 'Pass',
+    sinkMark: 'Pass',
+    shortFill: 'Pass',
+    bubble: 'Pass',
+    pinMark: 'Pass',
+    dustSpot: 'Pass',
+    overPaint: 'Pass',
+    paintMissing: 'Pass',
+    colour: 'Pass',
+    overallFinishing: 'Pass',
+    status: 'Accepted',
+    inspector: 'Manoj Tiwari',
+    remarks: 'Raw ABS substrate free of oil contamination or sink marks.'
+  }
+];
+
 // IPQC 3-Hourly Records (PK-QA-IPQ-001)
 export const INITIAL_IPQC_RECORDS: IPQCRecord[] = [
   {
@@ -329,12 +357,15 @@ export const INITIAL_IPQC_RECORDS: IPQCRecord[] = [
     painter: 'Ramesh Sharma',
     booth: 'Booth #2',
     bubble: 'Pass',
-    dust: 'Pass',
+    dustSpot: 'Pass',
     overPaint: 'Pass',
-    missingPaint: 'Pass',
-    scratch: 'Pass',
+    paintMissing: 'Pass',
+    L: 42.15,
+    a: 54.30,
+    b: 28.10,
     deltaE: 0.44,
-    adhesionPercent: 100,
+    overallFinishing: 'Pass',
+    adhesionTest: 'Pass',
     result: 'Pass',
     inspector: 'Amit Verma'
   },
@@ -350,12 +381,15 @@ export const INITIAL_IPQC_RECORDS: IPQCRecord[] = [
     painter: 'Kailash Yadav',
     booth: 'Booth #1',
     bubble: 'Pass',
-    dust: 'Fail', // minor dust
+    dustSpot: 'Fail', // minor dust
     overPaint: 'Pass',
-    missingPaint: 'Pass',
-    scratch: 'Pass',
+    paintMissing: 'Pass',
+    L: 20.10,
+    a: 0.15,
+    b: -0.20,
     deltaE: 0.51,
-    adhesionPercent: 100,
+    overallFinishing: 'Pass',
+    adhesionTest: 'Pass',
     result: 'Hold',
     inspector: 'Amit Verma'
   }
@@ -411,9 +445,13 @@ export const INITIAL_QUALITY_RELEASES: FinalQualityRelease[] = [
     sampledQty: 32,
     passedQty: 300,
     rejectedQty: 0,
-    deltaE: 0.41,
+    packingBoxCondition: 'Pass',
+    traceabilityBatchNo: 'Pass',
+    quantityMatch: 'Pass',
+    physicalInspection: 'Pass',
+    conductivity: 'Pass',
     adhesion: 'Pass',
-    boxLabelMatch: 'Pass',
+    deltaE: 0.41,
     oqcStatus: 'Accepted',
     pdiStatus: 'Cleared for Invoicing',
     inspector: 'Amit Verma',
@@ -431,9 +469,13 @@ export const INITIAL_QUALITY_RELEASES: FinalQualityRelease[] = [
     sampledQty: 50,
     passedQty: 700,
     rejectedQty: 0,
-    deltaE: 0.48,
+    packingBoxCondition: 'Pass',
+    traceabilityBatchNo: 'Pass',
+    quantityMatch: 'Pass',
+    physicalInspection: 'Pass',
+    conductivity: 'Pass',
     adhesion: 'Pass',
-    boxLabelMatch: 'Pass',
+    deltaE: 0.48,
     oqcStatus: 'Accepted',
     pdiStatus: 'Cleared for Invoicing',
     inspector: 'Amit Verma',

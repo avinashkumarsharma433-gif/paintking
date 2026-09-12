@@ -174,6 +174,32 @@ export interface PaintMixingRecord {
   usageBooth: string;
 }
 
+// 1b. IQC Incoming Material Inspection (PK-STR-IQC-001)
+export interface IQCInspectionRecord {
+  reportNo: string;
+  date: string;
+  plant: PlantLocation;
+  supplierCustomer: string;
+  partCode: string;
+  batchNo: string;
+  totalQty: number;
+  sampledQty: number;
+  damage: 'Pass' | 'Fail';
+  scratch: 'Pass' | 'Fail';
+  sinkMark: 'Pass' | 'Fail';
+  shortFill: 'Pass' | 'Fail';
+  bubble: 'Pass' | 'Fail';
+  pinMark: 'Pass' | 'Fail';
+  dustSpot: 'Pass' | 'Fail';
+  overPaint: 'Pass' | 'Fail';
+  paintMissing: 'Pass' | 'Fail';
+  colour: 'Pass' | 'Fail';
+  overallFinishing: 'Pass' | 'Fail';
+  status: 'Accepted' | 'Hold' | 'Rejected';
+  inspector: string;
+  remarks?: string;
+}
+
 // 6. 3-Hourly IPQC Inspection (PK-QA-IPQ-001)
 export interface IPQCRecord {
   reportNo: string;
@@ -187,12 +213,15 @@ export interface IPQCRecord {
   painter: string;
   booth: string;
   bubble: 'Pass' | 'Fail';
-  dust: 'Pass' | 'Fail';
+  dustSpot: 'Pass' | 'Fail';
   overPaint: 'Pass' | 'Fail';
-  missingPaint: 'Pass' | 'Fail';
-  scratch: 'Pass' | 'Fail';
-  deltaE: number;
-  adhesionPercent: number;
+  paintMissing: 'Pass' | 'Fail';
+  L: number;
+  a: number;
+  b: number;
+  deltaE: number;              // Spectrophotometer ΔE
+  overallFinishing: 'Pass' | 'Fail';
+  adhesionTest: 'Pass' | 'Fail';
   result: 'Pass' | 'Fail' | 'Hold';
   inspector: string;
 }
@@ -228,9 +257,13 @@ export interface FinalQualityRelease {
   sampledQty: number;
   passedQty: number;
   rejectedQty: number;
-  deltaE: number;
+  packingBoxCondition: 'Pass' | 'Fail';
+  traceabilityBatchNo: 'Pass' | 'Fail';
+  quantityMatch: 'Pass' | 'Fail';
+  physicalInspection: 'Pass' | 'Fail';
+  conductivity: 'Pass' | 'Fail' | 'N/A';
   adhesion: 'Pass' | 'Fail';
-  boxLabelMatch: 'Pass' | 'Fail';
+  deltaE: number;
   oqcStatus: 'Accepted' | 'Rejected' | 'Hold';
   pdiStatus: 'Cleared for Invoicing' | 'Hold';
   inspector: string;
