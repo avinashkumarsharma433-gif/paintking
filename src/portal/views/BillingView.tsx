@@ -8,11 +8,26 @@ import {
 } from 'lucide-react';
 
 export const BillingView: React.FC = () => {
-  const { billingInvoices, toggleInvoiceExcessApproval, activePlant } = usePortalStore();
-  const [selectedInvoice] = useState<BillingInvoice>(billingInvoices[0] || null);
+  const { 
+    billingInvoices, 
+    toggleInvoiceExcessApproval, 
+    qualityReleases,
+    generateNewInvoiceFromPDI,
+    activePlant 
+  } = usePortalStore();
+
+  const [selectedInvoiceNo, setSelectedInvoiceNo] = useState<string>(
+    billingInvoices[0]?.invoiceNo || ''
+  );
   const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
 
-  const activeInv = billingInvoices.find(inv => inv.invoiceNo === selectedInvoice?.invoiceNo) || selectedInvoice;
+  // Active Invoice lookup (defaults to first available or selected)
+  const activeInv = billingInvoices.find(inv => inv.invoiceNo === selectedInvoiceNo) || billingInvoices[0] || null;
+
+  // Pending OQC releases that don't have an invoice generated yet
+  const availableOqcOrders = qualityReleases.filter(
+    r => r.pdiStatus === 'Cleared for Invoicing'
+  );
 
   return (
     <div className="space-y-6">
@@ -38,11 +53,46 @@ export const BillingView: React.FC = () => {
         {activeInv && (
           <button
             onClick={() => setShowPrintModal(true)}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold shadow-sm transition cursor-pointer w-full md:w-auto"
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold shadow-sm transition cursor-pointer w-full md:w-auto active:scale-95"
           >
             <Printer className="w-4 h-4 text-[#17191c]" />
             <span>Print Official Tax Invoice / Challan</span>
           </button>
+        )}
+      </div>
+
+      {/* Invoice Selector Dropdown & Cleared OQC Work Orders Bar */}
+      <div className="bg-white rounded-[20px] p-4 border border-[#ececec] shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex-1 w-full sm:w-auto">
+          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#777b86] mb-1">
+            Select Active Tax Invoice / Customer Order ({billingInvoices.length} Invoices):
+          </label>
+          <select
+            value={activeInv?.invoiceNo || ''}
+            onChange={e => setSelectedInvoiceNo(e.target.value)}
+            className="w-full p-2.5 rounded-[14px] border border-[#ececec] bg-[#fafafb] font-mono font-bold text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
+          >
+            {billingInvoices.map(inv => (
+              <option key={inv.invoiceNo} value={inv.invoiceNo}>
+                {inv.invoiceNo} • {inv.customer} ({inv.woNo}) - Total ₹{inv.grandTotal.toLocaleString('en-IN')}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {availableOqcOrders.length > 0 && (
+          <div className="shrink-0 w-full sm:w-auto">
+            <button
+              onClick={() => {
+                const firstWo = availableOqcOrders[0].woNo;
+                generateNewInvoiceFromPDI(firstWo);
+              }}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+            >
+              <ShieldCheck className="w-4 h-4 text-white" />
+              <span>Generate Invoice for Cleared OQC ({availableOqcOrders.length} Ready)</span>
+            </button>
+          </div>
         )}
       </div>
 

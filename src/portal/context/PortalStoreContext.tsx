@@ -593,6 +593,56 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const addOQCRelease = (release: FinalQualityRelease) => {
     setQualityReleases(prev => [release, ...prev]);
+
+    // Automatically generate/update Tax Invoice for Billing Desk when OQC & PDI is cleared!
+    if (release.pdiStatus === 'Cleared for Invoicing') {
+      const isRed = release.color.includes('Red');
+      const poOrdered = isRed ? 250 : 750;
+      const unitRate = isRed ? 25 : 20;
+      const billable = Math.min(release.passedQty, poOrdered);
+      const excess = Math.max(0, release.passedQty - poOrdered);
+
+      const lineItem: BillableLineItem = {
+        id: `li_${Date.now()}`,
+        colorName: release.color,
+        orderedQty: poOrdered,
+        passedAndPackedQty: release.passedQty,
+        billableQty: billable,
+        excessQty: excess,
+        excessApprovedByClient: false,
+        unitRate,
+        lineTotal: Math.round(billable * unitRate * 100) / 100,
+        status: 'Contract Fulfilled'
+      };
+
+      const subTotal = lineItem.lineTotal;
+      const cgstAmount = Math.round(subTotal * 0.09 * 100) / 100;
+      const sgstAmount = Math.round(subTotal * 0.09 * 100) / 100;
+      const gstAmount = Math.round((cgstAmount + sgstAmount) * 100) / 100;
+      const currentYear = new Date().getFullYear();
+
+      const newInvoice: BillingInvoice = {
+        invoiceNo: `PK-TAX-${currentYear}-${Math.floor(1000 + Math.random() * 9000)}`,
+        invoiceDate: release.date || new Date().toISOString().split('T')[0],
+        woNo: release.woNo,
+        customer: release.customer,
+        plant: release.plant || activePlant,
+        lineItems: [lineItem],
+        subTotal,
+        gstPercent: 18,
+        gstAmount,
+        cgstAmount,
+        sgstAmount,
+        grandTotal: Math.round((subTotal + gstAmount) * 100) / 100,
+        totalOrderedQty: poOrdered,
+        totalBilledQty: billable,
+        status: 'Generated',
+        preparedBy: release.inspector || currentUser.name,
+        balanceBacklogNote: `OQC Release ${release.releaseId} cleared. Billed strictly on ${billable} pcs passed.`
+      };
+
+      setBillingInvoices(prev => [newInvoice, ...prev]);
+    }
   };
 
   // Counts for Top Notification badges
