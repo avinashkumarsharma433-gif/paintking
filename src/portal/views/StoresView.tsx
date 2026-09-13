@@ -6,7 +6,7 @@ import { CreateGRNModal } from '../components/CreateGRNModal';
 import { JobCardModal } from '../components/JobCardModal';
 
 export const StoresView: React.FC = () => {
-  const { grnList, materialInwardLogs, activePlant } = usePortalStore();
+  const { grnList, materialInwardLogs, universalJobs, activePlant } = usePortalStore();
   const [showGRNModal, setShowGRNModal] = useState<boolean>(false);
   const [showJobCardModal, setShowJobCardModal] = useState<boolean>(false);
   const [selectedGrnForJobCard, setSelectedGrnForJobCard] = useState<GoodsReceiptNote | null>(null);
@@ -91,7 +91,7 @@ export const StoresView: React.FC = () => {
       </div>
 
       {/* Real-time Inventory Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="p-4 rounded-[20px] bg-white border border-[#ececec] shadow-xs space-y-1">
           <div className="text-[10px] font-bold text-[#777b86] uppercase tracking-wider flex items-center gap-1 font-mono">
             <Package className="w-3.5 h-3.5 text-[#c09748]" />
@@ -114,6 +114,17 @@ export const StoresView: React.FC = () => {
           <div className="text-[11px] text-[#777b86]">PPG/Asian Paints Polyurethane Basecoat & Hardener</div>
         </div>
 
+        <div className="p-4 rounded-[20px] bg-white border border-[#ececec] shadow-xs space-y-1">
+          <div className="text-[10px] font-bold text-[#777b86] uppercase tracking-wider flex items-center gap-1 font-mono">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            UNIVERSAL JOBS IN STORE
+          </div>
+          <div className="text-2xl font-serif font-bold text-[#17191c]">
+            {universalJobs.length} Job IDs
+          </div>
+          <div className="text-[11px] text-[#777b86]">Tracked via Single PK-JOB-XXXX Number</div>
+        </div>
+
         <div className="p-4 rounded-[20px] bg-[#faf3e0]/60 border border-[#f4e5be] shadow-xs space-y-1">
           <div className="text-[10px] font-bold text-[#8a6521] uppercase tracking-wider flex items-center gap-1 font-mono">
             <ArrowDownLeft className="w-3.5 h-3.5 text-[#c09748]" />
@@ -123,6 +134,86 @@ export const StoresView: React.FC = () => {
             {grnList.length} Official GRNs
           </div>
           <div className="text-[11px] text-[#8a6521]/80">Format: Paintking DOC NO: 00</div>
+        </div>
+      </div>
+
+      {/* Universal Single-ID Job Registry Bar for Store Manager */}
+      <div className="bg-white rounded-[24px] border border-[#ececec] p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#ececec]">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-[#faf7ed] text-[#c09748] border border-[#f4e5be] text-[10px] font-mono font-bold">
+                UNIVERSAL JOB TRACKING
+              </span>
+              <h3 className="font-serif font-normal text-lg text-[#17191c]">
+                Universal Job ID Inward & Store Handover
+              </h3>
+            </div>
+            <p className="text-xs text-[#777b86] mt-0.5">
+              1-to-1 Piece Level Records tracked under single PK-JOB-XXXX numbers.
+            </p>
+          </div>
+
+          <span className="text-xs font-mono text-[#c09748] font-bold">
+            {universalJobs.length} Active Universal Inwards
+          </span>
+        </div>
+
+        <div className="overflow-x-auto border border-[#ececec] rounded-[16px]">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-[#fafafb] text-[#777b86] font-semibold uppercase text-[10px] tracking-wider border-b border-[#ececec]">
+                <th className="p-3">Universal Job ID</th>
+                <th className="p-3">Party Name / Client</th>
+                <th className="p-3">Material Category</th>
+                <th className="p-3">Material Description</th>
+                <th className="p-3 text-center">Inward Qty</th>
+                <th className="p-3 text-center">Pre-Spray IQC</th>
+                <th className="p-3 text-center">Final QA Gate</th>
+                <th className="p-3 text-right">Current Pipeline Stage</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#ececec] text-[#17191c]">
+              {universalJobs.map(job => (
+                <tr key={job.jobId} className="hover:bg-[#fafafb]">
+                  <td className="p-3 font-mono font-bold text-[#c09748]">{job.jobId}</td>
+                  <td className="p-3 font-medium">{job.partyName}</td>
+                  <td className="p-3">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      job.materialCategory === 'Party Material' ? 'bg-[#faf3e0] text-[#8a6521]' : 'bg-blue-50 text-blue-800'
+                    }`}>
+                      {job.materialCategory}
+                    </span>
+                  </td>
+                  <td className="p-3 text-[#777b86]">{job.materialDescription}</td>
+                  <td className="p-3 text-center font-mono font-bold">{job.totalQuantity} {job.unit}</td>
+                  <td className="p-3 text-center font-mono">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      job.preSprayIQC?.status === 'Pass' 
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'
+                    }`}>
+                      {job.preSprayIQC ? `IQC Pass (${job.preSprayIQC.approvedPcs} Pcs)` : 'Pending IQC'}
+                    </span>
+                  </td>
+                  <td className="p-3 text-center font-mono">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      job.finalQA?.overallStatus === 'Approved'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-gray-100 text-gray-700'
+                    }`}>
+                      {job.finalQA ? `QA Approved (ΔE ${job.finalQA.deltaE})` : '🔒 QA Locked'}
+                    </span>
+                  </td>
+                  <td className="p-3 text-right">
+                    <span className="px-3 py-1 rounded-full text-[11px] font-semibold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                      {job.stage}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 

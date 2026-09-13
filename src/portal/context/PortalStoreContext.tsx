@@ -18,10 +18,15 @@ import {
   GatePassRecord,
   MaterialInwardRecord,
   MaterialOutwardRecord,
-  DefectItem
+  DefectItem,
+  UniversalJobRecord,
+  PreSprayIQCRecord,
+  FinalQAGateRecord,
+  JobPipelineStage
 } from '../types/portalTypes';
 import {
   INITIAL_USER_PROFILES,
+  INITIAL_UNIVERSAL_JOBS,
   INITIAL_GRN_DATA,
   INITIAL_IQC_RECORDS,
   INITIAL_HANDOVERS,
@@ -49,6 +54,7 @@ interface PortalContextType {
   setActiveShift: (shift: ShiftType) => void;
 
   // Data Collections
+  universalJobs: UniversalJobRecord[];
   grnList: GoodsReceiptNote[];
   iqcRecords: IQCInspectionRecord[];
   handovers: CustodyHandover[];
@@ -63,6 +69,26 @@ interface PortalContextType {
   materialInwardLogs: MaterialInwardRecord[];
   materialOutwardLogs: MaterialOutwardRecord[];
   defects: DefectItem[];
+
+  // Next-Gen Universal Job Engine Actions
+  addUniversalJob: (job: UniversalJobRecord) => void;
+  submitPreSprayIQC: (
+    jobId: string,
+    inspectedQty: number,
+    approvedQty: number,
+    rejectedQty: number,
+    defectReason?: PreSprayIQCRecord['defectReason'],
+    remarks?: string
+  ) => void;
+  submitFinalQA: (
+    jobId: string,
+    deltaE: number,
+    adhesionTest: 'Pass (100% Tape)' | 'Fail (Flaking)',
+    goodQty: number,
+    rejectQty: number,
+    remarks?: string
+  ) => void;
+  advanceJobStage: (jobId: string, nextStage: JobPipelineStage) => void;
 
   // Logic Engine Actions
   addGRN: (grn: GoodsReceiptNote) => void;
@@ -144,10 +170,99 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   // Operational State Collections with localStorage
+  const [universalJobs, setUniversalJobs] = useState<UniversalJobRecord[]>(() => {
+    const s = localStorage.getItem('pk_universal_jobs');
+    return s ? JSON.parse(s) : INITIAL_UNIVERSAL_JOBS;
+  });
+
   const [grnList, setGrnList] = useState<GoodsReceiptNote[]>(() => {
     const s = localStorage.getItem('pk_grn_data');
     return s ? JSON.parse(s) : INITIAL_GRN_DATA;
   });
+
+  useEffect(() => {
+    localStorage.setItem('pk_universal_jobs', JSON.stringify(universalJobs));
+  }, [universalJobs]);
+
+  const addUniversalJob = (job: UniversalJobRecord) => {
+    setUniversalJobs(prev => [job, ...prev]);
+  };
+
+  const submitPreSprayIQC = (
+    jobId: string,
+    inspectedQty: number,
+    approvedQty: number,
+    rejectedQty: number,
+    defectReason?: PreSprayIQCRecord['defectReason'],
+    remarks?: string
+  ) => {
+    setUniversalJobs(prev => prev.map(job => {
+      if (job.jobId !== jobId) return job;
+      return {
+        ...job,
+        currentStage: '4. Shop Floor Spraying',
+        isPreSprayIqcApproved: true,
+        preSprayIQC: {
+          inspectedQty,
+          approvedQty,
+          rejectedQty,
+          defectReason,
+          inspector: currentUser.name || 'IQC Inspector',
+          timestamp: new Date().toLocaleString(),
+          status: 'Passed',
+          remarks
+        },
+        pieceTracking: {
+          ...job.pieceTracking,
+          preSprayApproved: approvedQty,
+          preSprayRejected: rejectedQty,
+          sprayedGood: approvedQty
+        }
+      };
+    }));
+  };
+
+  const submitFinalQA = (
+    jobId: string,
+    deltaE: number,
+    adhesionTest: 'Pass (100% Tape)' | 'Fail (Flaking)',
+    goodQty: number,
+    rejectQty: number,
+    remarks?: string
+  ) => {
+    const isPass = deltaE <= 0.70 && adhesionTest === 'Pass (100% Tape)';
+    setUniversalJobs(prev => prev.map(job => {
+      if (job.jobId !== jobId) return job;
+      return {
+        ...job,
+        currentStage: isPass ? '6. Billing Invoice' : '5. Strict Final QA',
+        isFinalQaApproved: isPass,
+        finalQA: {
+          spectrophotometerDeltaE: deltaE,
+          adhesionTest,
+          goodQty,
+          rejectQty,
+          qcEngineer: currentUser.name || 'QA Lead',
+          timestamp: new Date().toLocaleString(),
+          status: isPass ? 'Approved' : 'Rejected',
+          remarks
+        },
+        pieceTracking: {
+          ...job.pieceTracking,
+          finalQaPassed: isPass ? goodQty : 0,
+          finalQaRejected: rejectQty,
+          billedQty: isPass ? goodQty : 0
+        }
+      };
+    }));
+  };
+
+  const advanceJobStage = (jobId: string, nextStage: JobPipelineStage) => {
+    setUniversalJobs(prev => prev.map(job => {
+      if (job.jobId !== jobId) return job;
+      return { ...job, currentStage: nextStage };
+    }));
+  };
 
   const [iqcRecords, setIqcRecords] = useState<IQCInspectionRecord[]>(() => {
     const s = localStorage.getItem('pk_iqc_data');
@@ -749,6 +864,11 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setActivePlant,
         activeShift,
         setActiveShift,
+        universalJobs,
+        addUniversalJob,
+        submitPreSprayIQC,
+        submitFinalQA,
+        advanceJobStage,
         grnList,
         iqcRecords,
         handovers,

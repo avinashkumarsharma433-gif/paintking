@@ -50,9 +50,14 @@ export const BillingView: React.FC = () => {
     toggleInvoiceExcessApproval, 
     qualityReleases,
     generateNewInvoiceFromPDI,
+    universalJobs,
     activePlant,
     currentUser
   } = usePortalStore();
+
+  const qaApprovedJobs = universalJobs.filter(
+    j => j.isFinalQaApproved || j.currentStage === '6. Billing Invoice' || j.currentStage === '7. Outward Dispatched'
+  );
 
   const [selectedInvoiceNo, setSelectedInvoiceNo] = useState<string>(
     billingInvoices[0]?.invoiceNo || ''

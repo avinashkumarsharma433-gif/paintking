@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { MaterialInwardRecord, MaterialOutwardRecord, InwardMaterialLineItem } from '../types/portalTypes';
+import { GatePassRecord, MaterialInwardRecord, MaterialOutwardRecord, InwardMaterialLineItem } from '../types/portalTypes';
 import { 
   ArrowDownLeft, 
   ArrowUpRight, 
@@ -33,6 +33,7 @@ export const GatePassView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'INWARD' | 'OUTWARD' | 'GATE_PASS'>('INWARD');
   const [showInwardModal, setShowInwardModal] = useState<boolean>(false);
   const [showOutwardModal, setShowOutwardModal] = useState<boolean>(false);
+  const [showUniversalModal, setShowUniversalModal] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // 12-Field Inward Form State with Dynamic Dynamic Multi-Item Rows!
@@ -205,13 +206,23 @@ export const GatePassView: React.FC = () => {
 
         <div className="flex items-center gap-2 self-start md:self-auto w-full md:w-auto">
           {activeTab === 'INWARD' && (
-            <button
-              onClick={() => setShowInwardModal(true)}
-              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold shadow-sm transition cursor-pointer w-full md:w-auto"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Naya Material Inward (Multi-Item Rows)</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setShowUniversalModal(true)}
+                className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#17191c] text-[#c09748] text-xs font-bold shadow-md hover:bg-black transition cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 text-[#c09748]" />
+                <span>+ Register Universal Job ID (PK-JOB-XXXX)</span>
+              </button>
+
+              <button
+                onClick={() => setShowInwardModal(true)}
+                className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold shadow-sm transition cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Inward Gate Log</span>
+              </button>
+            </div>
           )}
 
           {activeTab === 'OUTWARD' && (
@@ -849,6 +860,165 @@ export const GatePassView: React.FC = () => {
                   className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-medium text-[#17191c] focus:border-[#c09748] focus:outline-none"
                 />
               </div>
+              <div className="flex justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowOutwardModal(false)}
+                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-full bg-[#17191c] text-white font-medium cursor-pointer hover:bg-black flex items-center gap-2"
+                >
+                  <Save className="w-4 h-4 text-[#c09748]" />
+                  <span>Log Outward Entry</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: MATERIAL OUTWARD FORM */}
+      {showOutwardModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-[24px] max-w-2xl w-full p-6 shadow-2xl border border-[#ececec] space-y-5 max-h-[92vh] overflow-y-auto no-scrollbar">
+            <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 text-[10px] font-mono uppercase font-bold">
+                  SECURITY OUTWARD REGISTER
+                </span>
+                <h3 className="text-xl font-serif text-[#17191c] font-bold mt-0.5">
+                  11-Field Security Material Outward Entry
+                </h3>
+              </div>
+              <button 
+                onClick={() => setShowOutwardModal(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-[#17191c] font-bold flex items-center justify-center cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleOutwardSubmit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                
+                <div>
+                  <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
+                    1. Name of Party (Customer) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={outwardForm.partyName}
+                    onChange={e => setOutwardForm({ ...outwardForm, partyName: e.target.value })}
+                    placeholder="e.g. ROOP POLYMERS LTD"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
+                    2. Description of Material *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={outwardForm.descriptionOfMaterial}
+                    onChange={e => setOutwardForm({ ...outwardForm, descriptionOfMaterial: e.target.value })}
+                    placeholder="e.g. Finished Coated AC Vent Bezels (250 Red + 700 Black)"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
+                    3. Vehicle Number *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={outwardForm.vehicleNo}
+                    onChange={e => setOutwardForm({ ...outwardForm, vehicleNo: e.target.value })}
+                    placeholder="e.g. DL-01-EE-7741"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none uppercase"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
+                    4. Gate Pass No *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={outwardForm.gatePassNo}
+                    onChange={e => setOutwardForm({ ...outwardForm, gatePassNo: e.target.value })}
+                    placeholder="e.g. GTP-OUT-2026-0513"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
+                    5. Quantity *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={outwardForm.quantity}
+                    onChange={e => setOutwardForm({ ...outwardForm, quantity: Number(e.target.value) })}
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
+                    6. Unit of Measure
+                  </label>
+                  <select
+                    value={outwardForm.unit}
+                    onChange={e => setOutwardForm({ ...outwardForm, unit: e.target.value as any })}
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
+                  >
+                    <option value="Pcs">Pcs (Finished Parts)</option>
+                    <option value="Boxes">Master Corrugated Boxes</option>
+                    <option value="Litres">Litres</option>
+                    <option value="Drums">Drums</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
+                    7. Transporter / Courier *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={outwardForm.transporter}
+                    onChange={e => setOutwardForm({ ...outwardForm, transporter: e.target.value })}
+                    placeholder="e.g. VRL LOGISTICS / SAFEEXPRESS"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                  />
+                </div>
+
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
+                  8. Security Remarks & Verification Note
+                </label>
+                <textarea
+                  rows={2}
+                  value={outwardForm.remarks}
+                  onChange={e => setOutwardForm({ ...outwardForm, remarks: e.target.value })}
+                  placeholder="e.g. Physical box count match (19 boxes). Delivery Challan & E-Way bill verified."
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-medium text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                />
+              </div>
 
               <div className="flex justify-end gap-2.5 pt-2">
                 <button
@@ -869,6 +1039,13 @@ export const GatePassView: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {showUniversalModal && (
+        <UniversalJobModal
+          isOpen={showUniversalModal}
+          onClose={() => setShowUniversalModal(false)}
+        />
       )}
     </div>
   );

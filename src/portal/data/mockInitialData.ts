@@ -10,7 +10,8 @@ import {
   FinalQualityRelease, 
   BillingInvoice, 
   GatePassRecord,
-  DefectItem
+  DefectItem,
+  UniversalJobRecord
 } from '../types/portalTypes';
 
 export const INITIAL_USER_PROFILES: UserProfile[] = [
@@ -77,6 +78,129 @@ export const INITIAL_USER_PROFILES: UserProfile[] = [
     roleTitle: 'Main Gate Security Officer',
     plant: 'Haridwar',
     avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80'
+  }
+];
+
+export const INITIAL_UNIVERSAL_JOBS: UniversalJobRecord[] = [
+  {
+    jobId: 'PK-JOB-2026-101',
+    partyName: 'ROOP POLYMERS LTD',
+    customerRefChallan: 'RP/CH/99824',
+    vehicleNo: 'UK-08-AL-4412',
+    category: 'Party Material',
+    createdDate: '2026-09-12',
+    createdTime: '08:30 AM',
+    materialName: 'Auto AC Center Vent Bezel Substrate (ABS)',
+    totalQuantity: 1000,
+    unit: 'Pcs',
+    colorName: 'Monza Red Gloss',
+    colorCode: 'RD-01',
+    unitRate: 25.00,
+    currentStage: '4. Shop Floor Spraying',
+    isPreSprayIqcApproved: true,
+    isFinalQaApproved: false,
+    preSprayIQC: {
+      inspectedQty: 1000,
+      approvedQty: 980,
+      rejectedQty: 20,
+      defectReason: 'Flash Marks',
+      inspector: 'Dinesh Pre-Spray IQC',
+      timestamp: '2026-09-12 09:15 AM',
+      status: 'Passed',
+      remarks: '20 raw parts had flash lines on mounting clips'
+    },
+    pieceTracking: {
+      totalInward: 1000,
+      preSprayApproved: 980,
+      preSprayRejected: 20,
+      sprayedGood: 900,
+      finalQaPassed: 0,
+      finalQaRejected: 0,
+      billedQty: 0,
+      dispatchedQty: 0
+    },
+    storeIncharge: 'Manoj Tiwari',
+    securityOfficer: 'Ram Singh',
+    remarks: 'Pre-spray IQC passed for 980 pcs. Spraying in Booth 2.'
+  },
+  {
+    jobId: 'PK-JOB-2026-102',
+    partyName: 'MARUTI SUZUKI INDIA LTD',
+    customerRefChallan: 'MS/CH/44120',
+    vehicleNo: 'MH-04-GP-8831',
+    category: 'Party Material',
+    createdDate: '2026-09-12',
+    createdTime: '10:00 AM',
+    materialName: 'Dashboard Steering Trim (ABS PC Blend)',
+    totalQuantity: 500,
+    unit: 'Pcs',
+    colorName: 'Hydrographic Carbon Weave',
+    colorCode: 'HC-03',
+    unitRate: 45.00,
+    currentStage: '5. Strict Final QA',
+    isPreSprayIqcApproved: true,
+    isFinalQaApproved: true,
+    preSprayIQC: {
+      inspectedQty: 500,
+      approvedQty: 500,
+      rejectedQty: 0,
+      inspector: 'Dinesh Pre-Spray IQC',
+      timestamp: '2026-09-12 10:30 AM',
+      status: 'Passed'
+    },
+    finalQA: {
+      spectrophotometerDeltaE: 0.35,
+      adhesionTest: 'Pass (100% Tape)',
+      goodQty: 490,
+      rejectQty: 10,
+      qcEngineer: 'Amit Verma QA',
+      timestamp: '2026-09-12 02:00 PM',
+      status: 'Approved',
+      remarks: 'Delta-E = 0.35 (<= 0.70 limit). Approved for Billing.'
+    },
+    pieceTracking: {
+      totalInward: 500,
+      preSprayApproved: 500,
+      preSprayRejected: 0,
+      sprayedGood: 490,
+      finalQaPassed: 490,
+      finalQaRejected: 10,
+      billedQty: 490,
+      dispatchedQty: 0
+    },
+    storeIncharge: 'Manoj Tiwari',
+    securityOfficer: 'Ram Singh'
+  },
+  {
+    jobId: 'PK-JOB-2026-103',
+    partyName: 'ASIAN PAINTS PPG LTD',
+    customerRefChallan: 'PPG/INV/4412',
+    vehicleNo: 'MH-04-CP-8819',
+    category: 'Internal Company',
+    createdDate: '2026-09-12',
+    createdTime: '11:00 AM',
+    materialName: 'Monza Red 2K PU Basecoat Paint (20L Drum)',
+    totalQuantity: 200,
+    unit: 'Litres',
+    colorName: 'Monza Red Gloss',
+    colorCode: 'PNT-RD-01',
+    unitRate: 450.00,
+    currentStage: '2. Store Receipt',
+    isPreSprayIqcApproved: true,
+    isFinalQaApproved: false,
+    pieceTracking: {
+      totalInward: 200,
+      preSprayApproved: 200,
+      preSprayRejected: 0,
+      sprayedGood: 0,
+      finalQaPassed: 0,
+      finalQaRejected: 0,
+      billedQty: 0,
+      dispatchedQty: 0
+    },
+    storeIncharge: 'Manoj Tiwari',
+    securityOfficer: 'Ram Singh',
+    remarks: 'Internal paint purchase for production stock'
   }
 ];
 

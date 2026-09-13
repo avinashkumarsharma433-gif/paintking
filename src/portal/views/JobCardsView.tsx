@@ -13,7 +13,7 @@ import {
 import { JobCardModal } from '../components/JobCardModal';
 
 export const JobCardsView: React.FC = () => {
-  const { jobCards, updateJobCardSprayed, defects, activePlant } = usePortalStore();
+  const { jobCards, universalJobs, updateJobCardSprayed, defects, activePlant } = usePortalStore();
   const [selectedJobCardForProgress, setSelectedJobCardForProgress] = useState<JobCard | null>(null);
   const [showBatchModal, setShowBatchModal] = useState<boolean>(false);
   const [addedSprayed, setAddedSprayed] = useState<number>(50);
@@ -94,6 +94,70 @@ export const JobCardsView: React.FC = () => {
               Operators spray up to the exact target cap to prevent paint over-run waste.
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Universal Single-ID Job Cards Overview */}
+      <div className="bg-white rounded-[24px] border border-[#ececec] p-5 shadow-sm space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-[#faf7ed] text-[#c09748] border border-[#f4e5be] text-[10px] font-mono font-bold">
+                UNIVERSAL JOB PIPELINE
+              </span>
+              <h3 className="font-serif font-normal text-lg text-[#17191c]">
+                Universal Single Job ID Active Work Orders
+              </h3>
+            </div>
+            <p className="text-xs text-[#777b86] mt-0.5">
+              1-to-1 Piece Traceability tracked under single PK-JOB-XXXX identifiers.
+            </p>
+          </div>
+          <span className="text-xs font-mono font-bold text-[#c09748]">
+            {universalJobs.length} Universal Jobs
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {universalJobs.map(job => (
+            <div key={job.jobId} className="p-4 rounded-[18px] border border-[#ececec] bg-[#fafafb] space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
+                <span className="font-mono text-xs font-bold text-[#c09748] px-2.5 py-0.5 rounded-full bg-white border border-[#f4e5be]">
+                  {job.jobId}
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  job.materialCategory === 'Party Material' ? 'bg-[#faf3e0] text-[#8a6521]' : 'bg-blue-50 text-blue-800'
+                }`}>
+                  {job.materialCategory}
+                </span>
+              </div>
+
+              <div>
+                <h4 className="font-serif font-normal text-base text-[#17191c]">{job.partyName}</h4>
+                <p className="text-xs text-[#777b86]">{job.materialDescription}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs p-2.5 bg-white rounded-[12px] border border-[#ececec]">
+                <div>
+                  <span className="text-[10px] text-[#777b86] font-bold uppercase block">Quantity</span>
+                  <span className="font-mono font-bold text-[#17191c]">{job.totalQuantity} {job.unit}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#777b86] font-bold uppercase block">Current Stage</span>
+                  <span className="text-[#c09748] font-semibold text-[11px] truncate block">{job.stage}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] pt-1">
+                <span className={`font-semibold ${job.preSprayIQC?.status === 'Pass' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  IQC: {job.preSprayIQC ? `Pass (${job.preSprayIQC.approvedPcs} Pcs)` : 'Pending'}
+                </span>
+                <span className={`font-semibold ${job.finalQA?.overallStatus === 'Approved' ? 'text-emerald-700' : 'text-gray-500'}`}>
+                  QA Gate: {job.finalQA ? 'Approved' : 'Locked'}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

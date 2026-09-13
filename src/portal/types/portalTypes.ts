@@ -27,6 +27,83 @@ export interface UserProfile {
   avatar: string;
 }
 
+// NEXT-GEN SINGLE UNIVERSAL JOB RECORD & STRICT GATING TYPES
+export type MaterialCategoryOption = 'Party Material' | 'Internal Company';
+
+export type JobPipelineStage = 
+  | '1. Gate Intake'
+  | '2. Store Receipt'
+  | '3. Pre-Spray IQC'
+  | '4. Shop Floor Spraying'
+  | '5. Strict Final QA'
+  | '6. Billing Invoice'
+  | '7. Outward Dispatched';
+
+export interface PreSprayIQCRecord {
+  inspectedQty: number;
+  approvedQty: number;       // Fit for spraying (allowed to move to Spraying booth!)
+  rejectedQty: number;       // Raw substrate defect (returned to store/party)
+  defectReason?: 'Raw Substrate Crack' | 'Flash Marks' | 'Silver Lines' | 'Surface Oil / Grease' | 'Molding Warp';
+  inspector: string;
+  timestamp: string;
+  status: 'Pending' | 'Passed' | 'Hold';
+  remarks?: string;
+}
+
+export interface FinalQAGateRecord {
+  spectrophotometerDeltaE: number; // Spectrophotometer ΔE (Must be <= 0.70)
+  adhesionTest: 'Pass (100% Tape)' | 'Fail (Flaking)';
+  goodQty: number;
+  rejectQty: number;
+  qcEngineer: string;
+  timestamp: string;
+  status: 'Pending' | 'Approved' | 'Rejected' | 'Hold'; // Locked if Rejected!
+  remarks?: string;
+}
+
+export interface PieceTrackingDetails {
+  totalInward: number;       // Total received at Gate
+  preSprayApproved: number;  // Passed Pre-Spray IQC
+  preSprayRejected: number;  // Substrate rejected before spray
+  sprayedGood: number;       // Good sprayed parts
+  finalQaPassed: number;     // QA approved parts
+  finalQaRejected: number;   // QA rejected parts
+  billedQty: number;         // Invoiced parts
+  dispatchedQty: number;     // Outward dispatched
+}
+
+export interface UniversalJobRecord {
+  jobId: string;             // SINGLE UNIVERSAL ID e.g. "PK-JOB-2026-101"
+  partyName: string;
+  customerRefChallan: string;
+  vehicleNo: string;
+  category: MaterialCategoryOption; // STRICT 2 OPTIONS: 'Party Material' | 'Internal Company'
+  createdDate: string;
+  createdTime: string;
+  
+  // Single Job Material Specifications
+  materialName: string;
+  totalQuantity: number;
+  unit: string;              // Pcs, Litres, KG, Drums, Boxes
+  colorName: string;
+  colorCode: string;
+  unitRate: number;
+
+  // Pipeline Status & Strict Gating Flags
+  currentStage: JobPipelineStage;
+  isPreSprayIqcApproved: boolean; // Must be true to enter Production!
+  isFinalQaApproved: boolean;     // Must be true to enter Billing & Dispatch!
+  
+  // Embedded Stage Data
+  preSprayIQC?: PreSprayIQCRecord;
+  finalQA?: FinalQAGateRecord;
+  pieceTracking: PieceTrackingDetails;
+  
+  storeIncharge?: string;
+  securityOfficer?: string;
+  remarks?: string;
+}
+
 // 1. Inward Goods Receipt Note (PK-STR-GRN-001 / Doc No: 00)
 export interface OrderColorSplit {
   colorName: string;

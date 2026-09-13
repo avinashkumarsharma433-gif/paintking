@@ -17,6 +17,7 @@ import {
   IPQCRecord, 
   FinalQualityRelease 
 } from '../types/portalTypes';
+import { CustomSelect } from '../components/CustomSelect';
 
 export const QAView: React.FC = () => {
   const { 
@@ -30,13 +31,37 @@ export const QAView: React.FC = () => {
     addOQCRelease,
     jobCards,
     grnList,
+    universalJobs,
+    submitPreSprayIQC,
+    submitFinalQA,
     activePlant, 
     currentUser 
   } = usePortalStore();
 
-  const [activeSubTab, setActiveSubTab] = useState<'IPQC' | 'IQC' | 'OQC'>('IPQC');
+  const [activeSubTab, setActiveSubTab] = useState<'UNIVERSAL_IQC' | 'UNIVERSAL_QA' | 'IPQC' | 'IQC' | 'OQC'>('UNIVERSAL_IQC');
 
   // Modal Visibility States
+  const [showUniversalIqcModal, setShowUniversalIqcModal] = useState<boolean>(false);
+  const [showUniversalQaModal, setShowUniversalQaModal] = useState<boolean>(false);
+  const [selectedUniversalJobId, setSelectedUniversalJobId] = useState<string>('');
+
+  // Form states for Universal Pre-Spray IQC
+  const [uniIqcForm, setUniIqcForm] = useState({
+    jobId: '',
+    approvedPcs: 0,
+    rejectedPcs: 0,
+    notes: 'Pre-spray substrate inspected. Surface clean, zero cracks or sink marks.'
+  });
+
+  // Form states for Universal Final QA Gate
+  const [uniQaForm, setUniQaForm] = useState({
+    jobId: '',
+    deltaE: 0.38,
+    adhesionPass: true,
+    finalPassedQty: 0,
+    notes: 'Spectrophotometer ΔE ≤ 0.70 and ASTM 5B Cross-Cut Adhesion 100% compliant. Cleared for billing.'
+  });
+
   const [showFpaModal, setShowFpaModal] = useState<boolean>(false);
   const [showIpqcModal, setShowIpqcModal] = useState<boolean>(false);
   const [showIqcModal, setShowIqcModal] = useState<boolean>(false);
@@ -319,6 +344,20 @@ export const QAView: React.FC = () => {
     setShowOqcModal(false);
   };
 
+  const handleUniIqcSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uniIqcForm.jobId) return;
+    submitPreSprayIQC(uniIqcForm.jobId, uniIqcForm.approvedPcs, uniIqcForm.rejectedPcs, uniIqcForm.notes);
+    setShowUniversalIqcModal(false);
+  };
+
+  const handleUniQaSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uniQaForm.jobId) return;
+    submitFinalQA(uniQaForm.jobId, uniQaForm.deltaE, uniQaForm.adhesionPass, uniQaForm.finalPassedQty, uniQaForm.notes);
+    setShowUniversalQaModal(false);
+  };
+
   const isDeltaEPass = fpaForm.deltaE <= 0.70;
 
   return (
@@ -415,6 +454,30 @@ export const QAView: React.FC = () => {
       <div className="border-b border-[#ececec] pb-2 overflow-x-auto no-scrollbar scrollbar-none">
         <div className="flex items-center gap-2 min-w-max">
           <button
+            onClick={() => setActiveSubTab('UNIVERSAL_IQC')}
+            className={`px-3.5 py-2 rounded-full text-xs font-bold cursor-pointer transition flex items-center gap-2 whitespace-nowrap active:scale-95 ${
+              activeSubTab === 'UNIVERSAL_IQC'
+                ? 'bg-[#c09748] text-[#17191c] font-semibold shadow-xs'
+                : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>1. Pre-Spray Substrate IQC (Universal Job ID)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('UNIVERSAL_QA')}
+            className={`px-3.5 py-2 rounded-full text-xs font-bold cursor-pointer transition flex items-center gap-2 whitespace-nowrap active:scale-95 ${
+              activeSubTab === 'UNIVERSAL_QA'
+                ? 'bg-[#17191c] text-[#c09748] font-semibold shadow-xs'
+                : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+            }`}
+          >
+            <Gauge className="w-3.5 h-3.5" />
+            <span>2. Strict Final QA Gatekeeper (ΔE ≤ 0.70 & Adhesion)</span>
+          </button>
+
+          <button
             onClick={() => setActiveSubTab('IPQC')}
             className={`px-3.5 py-2 rounded-full text-xs font-medium cursor-pointer transition flex items-center gap-2 whitespace-nowrap active:scale-95 ${
               activeSubTab === 'IPQC'
@@ -435,7 +498,7 @@ export const QAView: React.FC = () => {
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>IQC (Incoming Raw Substrate)</span>
+            <span>Legacy IQC</span>
           </button>
 
           <button
@@ -447,10 +510,276 @@ export const QAView: React.FC = () => {
             }`}
           >
             <FileCheck className="w-3.5 h-3.5" />
-            <span>OQC / PDI (Outgoing Release)</span>
+            <span>Legacy OQC</span>
           </button>
         </div>
       </div>
+
+      {/* TAB 0A: PRE-SPRAY SUBSTRATE IQC (UNIVERSAL JOB ID) */}
+      {activeSubTab === 'UNIVERSAL_IQC' && (
+        <div className="bg-white rounded-[20px] sm:rounded-[24px] border border-[#ececec] p-4 sm:p-6 shadow-xs sm:shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold">
+                  PRE-SPRAY SUBSTRATE GATE
+                </span>
+                <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">
+                  Pre-Spray IQC Inspection Desk (Raw Substrate Checks)
+                </h3>
+              </div>
+              <p className="text-xs text-[#777b86] mt-1">
+                Substrate is inspected BEFORE entering the spray booth. Approved Pcs advance to Spray Booth. Rejected Raw Pcs are isolated.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                if (universalJobs.length > 0) {
+                  const job = universalJobs[0];
+                  setUniIqcForm({
+                    jobId: job.jobId,
+                    approvedPcs: job.totalQuantity,
+                    rejectedPcs: 0,
+                    notes: 'Pre-spray substrate inspected. Zero cracks, sink marks, or oil contaminants.'
+                  });
+                  setShowUniversalIqcModal(true);
+                }
+              }}
+              className="px-4 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+            >
+              <Plus className="w-4 h-4 text-[#17191c]" />
+              <span>+ Record Pre-Spray IQC Inspection</span>
+            </button>
+          </div>
+
+          {/* List of Universal Jobs with Pre-Spray IQC Status */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {universalJobs.map(job => {
+              const isIqcDone = !!job.preSprayIQC;
+              const isIqcPass = job.preSprayIQC?.status === 'Pass';
+
+              return (
+                <div 
+                  key={job.jobId}
+                  className={`p-5 rounded-[20px] border transition space-y-3.5 ${
+                    isIqcDone && isIqcPass 
+                      ? 'bg-emerald-50/30 border-emerald-200' 
+                      : isIqcDone && !isIqcPass 
+                      ? 'bg-red-50/30 border-red-200' 
+                      : 'bg-white border-[#ececec] hover:border-[#c09748]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-[#ececec]">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-[#c09748] px-2.5 py-0.5 rounded-full bg-[#faf7ed] border border-[#f4e5be]">
+                          {job.jobId}
+                        </span>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          job.materialCategory === 'Party Material' ? 'bg-[#faf3e0] text-[#8a6521]' : 'bg-blue-50 text-blue-800'
+                        }`}>
+                          {job.materialCategory}
+                        </span>
+                      </div>
+                      <h4 className="font-serif font-normal text-base text-[#17191c] mt-1">{job.partyName}</h4>
+                      <p className="text-xs text-[#777b86]">{job.materialDescription}</p>
+                    </div>
+
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 ${
+                      isIqcDone && isIqcPass
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : isIqcDone && !isIqcPass
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]'
+                    }`}>
+                      {isIqcDone ? `IQC ${job.preSprayIQC?.status}` : 'Pending Pre-Spray IQC'}
+                    </span>
+                  </div>
+
+                  {/* Quantity & Stage Details */}
+                  <div className="grid grid-cols-3 gap-2 p-3 rounded-[14px] bg-[#fafafb] border border-[#ececec] text-xs">
+                    <div>
+                      <span className="text-[#777b86] text-[10px] font-bold uppercase block">Total Inward Qty</span>
+                      <strong className="text-[#17191c] font-mono">{job.totalQuantity} {job.unit}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[#777b86] text-[10px] font-bold uppercase block">IQC Approved Pcs</span>
+                      <strong className="text-emerald-800 font-mono">
+                        {job.preSprayIQC ? `${job.preSprayIQC.approvedPcs} ${job.unit}` : 'Pending'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-[#777b86] text-[10px] font-bold uppercase block">Current Stage</span>
+                      <strong className="text-[#c09748] font-semibold text-[11px] truncate block">{job.stage}</strong>
+                    </div>
+                  </div>
+
+                  {job.preSprayIQC && (
+                    <div className="text-[11px] text-[#777b86] bg-white p-2.5 rounded-[12px] border border-[#ececec]">
+                      <span className="font-semibold text-[#17191c]">Inspector: </span>{job.preSprayIQC.inspectedBy} on {job.preSprayIQC.inspectionDate}
+                      <p className="mt-0.5 italic">"{job.preSprayIQC.notes}"</p>
+                    </div>
+                  )}
+
+                  <div className="pt-1 flex justify-end">
+                    <button
+                      onClick={() => {
+                        setUniIqcForm({
+                          jobId: job.jobId,
+                          approvedPcs: job.preSprayIQC?.approvedPcs || job.totalQuantity,
+                          rejectedPcs: job.preSprayIQC?.rejectedPcs || 0,
+                          notes: job.preSprayIQC?.notes || 'Pre-spray substrate inspected. Surface clean, zero cracks or sink marks.'
+                        });
+                        setShowUniversalIqcModal(true);
+                      }}
+                      className="px-4 py-2 rounded-full bg-[#17191c] text-[#c09748] text-xs font-bold hover:bg-black transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
+                      <span>{isIqcDone ? 'Re-Inspect Pre-Spray IQC' : 'Perform Pre-Spray IQC Inspection'}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 0B: STRICT FINAL QA GATEKEEPER (UNIVERSAL JOB ID) */}
+      {activeSubTab === 'UNIVERSAL_QA' && (
+        <div className="bg-white rounded-[20px] sm:rounded-[24px] border border-[#ececec] p-4 sm:p-6 shadow-xs sm:shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-mono font-bold">
+                  STRICT FINAL QA GATE
+                </span>
+                <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">
+                  Final QA Gatekeeper & Invoicing Release Desk
+                </h3>
+              </div>
+              <p className="text-xs text-[#777b86] mt-1">
+                Mandatory Stage Gate: Spectrophotometer ΔE ≤ 0.70 & ASTM 5B Adhesion 100%. Unapproved jobs stay locked!
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                if (universalJobs.length > 0) {
+                  const job = universalJobs[0];
+                  setUniQaForm({
+                    jobId: job.jobId,
+                    deltaE: 0.38,
+                    adhesionPass: true,
+                    finalPassedQty: job.preSprayIQC?.approvedPcs || job.totalQuantity,
+                    notes: 'Spectrophotometer ΔE ≤ 0.70 and ASTM 5B Cross-Cut Adhesion 100% compliant. Cleared for billing.'
+                  });
+                  setShowUniversalQaModal(true);
+                }
+              }}
+              className="px-4 py-2 rounded-full bg-[#17191c] text-[#c09748] text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+            >
+              <Gauge className="w-4 h-4 text-[#c09748]" />
+              <span>+ Record Final QA Gatekeeper Sign-Off</span>
+            </button>
+          </div>
+
+          {/* List of Universal Jobs with Final QA Status */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {universalJobs.map(job => {
+              const isQaDone = !!job.finalQA;
+              const isQaApproved = job.finalQA?.overallStatus === 'Approved';
+
+              return (
+                <div 
+                  key={job.jobId}
+                  className={`p-5 rounded-[20px] border transition space-y-3.5 ${
+                    isQaDone && isQaApproved 
+                      ? 'bg-emerald-50/40 border-emerald-300' 
+                      : isQaDone && !isQaApproved 
+                      ? 'bg-red-50/40 border-red-300' 
+                      : 'bg-white border-[#ececec] hover:border-[#c09748]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-[#ececec]">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-[#c09748] px-2.5 py-0.5 rounded-full bg-[#faf7ed] border border-[#f4e5be]">
+                          {job.jobId}
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] text-[10px] font-mono font-bold">
+                          Stage: {job.stage}
+                        </span>
+                      </div>
+                      <h4 className="font-serif font-normal text-base text-[#17191c] mt-1">{job.partyName}</h4>
+                      <p className="text-xs text-[#777b86]">{job.materialDescription}</p>
+                    </div>
+
+                    <span className={`px-3.5 py-1 rounded-full text-xs font-bold shrink-0 ${
+                      isQaDone && isQaApproved
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : isQaDone && !isQaApproved
+                        ? 'bg-red-100 text-red-800 border border-red-300'
+                        : 'bg-amber-50 text-amber-800 border border-amber-200'
+                    }`}>
+                      {isQaDone ? `QA Gate: ${job.finalQA?.overallStatus}` : '🔒 QA Locked'}
+                    </span>
+                  </div>
+
+                  {/* Spectrophotometer & Adhesion metrics */}
+                  <div className="grid grid-cols-3 gap-2 p-3 rounded-[14px] bg-[#fafafb] border border-[#ececec] text-xs">
+                    <div>
+                      <span className="text-[#777b86] text-[10px] font-bold uppercase block">Spectrophoto ΔE</span>
+                      <strong className={`font-mono ${job.finalQA && job.finalQA.deltaE <= 0.70 ? 'text-emerald-800' : 'text-[#17191c]'}`}>
+                        {job.finalQA ? `${job.finalQA.deltaE} (≤0.70 Pass)` : 'Not Tested'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-[#777b86] text-[10px] font-bold uppercase block">Adhesion Grid</span>
+                      <strong className={`font-semibold ${job.finalQA?.adhesionTest === 'Pass' ? 'text-emerald-800' : 'text-[#17191c]'}`}>
+                        {job.finalQA ? `${job.finalQA.adhesionTest} (100%)` : 'Not Tested'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-[#777b86] text-[10px] font-bold uppercase block">Final Passed Qty</span>
+                      <strong className="text-emerald-800 font-mono">
+                        {job.finalQA ? `${job.finalQA.passedQty} ${job.unit}` : 'Pending'}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {job.finalQA && (
+                    <div className="text-[11px] text-[#777b86] bg-white p-2.5 rounded-[12px] border border-[#ececec]">
+                      <span className="font-semibold text-[#17191c]">QA Sign-Off By: </span>{job.finalQA.inspectedBy} on {job.finalQA.inspectionDate}
+                      <p className="mt-0.5 italic">"{job.finalQA.notes}"</p>
+                    </div>
+                  )}
+
+                  <div className="pt-1 flex justify-end">
+                    <button
+                      onClick={() => {
+                        setUniQaForm({
+                          jobId: job.jobId,
+                          deltaE: job.finalQA?.deltaE || 0.38,
+                          adhesionPass: job.finalQA?.adhesionTest === 'Pass',
+                          finalPassedQty: job.finalQA?.passedQty || job.preSprayIQC?.approvedPcs || job.totalQuantity,
+                          notes: job.finalQA?.notes || 'Spectrophotometer ΔE ≤ 0.70 and ASTM 5B Cross-Cut Adhesion 100% compliant. Cleared for billing.'
+                        });
+                        setShowUniversalQaModal(true);
+                      }}
+                      className="px-4 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-bold transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                    >
+                      <Gauge className="w-3.5 h-3.5 text-[#17191c]" />
+                      <span>{isQaDone ? 'Update QA Gate Sign-Off' : 'Perform Final QA Gatekeeper Sign-Off'}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* TAB 1: IPQC & FPA VIEW */}
       {activeSubTab === 'IPQC' && (
@@ -1416,6 +1745,204 @@ export const QAView: React.FC = () => {
                   className="px-5 sm:px-6 py-2 sm:py-2.5 rounded-full bg-[#c09748] text-[#17191c] font-semibold shadow-xs hover:bg-[#a97e35] cursor-pointer transition active:scale-95"
                 >
                   Submit FPA Sign-Off
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* MODAL 5: UNIVERSAL PRE-SPRAY SUBSTRATE IQC MODAL */}
+      {showUniversalIqcModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
+                <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">Pre-Spray Substrate IQC Inspection</h3>
+                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Inspect raw substrate before releasing to spray booth</p>
+              </div>
+              <button onClick={() => setShowUniversalIqcModal(false)} className="text-[#979799] hover:text-[#17191c] cursor-pointer p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUniIqcSubmit} className="space-y-4">
+              <div>
+                <label className="block text-[#8a6521] font-bold text-xs mb-1.5 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
+                  Select Universal Job ID:
+                </label>
+                <CustomSelect
+                  options={universalJobs.map(j => ({
+                    value: j.jobId,
+                    label: `${j.jobId} • ${j.partyName} (${j.materialDescription})`,
+                    badge: j.materialCategory,
+                    badgeColor: j.materialCategory === 'Party Material' ? 'gold' : 'blue'
+                  }))}
+                  value={uniIqcForm.jobId}
+                  onChange={val => {
+                    const found = universalJobs.find(j => j.jobId === val);
+                    setUniIqcForm(prev => ({
+                      ...prev,
+                      jobId: val,
+                      approvedPcs: found ? (found.preSprayIQC?.approvedPcs || found.totalQuantity) : prev.approvedPcs
+                    }));
+                  }}
+                  placeholder="Select Universal Job ID"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[#777b86] font-medium mb-1">Substrate Approved Pcs (Allowed for Spray)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={uniIqcForm.approvedPcs}
+                    onChange={e => setUniIqcForm({ ...uniIqcForm, approvedPcs: Number(e.target.value) })}
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] font-mono text-sm font-bold text-emerald-800 focus:border-[#c09748] focus:outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[#777b86] font-medium mb-1">Substrate Rejected Pcs (Raw Defect)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={uniIqcForm.rejectedPcs}
+                    onChange={e => setUniIqcForm({ ...uniIqcForm, rejectedPcs: Number(e.target.value) })}
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] font-mono text-sm font-bold text-red-600 focus:border-red-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[#777b86] font-medium mb-1">Inspector Notes & Substrate Condition</label>
+                <textarea
+                  value={uniIqcForm.notes}
+                  onChange={e => setUniIqcForm({ ...uniIqcForm, notes: e.target.value })}
+                  rows={2}
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] text-xs focus:border-[#c09748] focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowUniversalIqcModal(false)} className="px-4 py-2 rounded-full border border-[#ececec] bg-white text-[#777b86]">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-full bg-[#c09748] text-[#17191c] font-bold shadow-xs hover:bg-[#a97e35]">
+                  Pass Pre-Spray IQC Gate
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 6: UNIVERSAL FINAL QA GATEKEEPER MODAL */}
+      {showUniversalQaModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
+                <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">Final QA Gatekeeper Sign-Off</h3>
+                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Mandatory stage gate before releasing job for Invoicing & Dispatch</p>
+              </div>
+              <button onClick={() => setShowUniversalQaModal(false)} className="text-[#979799] hover:text-[#17191c] cursor-pointer p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUniQaSubmit} className="space-y-4">
+              <div>
+                <label className="block text-[#8a6521] font-bold text-xs mb-1.5 flex items-center gap-1.5">
+                  <Gauge className="w-3.5 h-3.5 text-[#c09748]" />
+                  Select Universal Job ID:
+                </label>
+                <CustomSelect
+                  options={universalJobs.map(j => ({
+                    value: j.jobId,
+                    label: `${j.jobId} • ${j.partyName} (${j.materialDescription})`,
+                    badge: `Stage: ${j.stage}`,
+                    badgeColor: j.finalQA?.overallStatus === 'Approved' ? 'emerald' : 'gold'
+                  }))}
+                  value={uniQaForm.jobId}
+                  onChange={val => {
+                    const found = universalJobs.find(j => j.jobId === val);
+                    setUniQaForm(prev => ({
+                      ...prev,
+                      jobId: val,
+                      finalPassedQty: found ? (found.finalQA?.passedQty || found.preSprayIQC?.approvedPcs || found.totalQuantity) : prev.finalPassedQty
+                    }));
+                  }}
+                  placeholder="Select Universal Job ID"
+                />
+              </div>
+
+              {/* Colorimetry & Adhesion parameters */}
+              <div className="p-3.5 bg-[#faf3e0]/40 border border-[#f4e5be] rounded-[16px] space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-[#17191c]">QA Gate Criteria Verification:</span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                    uniQaForm.deltaE <= 0.70 && uniQaForm.adhesionPass
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : 'bg-red-100 text-red-800 border border-red-300'
+                  }`}>
+                    {uniQaForm.deltaE <= 0.70 && uniQaForm.adhesionPass ? '✓ QA GATE PASSED' : '🚨 QA REJECTED'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-[#777b86] font-medium mb-1">Spectrophotometer ΔE (Target ≤ 0.70)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      value={uniQaForm.deltaE}
+                      onChange={e => setUniQaForm({ ...uniQaForm, deltaE: Number(e.target.value) })}
+                      className="w-full p-2 rounded-[10px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-[#777b86] font-medium mb-1">ASTM 5B Cross-Cut Adhesion</label>
+                    <select
+                      value={uniQaForm.adhesionPass ? 'Pass' : 'Fail'}
+                      onChange={e => setUniQaForm({ ...uniQaForm, adhesionPass: e.target.value === 'Pass' })}
+                      className="w-full p-2 rounded-[10px] border border-[#ececec] bg-white text-xs font-bold cursor-pointer"
+                    >
+                      <option value="Pass">Pass (100% Cross-Cut Grid)</option>
+                      <option value="Fail">Fail (Paint Flaking / Lift)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[#777b86] font-medium mb-1">Final Passed Qty (Approved for Billing)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={uniQaForm.finalPassedQty}
+                  onChange={e => setUniQaForm({ ...uniQaForm, finalPassedQty: Number(e.target.value) })}
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] font-mono text-sm font-bold text-emerald-800 focus:border-[#c09748] focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#777b86] font-medium mb-1">QA Engineer Certificate Remarks</label>
+                <textarea
+                  value={uniQaForm.notes}
+                  onChange={e => setUniQaForm({ ...uniQaForm, notes: e.target.value })}
+                  rows={2}
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] text-xs focus:border-[#c09748] focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowUniversalQaModal(false)} className="px-4 py-2 rounded-full border border-[#ececec] bg-white text-[#777b86]">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-full bg-[#17191c] text-[#c09748] font-bold shadow-xs hover:bg-black">
+                  Authorize QA Gate Release
                 </button>
               </div>
             </form>
