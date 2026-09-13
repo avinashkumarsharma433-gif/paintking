@@ -83,17 +83,39 @@ export const INITIAL_USER_PROFILES: UserProfile[] = [
 // Ground Problem 1 Scenario Data: Roop Polymers AC Bezel (1000 pcs: 250 Red + 750 Black)
 export const INITIAL_GRN_DATA: GoodsReceiptNote[] = [
   {
+    docNo: 'DOC NO: 00',
+    revNo: '00',
+    revDate: '2026-08-01',
     grnNo: 'PK-GRN-2026-0891',
     date: '2026-09-12',
     plant: 'Haridwar',
+    vehicleNo: 'UK-08-AL-4412',
     supplierCustomer: 'ROOP POLYMERS LTD',
     invoiceChallanNo: 'RP/CH/99824',
     invoiceDate: '2026-09-11',
-    vehicleNo: 'UK-08-AL-4412',
+    receivedDate: '2026-09-12',
     transporter: 'VRL LOGISTICS',
+    items: [
+      {
+        id: 'grn_item_1',
+        partCode: 'RP-8841',
+        partDescription: 'Auto AC Center Vent Bezel Substrate (ABS)',
+        invoicedQty: 1000,
+        actualReceivedQty: 1000,
+        shortExcessQty: 0,
+        okByIqcQty: 990,
+        rejectionQty: 10,
+        remark: '10 pcs found with surface scratches at IQC stage'
+      }
+    ],
+    totalQty: 1000,
+    iqcStatus: 'Accepted',
+    storeIncharge: 'Manoj Tiwari',
+    qualityApprovedBy: 'Amit Verma (QA)',
+    approvedBy: 'Satish Sharma (Plant Head)',
+    remarks: 'Visual substrate check clear. Zero flash/silver lines. Split into RD-01 & BK-09 production lines.',
     partCode: 'RP-8841',
     description: 'Auto AC Center Vent Bezel Substrate (ABS)',
-    batchNo: 'B-RP-202609-01',
     invoicedQty: 1000,
     actualReceivedQty: 1000,
     colorSplits: [
@@ -102,9 +124,9 @@ export const INITIAL_GRN_DATA: GoodsReceiptNote[] = [
         colorCode: 'RD-01',
         orderedQty: 250,
         unitRate: 25.00,
-        paintedQty: 300,   // Ground Problem 1: Over-painted!
+        paintedQty: 300,
         passedQty: 300,
-        billableQty: 250,  // Only 250 billable as per PO
+        billableQty: 250,
         status: 'Over-Run'
       },
       {
@@ -112,41 +134,91 @@ export const INITIAL_GRN_DATA: GoodsReceiptNote[] = [
         colorCode: 'BK-09',
         orderedQty: 750,
         unitRate: 20.00,
-        paintedQty: 700,   // Ground Problem 1: Under-painted!
+        paintedQty: 700,
         passedQty: 700,
-        billableQty: 700,  // 700 billable, 50 pending
+        billableQty: 700,
         status: 'In-Production'
       }
-    ],
-    iqcStatus: 'Accepted',
-    storeIncharge: 'Manoj Tiwari',
-    remarks: 'Visual substrate check clear. Zero flash/silver lines. Split into RD-01 & BK-09 production lines.'
+    ]
   },
   {
+    docNo: 'DOC NO: 00',
+    revNo: '00',
+    revDate: '2026-08-01',
     grnNo: 'PK-GRN-2026-0892',
     date: '2026-09-12',
     plant: 'Haridwar',
+    vehicleNo: 'MH-04-CP-8819',
     supplierCustomer: 'ASIAN PAINTS PPG LTD',
     invoiceChallanNo: 'PPG/INV/4412',
     invoiceDate: '2026-09-10',
-    vehicleNo: 'MH-04-CP-8819',
+    receivedDate: '2026-09-12',
     transporter: 'SAFEEXPRESS',
-    partCode: 'PNT-RD-01',
-    description: 'Monza Red 2K Polyurethane Basecoat',
-    batchNo: 'BAT-PPG-2609-R4',
-    invoicedQty: 200,
-    actualReceivedQty: 200,
-    colorSplits: [],
+    items: [
+      {
+        id: 'grn_item_2',
+        partCode: 'PNT-RD-01',
+        partDescription: 'Monza Red 2K Polyurethane Basecoat (20L Drum)',
+        invoicedQty: 200,
+        actualReceivedQty: 200,
+        shortExcessQty: 0,
+        okByIqcQty: 200,
+        rejectionQty: 0,
+        remark: 'COA verified. Viscosity Ford Cup 4: 15s'
+      }
+    ],
+    totalQty: 200,
     iqcStatus: 'Accepted',
     storeIncharge: 'Manoj Tiwari',
-    remarks: 'COA verified. Viscosity Ford Cup: 18s. Shade test Delta-E = 0.22 vs Master Standard.'
+    qualityApprovedBy: 'Amit Verma (QA)',
+    approvedBy: 'Satish Sharma (Plant Head)',
+    remarks: 'Chemical batch certificate passed.',
+    partCode: 'PNT-RD-01',
+    description: 'Monza Red 2K Polyurethane Basecoat',
+    invoicedQty: 200,
+    actualReceivedQty: 200,
+    colorSplits: []
   }
 ];
 
-// Ground Problem 2 Scenario Data: Handover Discrepancy (-30 pieces missing!)
+// Custody Handovers between stages (PK-PRD-TRF-001)
 export const INITIAL_HANDOVERS: CustodyHandover[] = [
   {
     transferId: 'TRF-1042-01',
+    date: '2026-09-12',
+    time: '08:30 AM',
+    plant: 'Haridwar',
+    woNo: 'WO-1042',
+    jobCardNo: 'JC-1042-RED',
+    partCode: 'RP-8841',
+    color: 'Monza Red Gloss',
+    fromStage: 'Raw Stores',
+    toStage: 'Surface Prep & Jigging',
+    senderName: 'Manoj Tiwari (Stores)',
+    senderQty: 320,
+    receiverName: 'Dinesh Operator (Jigging)',
+    receiverQty: 320,
+    status: 'Accepted (Match)'
+  },
+  {
+    transferId: 'TRF-1042-02',
+    date: '2026-09-12',
+    time: '09:00 AM',
+    plant: 'Haridwar',
+    woNo: 'WO-1042',
+    jobCardNo: 'JC-1042-BLK',
+    partCode: 'RP-8841',
+    color: 'Matte Jet Black',
+    fromStage: 'Raw Stores',
+    toStage: 'Surface Prep & Jigging',
+    senderName: 'Manoj Tiwari (Stores)',
+    senderQty: 750,
+    receiverName: 'Dinesh Operator (Jigging)',
+    receiverQty: 750,
+    status: 'Accepted (Match)'
+  },
+  {
+    transferId: 'TRF-1042-03',
     date: '2026-09-12',
     time: '10:15 AM',
     plant: 'Haridwar',
@@ -168,24 +240,7 @@ export const INITIAL_HANDOVERS: CustodyHandover[] = [
     supervisorApprovedBy: 'Vikram Patel'
   },
   {
-    transferId: 'TRF-1042-02',
-    date: '2026-09-12',
-    time: '11:45 AM',
-    plant: 'Haridwar',
-    woNo: 'WO-1042',
-    jobCardNo: 'JC-1042-BLK',
-    partCode: 'RP-8841',
-    color: 'Matte Jet Black',
-    fromStage: 'Raw Stores',
-    toStage: 'Surface Prep & Jigging',
-    senderName: 'Manoj Tiwari (Stores)',
-    senderQty: 750,
-    receiverName: 'Dinesh Operator (Jigging)',
-    receiverQty: 750,
-    status: 'Accepted (Match)'
-  },
-  {
-    transferId: 'TRF-1042-03',
+    transferId: 'TRF-1042-04',
     date: '2026-09-12',
     time: '01:30 PM',
     plant: 'Haridwar',
@@ -206,9 +261,12 @@ export const INITIAL_HANDOVERS: CustodyHandover[] = [
   }
 ];
 
-// Ground Problem 1 Scenario Data: Sub-Job Cards with Target Caps
+// Ground Problem 1 Scenario Data: Sub-Job Cards with Target Caps (Doc No: 001)
 export const INITIAL_JOB_CARDS: JobCard[] = [
   {
+    docNo: 'Doc No: 001',
+    revNo: '00',
+    revDate: '2026-08-01',
     jobCardNo: 'JC-1042-RED',
     woNo: 'WO-1042',
     customer: 'ROOP POLYMERS LTD',
@@ -217,21 +275,93 @@ export const INITIAL_JOB_CARDS: JobCard[] = [
     model: 'Swift 2026 Model',
     color: 'Monza Red Gloss',
     targetQty: 250,      // TARGET CAP
-    issuedRawQty: 320,
     sprayedQty: 300,     // Ground Problem 1: Painter sprayed 300 (Over-run +50)
     goodQty: 285,
     rejectQty: 15,
-    boothNo: 'Booth #2 (Enclosed Dust-Free)',
+    status: 'Over-Run Flagged',
+    fpaStatus: 'Approved',
+
+    // INITIAL PROCESS (Exact Screenshot 1)
     painterName: 'Ramesh Sharma',
+    wNo: 'WO-1042',
+    issueDate: '2026-09-12',
+    issueTime: '08:30 AM',
+    leadTime: '4 Hours',
+    dept: 'Cubic Dipping & Spray Line #2',
+
+    // FINAL PROCESS (Return tracking - Exact Screenshot 1)
+    returnMaterialDesc: 'Unused Basecoat Monza Red & Leftover Thinner',
+    returnPainterName: 'Ramesh Sharma',
+    returnDate: '2026-09-12',
+    returnTime: '01:30 PM',
+    returnOkQty: 285,
+    returnRejectionQty: 15,
+    checkingPerson: 'Amit Verma (QA Lead)',
+    headerRemark: 'Target 250 met. 15 rejected for dust spots.',
+
+    // ISSUE MATERIAL DETAILS TABLE (Exact Screenshot 1)
+    issuedMaterials: [
+      {
+        id: 'mat_1',
+        itemDescription: 'Auto AC Center Vent Bezel Substrate (ABS)',
+        qty: 320,
+        colour: 'Raw ABS Black',
+        uom: 'Pcs',
+        remark: 'Issued from GRN-0891 bay 2'
+      },
+      {
+        id: 'mat_2',
+        itemDescription: 'Monza Red 2K PU Basecoat Paint (PPG)',
+        qty: 15,
+        colour: 'Monza Red Gloss',
+        uom: 'Litres',
+        remark: 'Batch BAT-PPG-2609-R4'
+      },
+      {
+        id: 'mat_3',
+        itemDescription: 'PU Thinner 400 Fast Evaporating',
+        qty: 5,
+        colour: 'Clear Liquid',
+        uom: 'Litres',
+        remark: 'Mix ratio 4:1:1'
+      },
+      {
+        id: 'mat_4',
+        itemDescription: 'High-Gloss Clear Lacquer Coat',
+        qty: 10,
+        colour: 'Transparent High-Gloss',
+        uom: 'Litres',
+        remark: 'Top coat UV protective'
+      }
+    ],
+
+    // SIGNATURES
+    storeIncharge: 'Manoj Tiwari',
+    prodSupervisor: 'Vikram Patel',
+    approvedBy: 'Satish Sharma',
+
+    // 3-STAGE PRODUCTION PROCESS TRACKING (Exact Screenshot 1)
+    stageProcessFirst: { totalQty: 320, okQty: 310, rejectionQty: 10 },
+    stageProcessSecond: { totalQty: 310, okQty: 300, rejectionQty: 10 },
+    stageProcessThird: { totalQty: 300, okQty: 285, rejectionQty: 15 },
+    stageRemark: 'Final lacquer cured at 80°C for 45 mins',
+    preparedBy: 'Manoj Tiwari (Stores)',
+    checkedBy: 'Vikram Patel (Supervisor)',
+    stageApprovedBy: 'Satish Sharma (Plant Head)',
+
+    // Legacy fields
+    boothNo: 'Booth #2 (Enclosed Dust-Free)',
     paintBatch: 'BAT-PPG-2609-R4',
     thinnerBatch: 'THN-2609-02',
     hardenerBatch: 'HDN-2609-01',
-    status: 'Over-Run Flagged',
-    fpaStatus: 'Approved',
+    issuedRawQty: 320,
     startTime: '08:30 AM',
     endTime: '01:00 PM'
   },
   {
+    docNo: 'Doc No: 001',
+    revNo: '00',
+    revDate: '2026-08-01',
     jobCardNo: 'JC-1042-BLK',
     woNo: 'WO-1042',
     customer: 'ROOP POLYMERS LTD',
@@ -240,17 +370,78 @@ export const INITIAL_JOB_CARDS: JobCard[] = [
     model: 'Swift 2026 Model',
     color: 'Matte Jet Black',
     targetQty: 750,      // TARGET CAP
-    issuedRawQty: 750,
     sprayedQty: 700,     // Ground Problem 1: Only 700 sprayed (50 Pending)
     goodQty: 680,
     rejectQty: 20,
-    boothNo: 'Booth #1 (Conveyor Line)',
+    status: 'In Process',
+    fpaStatus: 'Approved',
+
+    // INITIAL PROCESS
     painterName: 'Kailash Yadav',
+    wNo: 'WO-1042',
+    issueDate: '2026-09-12',
+    issueTime: '09:00 AM',
+    leadTime: '6 Hours',
+    dept: 'Cubic Dipping Line #1',
+
+    // FINAL PROCESS
+    returnMaterialDesc: 'Matte Jet Black Basecoat (2L)',
+    returnPainterName: 'Kailash Yadav',
+    returnDate: '2026-09-12',
+    returnTime: '04:00 PM',
+    returnOkQty: 680,
+    returnRejectionQty: 20,
+    checkingPerson: 'Amit Verma (QA)',
+    headerRemark: '50 pcs in jigging rework rack.',
+
+    // ISSUE MATERIAL DETAILS TABLE
+    issuedMaterials: [
+      {
+        id: 'mat_5',
+        itemDescription: 'Auto AC Center Vent Bezel Substrate (ABS)',
+        qty: 750,
+        colour: 'Raw ABS Black',
+        uom: 'Pcs',
+        remark: 'Issued from GRN-0891'
+      },
+      {
+        id: 'mat_6',
+        itemDescription: 'Matte Jet Black Basecoat (PPG)',
+        qty: 25,
+        colour: 'Matte Jet Black',
+        uom: 'Litres',
+        remark: 'Batch BAT-PPG-2609-K1'
+      },
+      {
+        id: 'mat_7',
+        itemDescription: 'PU Thinner 400',
+        qty: 8,
+        colour: 'Clear Liquid',
+        uom: 'Litres',
+        remark: 'Standard solvent'
+      }
+    ],
+
+    // SIGNATURES
+    storeIncharge: 'Manoj Tiwari',
+    prodSupervisor: 'Vikram Patel',
+    approvedBy: 'Satish Sharma',
+
+    // 3-STAGE PRODUCTION PROCESS TRACKING
+    stageProcessFirst: { totalQty: 750, okQty: 730, rejectionQty: 20 },
+    stageProcessSecond: { totalQty: 730, okQty: 700, rejectionQty: 30 },
+    stageProcessThird: { totalQty: 700, okQty: 680, rejectionQty: 20 },
+    stageRemark: 'Second dipping pass completed.',
+    preparedBy: 'Manoj Tiwari (Stores)',
+    checkedBy: 'Vikram Patel (Supervisor)',
+    stageApprovedBy: 'Satish Sharma (Plant Head)',
+
+    // Legacy fields
+    boothNo: 'Booth #1 (Conveyor Line)',
     paintBatch: 'BAT-PPG-2609-K1',
     thinnerBatch: 'THN-2609-02',
     hardenerBatch: 'HDN-2609-01',
-    status: 'In Process',
-    fpaStatus: 'Approved',
+    issuedRawQty: 750,
     startTime: '09:00 AM'
   }
 ];

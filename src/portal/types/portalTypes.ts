@@ -27,7 +27,7 @@ export interface UserProfile {
   avatar: string;
 }
 
-// 1. Inward Goods Receipt Note (PK-STR-GRN-001)
+// 1. Inward Goods Receipt Note (PK-STR-GRN-001 / Doc No: 00)
 export interface OrderColorSplit {
   colorName: string;
   colorCode: string;
@@ -39,27 +39,47 @@ export interface OrderColorSplit {
   status?: 'Pending' | 'In-Production' | 'Completed' | 'Over-Run';
 }
 
-export interface GoodsReceiptNote {
-  grnNo: string;
-  date: string;
-  plant: PlantLocation;
-  supplierCustomer: string;
-  invoiceChallanNo: string;
-  invoiceDate: string;
-  vehicleNo: string;
-  transporter: string;
+export interface GRNLineItem {
+  id?: string;
   partCode: string;
-  description: string;
-  batchNo: string;
+  partDescription: string;
   invoicedQty: number;
   actualReceivedQty: number;
-  colorSplits: OrderColorSplit[]; // Problem 1: Color Breakdown from Day 1
-  iqcStatus: 'Pending' | 'Accepted' | 'Part Accepted' | 'Rejected' | 'Hold';
-  storeIncharge: string;
-  remarks?: string;
+  shortExcessQty: number; // actualReceivedQty - invoicedQty
+  okByIqcQty: number;
+  rejectionQty: number;
+  remark?: string;
 }
 
-// 2. Inter-Stage Handover & Custody Transfer (PK-PRD-TRF-001) - Problem 2: 30 Missing Pieces Fix
+export interface GoodsReceiptNote {
+  docNo?: string;           // "DOC NO: 00"
+  revNo?: string;           // "00"
+  revDate?: string;
+  grnNo: string;            // "PK-GRN-2026-881"
+  date: string;             // "2026-09-13"
+  plant: PlantLocation;
+  vehicleNo: string;
+  supplierCustomer: string; // Supplier / Customer Name
+  invoiceChallanNo: string;
+  invoiceDate: string;
+  receivedDate: string;
+  transporter: string;      // Transport Name
+  items: GRNLineItem[];     // Line items table
+  totalQty: number;         // Sum of actual received qty
+  iqcStatus: 'Pending' | 'Accepted' | 'Part Accepted' | 'Rejected' | 'Hold';
+  storeIncharge: string;
+  qualityApprovedBy?: string;
+  approvedBy?: string;
+  remarks?: string;
+  // Compatibility fields for easy access
+  partCode?: string;
+  description?: string;
+  invoicedQty?: number;
+  actualReceivedQty?: number;
+  colorSplits?: OrderColorSplit[];
+}
+
+// 2. Inter-Stage Handover & Custody Transfer (PK-PRD-TRF-001)
 export type ProductionStage = 
   | 'Raw Stores'
   | 'Surface Prep & Jigging'
@@ -93,27 +113,81 @@ export interface CustodyHandover {
   resolvedAt?: string;
 }
 
-// 3. Job Card with Color Caps (PK-PRD-JCR-001)
+// 3. Job Card Cubic Paint Frame (PK-PRD-JCR-001 / Doc No: 001)
+export interface IssuedMaterialItem {
+  id?: string;
+  itemDescription: string;  // e.g. ABS TV Bezel / Basecoat Metallic Red / Thinner 400
+  qty: number;
+  colour: string;
+  uom: string;              // Pcs, Litres, KG, Drums, Mtr
+  remark?: string;
+}
+
+export interface ProcessStageCount {
+  totalQty: number;
+  okQty: number;
+  rejectionQty: number;
+}
+
 export interface JobCard {
-  jobCardNo: string;
-  woNo: string;
+  docNo?: string;           // "Doc No: 001"
+  revNo?: string;           // "00"
+  revDate?: string;
+  jobCardNo: string;        // "JC-99824-RED"
+  woNo: string;             // W.No. (Work Order No)
   customer: string;
   partCode: string;
   partDescription: string;
-  model: string;
+  model?: string;
   color: string;
-  targetQty: number;           // Target Cap e.g. 250 Red
-  issuedRawQty: number;
-  sprayedQty: number;          // Actual sprayed count
+  targetQty: number;        // Target Cap e.g. 250
+  sprayedQty: number;       // Actual sprayed count
   goodQty: number;
   rejectQty: number;
-  boothNo: string;
-  painterName: string;
-  paintBatch: string;
-  thinnerBatch: string;
-  hardenerBatch: string;
   status: 'Open' | 'In Process' | 'Target Met' | 'Over-Run Flagged' | 'Completed' | 'Closed';
-  fpaStatus: 'Pending' | 'Approved' | 'Hold' | 'Rejected';
+  fpaStatus?: 'Pending' | 'Approved' | 'Hold' | 'Rejected';
+
+  // INITIAL PROCESS (Exact Screenshot 1)
+  painterName: string;
+  wNo: string;              // W.No.
+  issueDate: string;
+  issueTime: string;
+  leadTime: string;
+  dept: string;             // Dept. e.g. Base Coat, Dipping, UV, Spray
+
+  // FINAL PROCESS (Return tracking - Exact Screenshot 1)
+  returnMaterialDesc?: string;
+  returnPainterName?: string;
+  returnDate?: string;
+  returnTime?: string;
+  returnOkQty?: number;
+  returnRejectionQty?: number;
+  checkingPerson?: string;
+  headerRemark?: string;
+
+  // ISSUE MATERIAL DETAILS TABLE (Exact Screenshot 1)
+  issuedMaterials: IssuedMaterialItem[];
+
+  // SIGNATURES
+  storeIncharge: string;
+  prodSupervisor: string;
+  approvedBy: string;
+
+  // 3-STAGE PRODUCTION PROCESS TRACKING (Exact Screenshot 1)
+  stageProcessFirst?: ProcessStageCount;  // Process First (Base Coat)
+  stageProcessSecond?: ProcessStageCount; // Process Second (Dipping)
+  stageProcessThird?: ProcessStageCount;  // Process Third (Final Laquar)
+  stageRemark?: string;
+  preparedBy?: string;
+  checkedBy?: string;
+  stageApprovedBy?: string;
+
+  // Legacy/compatibility fields
+  boothNo?: string;
+  paintBatch?: string;
+  thinnerBatch?: string;
+  hardenerBatch?: string;
+  issuedRawQty?: number;
   startTime?: string;
   endTime?: string;
 }

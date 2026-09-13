@@ -335,11 +335,14 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const generatedJobCards: JobCard[] = grn.colorSplits.map((split, idx) => {
         const codeClean = (split.colorCode || `C${idx + 1}`).replace(/[^a-zA-Z0-9]/g, '');
         return {
+          docNo: 'Doc No: 001',
+          revNo: '00',
+          revDate: '2026-08-01',
           jobCardNo: `JC-${woSuffix}-${codeClean}`,
           woNo: `WO-${woSuffix}`,
           customer: grn.supplierCustomer,
-          partCode: grn.partCode,
-          partDescription: grn.description,
+          partCode: grn.partCode || 'SUBSTRATE',
+          partDescription: grn.description || 'Raw Substrate',
           model: 'OEM Batch',
           color: split.colorName,
           targetQty: Number(split.orderedQty) || 0, // HARD COLOR TARGET CAP
@@ -349,6 +352,24 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           rejectQty: 0,
           boothNo: idx % 2 === 0 ? 'Booth #1 (Conveyor Line)' : 'Booth #2 (Enclosed Dust-Free)',
           painterName: idx % 2 === 0 ? 'Kailash Yadav' : 'Ramesh Sharma',
+          wNo: `WO-${woSuffix}`,
+          issueDate: grn.date || new Date().toISOString().split('T')[0],
+          issueTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          leadTime: '4 Hours',
+          dept: 'Cubic Dipping & Spray Line',
+          issuedMaterials: [
+            {
+              id: `mat_${Date.now()}_${idx}`,
+              itemDescription: grn.description || 'Raw Part Substrate',
+              qty: Number(split.orderedQty) || 0,
+              colour: split.colorName,
+              uom: 'Pcs',
+              remark: `Issued from GRN ${grn.grnNo}`
+            }
+          ],
+          storeIncharge: grn.storeIncharge || 'Manoj Tiwari',
+          prodSupervisor: 'Vikram Patel',
+          approvedBy: 'Satish Sharma',
           paintBatch: `BAT-${codeClean}-${Date.now().toString().slice(-4)}`,
           thinnerBatch: 'THN-STD-01',
           hardenerBatch: 'HDN-STD-01',

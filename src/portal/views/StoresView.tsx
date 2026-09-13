@@ -1,52 +1,93 @@
 import React, { useState } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { GoodsReceiptNote } from '../types/portalTypes';
-import { Plus, Clock, CheckCircle2, Package, Droplets, ShieldCheck, ArrowDownLeft } from 'lucide-react';
-import { QuickInwardModal } from '../components/QuickInwardModal';
+import { GoodsReceiptNote, JobCard } from '../types/portalTypes';
+import { Plus, Clock, CheckCircle2, Package, Droplets, ArrowDownLeft, FileText, Send, ShieldCheck } from 'lucide-react';
+import { CreateGRNModal } from '../components/CreateGRNModal';
+import { JobCardModal } from '../components/JobCardModal';
 
 export const StoresView: React.FC = () => {
   const { grnList, materialInwardLogs, activePlant } = usePortalStore();
-  const [showAddModal, setShowAddModal] = useState<boolean>(false);
-  const [filterCategory, setFilterCategory] = useState<'ALL' | 'SUBSTRATE' | 'PAINT_CHEMICAL'>('ALL');
+  const [showGRNModal, setShowGRNModal] = useState<boolean>(false);
+  const [showJobCardModal, setShowJobCardModal] = useState<boolean>(false);
+  const [selectedGrnForJobCard, setSelectedGrnForJobCard] = useState<GoodsReceiptNote | null>(null);
 
-  // Count metrics
-  const totalSubstrates = grnList.filter(g => g.partCode !== 'PNT-RD-01').reduce((acc, curr) => acc + curr.actualReceivedQty, 0);
-  const totalPaintLitres = grnList.filter(g => g.partCode === 'PNT-RD-01').reduce((acc, curr) => acc + curr.actualReceivedQty, 0);
+  const [activeDashboardTab, setActiveDashboardTab] = useState<'PARTY' | 'INTERNAL'>('PARTY');
 
-  const filteredGrns = grnList.filter(grn => {
-    if (filterCategory === 'SUBSTRATE') return grn.partCode !== 'PNT-RD-01';
-    if (filterCategory === 'PAINT_CHEMICAL') return grn.partCode === 'PNT-RD-01';
-    return true;
-  });
+  // Metrics
+  const partyGrns = grnList.filter(g => g.partCode !== 'PNT-RD-01');
+  const internalGrns = grnList.filter(g => g.partCode === 'PNT-RD-01');
+
+  const totalSubstrates = partyGrns.reduce((acc, curr) => acc + (curr.totalQty || curr.actualReceivedQty || 0), 0);
+  const totalPaintLitres = internalGrns.reduce((acc, curr) => acc + (curr.totalQty || curr.actualReceivedQty || 0), 0);
+
+  const activeGrnList = activeDashboardTab === 'PARTY' ? partyGrns : internalGrns;
+
+  const handleOpenJobCardModal = (grn: GoodsReceiptNote) => {
+    setSelectedGrnForJobCard(grn);
+    setShowJobCardModal(true);
+  };
 
   return (
     <div className="space-y-6">
-      {/* ISO Header Banner */}
+      {/* Header Banner */}
       <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
             <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-              PK-STR-GRN-001 • INWARD & STORES DESK
+              PK-STR-GRN-001 • STORE MANAGER & INVENTORY DESK
             </span>
             <span className="text-xs text-[#777b86]">
-              Goods Receipt Note & Store Material Intake
+              Goods Received Note (DOC NO: 00) & Job Card Material Issue (Doc No: 001)
             </span>
           </div>
           <h1 className="text-3xl font-serif font-normal text-[#17191c] tracking-tight">
-            Stores Intake & Inventory Dashboard
+            Store Manager Intake & Job Card Dispatch
           </h1>
           <p className="text-xs text-[#777b86] mt-1">
-            Logs incoming customer raw substrates & company paint/chemical purchases received from Security Gate.
+            Receives physical material from Gate Security, generates official GRN, and issues raw substrates/paint to shop floor painters via Job Cards.
           </p>
         </div>
 
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => setShowGRNModal(true)}
           className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold shadow-sm transition cursor-pointer w-full md:w-auto"
         >
           <Plus className="w-4 h-4" />
-          <span>+ Naya Maal Inward Karein (New GRN)</span>
+          <span>+ Create Official GRN (Doc No: 00)</span>
         </button>
+      </div>
+
+      {/* 2 DEDICATED STORE MANAGER DASHBOARD TABS */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#ececec] pb-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActiveDashboardTab('PARTY')}
+            className={`px-5 py-2 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-2 ${
+              activeDashboardTab === 'PARTY'
+                ? 'bg-[#17191c] text-[#c09748] shadow-xs'
+                : 'bg-white text-[#777b86] border border-[#ececec] hover:bg-gray-50'
+            }`}
+          >
+            <Package className="w-4 h-4 text-[#c09748]" />
+            <span>1. Party Material Inward (Customer Job Work) [{partyGrns.length}]</span>
+          </button>
+
+          <button
+            onClick={() => setActiveDashboardTab('INTERNAL')}
+            className={`px-5 py-2 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-2 ${
+              activeDashboardTab === 'INTERNAL'
+                ? 'bg-[#17191c] text-[#c09748] shadow-xs'
+                : 'bg-white text-[#777b86] border border-[#ececec] hover:bg-gray-50'
+            }`}
+          >
+            <Droplets className="w-4 h-4 text-blue-600" />
+            <span>2. Internal Company Material Purchase [{internalGrns.length}]</span>
+          </button>
+        </div>
+
+        <div className="text-xs font-mono text-[#777b86]">
+          Gate Auto-Ingest: <strong className="text-[#17191c] font-bold">{materialInwardLogs.length} Receipts</strong>
+        </div>
       </div>
 
       {/* Real-time Inventory Summary Cards */}
@@ -59,7 +100,7 @@ export const StoresView: React.FC = () => {
           <div className="text-2xl font-serif font-bold text-[#17191c]">
             {totalSubstrates.toLocaleString('en-IN')} pcs
           </div>
-          <div className="text-[11px] text-[#777b86]">ABS, PC, Nylon, Aluminum parts ready for jigging</div>
+          <div className="text-[11px] text-[#777b86]">ABS, PC, Nylon, Aluminum parts ready for Job Card issue</div>
         </div>
 
         <div className="p-4 rounded-[20px] bg-white border border-[#ececec] shadow-xs space-y-1">
@@ -76,53 +117,20 @@ export const StoresView: React.FC = () => {
         <div className="p-4 rounded-[20px] bg-[#faf3e0]/60 border border-[#f4e5be] shadow-xs space-y-1">
           <div className="text-[10px] font-bold text-[#8a6521] uppercase tracking-wider flex items-center gap-1 font-mono">
             <ArrowDownLeft className="w-3.5 h-3.5 text-[#c09748]" />
-            SECURITY GATE AUTO-INGESTED LOGS
+            VERIFIED STORES INTAKE
           </div>
           <div className="text-2xl font-serif font-bold text-[#8a6521]">
-            {materialInwardLogs.length} Gate Receipts
+            {grnList.length} Official GRNs
           </div>
-          <div className="text-[11px] text-[#8a6521]/80">Auto-synced from Main Security Inward Register</div>
+          <div className="text-[11px] text-[#8a6521]/80">Format: Paintking DOC NO: 00</div>
         </div>
       </div>
 
-      {/* Filter Category Switches */}
-      <div className="flex items-center gap-2 border-b border-[#ececec] pb-3">
-        <button
-          onClick={() => setFilterCategory('ALL')}
-          className={`px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${
-            filterCategory === 'ALL'
-              ? 'bg-[#17191c] text-[#c09748]'
-              : 'bg-white text-[#777b86] border border-[#ececec]'
-          }`}
-        >
-          Sabhi Items ({grnList.length})
-        </button>
-        <button
-          onClick={() => setFilterCategory('SUBSTRATE')}
-          className={`px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${
-            filterCategory === 'SUBSTRATE'
-              ? 'bg-[#17191c] text-[#c09748]'
-              : 'bg-white text-[#777b86] border border-[#ececec]'
-          }`}
-        >
-          Customer Raw Substrates Only
-        </button>
-        <button
-          onClick={() => setFilterCategory('PAINT_CHEMICAL')}
-          className={`px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${
-            filterCategory === 'PAINT_CHEMICAL'
-              ? 'bg-[#17191c] text-[#c09748]'
-              : 'bg-white text-[#777b86] border border-[#ececec]'
-          }`}
-        >
-          Company Paint / Chemical Purchase Only
-        </button>
-      </div>
-
-      {/* GRN Cards */}
-      <div className="space-y-4">
-        {filteredGrns.map(grn => (
+      {/* Active GRN Cards List */}
+      <div className="space-y-5">
+        {activeGrnList.map(grn => (
           <div key={grn.grnNo} className="bg-white rounded-[24px] border border-[#ececec] p-5 sm:p-6 shadow-sm space-y-4 hover:border-[#c09748]/50 transition">
+            
             {/* Header: Identification & Badges */}
             <div className="pb-3 border-b border-[#f2f2f3] space-y-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
@@ -133,101 +141,147 @@ export const StoresView: React.FC = () => {
                   <span className="text-xs text-[#777b86] font-mono whitespace-nowrap px-2.5 py-0.5 rounded-full bg-[#f2f2f3]">
                     Challan: <strong className="text-[#17191c] font-semibold">{grn.invoiceChallanNo}</strong>
                   </span>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                    grn.partCode === 'PNT-RD-01' ? 'bg-blue-50 text-blue-800 border border-blue-200' : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {grn.partCode === 'PNT-RD-01' ? 'Company Paint Purchase' : 'Customer Raw Parts'}
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold uppercase">
+                    {grn.docNo || 'DOC NO: 00'}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2 self-start sm:self-auto">
                   <span className="text-xs text-[#777b86] font-mono whitespace-nowrap flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5 text-[#a3a6af]" />
-                    {grn.date}
+                    Recd Date: {grn.receivedDate || grn.date}
                   </span>
                   <span className={`px-3 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap flex items-center gap-1 ${
                     grn.iqcStatus === 'Accepted' 
                       ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' 
                       : 'bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521]'
                   }`}>
-                    {grn.iqcStatus === 'Accepted' && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                     IQC: {grn.iqcStatus}
                   </span>
                 </div>
               </div>
 
               {/* Customer / Supplier Title */}
-              <h3 className="font-serif font-normal text-lg sm:text-xl text-[#17191c] tracking-tight pt-0.5">
-                {grn.supplierCustomer}
-              </h3>
-            </div>
-
-            {/* Information Grid Container */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-4 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-xs">
-              <div className="space-y-0.5">
-                <span className="text-[11px] font-semibold text-[#777b86] uppercase tracking-wider block">
-                  Part Description
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <h3 className="font-serif font-normal text-xl text-[#17191c] tracking-tight pt-0.5">
+                  {grn.supplierCustomer}
+                </h3>
+                <span className="text-xs text-[#777b86] font-mono">
+                  Transporter: <strong className="text-[#17191c]">{grn.transporter}</strong> ({grn.vehicleNo})
                 </span>
-                <div className="font-medium text-[#17191c] leading-snug">{grn.description}</div>
-                <div className="font-mono text-[#a3a6af] text-[11px]">Code: {grn.partCode}</div>
-              </div>
-
-              <div className="space-y-0.5">
-                <span className="text-[11px] font-semibold text-[#777b86] uppercase tracking-wider block">
-                  Truck / Transporter
-                </span>
-                <div className="font-mono font-semibold text-[#17191c]">{grn.vehicleNo}</div>
-                <div className="text-[#777b86]">{grn.transporter}</div>
-              </div>
-
-              <div className="space-y-0.5">
-                <span className="text-[11px] font-semibold text-[#777b86] uppercase tracking-wider block">
-                  Received Count
-                </span>
-                <div className="text-xl font-serif font-normal text-[#17191c]">{grn.actualReceivedQty} pcs / units</div>
-                <div className="text-[#777b86] text-[11px]">Invoiced: {grn.invoicedQty}</div>
-              </div>
-
-              <div className="space-y-0.5">
-                <span className="text-[11px] font-semibold text-[#777b86] uppercase tracking-wider block">
-                  Store Incharge
-                </span>
-                <div className="font-medium text-[#17191c]">{grn.storeIncharge}</div>
-                <div className="text-[#777b86] text-[11px]">Plant: <strong className="text-[#17191c] font-medium">{grn.plant}</strong></div>
               </div>
             </div>
 
-            {/* Color Splits Registered at Inward */}
-            {grn.colorSplits.length > 0 && (
-              <div className="pt-2">
-                <span className="text-[11px] font-bold text-[#777b86] uppercase tracking-[0.16em] block mb-2">
-                  Customer Color Breakdown (Job Requirement):
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {grn.colorSplits.map(cs => (
-                    <div 
-                      key={cs.colorCode} 
-                      className="px-3 py-1.5 rounded-full bg-[#fafafb] border border-[#ececec] text-xs flex items-center gap-2 shadow-2xs"
-                    >
-                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${cs.colorName.includes('Red') ? 'bg-red-500' : 'bg-[#17191c]'}`} />
-                      <span className="font-medium text-[#17191c] whitespace-nowrap">{cs.colorName}:</span>
-                      <strong className="font-mono text-[#17191c] whitespace-nowrap">{cs.orderedQty} Pcs</strong>
-                      <span className="text-[#777b86] whitespace-nowrap text-[11px]">(@ ₹{cs.unitRate}/pc)</span>
-                    </div>
-                  ))}
+            {/* Line Items Table (Exact Image 2 Structure) */}
+            {grn.items && grn.items.length > 0 ? (
+              <div className="overflow-x-auto border border-[#ececec] rounded-[16px]">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-[#fafafb] text-[#777b86] font-semibold uppercase text-[10px] tracking-wider border-b border-[#ececec]">
+                      <th className="p-2.5">Part Code</th>
+                      <th className="p-2.5">Part Description</th>
+                      <th className="p-2.5 text-center">Invoiced Qty</th>
+                      <th className="p-2.5 text-center">Actual Received</th>
+                      <th className="p-2.5 text-center">Short / Excess</th>
+                      <th className="p-2.5 text-center">Ok By IQC</th>
+                      <th className="p-2.5 text-center">Rej Qty</th>
+                      <th className="p-2.5">Remark</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#ececec] text-[#17191c]">
+                    {grn.items.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-[#fafafb]">
+                        <td className="p-2.5 font-mono font-bold text-[#c09748]">{row.partCode}</td>
+                        <td className="p-2.5 font-medium">{row.partDescription}</td>
+                        <td className="p-2.5 text-center font-mono">{row.invoicedQty}</td>
+                        <td className="p-2.5 text-center font-mono font-bold text-emerald-800 bg-emerald-50/40">
+                          {row.actualReceivedQty}
+                        </td>
+                        <td className="p-2.5 text-center font-mono font-bold">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+                            row.shortExcessQty < 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
+                          }`}>
+                            {row.shortExcessQty}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-center font-mono text-emerald-700 font-semibold">{row.okByIqcQty}</td>
+                        <td className="p-2.5 text-center font-mono text-red-600 font-semibold">{row.rejectionQty}</td>
+                        <td className="p-2.5 text-gray-500 text-[11px]">{row.remark || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-xs">
+                <div>
+                  <span className="text-[10px] font-bold text-[#777b86] uppercase">Part Code & Description</span>
+                  <div className="font-semibold text-[#17191c]">{grn.description || grn.partCode}</div>
+                  <div className="font-mono text-[11px] text-[#c09748]">{grn.partCode}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-[#777b86] uppercase">Received Count</span>
+                  <div className="font-serif font-bold text-lg text-[#17191c]">{grn.actualReceivedQty || grn.totalQty} pcs</div>
+                  <div className="text-[11px] text-[#777b86]">Invoiced: {grn.invoicedQty}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-[#777b86] uppercase">Store Incharge</span>
+                  <div className="font-semibold text-[#17191c]">{grn.storeIncharge}</div>
                 </div>
               </div>
             )}
+
+            {/* Action Bar: Create Job Card & Issue Material */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-[#ececec]">
+              <div className="flex items-center gap-2 text-xs text-[#777b86]">
+                <span>Store Incharge: <strong className="text-[#17191c]">{grn.storeIncharge}</strong></span>
+                <span>•</span>
+                <span>Quality Approved: <strong className="text-emerald-800">{grn.qualityApprovedBy || 'Amit Verma (QA)'}</strong></span>
+              </div>
+
+              <button
+                onClick={() => handleOpenJobCardModal(grn)}
+                className="px-5 py-2.5 rounded-full bg-[#17191c] text-[#c09748] text-xs font-bold hover:bg-black transition flex items-center gap-2 cursor-pointer shadow-sm self-end sm:self-auto"
+              >
+                <Send className="w-3.5 h-3.5 text-[#c09748]" />
+                + Create Job Card & Issue Material (Doc No: 001)
+              </button>
+            </div>
+
           </div>
         ))}
+
+        {activeGrnList.length === 0 && (
+          <div className="bg-white rounded-[24px] border border-[#ececec] p-12 text-center text-[#777b86]">
+            Koi record nahi mila iss category me. Naya GRN add karein!
+          </div>
+        )}
       </div>
 
-      {/* Quick Inward Modal */}
-      <QuickInwardModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
+      {/* Modals */}
+      <CreateGRNModal
+        isOpen={showGRNModal}
+        onClose={() => setShowGRNModal(false)}
       />
+
+      {selectedGrnForJobCard && (
+        <JobCardModal
+          isOpen={showJobCardModal}
+          onClose={() => {
+            setShowJobCardModal(false);
+            setSelectedGrnForJobCard(null);
+          }}
+          initialData={{
+            customer: selectedGrnForJobCard.supplierCustomer,
+            partCode: selectedGrnForJobCard.items?.[0]?.partCode || selectedGrnForJobCard.partCode || 'SUBSTRATE',
+            partDescription: selectedGrnForJobCard.items?.[0]?.partDescription || selectedGrnForJobCard.description || 'Raw Substrate',
+            targetQty: selectedGrnForJobCard.totalQty || selectedGrnForJobCard.actualReceivedQty || 250,
+            wNo: `WO-${selectedGrnForJobCard.grnNo.replace(/^PK-GRN-/, '').slice(-4)}`,
+            storeIncharge: selectedGrnForJobCard.storeIncharge
+          }}
+        />
+      )}
     </div>
   );
 };
-
