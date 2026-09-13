@@ -586,3 +586,63 @@ export const MASTER_DEFECTS: DefectItem[] = [
   { code: 'D15', name: 'Other Floor Defect', severity: 'Minor', count: 9 },
   { code: 'D16', name: 'Traceability Missing', severity: 'Critical', count: 0 }
 ];
+
+// Security Gate Inward Register Mock Data (12 Fields)
+export const INITIAL_MATERIAL_INWARD = [
+  {
+    srNo: 'INW-2026-001',
+    date: '2026-09-12',
+    challanNo: 'RP/CH/99824',
+    grnNo: 'PK-GRN-2026-0891',
+    inTime: '07:45 AM',
+    vehicleNo: 'UK-08-AL-4412',
+    partyName: 'ROOP POLYMERS LTD',
+    descriptionOfMaterial: 'Raw Plastic AC Vent Bezel Substrates (ABS)',
+    quantity: 1000,
+    unit: 'Pcs' as const,
+    materialCategory: 'Customer Substrate' as const,
+    receivedBy: 'Ram Singh (Gate Security)',
+    securitySignature: 'RAM_SINGH_VERIFIED',
+    remarks: 'Received 1000 pcs intact in 20 tote crates. Handed to Stores Manoj Tiwari.',
+    plant: 'Haridwar' as const,
+    status: 'Handed to Stores' as const
+  },
+  {
+    srNo: 'INW-2026-002',
+    date: '2026-09-12',
+    challanNo: 'PPG/INV/4412',
+    grnNo: 'PK-GRN-2026-0892',
+    inTime: '09:30 AM',
+    vehicleNo: 'MH-04-CP-8819',
+    partyName: 'ASIAN PAINTS PPG LTD',
+    descriptionOfMaterial: 'Monza Red 2K Polyurethane Paint Drums & Thinner',
+    quantity: 200,
+    unit: 'Litres' as const,
+    materialCategory: 'Company Paint/Chemical' as const,
+    receivedBy: 'Ram Singh (Gate Security)',
+    securitySignature: 'RAM_SINGH_VERIFIED',
+    remarks: 'Company Paint Batch BAT-PPG-2609-R4 received. Passed COA check.',
+    plant: 'Haridwar' as const,
+    status: 'Handed to Stores' as const
+  }
+];
+
+// Security Gate Outward Register Mock Data (11 Fields)
+export const INITIAL_MATERIAL_OUTWARD = [
+  {
+    srNo: 'OUT-2026-001',
+    date: '2026-09-12',
+    vehicleNo: 'DL-01-EE-7741',
+    gatePassNo: 'GTP-OUT-2026-0512',
+    outTime: '04:15 PM',
+    partyName: 'ROOP POLYMERS LTD',
+    descriptionOfMaterial: 'Finished Coated AC Bezels (250 Red + 700 Black)',
+    quantity: 950,
+    unit: 'Pcs' as const,
+    transporter: 'VRL LOGISTICS',
+    securitySignature: 'RAM_SINGH_VERIFIED',
+    remarks: 'Dispatched in 19 corrugated master boxes under Delivery Challan PK/DC/2026/0488.',
+    plant: 'Haridwar' as const
+  }
+];
+

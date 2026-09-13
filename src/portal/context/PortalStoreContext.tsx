@@ -16,6 +16,8 @@ import {
   BillingInvoice,
   BillableLineItem,
   GatePassRecord,
+  MaterialInwardRecord,
+  MaterialOutwardRecord,
   DefectItem
 } from '../types/portalTypes';
 import {
@@ -31,8 +33,11 @@ import {
   INITIAL_QUALITY_RELEASES,
   INITIAL_BILLING_INVOICES,
   INITIAL_GATE_PASSES,
+  INITIAL_MATERIAL_INWARD,
+  INITIAL_MATERIAL_OUTWARD,
   MASTER_DEFECTS
 } from '../data/mockInitialData';
+
 
 interface PortalContextType {
   // Authentication & Context
@@ -55,6 +60,8 @@ interface PortalContextType {
   qualityReleases: FinalQualityRelease[];
   billingInvoices: BillingInvoice[];
   gatePasses: GatePassRecord[];
+  materialInwardLogs: MaterialInwardRecord[];
+  materialOutwardLogs: MaterialOutwardRecord[];
   defects: DefectItem[];
 
   // Logic Engine Actions
@@ -63,6 +70,9 @@ interface PortalContextType {
   addIPQCRecord: (ipqc: IPQCRecord) => void;
   addOQCRelease: (release: FinalQualityRelease) => void;
   addJobCard: (jc: JobCard) => void;
+  addMaterialInwardRecord: (record: MaterialInwardRecord) => void;
+  addMaterialOutwardRecord: (record: MaterialOutwardRecord) => void;
+
   
   // Problem 2: Inter-stage Handover & Custody Logic
   sendHandover: (transfer: {
@@ -189,6 +199,16 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return s ? JSON.parse(s) : INITIAL_GATE_PASSES;
   });
 
+  const [materialInwardLogs, setMaterialInwardLogs] = useState<MaterialInwardRecord[]>(() => {
+    const s = localStorage.getItem('pk_material_inward');
+    return s ? JSON.parse(s) : INITIAL_MATERIAL_INWARD;
+  });
+
+  const [materialOutwardLogs, setMaterialOutwardLogs] = useState<MaterialOutwardRecord[]>(() => {
+    const s = localStorage.getItem('pk_material_outward');
+    return s ? JSON.parse(s) : INITIAL_MATERIAL_OUTWARD;
+  });
+
   const [defects, setDefects] = useState<DefectItem[]>(MASTER_DEFECTS);
 
   // Sync to local storage
@@ -243,6 +263,52 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     localStorage.setItem('pk_gate_passes', JSON.stringify(gatePasses));
   }, [gatePasses]);
+
+  useEffect(() => {
+    localStorage.setItem('pk_material_inward', JSON.stringify(materialInwardLogs));
+  }, [materialInwardLogs]);
+
+  useEffect(() => {
+    localStorage.setItem('pk_material_outward', JSON.stringify(materialOutwardLogs));
+  }, [materialOutwardLogs]);
+
+  const addMaterialInwardRecord = (record: MaterialInwardRecord) => {
+    setMaterialInwardLogs(prev => [record, ...prev]);
+
+    // AUTOMATIC STORE HANDOVER: Pushes a GRN into grnList so Store Incharge immediately sees it on Stores Dashboard!
+    const newGrn: GoodsReceiptNote = {
+      grnNo: record.grnNo || `PK-GRN-${Date.now().toString().slice(-4)}`,
+      date: record.date,
+      plant: record.plant || activePlant,
+      supplierCustomer: record.partyName,
+      invoiceChallanNo: record.challanNo,
+      invoiceDate: record.date,
+      vehicleNo: record.vehicleNo,
+      transporter: 'Main Gate Transporter',
+      partCode: record.materialCategory === 'Customer Substrate' ? 'SUBSTRATE-IN' : 'PAINT-RAW-01',
+      description: record.descriptionOfMaterial,
+      batchNo: `BAT-IN-${Date.now().toString().slice(-4)}`,
+      invoicedQty: record.quantity,
+      actualReceivedQty: record.quantity,
+      colorSplits: [],
+      iqcStatus: 'Pending',
+      storeIncharge: record.receivedBy || currentUser.name,
+      remarks: `Auto-ingested from Security Gate Inward Entry (Sr No: ${record.srNo}). Remarks: ${record.remarks || 'None'}`
+    };
+
+    setGrnList(prev => [newGrn, ...prev]);
+  };
+
+  const addMaterialOutwardRecord = (record: MaterialOutwardRecord) => {
+    setMaterialOutwardLogs(prev => [record, ...prev]);
+
+    // Update Gate Pass status to Security Out
+    const matchingGp = gatePasses.find(gp => gp.gatePassNo === record.gatePassNo || gp.vehicleNo === record.vehicleNo);
+    if (matchingGp) {
+      setGatePasses(prev => prev.map(gp => gp.gatePassNo === matchingGp.gatePassNo ? { ...gp, status: 'Closed' } : gp));
+    }
+  };
+
 
   const switchUser = (userId: string) => {
     const found = INITIAL_USER_PROFILES.find(u => u.id === userId);
@@ -669,15 +735,20 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         qualityReleases,
         billingInvoices,
         gatePasses,
+        materialInwardLogs,
+        materialOutwardLogs,
         defects,
         addGRN,
         addIQCRecord,
         addIPQCRecord,
         addOQCRelease,
         addJobCard,
+        addMaterialInwardRecord,
+        addMaterialOutwardRecord,
         sendHandover,
         receiveHandover,
         resolveHandoverDiscrepancy,
+
         updateJobCardProgress,
         updateJobCardSprayed,
         createFPARecord,

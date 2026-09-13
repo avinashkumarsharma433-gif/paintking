@@ -304,7 +304,7 @@ export interface BillingInvoice {
   preparedBy: string;
 }
 
-// 10. Gate Pass (PK-ADM-GTP-001)
+// 10. Gate Pass & Security Registers (PK-ADM-GTP-001)
 export interface GatePassRecord {
   gatePassNo: string;
   date: string;
@@ -322,6 +322,43 @@ export interface GatePassRecord {
   securityOfficer: string;
 }
 
+// 10b. Security Material Inward Register (12 Fields)
+export interface MaterialInwardRecord {
+  srNo: string;
+  date: string;
+  challanNo: string;
+  grnNo: string;
+  inTime: string;
+  vehicleNo: string;
+  partyName: string;
+  descriptionOfMaterial: string;
+  quantity: number;
+  unit: 'Pcs' | 'Litres' | 'Drums' | 'Boxes' | 'Kg';
+  materialCategory: 'Customer Substrate' | 'Company Paint/Chemical' | 'Consumables & Spares';
+  receivedBy: string;
+  securitySignature: string;
+  remarks?: string;
+  plant: PlantLocation;
+  status: 'Received at Gate' | 'Handed to Stores' | 'Issued to Floor';
+}
+
+// 10c. Security Material Outward Register (11 Fields)
+export interface MaterialOutwardRecord {
+  srNo: string;
+  date: string;
+  vehicleNo: string;
+  gatePassNo: string;
+  outTime: string;
+  partyName: string;
+  descriptionOfMaterial: string;
+  quantity: number;
+  unit: 'Pcs' | 'Litres' | 'Drums' | 'Boxes' | 'Kg';
+  transporter: string;
+  securitySignature: string;
+  remarks?: string;
+  plant: PlantLocation;
+}
+
 // 11. Defect & CAPA Record (PK-QA-REJ-001 & PK-QA-CAP-001)
 export interface DefectItem {
   code: string; // D01-D16
@@ -329,3 +366,4 @@ export interface DefectItem {
   severity: 'Critical' | 'Major' | 'Minor';
   count: number;
 }
+

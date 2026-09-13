@@ -1,12 +1,23 @@
 import React, { useState } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
 import { GoodsReceiptNote } from '../types/portalTypes';
-import { Plus, Clock, CheckCircle2 } from 'lucide-react';
+import { Plus, Clock, CheckCircle2, Package, Droplets, ShieldCheck, ArrowDownLeft } from 'lucide-react';
 import { QuickInwardModal } from '../components/QuickInwardModal';
 
 export const StoresView: React.FC = () => {
-  const { grnList, activePlant } = usePortalStore();
+  const { grnList, materialInwardLogs, activePlant } = usePortalStore();
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
+  const [filterCategory, setFilterCategory] = useState<'ALL' | 'SUBSTRATE' | 'PAINT_CHEMICAL'>('ALL');
+
+  // Count metrics
+  const totalSubstrates = grnList.filter(g => g.partCode !== 'PNT-RD-01').reduce((acc, curr) => acc + curr.actualReceivedQty, 0);
+  const totalPaintLitres = grnList.filter(g => g.partCode === 'PNT-RD-01').reduce((acc, curr) => acc + curr.actualReceivedQty, 0);
+
+  const filteredGrns = grnList.filter(grn => {
+    if (filterCategory === 'SUBSTRATE') return grn.partCode !== 'PNT-RD-01';
+    if (filterCategory === 'PAINT_CHEMICAL') return grn.partCode === 'PNT-RD-01';
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -15,17 +26,17 @@ export const StoresView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 mb-1.5">
             <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-              PK-STR-GRN-001 • INWARD CUSTODY
+              PK-STR-GRN-001 • INWARD & STORES DESK
             </span>
             <span className="text-xs text-[#777b86]">
-              Goods Receipt Note & Subcontracting Customer Inward Register
+              Goods Receipt Note & Store Material Intake
             </span>
           </div>
           <h1 className="text-3xl font-serif font-normal text-[#17191c] tracking-tight">
-            Stores & Goods Receipt Note (GRN)
+            Stores Intake & Inventory Dashboard
           </h1>
           <p className="text-xs text-[#777b86] mt-1">
-            Logs incoming raw substrates & paints • Enforces PO color breakdowns upon truck arrival
+            Logs incoming customer raw substrates & company paint/chemical purchases received from Security Gate.
           </p>
         </div>
 
@@ -38,9 +49,79 @@ export const StoresView: React.FC = () => {
         </button>
       </div>
 
+      {/* Real-time Inventory Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-4 rounded-[20px] bg-white border border-[#ececec] shadow-xs space-y-1">
+          <div className="text-[10px] font-bold text-[#777b86] uppercase tracking-wider flex items-center gap-1 font-mono">
+            <Package className="w-3.5 h-3.5 text-[#c09748]" />
+            CUSTOMER RAW SUBSTRATES IN STOCK
+          </div>
+          <div className="text-2xl font-serif font-bold text-[#17191c]">
+            {totalSubstrates.toLocaleString('en-IN')} pcs
+          </div>
+          <div className="text-[11px] text-[#777b86]">ABS, PC, Nylon, Aluminum parts ready for jigging</div>
+        </div>
+
+        <div className="p-4 rounded-[20px] bg-white border border-[#ececec] shadow-xs space-y-1">
+          <div className="text-[10px] font-bold text-[#777b86] uppercase tracking-wider flex items-center gap-1 font-mono">
+            <Droplets className="w-3.5 h-3.5 text-blue-600" />
+            COMPANY PAINT & CHEMICAL STOCK
+          </div>
+          <div className="text-2xl font-serif font-bold text-blue-900">
+            {totalPaintLitres.toLocaleString('en-IN')} Litres
+          </div>
+          <div className="text-[11px] text-[#777b86]">PPG/Asian Paints Polyurethane Basecoat & Hardener</div>
+        </div>
+
+        <div className="p-4 rounded-[20px] bg-[#faf3e0]/60 border border-[#f4e5be] shadow-xs space-y-1">
+          <div className="text-[10px] font-bold text-[#8a6521] uppercase tracking-wider flex items-center gap-1 font-mono">
+            <ArrowDownLeft className="w-3.5 h-3.5 text-[#c09748]" />
+            SECURITY GATE AUTO-INGESTED LOGS
+          </div>
+          <div className="text-2xl font-serif font-bold text-[#8a6521]">
+            {materialInwardLogs.length} Gate Receipts
+          </div>
+          <div className="text-[11px] text-[#8a6521]/80">Auto-synced from Main Security Inward Register</div>
+        </div>
+      </div>
+
+      {/* Filter Category Switches */}
+      <div className="flex items-center gap-2 border-b border-[#ececec] pb-3">
+        <button
+          onClick={() => setFilterCategory('ALL')}
+          className={`px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${
+            filterCategory === 'ALL'
+              ? 'bg-[#17191c] text-[#c09748]'
+              : 'bg-white text-[#777b86] border border-[#ececec]'
+          }`}
+        >
+          Sabhi Items ({grnList.length})
+        </button>
+        <button
+          onClick={() => setFilterCategory('SUBSTRATE')}
+          className={`px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${
+            filterCategory === 'SUBSTRATE'
+              ? 'bg-[#17191c] text-[#c09748]'
+              : 'bg-white text-[#777b86] border border-[#ececec]'
+          }`}
+        >
+          Customer Raw Substrates Only
+        </button>
+        <button
+          onClick={() => setFilterCategory('PAINT_CHEMICAL')}
+          className={`px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer ${
+            filterCategory === 'PAINT_CHEMICAL'
+              ? 'bg-[#17191c] text-[#c09748]'
+              : 'bg-white text-[#777b86] border border-[#ececec]'
+          }`}
+        >
+          Company Paint / Chemical Purchase Only
+        </button>
+      </div>
+
       {/* GRN Cards */}
       <div className="space-y-4">
-        {grnList.map(grn => (
+        {filteredGrns.map(grn => (
           <div key={grn.grnNo} className="bg-white rounded-[24px] border border-[#ececec] p-5 sm:p-6 shadow-sm space-y-4 hover:border-[#c09748]/50 transition">
             {/* Header: Identification & Badges */}
             <div className="pb-3 border-b border-[#f2f2f3] space-y-2">
@@ -51,6 +132,11 @@ export const StoresView: React.FC = () => {
                   </span>
                   <span className="text-xs text-[#777b86] font-mono whitespace-nowrap px-2.5 py-0.5 rounded-full bg-[#f2f2f3]">
                     Challan: <strong className="text-[#17191c] font-semibold">{grn.invoiceChallanNo}</strong>
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                    grn.partCode === 'PNT-RD-01' ? 'bg-blue-50 text-blue-800 border border-blue-200' : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {grn.partCode === 'PNT-RD-01' ? 'Company Paint Purchase' : 'Customer Raw Parts'}
                   </span>
                 </div>
 
@@ -98,8 +184,8 @@ export const StoresView: React.FC = () => {
                 <span className="text-[11px] font-semibold text-[#777b86] uppercase tracking-wider block">
                   Received Count
                 </span>
-                <div className="text-xl font-serif font-normal text-[#17191c]">{grn.actualReceivedQty} pcs</div>
-                <div className="text-[#777b86] text-[11px]">Invoiced: {grn.invoicedQty} pcs</div>
+                <div className="text-xl font-serif font-normal text-[#17191c]">{grn.actualReceivedQty} pcs / units</div>
+                <div className="text-[#777b86] text-[11px]">Invoiced: {grn.invoicedQty}</div>
               </div>
 
               <div className="space-y-0.5">
@@ -144,3 +230,4 @@ export const StoresView: React.FC = () => {
     </div>
   );
 };
+
