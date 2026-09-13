@@ -587,8 +587,8 @@ export const MASTER_DEFECTS: DefectItem[] = [
   { code: 'D16', name: 'Traceability Missing', severity: 'Critical', count: 0 }
 ];
 
-// Security Gate Inward Register Mock Data (12 Fields)
-export const INITIAL_MATERIAL_INWARD = [
+// Security Gate Inward Register Mock Data (12 Fields + Multi-Item Dynamic Rows)
+export const INITIAL_MATERIAL_INWARD: MaterialInwardRecord[] = [
   {
     srNo: 'INW-2026-001',
     date: '2026-09-12',
@@ -597,15 +597,19 @@ export const INITIAL_MATERIAL_INWARD = [
     inTime: '07:45 AM',
     vehicleNo: 'UK-08-AL-4412',
     partyName: 'ROOP POLYMERS LTD',
-    descriptionOfMaterial: 'Raw Plastic AC Vent Bezel Substrates (ABS)',
+    items: [
+      { id: 'item_1', materialName: 'ABS Car AC Vent Bezel Substrates', quantity: 1000, unit: 'Pcs' }
+    ],
+    descriptionOfMaterial: 'ABS Car AC Vent Bezel Substrates (1000 Pcs)',
     quantity: 1000,
-    unit: 'Pcs' as const,
-    materialCategory: 'Customer Substrate' as const,
+    unit: 'Pcs',
+    totalQuantity: 1000,
+    materialCategory: 'Party Material',
     receivedBy: 'Ram Singh (Gate Security)',
     securitySignature: 'RAM_SINGH_VERIFIED',
     remarks: 'Received 1000 pcs intact in 20 tote crates. Handed to Stores Manoj Tiwari.',
-    plant: 'Haridwar' as const,
-    status: 'Handed to Stores' as const
+    plant: 'Haridwar',
+    status: 'Handed to Stores'
   },
   {
     srNo: 'INW-2026-002',
@@ -615,17 +619,24 @@ export const INITIAL_MATERIAL_INWARD = [
     inTime: '09:30 AM',
     vehicleNo: 'MH-04-CP-8819',
     partyName: 'ASIAN PAINTS PPG LTD',
-    descriptionOfMaterial: 'Monza Red 2K Polyurethane Paint Drums & Thinner',
-    quantity: 200,
-    unit: 'Litres' as const,
-    materialCategory: 'Company Paint/Chemical' as const,
+    items: [
+      { id: 'item_2a', materialName: 'Monza Red Paint Daba 2KG', quantity: 10, unit: 'Drums', remarks: '20 Litres total' },
+      { id: 'item_2b', materialName: 'PU Thinner Can 5L', quantity: 4, unit: 'Drums', remarks: '20 Litres total' },
+      { id: 'item_2c', materialName: 'High Gloss Clearcoat', quantity: 2, unit: 'Drums', remarks: '10 Litres total' }
+    ],
+    descriptionOfMaterial: 'Monza Red Paint Daba 2KG (10 Drums), PU Thinner (4 Drums), Clearcoat (2 Drums)',
+    quantity: 16,
+    unit: 'Drums',
+    totalQuantity: 16,
+    materialCategory: 'Internal Company',
     receivedBy: 'Ram Singh (Gate Security)',
     securitySignature: 'RAM_SINGH_VERIFIED',
-    remarks: 'Company Paint Batch BAT-PPG-2609-R4 received. Passed COA check.',
-    plant: 'Haridwar' as const,
-    status: 'Handed to Stores' as const
+    remarks: 'Internal company purchase. Passed COA check.',
+    plant: 'Haridwar',
+    status: 'Handed to Stores'
   }
 ];
+
 
 // Security Gate Outward Register Mock Data (11 Fields)
 export const INITIAL_MATERIAL_OUTWARD = [

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { MaterialInwardRecord, MaterialOutwardRecord } from '../types/portalTypes';
+import { MaterialInwardRecord, MaterialOutwardRecord, InwardMaterialLineItem } from '../types/portalTypes';
 import { 
   ArrowDownLeft, 
   ArrowUpRight, 
@@ -14,7 +14,8 @@ import {
   Package, 
   UserCheck, 
   Building2,
-  Calendar
+  Trash2,
+  Layers
 } from 'lucide-react';
 
 export const GatePassView: React.FC = () => {
@@ -34,18 +35,19 @@ export const GatePassView: React.FC = () => {
   const [showOutwardModal, setShowOutwardModal] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // 12-Field Inward Form State
-  const [inwardForm, setInwardForm] = useState({
+  // 12-Field Inward Form State with Dynamic Dynamic Multi-Item Rows!
+  const [inwardFormHeader, setInwardFormHeader] = useState({
     challanNo: '',
     vehicleNo: '',
     partyName: '',
-    descriptionOfMaterial: '',
-    quantity: 100,
-    unit: 'Pcs' as const,
-    materialCategory: 'Customer Substrate' as const,
+    materialCategory: 'Party Material' as 'Party Material' | 'Internal Company', // EXACT 2 OPTIONS!
     receivedBy: currentUser.name || 'Ram Singh (Gate Security)',
     remarks: ''
   });
+
+  const [inwardItems, setInwardItems] = useState<Omit<InwardMaterialLineItem, 'id'>[]>([
+    { materialName: 'Paint Daba 2KG', quantity: 5, unit: 'Drums', remarks: '' }
+  ]);
 
   // 11-Field Outward Form State
   const [outwardForm, setOutwardForm] = useState({
@@ -59,43 +61,77 @@ export const GatePassView: React.FC = () => {
     remarks: ''
   });
 
+  const handleAddItemRow = () => {
+    setInwardItems(prev => [
+      ...prev,
+      { materialName: '', quantity: 1, unit: 'Pcs', remarks: '' }
+    ]);
+  };
+
+  const handleRemoveItemRow = (index: number) => {
+    if (inwardItems.length === 1) return; // Keep at least 1 row
+    setInwardItems(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleItemChange = (index: number, field: string, value: any) => {
+    setInwardItems(prev => prev.map((item, idx) => {
+      if (idx === index) {
+        return { ...item, [field]: value };
+      }
+      return item;
+    }));
+  };
+
   const handleInwardSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inwardForm.partyName || !inwardForm.descriptionOfMaterial) return;
+    if (!inwardFormHeader.partyName || inwardItems.some(i => !i.materialName.trim())) return;
 
     const currentYear = new Date().getFullYear();
+    const formattedItems: InwardMaterialLineItem[] = inwardItems.map((item, idx) => ({
+      id: `item_${Date.now()}_${idx}`,
+      materialName: item.materialName.trim(),
+      quantity: Number(item.quantity) || 1,
+      unit: item.unit,
+      remarks: item.remarks
+    }));
+
+    const totalQty = formattedItems.reduce((acc, curr) => acc + curr.quantity, 0);
+    const summaryText = formattedItems.map(i => `${i.materialName} (${i.quantity} ${i.unit})`).join(', ');
+
     const newInward: MaterialInwardRecord = {
       srNo: `INW-${currentYear}-${Math.floor(100 + Math.random() * 900)}`,
       date: new Date().toISOString().split('T')[0],
-      challanNo: inwardForm.challanNo || `CH-${Math.floor(1000 + Math.random() * 9000)}`,
+      challanNo: inwardFormHeader.challanNo || `CH-${Math.floor(1000 + Math.random() * 9000)}`,
       grnNo: `PK-GRN-${currentYear}-${Math.floor(1000 + Math.random() * 9000)}`,
       inTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      vehicleNo: inwardForm.vehicleNo || 'UK-08-AL-4412',
-      partyName: inwardForm.partyName,
-      descriptionOfMaterial: inwardForm.descriptionOfMaterial,
-      quantity: Number(inwardForm.quantity) || 1,
-      unit: inwardForm.unit,
-      materialCategory: inwardForm.materialCategory,
-      receivedBy: inwardForm.receivedBy,
+      vehicleNo: inwardFormHeader.vehicleNo || 'UK-08-AL-4412',
+      partyName: inwardFormHeader.partyName,
+      descriptionOfMaterial: summaryText,
+      quantity: totalQty,
+      unit: formattedItems[0]?.unit || 'Pcs',
+      items: formattedItems,
+      totalQuantity: totalQty,
+      materialCategory: inwardFormHeader.materialCategory, // EXACT 2 OPTIONS
+      receivedBy: inwardFormHeader.receivedBy,
       securitySignature: 'VERIFIED_GATE_01',
-      remarks: inwardForm.remarks || 'Gate Inward Verified. Auto-forwarded to Stores.',
+      remarks: inwardFormHeader.remarks || 'Gate Inward Verified with Dynamic Items. Auto-sent to Stores.',
       plant: activePlant,
       status: 'Handed to Stores'
     };
 
     addMaterialInwardRecord(newInward);
     setShowInwardModal(false);
-    setInwardForm({
+
+    // Reset Form
+    setInwardFormHeader({
       challanNo: '',
       vehicleNo: '',
       partyName: '',
-      descriptionOfMaterial: '',
-      quantity: 100,
-      unit: 'Pcs',
-      materialCategory: 'Customer Substrate',
+      materialCategory: 'Party Material',
       receivedBy: currentUser.name || 'Ram Singh (Gate Security)',
       remarks: ''
     });
+    setInwardItems([{ materialName: 'Paint Daba 2KG', quantity: 5, unit: 'Drums', remarks: '' }]);
   };
 
   const handleOutwardSubmit = (e: React.FormEvent) => {
@@ -137,7 +173,7 @@ export const GatePassView: React.FC = () => {
   const filteredInward = materialInwardLogs.filter(item => 
     item.partyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.vehicleNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.descriptionOfMaterial.toLowerCase().includes(searchQuery.toLowerCase())
+    (item.descriptionOfMaterial && item.descriptionOfMaterial.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const filteredOutward = materialOutwardLogs.filter(item => 
@@ -156,14 +192,14 @@ export const GatePassView: React.FC = () => {
               PK-ADM-GTP-001 • SECURITY GATE REGISTERS
             </span>
             <span className="text-xs text-[#777b86]">
-              Material Inward (12 Fields) & Outward (11 Fields) Physical Register Desk
+              Material Inward (Multi-Item Rows & 2 Categories) & Outward Physical Register Desk
             </span>
           </div>
           <h1 className="text-3xl font-serif font-normal text-[#17191c] tracking-tight">
             Main Gate Security & Material Desk
           </h1>
           <p className="text-xs text-[#777b86] mt-1">
-            Tracks 1-to-1 material entering (Substrates & Company Paint/Thinner) & finished goods exiting the factory.
+            Tracks 1-to-1 material entering (Party Material & Internal Company) & finished goods exiting the factory.
           </p>
         </div>
 
@@ -174,7 +210,7 @@ export const GatePassView: React.FC = () => {
               className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold shadow-sm transition cursor-pointer w-full md:w-auto"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Naya Material Inward Karein (12 Fields)</span>
+              <span>+ Naya Material Inward (Multi-Item Rows)</span>
             </button>
           )}
 
@@ -184,7 +220,7 @@ export const GatePassView: React.FC = () => {
               className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold shadow-sm transition cursor-pointer w-full md:w-auto"
             >
               <Plus className="w-4 h-4 text-white" />
-              <span>+ Naya Material Outward Log Karein (11 Fields)</span>
+              <span>+ Naya Material Outward Log (11 Fields)</span>
             </button>
           )}
         </div>
@@ -244,7 +280,7 @@ export const GatePassView: React.FC = () => {
       </div>
 
       {/* -------------------------------------------------------------------------- */}
-      {/* TAB 1: MATERIAL INWARD REGISTER (12 FIELDS - EXACT USER SPECIFICATION) */}
+      {/* TAB 1: MATERIAL INWARD REGISTER (MULTI-ITEM DYNAMIC ROWS + 2 CATEGORIES) */}
       {/* -------------------------------------------------------------------------- */}
       {activeTab === 'INWARD' && (
         <div className="space-y-4">
@@ -252,7 +288,7 @@ export const GatePassView: React.FC = () => {
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 shrink-0 text-[#c09748]" />
               <span>
-                <strong>Automated Store Integration:</strong> Security Inward form me submit kiya gaya har material (Customer Parts ya Paint/Thinner) Store Dashboard me automatically <strong>Pending GRN Intake</strong> me chala jata hai.
+                <strong>Dynamic Multi-Item Logging:</strong> Ek gadi me 4-5 alag alag chize (e.g. Paint Daba 2KG, Thinner, Bezels) hone par dynamic rows add karein. Internal Company & Party Material auto-forward hote hain Store Manager Dashboards ko.
               </span>
             </div>
           </div>
@@ -264,13 +300,12 @@ export const GatePassView: React.FC = () => {
                   <tr>
                     <th className="p-3 text-center">Sr No</th>
                     <th className="p-3">Date & In Time</th>
-                    <th className="p-3">Challan / GRN Ref</th>
-                    <th className="p-3">Vehicle No</th>
-                    <th className="p-3">Name of Party</th>
-                    <th className="p-3">Description of Material</th>
-                    <th className="p-3 text-center">Qty / Unit</th>
                     <th className="p-3">Category</th>
-                    <th className="p-3">Received By & Sign</th>
+                    <th className="p-3">Challan / GRN</th>
+                    <th className="p-3">Vehicle & Party</th>
+                    <th className="p-3">Inward Material Line Items (Dynamic Rows)</th>
+                    <th className="p-3 text-center">Total Items</th>
+                    <th className="p-3">Received By</th>
                     <th className="p-3">Remarks</th>
                   </tr>
                 </thead>
@@ -282,30 +317,44 @@ export const GatePassView: React.FC = () => {
                         <div>{item.date}</div>
                         <div className="text-gray-500 font-bold">{item.inTime}</div>
                       </td>
-                      <td className="p-3 font-mono text-[11px]">
-                        <div className="font-bold text-[#17191c]">Challan: {item.challanNo}</div>
-                        <div className="text-[#8a6521] text-[10px]">{item.grnNo}</div>
-                      </td>
-                      <td className="p-3 font-mono font-bold">
-                        <span className="px-2 py-0.5 rounded bg-amber-100 border border-amber-300 text-[#17191c]">
-                          {item.vehicleNo}
-                        </span>
-                      </td>
-                      <td className="p-3 font-bold text-[#17191c]">{item.partyName}</td>
-                      <td className="p-3">
-                        <div className="font-medium text-[#17191c]">{item.descriptionOfMaterial}</div>
-                      </td>
-                      <td className="p-3 text-center font-mono text-sm font-bold text-emerald-800">
-                        {item.quantity} {item.unit}
-                      </td>
                       <td className="p-3">
                         <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          item.materialCategory === 'Customer Substrate' 
+                          item.materialCategory === 'Party Material' 
                             ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]' 
                             : 'bg-blue-50 text-blue-800 border border-blue-200'
                         }`}>
                           {item.materialCategory}
                         </span>
+                      </td>
+                      <td className="p-3 font-mono text-[11px]">
+                        <div className="font-bold text-[#17191c]">Challan: {item.challanNo}</div>
+                        <div className="text-[#8a6521] text-[10px]">{item.grnNo}</div>
+                      </td>
+                      <td className="p-3">
+                        <div className="font-bold text-[#17191c]">{item.partyName}</div>
+                        <div className="font-mono text-[11px] text-gray-600 font-semibold">{item.vehicleNo}</div>
+                      </td>
+                      
+                      {/* Dynamic Material Items Breakdown */}
+                      <td className="p-3">
+                        {item.items && item.items.length > 0 ? (
+                          <div className="space-y-1">
+                            {item.items.map((row, idx) => (
+                              <div key={row.id || idx} className="p-1.5 rounded-lg bg-gray-50 border border-gray-200 text-[11px] flex items-center justify-between gap-2">
+                                <span className="font-medium text-[#17191c]">{idx + 1}. {row.materialName}</span>
+                                <span className="font-mono font-bold text-emerald-800 shrink-0">
+                                  {row.quantity} {row.unit}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="font-medium text-[#17191c]">{item.descriptionOfMaterial}</div>
+                        )}
+                      </td>
+
+                      <td className="p-3 text-center font-mono text-sm font-bold text-emerald-800">
+                        {item.totalQuantity || item.quantity} items
                       </td>
                       <td className="p-3 text-[11px]">
                         <div className="font-medium">{item.receivedBy}</div>
@@ -324,7 +373,7 @@ export const GatePassView: React.FC = () => {
       )}
 
       {/* -------------------------------------------------------------------------- */}
-      {/* TAB 2: MATERIAL OUTWARD REGISTER (11 FIELDS - EXACT USER SPECIFICATION) */}
+      {/* TAB 2: MATERIAL OUTWARD REGISTER */}
       {/* -------------------------------------------------------------------------- */}
       {activeTab === 'OUTWARD' && (
         <div className="space-y-4">
@@ -387,9 +436,7 @@ export const GatePassView: React.FC = () => {
         </div>
       )}
 
-      {/* -------------------------------------------------------------------------- */}
       {/* TAB 3: VEHICLE GATE PASS DESK */}
-      {/* -------------------------------------------------------------------------- */}
       {activeTab === 'GATE_PASS' && (
         <div className="space-y-4">
           {gatePasses.map(gp => (
@@ -457,18 +504,18 @@ export const GatePassView: React.FC = () => {
       )}
 
       {/* -------------------------------------------------------------------------- */}
-      {/* MODAL 1: MATERIAL INWARD FORM (ALL 12 FIELDS) */}
+      {/* MODAL 1: MATERIAL INWARD FORM WITH DYNAMIC MULTI-ITEM ROWS & 2 CATEGORIES */}
       {/* -------------------------------------------------------------------------- */}
       {showInwardModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-[24px] max-w-2xl w-full p-6 shadow-2xl border border-[#ececec] space-y-5 max-h-[92vh] overflow-y-auto no-scrollbar">
+          <div className="bg-white rounded-[24px] max-w-3xl w-full p-6 shadow-2xl border border-[#ececec] space-y-5 max-h-[94vh] overflow-y-auto no-scrollbar">
             <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
               <div>
                 <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase font-bold">
-                  SECURITY INWARD REGISTER
+                  SECURITY INWARD REGISTER (MULTI-ITEM ENTRANCE)
                 </span>
                 <h3 className="text-xl font-serif text-[#17191c] font-bold mt-0.5">
-                  12-Field Security Material Inward Entry
+                  12-Field Inward Entry with Dynamic Item Rows
                 </h3>
               </div>
               <button 
@@ -480,7 +527,9 @@ export const GatePassView: React.FC = () => {
             </div>
 
             <form onSubmit={handleInwardSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              
+              {/* Header Fields Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#fafafb] p-4 rounded-[16px] border border-[#ececec]">
                 
                 <div>
                   <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
@@ -489,25 +538,25 @@ export const GatePassView: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={inwardForm.partyName}
-                    onChange={e => setInwardForm({ ...inwardForm, partyName: e.target.value })}
+                    value={inwardFormHeader.partyName}
+                    onChange={e => setInwardFormHeader({ ...inwardFormHeader, partyName: e.target.value })}
                     placeholder="e.g. ROOP POLYMERS LTD / ASIAN PAINTS PPG"
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
-                    2. Description of Material *
+                    2. Material Category (EXACT 2 OPTIONS) *
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={inwardForm.descriptionOfMaterial}
-                    onChange={e => setInwardForm({ ...inwardForm, descriptionOfMaterial: e.target.value })}
-                    placeholder="e.g. ABS Vent Bezels OR Monza Red Paint Drums"
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                  />
+                  <select
+                    value={inwardFormHeader.materialCategory}
+                    onChange={e => setInwardFormHeader({ ...inwardFormHeader, materialCategory: e.target.value as any })}
+                    className="w-full p-2.5 rounded-[12px] border border-[#c09748] bg-amber-50 font-bold text-[#17191c] focus:outline-none cursor-pointer text-xs"
+                  >
+                    <option value="Party Material">1. Party Material (Customer Substrates for Job Work)</option>
+                    <option value="Internal Company">2. Internal Company (Paint, Chemical, Thinner, Spares Purchase)</option>
+                  </select>
                 </div>
 
                 <div>
@@ -517,10 +566,10 @@ export const GatePassView: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={inwardForm.vehicleNo}
-                    onChange={e => setInwardForm({ ...inwardForm, vehicleNo: e.target.value })}
+                    value={inwardFormHeader.vehicleNo}
+                    onChange={e => setInwardFormHeader({ ...inwardFormHeader, vehicleNo: e.target.value })}
                     placeholder="e.g. UK-08-AL-4412"
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none uppercase"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none uppercase"
                   />
                 </div>
 
@@ -531,88 +580,115 @@ export const GatePassView: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={inwardForm.challanNo}
-                    onChange={e => setInwardForm({ ...inwardForm, challanNo: e.target.value })}
+                    value={inwardFormHeader.challanNo}
+                    onChange={e => setInwardFormHeader({ ...inwardFormHeader, challanNo: e.target.value })}
                     placeholder="e.g. RP/CH/99824"
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
-                    5. Quantity *
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={inwardForm.quantity}
-                    onChange={e => setInwardForm({ ...inwardForm, quantity: Number(e.target.value) })}
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
-                    6. Unit of Measure
-                  </label>
-                  <select
-                    value={inwardForm.unit}
-                    onChange={e => setInwardForm({ ...inwardForm, unit: e.target.value as any })}
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
-                  >
-                    <option value="Pcs">Pcs (Substrate Pieces)</option>
-                    <option value="Litres">Litres (Paint / Thinner / Hardener)</option>
-                    <option value="Drums">Drums</option>
-                    <option value="Boxes">Master Corrugated Boxes</option>
-                    <option value="Kg">Kg</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
-                    7. Material Category
-                  </label>
-                  <select
-                    value={inwardForm.materialCategory}
-                    onChange={e => setInwardForm({ ...inwardForm, materialCategory: e.target.value as any })}
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
-                  >
-                    <option value="Customer Substrate">Customer Substrate (For Finishing)</option>
-                    <option value="Company Paint/Chemical">Company Paint / Chemical Purchase</option>
-                    <option value="Consumables & Spares">Consumables & Spare Parts</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
-                    8. Received By (Officer Name)
-                  </label>
-                  <input
-                    type="text"
-                    value={inwardForm.receivedBy}
-                    onChange={e => setInwardForm({ ...inwardForm, receivedBy: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none"
                   />
                 </div>
 
               </div>
 
+              {/* DYNAMIC MULTI-ITEM ROWS CONTAINER (4-5 items in 1 truck!) */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b border-[#ececec] pb-2">
+                  <span className="text-[11px] font-bold text-[#17191c] uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-[#c09748]" />
+                    Dynamic Material Items List (Add Multiple Items for 1 Truck):
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAddItemRow}
+                    className="px-3 py-1 rounded-full bg-[#faf7ed] border border-[#f4e5be] text-[#8a6521] text-xs font-bold hover:bg-[#faf3e0] transition cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Add Another Item Row</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2.5 max-h-60 overflow-y-auto no-scrollbar pr-1">
+                  {inwardItems.map((item, idx) => (
+                    <div key={idx} className="grid grid-cols-12 gap-2 p-3 bg-white rounded-[14px] border border-[#ececec] items-center">
+                      
+                      <div className="col-span-5">
+                        <label className="block text-[9px] font-bold text-gray-500 uppercase mb-0.5">
+                          Material Name ({idx + 1}) *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={item.materialName}
+                          onChange={e => handleItemChange(idx, 'materialName', e.target.value)}
+                          placeholder="e.g. Paint Daba 2KG / ABS Vent Bezel"
+                          className="w-full p-2 rounded-[8px] border border-[#ececec] font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none text-xs"
+                        />
+                      </div>
+
+                      <div className="col-span-3">
+                        <label className="block text-[9px] font-bold text-gray-500 uppercase mb-0.5">
+                          Quantity *
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          required
+                          value={item.quantity}
+                          onChange={e => handleItemChange(idx, 'quantity', Number(e.target.value))}
+                          className="w-full p-2 rounded-[8px] border border-[#ececec] font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none text-xs"
+                        />
+                      </div>
+
+                      <div className="col-span-3">
+                        <label className="block text-[9px] font-bold text-gray-500 uppercase mb-0.5">
+                          Unit of Measure
+                        </label>
+                        <select
+                          value={item.unit}
+                          onChange={e => handleItemChange(idx, 'unit', e.target.value)}
+                          className="w-full p-2 rounded-[8px] border border-[#ececec] font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none text-xs cursor-pointer"
+                        >
+                          <option value="Drums">Drums / Can</option>
+                          <option value="Pcs">Pcs (Substrates)</option>
+                          <option value="Litres">Litres</option>
+                          <option value="Boxes">Boxes</option>
+                          <option value="Kg">Kg</option>
+                          <option value="Rolls">Rolls</option>
+                        </select>
+                      </div>
+
+                      <div className="col-span-1 flex items-end justify-center pt-3">
+                        {inwardItems.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItemRow(idx)}
+                            className="text-red-500 hover:text-red-700 p-1 cursor-pointer transition"
+                            title="Remove row"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
-                  9. Security Remarks & Verification Note
+                  Security Remarks & Intake Note
                 </label>
                 <textarea
                   rows={2}
-                  value={inwardForm.remarks}
-                  onChange={e => setInwardForm({ ...inwardForm, remarks: e.target.value })}
-                  placeholder="e.g. Physical box count match. Handed over to Store Incharge Manoj Tiwari."
+                  value={inwardFormHeader.remarks}
+                  onChange={e => setInwardFormHeader({ ...inwardFormHeader, remarks: e.target.value })}
+                  placeholder="e.g. Total 3 item types verified in truck. Handed over to Store Incharge Manoj Tiwari."
                   className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] font-medium text-[#17191c] focus:border-[#c09748] focus:outline-none"
                 />
               </div>
 
               <div className="p-3 bg-[#faf7ed] border border-[#f4e5be] rounded-[12px] text-[11px] text-[#8a6521]">
-                <strong>Auto-Handover Note:</strong> Inward entry submit hote hi auto-generated <strong>GRN</strong> Stores Dashboard me update ho jayegi.
+                <strong>Dashboard Routing Note:</strong> Selected Category <strong>[{inwardFormHeader.materialCategory}]</strong> ke mutabiq ye items Store Manager ke specific <strong>{inwardFormHeader.materialCategory === 'Party Material' ? 'Party Material Dashboard' : 'Internal Company Material Dashboard'}</strong> me auto-route honge.
               </div>
 
               <div className="flex justify-end gap-2.5 pt-2">
@@ -627,7 +703,7 @@ export const GatePassView: React.FC = () => {
                   type="submit"
                   className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-bold shadow-sm cursor-pointer transition active:scale-95"
                 >
-                  Submit Inward Entry & Send to Stores
+                  Submit Multi-Item Inward & Route to Stores
                 </button>
               </div>
             </form>
@@ -635,9 +711,7 @@ export const GatePassView: React.FC = () => {
         </div>
       )}
 
-      {/* -------------------------------------------------------------------------- */}
-      {/* MODAL 2: MATERIAL OUTWARD FORM (ALL 11 FIELDS) */}
-      {/* -------------------------------------------------------------------------- */}
+      {/* MODAL 2: MATERIAL OUTWARD FORM */}
       {showOutwardModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-[24px] max-w-2xl w-full p-6 shadow-2xl border border-[#ececec] space-y-5 max-h-[92vh] overflow-y-auto no-scrollbar">
@@ -786,9 +860,10 @@ export const GatePassView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold shadow-sm cursor-pointer transition active:scale-95"
+                  className="px-6 py-2.5 rounded-full bg-[#17191c] text-white font-medium cursor-pointer hover:bg-black flex items-center gap-2"
                 >
-                  Confirm Physical Exit & Log Outward
+                  <Save className="w-4 h-4 text-[#c09748]" />
+                  Log Outward Entry
                 </button>
               </div>
             </form>
@@ -798,4 +873,3 @@ export const GatePassView: React.FC = () => {
     </div>
   );
 };
-

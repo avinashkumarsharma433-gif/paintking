@@ -322,7 +322,16 @@ export interface GatePassRecord {
   securityOfficer: string;
 }
 
-// 10b. Security Material Inward Register (12 Fields)
+// 10b. Dynamic Line Item for Material Inward (Supports 4-5 different items per truck arrival)
+export interface InwardMaterialLineItem {
+  id: string;
+  materialName: string; // e.g. "Paint Daba 2KG", "ABS Vent Bezel", "Thinner Drum"
+  quantity: number;     // e.g. 5
+  unit: 'Pcs' | 'Litres' | 'Drums' | 'Boxes' | 'Kg' | 'Rolls' | 'Packets';
+  remarks?: string;
+}
+
+// 10b. Security Material Inward Register (12 Fields + Multi-Item Dynamic Rows)
 export interface MaterialInwardRecord {
   srNo: string;
   date: string;
@@ -331,16 +340,19 @@ export interface MaterialInwardRecord {
   inTime: string;
   vehicleNo: string;
   partyName: string;
-  descriptionOfMaterial: string;
-  quantity: number;
-  unit: 'Pcs' | 'Litres' | 'Drums' | 'Boxes' | 'Kg';
-  materialCategory: 'Customer Substrate' | 'Company Paint/Chemical' | 'Consumables & Spares';
+  descriptionOfMaterial?: string; // Summary of items
+  quantity?: number;
+  unit?: 'Pcs' | 'Litres' | 'Drums' | 'Boxes' | 'Kg' | 'Rolls' | 'Packets';
+  items: InwardMaterialLineItem[]; // Multi-item dynamic rows for 1 vehicle!
+  totalQuantity: number;
+  materialCategory: 'Party Material' | 'Internal Company'; // EXACT 2 OPTIONS REQUESTED!
   receivedBy: string;
   securitySignature: string;
   remarks?: string;
   plant: PlantLocation;
   status: 'Received at Gate' | 'Handed to Stores' | 'Issued to Floor';
 }
+
 
 // 10c. Security Material Outward Register (11 Fields)
 export interface MaterialOutwardRecord {
