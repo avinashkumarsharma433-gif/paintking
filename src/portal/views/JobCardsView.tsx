@@ -8,12 +8,14 @@ import {
   FileText, 
   CheckCircle2, 
   Layers, 
-  Send 
+  Send,
+  Clock,
+  ShieldCheck
 } from 'lucide-react';
 import { JobCardModal } from '../components/JobCardModal';
 
 export const JobCardsView: React.FC = () => {
-  const { jobCards, universalJobs, updateJobCardSprayed, defects, activePlant } = usePortalStore();
+  const { jobCards, universalJobs, updateJobCardSprayed, defects, activePlant, canStartBulkProduction } = usePortalStore();
   const [selectedJobCardForProgress, setSelectedJobCardForProgress] = useState<JobCard | null>(null);
   const [showBatchModal, setShowBatchModal] = useState<boolean>(false);
   const [addedSprayed, setAddedSprayed] = useState<number>(50);
@@ -25,6 +27,12 @@ export const JobCardsView: React.FC = () => {
   const [selectedJobCardForView, setSelectedJobCardForView] = useState<JobCard | null>(null);
 
   const handleOpenBatchModal = (jc: JobCard) => {
+    const gateCheck = canStartBulkProduction(jc.jobCardNo);
+    if (!gateCheck.allowed) {
+      if (!confirm(`⚠️ Quality Gate 2 (FPA Golden Gate) Advisory:\n\n${gateCheck.reason}\n\nDo you want to proceed under authorized production supervisor dispensation?`)) {
+        return;
+      }
+    }
     setSelectedJobCardForProgress(jc);
     setShowBatchModal(true);
   };
@@ -209,6 +217,43 @@ export const JobCardsView: React.FC = () => {
                       In Process
                     </span>
                   )}
+                </div>
+              </div>
+
+              {/* SLA Countdown & 5-Stage Sequential Gates */}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-[14px] bg-[#faf7ed] border border-[#f4e5be]">
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold flex items-center gap-1 ${
+                    jc.isSlaBreached 
+                      ? 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse' 
+                      : 'bg-white text-[#8a6521] border border-[#f4e5be]'
+                  }`}>
+                    <Clock className="w-3 h-3" />
+                    <span>SLA Lead Time: {jc.leadTime || '4 Hours'}</span>
+                    {jc.isSlaBreached && <span className="text-rose-600 font-extrabold ml-1">[BREACHED]</span>}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    Gate 1: IQC OK
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full border ${
+                    jc.fpaStatus === 'Approved' 
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+                      : 'bg-amber-100 text-amber-800 border-amber-200'
+                  }`}>
+                    Gate 2: FPA {jc.fpaStatus || 'Approved'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
+                    Gate 3: IPQC Active
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 border border-purple-200">
+                    Gate 4: OQC Offer
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                    Gate 5: PDI Ready
+                  </span>
                 </div>
               </div>
 

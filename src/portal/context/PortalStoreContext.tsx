@@ -22,7 +22,13 @@ import {
   UniversalJobRecord,
   PreSprayIQCRecord,
   FinalQAGateRecord,
-  JobPipelineStage
+  JobPipelineStage,
+  Capa8DRecord,
+  FourMChangeRecord,
+  ProductionOfferingReport,
+  HRLeaveRecord,
+  CalibrationRecord,
+  AuditQuestionItem
 } from '../types/portalTypes';
 import {
   INITIAL_USER_PROFILES,
@@ -40,7 +46,13 @@ import {
   INITIAL_GATE_PASSES,
   INITIAL_MATERIAL_INWARD,
   INITIAL_MATERIAL_OUTWARD,
-  MASTER_DEFECTS
+  MASTER_DEFECTS,
+  INITIAL_CAPA_8D_RECORDS,
+  INITIAL_4M_CHANGE_RECORDS,
+  INITIAL_PRODUCTION_OFFERING_REPORTS,
+  INITIAL_HR_LEAVE_RECORDS,
+  INITIAL_CALIBRATION_RECORDS,
+  INITIAL_MNC_AUDIT_QUESTIONS
 } from '../data/mockInitialData';
 
 
@@ -146,6 +158,47 @@ interface PortalContextType {
   // Active Discrepancy Alerts Counter
   unresolvedHandoversCount: number;
   openOverrunCount: number;
+
+  // 100-Question MNC Audit Engine (Module E)
+  auditQuestions: AuditQuestionItem[];
+  updateAuditAnswer: (id: string, updates: Partial<AuditQuestionItem>) => void;
+  resetAuditToStandard: () => void;
+
+  // 8D CAPA & 4M Change Control (Section J)
+  capa8DList: Capa8DRecord[];
+  addCapa8D: (capa: Capa8DRecord) => void;
+  updateCapa8D: (id: string, updates: Partial<Capa8DRecord>) => void;
+  fourMChanges: FourMChangeRecord[];
+  addFourMChange: (change: FourMChangeRecord) => void;
+
+  // Production Offering Report (PRD-OFF) (Module C)
+  productionOfferings: ProductionOfferingReport[];
+  addProductionOffering: (offering: ProductionOfferingReport) => void;
+  signProductionOffering: (
+    id: string,
+    stage: 'Prepared' | 'Checked' | 'QA' | 'Approved',
+    signerName: string
+  ) => void;
+
+  // HR Leave Application (Module A / Format A.12)
+  hrLeaves: HRLeaveRecord[];
+  addHRLeave: (leave: HRLeaveRecord) => void;
+  approveHRLeave: (
+    id: string,
+    stage: 'Dept Incharge' | 'HR' | 'MD',
+    status: 'Approved' | 'Rejected',
+    remarks?: string,
+    signerName?: string
+  ) => void;
+
+  // Machine Calibration Master Register (Section K)
+  calibrationList: CalibrationRecord[];
+  updateCalibration: (id: string, updates: Partial<CalibrationRecord>) => void;
+
+  // 5-Stage Sequential Quality Gatekeeper Functions
+  canIssueJobCard: (grnNo: string) => { allowed: boolean; reason?: string };
+  canStartBulkProduction: (jobCardNo: string) => { allowed: boolean; reason?: string };
+  canPrintPackingSlip: (jobCardNo: string) => { allowed: boolean; reason?: string };
 }
 
 const PortalContext = createContext<PortalContextType | undefined>(undefined);
@@ -326,6 +379,42 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [defects, setDefects] = useState<DefectItem[]>(MASTER_DEFECTS);
 
+  // Module E: 100-Question MNC Audit Engine State
+  const [auditQuestions, setAuditQuestions] = useState<AuditQuestionItem[]>(() => {
+    const s = localStorage.getItem('pk_audit_questions');
+    return s ? JSON.parse(s) : INITIAL_MNC_AUDIT_QUESTIONS;
+  });
+
+  // Module E / J: 8D CAPA Records State
+  const [capa8DList, setCapa8DList] = useState<Capa8DRecord[]>(() => {
+    const s = localStorage.getItem('pk_capa_8d');
+    return s ? JSON.parse(s) : INITIAL_CAPA_8D_RECORDS;
+  });
+
+  // Module E / J: 4M Change Control Register State
+  const [fourMChanges, setFourMChanges] = useState<FourMChangeRecord[]>(() => {
+    const s = localStorage.getItem('pk_4m_changes');
+    return s ? JSON.parse(s) : INITIAL_4M_CHANGE_RECORDS;
+  });
+
+  // Module C: Production Offering Report State (PRD-OFF)
+  const [productionOfferings, setProductionOfferings] = useState<ProductionOfferingReport[]>(() => {
+    const s = localStorage.getItem('pk_prod_offerings');
+    return s ? JSON.parse(s) : INITIAL_PRODUCTION_OFFERING_REPORTS;
+  });
+
+  // Module A: HR Leave Applications State (Format A.12)
+  const [hrLeaves, setHrLeaves] = useState<HRLeaveRecord[]>(() => {
+    const s = localStorage.getItem('pk_hr_leaves');
+    return s ? JSON.parse(s) : INITIAL_HR_LEAVE_RECORDS;
+  });
+
+  // Module K: Machine & Measuring Calibration Register State
+  const [calibrationList, setCalibrationList] = useState<CalibrationRecord[]>(() => {
+    const s = localStorage.getItem('pk_calibration_list');
+    return s ? JSON.parse(s) : INITIAL_CALIBRATION_RECORDS;
+  });
+
   // Sync to local storage
   useEffect(() => {
     localStorage.setItem('pk_current_user', JSON.stringify(currentUser));
@@ -386,6 +475,30 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     localStorage.setItem('pk_material_outward', JSON.stringify(materialOutwardLogs));
   }, [materialOutwardLogs]);
+
+  useEffect(() => {
+    localStorage.setItem('pk_audit_questions', JSON.stringify(auditQuestions));
+  }, [auditQuestions]);
+
+  useEffect(() => {
+    localStorage.setItem('pk_capa_8d', JSON.stringify(capa8DList));
+  }, [capa8DList]);
+
+  useEffect(() => {
+    localStorage.setItem('pk_4m_changes', JSON.stringify(fourMChanges));
+  }, [fourMChanges]);
+
+  useEffect(() => {
+    localStorage.setItem('pk_prod_offerings', JSON.stringify(productionOfferings));
+  }, [productionOfferings]);
+
+  useEffect(() => {
+    localStorage.setItem('pk_hr_leaves', JSON.stringify(hrLeaves));
+  }, [hrLeaves]);
+
+  useEffect(() => {
+    localStorage.setItem('pk_calibration_list', JSON.stringify(calibrationList));
+  }, [calibrationList]);
 
   const addMaterialInwardRecord = (record: MaterialInwardRecord) => {
     setMaterialInwardLogs(prev => [record, ...prev]);
@@ -851,6 +964,143 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  // Module E: Audit Actions
+  const updateAuditAnswer = (id: string, updates: Partial<AuditQuestionItem>) => {
+    setAuditQuestions(prev => prev.map(q => q.id === id ? { ...q, ...updates } : q));
+  };
+
+  const resetAuditToStandard = () => {
+    setAuditQuestions(INITIAL_MNC_AUDIT_QUESTIONS);
+    localStorage.removeItem('pk_audit_questions');
+  };
+
+  // Module E / J: 8D CAPA Actions
+  const addCapa8D = (capa: Capa8DRecord) => {
+    setCapa8DList(prev => [capa, ...prev]);
+  };
+
+  const updateCapa8D = (id: string, updates: Partial<Capa8DRecord>) => {
+    setCapa8DList(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+  };
+
+  // Module E / J: 4M Change Control
+  const addFourMChange = (change: FourMChangeRecord) => {
+    setFourMChanges(prev => [change, ...prev]);
+  };
+
+  // Module C: Production Offering Report
+  const addProductionOffering = (offering: ProductionOfferingReport) => {
+    setProductionOfferings(prev => [offering, ...prev]);
+  };
+
+  const signProductionOffering = (
+    id: string,
+    stage: 'Prepared' | 'Checked' | 'QA' | 'Approved',
+    signerName: string
+  ) => {
+    const timestamp = new Date().toLocaleString();
+    setProductionOfferings(prev => prev.map(rep => {
+      if (rep.id !== id) return rep;
+      if (stage === 'Prepared') {
+        return { ...rep, preparedBy: signerName, preparedDate: timestamp, status: 'Offered to QA' };
+      } else if (stage === 'Checked') {
+        return { ...rep, checkedBy: signerName, checkedDate: timestamp };
+      } else if (stage === 'QA') {
+        return { ...rep, qaCheckedBy: signerName, qaDate: timestamp, status: 'QA Inspected' };
+      } else if (stage === 'Approved') {
+        return { ...rep, approvedBy: signerName, approvalDate: timestamp, status: 'Approved' };
+      }
+      return rep;
+    }));
+  };
+
+  // Module A: HR Leave Actions (Format A.12)
+  const addHRLeave = (leave: HRLeaveRecord) => {
+    setHrLeaves(prev => [leave, ...prev]);
+  };
+
+  const approveHRLeave = (
+    id: string,
+    stage: 'Dept Incharge' | 'HR' | 'MD',
+    status: 'Approved' | 'Rejected',
+    remarks?: string,
+    signerName?: string
+  ) => {
+    const timestamp = new Date().toLocaleString();
+    setHrLeaves(prev => prev.map(lv => {
+      if (lv.id !== id) return lv;
+      if (stage === 'Dept Incharge') {
+        return {
+          ...lv,
+          deptInchargeStatus: status === 'Approved' ? 'Recommended' : 'Rejected',
+          deptInchargeRemarks: remarks,
+          deptInchargeName: signerName || currentUser.name,
+          deptInchargeSignDate: timestamp,
+          finalStatus: status === 'Approved' ? 'In Review' : 'Rejected'
+        };
+      } else if (stage === 'HR') {
+        return {
+          ...lv,
+          hrStatus: status === 'Approved' ? 'Verified' : 'Rejected',
+          hrRemarks: remarks,
+          hrName: signerName || currentUser.name,
+          hrSignDate: timestamp,
+          finalStatus: status === 'Approved' ? 'In Review' : 'Rejected'
+        };
+      } else if (stage === 'MD') {
+        return {
+          ...lv,
+          mdStatus: status === 'Approved' ? 'Sanctioned' : 'Rejected',
+          mdName: signerName || currentUser.name,
+          mdSignDate: timestamp,
+          finalStatus: status === 'Approved' ? 'Sanctioned' : 'Rejected'
+        };
+      }
+      return lv;
+    }));
+  };
+
+  // Module K: Calibration Actions
+  const updateCalibration = (id: string, updates: Partial<CalibrationRecord>) => {
+    setCalibrationList(prev => prev.map(cal => cal.id === id ? { ...cal, ...updates } : cal));
+  };
+
+  // Strict 5-Stage Sequential Quality Gatekeeper Functions
+  const canIssueJobCard = (grnNo: string): { allowed: boolean; reason?: string } => {
+    const grn = grnList.find(g => g.grnNo === grnNo);
+    if (!grn) return { allowed: false, reason: 'GRN record not found in system.' };
+    if (grn.iqcStatus === 'Rejected' || grn.iqcStatus === 'Hold') {
+      return { allowed: false, reason: `Gate 1 Block: GRN ${grnNo} is on IQC ${grn.iqcStatus}. Raw substrate cannot be issued to Job Card.` };
+    }
+    return { allowed: true };
+  };
+
+  const canStartBulkProduction = (jobCardNo: string): { allowed: boolean; reason?: string } => {
+    const jc = jobCards.find(j => j.jobCardNo === jobCardNo);
+    if (!jc) return { allowed: false, reason: 'Job Card not found.' };
+    const matchingFpa = fpaRecords.find(f => f.jobCardNo === jobCardNo || f.woNo === jc.woNo);
+    if (!matchingFpa || matchingFpa.overallResult !== 'Approved') {
+      return {
+        allowed: false,
+        reason: `Gate 2 Block (FPA Golden Gate): No approved First Part Approval found for ${jobCardNo}. Spectrophotometer ΔE ≤ 0.70 and 100% tape adhesion approval required before bulk spray run.`
+      };
+    }
+    return { allowed: true };
+  };
+
+  const canPrintPackingSlip = (jobCardNo: string): { allowed: boolean; reason?: string } => {
+    const jc = jobCards.find(j => j.jobCardNo === jobCardNo);
+    if (!jc) return { allowed: false, reason: 'Job Card not found.' };
+    const rel = qualityReleases.find(q => q.woNo === jc.woNo || q.partCode === jc.partCode);
+    if (rel && (rel.oqcStatus === 'Rejected' || rel.pdiStatus === 'Hold')) {
+      return {
+        allowed: false,
+        reason: `Gate 5 Block (PDI Release): Outgoing quality release is on ${rel.oqcStatus} / ${rel.pdiStatus}. 4"x6" Thermal Packing Slip cannot be released.`
+      };
+    }
+    return { allowed: true };
+  };
+
   // Counts for Top Notification badges
   const unresolvedHandoversCount = handovers.filter(h => h.status === 'Discrepancy Halt').length;
   const openOverrunCount = jobCards.filter(jc => jc.status === 'Over-Run Flagged').length;
@@ -904,7 +1154,38 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         createGatePass,
         updateGatePassStatus,
         unresolvedHandoversCount,
-        openOverrunCount
+        openOverrunCount,
+
+        // Module E: MNC Audit
+        auditQuestions,
+        updateAuditAnswer,
+        resetAuditToStandard,
+
+        // Module E / J: 8D CAPA & 4M
+        capa8DList,
+        addCapa8D,
+        updateCapa8D,
+        fourMChanges,
+        addFourMChange,
+
+        // Module C: Production Offering
+        productionOfferings,
+        addProductionOffering,
+        signProductionOffering,
+
+        // Module A: HR Leaves
+        hrLeaves,
+        addHRLeave,
+        approveHRLeave,
+
+        // Module K: Calibration
+        calibrationList,
+        updateCalibration,
+
+        // Gatekeeper helpers
+        canIssueJobCard,
+        canStartBulkProduction,
+        canPrintPackingSlip
       }}
     >
       {children}

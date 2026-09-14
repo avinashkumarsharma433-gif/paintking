@@ -5,12 +5,19 @@
 
 export type UserRole = 
   | 'DIRECTOR'         // Executive / Director (Kuldeep Singh, Gurprit Singh)
-  | 'PLANT_HEAD'       // Plant Head (Vasai / Haridwar)
+  | 'PLANT_HEAD'       // Plant Head (Vasai / Haridwar / Vapi / Mumbai)
   | 'STORES'           // Stores & Inventory Manager
   | 'PRODUCTION'       // Production Supervisor / Booth Incharge
-  | 'QA_QC'            // QA / QC Inspector & QA Manager
+  | 'QA_QC'            // QA / QC Inspector
   | 'BILLING'          // Billing & Accounts Desk
-  | 'SECURITY';        // Security Gate Guard
+  | 'SECURITY'         // Security Gate Guard
+  | 'IQC_INSPECTOR'    // Incoming Quality Inspector (Gate 1)
+  | 'FPA_IPQC_INSPECTOR' // First Part & In-Process Inspector (Gates 2 & 3)
+  | 'OQC_PDI_INSPECTOR'  // Outgoing Quality & Pre-Dispatch Inspector (Gates 4 & 5)
+  | 'MANAGER_QA'       // Quality Assurance Manager / Final Sign-off
+  | 'OPERATOR'         // Painter / Line Operator
+  | 'HR'               // HR Desk / Leave Administration
+  | 'DEPT_INCHARGE';   // Department Incharge (Leave sanctioning)
 
 export type PlantLocation = 'Vasai' | 'Haridwar' | 'Vapi' | 'Mumbai';
 
@@ -139,10 +146,10 @@ export interface GoodsReceiptNote {
   supplierCustomer: string; // Supplier / Customer Name
   invoiceChallanNo: string;
   invoiceDate: string;
-  receivedDate: string;
+  receivedDate?: string;
   transporter: string;      // Transport Name
-  items: GRNLineItem[];     // Line items table
-  totalQty: number;         // Sum of actual received qty
+  items?: GRNLineItem[];     // Line items table
+  totalQty?: number;         // Sum of actual received qty
   iqcStatus: 'Pending' | 'Accepted' | 'Part Accepted' | 'Rejected' | 'Hold';
   storeIncharge: string;
   qualityApprovedBy?: string;
@@ -151,6 +158,7 @@ export interface GoodsReceiptNote {
   // Compatibility fields for easy access
   partCode?: string;
   description?: string;
+  batchNo?: string;
   invoicedQty?: number;
   actualReceivedQty?: number;
   colorSplits?: OrderColorSplit[];
@@ -223,6 +231,14 @@ export interface JobCard {
   rejectQty: number;
   status: 'Open' | 'In Process' | 'Target Met' | 'Over-Run Flagged' | 'Completed' | 'Closed';
   fpaStatus?: 'Pending' | 'Approved' | 'Hold' | 'Rejected';
+  
+  // SLA & Sequential Gate Control
+  slaHours?: number;
+  slaDeadline?: string;
+  isSlaBreached?: boolean;
+  iqcApproved?: boolean;
+  oqcApproved?: boolean;
+  pdiApproved?: boolean;
 
   // INITIAL PROCESS (Exact Screenshot 1)
   painterName: string;
@@ -529,4 +545,187 @@ export interface DefectItem {
   severity: 'Critical' | 'Major' | 'Minor';
   count: number;
 }
+
+// 12. MNC Vendor Audit Questionnaire Types (100 Questions, Sections A–M)
+export type { AuditQuestionItem } from '../data/mncAuditQuestionsData';
+export { MNC_AUDIT_SECTIONS } from '../data/mncAuditQuestionsData';
+
+// 13. 8D Problem Solving CAPA Record (PK-QA-8D-001)
+export interface Capa8DRecord {
+  id: string; // e.g. "CAPA-8D-2026-001"
+  complaintNo: string;
+  customerName: string;
+  partName: string;
+  partCode: string;
+  dateOpened: string;
+  targetClosureDate: string;
+  actualClosureDate?: string;
+  status: 'Open' | 'Containment Implemented' | 'Root Cause Validated' | 'CAPA Implemented' | 'Verified & Closed';
+  severity: 'Critical' | 'Major' | 'Minor';
+
+  // D1: Team Formation
+  d1Champion: string;
+  d1Leader: string;
+  d1Members: string[];
+
+  // D2: Problem Description (5W2H)
+  d2What: string;
+  d2Where: string;
+  d2When: string;
+  d2Who: string;
+  d2Why: string;
+  d2HowMany: string;
+  d2ProblemStatement: string;
+
+  // D3: Containment Actions (within 24h)
+  d3ContainmentAction: string;
+  d3ContainmentQtyChecked: number;
+  d3ContainmentQtyRejected: number;
+  d3ImplementedDate: string;
+  d3Owner: string;
+
+  // D4: Root Cause Analysis (5-Why & Fishbone)
+  d4Fishbone: {
+    man: string[];
+    machine: string[];
+    material: string[];
+    method: string[];
+    measurement: string[];
+    environment: string[];
+  };
+  d4FiveWhy: string[]; // [Why 1, Why 2, Why 3, Why 4, Why 5]
+  d4RootCauseSummary: string;
+  d4EscapePoint: string;
+
+  // D5: Permanent Corrective Actions (PCA)
+  d5CorrectiveActions: string[];
+  d5PcaOwner: string;
+  d5TargetDate: string;
+
+  // D6: Validate & Implement PCA
+  d6ValidationMethod: string;
+  d6TrialQuantity: number;
+  d6TrialDefectRate: number;
+  d6ImplementationDate: string;
+
+  // D7: Prevent Recurrence (Standardization & Horizontal Deployment)
+  d7SopUpdated: boolean;
+  d7ControlPlanUpdated: boolean;
+  d7FmeaUpdated: boolean;
+  d7HorizontalDeploymentParts: string[];
+
+  // D8: Closure & Team Sign-off
+  d8ReviewedByQA: string;
+  d8ApprovedByDirector: string;
+  d8ClosureDate?: string;
+  d8EffectivenessVerified: boolean;
+}
+
+// 14. 4M Change Control Register (PK-QA-4MC-001)
+export interface FourMChangeRecord {
+  id: string; // e.g. "4M-2026-012"
+  date: string;
+  changeType: 'Man (Operator/Painter)' | 'Machine (Gun/Booth/Oven)' | 'Material (Paint/Thinner/Substrate)' | 'Method (Jigging/Curing/Pressure)';
+  description: string;
+  reasonForChange: string;
+  impactAssessment: string;
+  trialRunApproved: boolean;
+  trialFpaReportNo?: string;
+  customerIntimationRequired: boolean;
+  customerApprovalReceived?: boolean;
+  plant: PlantLocation;
+  proposedBy: string;
+  approvedByQA: string;
+  status: 'Requested' | 'In Trial' | 'Approved' | 'Rejected';
+}
+
+// 15. Production Offering Report (PK-PRD-OFF-01 / Doc No: PRD-OFF)
+export interface ProductionOfferingLineItem {
+  id: string;
+  jobCardNo: string;
+  customer: string;
+  partDescription: string;
+  color: string;
+  offeredQty: number;
+  passedQty: number;
+  rejectionQty: number;
+  reworkQty: number;
+  remarks?: string;
+}
+
+export interface ProductionOfferingReport {
+  id: string; // e.g. "PRD-OFF-2026-089"
+  docNo: string; // "PK-PRD-OFF-01"
+  date: string;
+  shift: ShiftType;
+  plant: PlantLocation;
+  lineItems: ProductionOfferingLineItem[];
+  totalOfferedQty: number;
+  totalPassedQty: number;
+  totalRejectionQty: number;
+  totalReworkQty: number;
+  preparedBy: string; // Floor Incharge
+  preparedDate?: string;
+  checkedBy: string; // Prod. Supervisor
+  checkedDate?: string;
+  qaCheckedBy: string; // QA Inspector
+  qaDate?: string;
+  approvedBy: string; // Plant Head / Director
+  approvalDate?: string;
+  status: 'Draft' | 'Offered to QA' | 'QA Inspected' | 'Approved' | 'Hold';
+}
+
+// 16. HR Leave Application Format (PK-HR-LV-01)
+export interface HRLeaveRecord {
+  id: string; // e.g. "LV-2026-044"
+  docNo: string; // "PK-HR-LV-01"
+  employeeId: string;
+  employeeName: string;
+  fatherName: string;
+  department: string;
+  designation: string;
+  currentAddress: string;
+  permanentAddress: string;
+  reasonForLeave: string;
+  leaveFromDate: string;
+  leaveToDate: string;
+  totalDays: number;
+  employeeSignatureDate: string;
+
+  // Multi-tier Sign-off Chain:
+  deptInchargeStatus: 'Pending' | 'Recommended' | 'Rejected';
+  deptInchargeName?: string;
+  deptInchargeRemarks?: string;
+  deptInchargeSignDate?: string;
+
+  hrStatus: 'Pending' | 'Verified' | 'Rejected';
+  hrName?: string;
+  hrRemarks?: string;
+  hrSignDate?: string;
+
+  mdStatus: 'Pending' | 'Sanctioned' | 'Rejected';
+  mdName?: string;
+  mdSignDate?: string;
+
+  finalStatus: 'Draft' | 'Submitted' | 'In Review' | 'Sanctioned' | 'Rejected';
+}
+
+// 17. Machine & Measuring Equipment Calibration Register (PK-MTN-CAL-001)
+export interface CalibrationRecord {
+  id: string; // e.g. "CAL-2026-001"
+  equipmentName: string; // e.g. "X-Rite Spectrophotometer", "Elcometer 456 DFT Gauge", "Ford Cup No. 4"
+  equipmentCode: string; // e.g. "PK-EQ-SPC-01"
+  makeModel: string; // e.g. "X-Rite Ci62"
+  serialNo: string;
+  rangeAccuracy: string; // e.g. "0-100% reflectance, ΔE 0.01"
+  calibrationAgency: string; // e.g. "NABL Accredited Lab / Zenith Metrology"
+  certificateNo: string;
+  lastCalibrationDate: string;
+  nextCalibrationDue: string;
+  calibrationFrequencyMonths: number;
+  status: 'Calibrated (Valid)' | 'Due Soon' | 'Overdue (Locked)';
+  location: string;
+  custodian: string;
+}
+
 

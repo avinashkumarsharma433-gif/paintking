@@ -11,6 +11,11 @@ import { QAView } from './views/QAView';
 import { PaintMixingView } from './views/PaintMixingView';
 import { PackingView } from './views/PackingView';
 import { GatePassView } from './views/GatePassView';
+import { MncAuditView } from './views/MncAuditView';
+import { Capa8DView } from './views/Capa8DView';
+import { ProductionOfferingView } from './views/ProductionOfferingView';
+import { HRLeaveView } from './views/HRLeaveView';
+import { CalibrationView } from './views/CalibrationView';
 import { UserRole } from './types/portalTypes';
 
 interface PortalAppProps {
@@ -24,19 +29,37 @@ const ROLE_DEFAULT_TABS: Record<UserRole, PortalTab> = {
   PRODUCTION: 'jobcards',
   QA_QC: 'qa',
   BILLING: 'billing',
-  SECURITY: 'gatepass'
+  SECURITY: 'gatepass',
+  IQC_INSPECTOR: 'stores',
+  FPA_IPQC_INSPECTOR: 'qa',
+  OQC_PDI_INSPECTOR: 'packing',
+  MANAGER_QA: 'mnc_audit',
+  OPERATOR: 'jobcards',
+  HR: 'hr_leave',
+  DEPT_INCHARGE: 'hr_leave'
 };
+
+const ALL_ROLES: UserRole[] = [
+  'DIRECTOR', 'PLANT_HEAD', 'STORES', 'PRODUCTION', 'QA_QC', 
+  'BILLING', 'SECURITY', 'IQC_INSPECTOR', 'FPA_IPQC_INSPECTOR', 
+  'OQC_PDI_INSPECTOR', 'MANAGER_QA', 'OPERATOR', 'HR', 'DEPT_INCHARGE'
+];
 
 const TAB_ALLOWED_ROLES: Record<PortalTab, UserRole[]> = {
   dashboard: ['DIRECTOR', 'PLANT_HEAD'],
-  handovers: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC'],
-  jobcards: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'STORES'],
+  handovers: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'FPA_IPQC_INSPECTOR', 'DEPT_INCHARGE'],
+  jobcards: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'STORES', 'OPERATOR', 'DEPT_INCHARGE'],
   billing: ['DIRECTOR', 'PLANT_HEAD', 'BILLING', 'STORES'],
-  stores: ['DIRECTOR', 'PLANT_HEAD', 'STORES'],
-  paintmixing: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC'],
-  qa: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC'],
-  packing: ['DIRECTOR', 'PLANT_HEAD', 'STORES', 'PRODUCTION', 'QA_QC'],
-  gatepass: ['DIRECTOR', 'PLANT_HEAD', 'SECURITY', 'STORES']
+  stores: ['DIRECTOR', 'PLANT_HEAD', 'STORES', 'IQC_INSPECTOR'],
+  paintmixing: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'OPERATOR'],
+  qa: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA', 'IQC_INSPECTOR', 'FPA_IPQC_INSPECTOR', 'OQC_PDI_INSPECTOR'],
+  packing: ['DIRECTOR', 'PLANT_HEAD', 'STORES', 'PRODUCTION', 'QA_QC', 'OQC_PDI_INSPECTOR'],
+  gatepass: ['DIRECTOR', 'PLANT_HEAD', 'SECURITY', 'STORES'],
+  mnc_audit: ALL_ROLES,
+  capa_8d: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA', 'PRODUCTION', 'FPA_IPQC_INSPECTOR', 'OQC_PDI_INSPECTOR'],
+  production_offering: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'FPA_IPQC_INSPECTOR', 'OPERATOR', 'DEPT_INCHARGE'],
+  hr_leave: ALL_ROLES,
+  calibration: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA', 'PRODUCTION', 'STORES', 'FPA_IPQC_INSPECTOR']
 };
 
 const PortalInner: React.FC<PortalAppProps> = ({ onBackToWebsite }) => {
@@ -92,6 +115,16 @@ const PortalInner: React.FC<PortalAppProps> = ({ onBackToWebsite }) => {
         return <PackingView />;
       case 'gatepass':
         return <GatePassView />;
+      case 'mnc_audit':
+        return <MncAuditView />;
+      case 'capa_8d':
+        return <Capa8DView />;
+      case 'production_offering':
+        return <ProductionOfferingView />;
+      case 'hr_leave':
+        return <HRLeaveView />;
+      case 'calibration':
+        return <CalibrationView />;
       default:
         return <DashboardView onNavigateTab={(t) => { setActiveTab(t); setMobileNavOpen(false); }} />;
     }

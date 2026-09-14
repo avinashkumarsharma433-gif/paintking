@@ -12,7 +12,12 @@ import {
   ShieldCheck,
   X,
   Building2,
-  Clock
+  Clock,
+  ShieldAlert,
+  ClipboardList,
+  UserCheck,
+  Wrench,
+  Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -25,7 +30,12 @@ export type PortalTab =
   | 'paintmixing'
   | 'qa'
   | 'packing'
-  | 'gatepass';
+  | 'gatepass'
+  | 'mnc_audit'
+  | 'capa_8d'
+  | 'production_offering'
+  | 'hr_leave'
+  | 'calibration';
 
 export const TAB_LABELS: Record<PortalTab, string> = {
   dashboard: 'Executive Cockpit',
@@ -36,7 +46,12 @@ export const TAB_LABELS: Record<PortalTab, string> = {
   paintmixing: 'Paint Mixing Lab',
   qa: 'Quality Gate (FPA & IPQC)',
   packing: 'Packing & Box QR',
-  gatepass: 'Gate Pass Security'
+  gatepass: 'Gate Pass Security',
+  mnc_audit: 'MNC Audit (100-Q)',
+  capa_8d: '8D CAPA & 4M',
+  production_offering: 'Production Offering',
+  hr_leave: 'HR Leave Desk',
+  calibration: 'Equipment Calibration'
 };
 
 interface PortalSidebarProps {
@@ -131,6 +146,50 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       icon: ShieldCheck,
       badge: null,
       roles: ['DIRECTOR', 'PLANT_HEAD', 'SECURITY', 'STORES']
+    },
+    {
+      id: 'mnc_audit' as PortalTab,
+      label: 'MNC Audit (100-Q)',
+      docCode: 'PK-MNC-AUD-V2',
+      icon: Award,
+      badge: 'Audit Ready',
+      badgeColor: 'bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521]',
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA', 'PRODUCTION', 'STORES', 'IQC_INSPECTOR', 'FPA_IPQC_INSPECTOR', 'OQC_PDI_INSPECTOR', 'HR', 'DEPT_INCHARGE', 'SECURITY', 'BILLING', 'OPERATOR']
+    },
+    {
+      id: 'capa_8d' as PortalTab,
+      label: '8D CAPA & 4M',
+      docCode: 'PK-QA-8D-001',
+      icon: ShieldAlert,
+      badge: '5-Why / Root',
+      badgeColor: 'bg-rose-50 border border-rose-200 text-rose-800',
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA', 'PRODUCTION', 'FPA_IPQC_INSPECTOR', 'OQC_PDI_INSPECTOR']
+    },
+    {
+      id: 'production_offering' as PortalTab,
+      label: 'Production Offering',
+      docCode: 'PK-PRD-OFF-01',
+      icon: ClipboardList,
+      badge: '4-Tier Sign',
+      badgeColor: 'bg-blue-50 border border-blue-200 text-blue-800',
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'FPA_IPQC_INSPECTOR', 'OPERATOR']
+    },
+    {
+      id: 'hr_leave' as PortalTab,
+      label: 'HR Leave Desk',
+      docCode: 'PK-HR-LV-01',
+      icon: UserCheck,
+      badge: null,
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'HR', 'DEPT_INCHARGE', 'PRODUCTION', 'STORES', 'QA_QC', 'MANAGER_QA', 'OPERATOR', 'SECURITY', 'BILLING', 'IQC_INSPECTOR', 'FPA_IPQC_INSPECTOR', 'OQC_PDI_INSPECTOR']
+    },
+    {
+      id: 'calibration' as PortalTab,
+      label: 'Equipment Calibration',
+      docCode: 'PK-MTN-CAL-01',
+      icon: Wrench,
+      badge: 'NABL Certified',
+      badgeColor: 'bg-emerald-50 border border-emerald-200 text-emerald-800',
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA', 'PRODUCTION', 'STORES', 'FPA_IPQC_INSPECTOR']
     }
   ];
 

@@ -11,8 +11,20 @@ import {
   BillingInvoice, 
   GatePassRecord,
   DefectItem,
-  UniversalJobRecord
+  UniversalJobRecord,
+  Capa8DRecord,
+  FourMChangeRecord,
+  ProductionOfferingReport,
+  HRLeaveRecord,
+  CalibrationRecord,
+  AuditQuestionItem,
+  IQCInspectionRecord,
+  MaterialInwardRecord,
+  MaterialOutwardRecord
 } from '../types/portalTypes';
+import { INITIAL_MNC_AUDIT_QUESTIONS } from './mncAuditQuestionsData';
+export { INITIAL_MNC_AUDIT_QUESTIONS };
+
 
 export const INITIAL_USER_PROFILES: UserProfile[] = [
   {
@@ -27,7 +39,7 @@ export const INITIAL_USER_PROFILES: UserProfile[] = [
     id: 'usr_director_2',
     name: 'Gurprit Singh',
     role: 'DIRECTOR',
-    roleTitle: 'Executive Director (Operations)',
+    roleTitle: 'Executive Director (Operations & Strategy)',
     plant: 'Vasai',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80'
   },
@@ -43,7 +55,7 @@ export const INITIAL_USER_PROFILES: UserProfile[] = [
     id: 'usr_stores_1',
     name: 'Manoj Tiwari',
     role: 'STORES',
-    roleTitle: 'Stores & Inward Material Incharge',
+    roleTitle: 'Stores & Material Inward Incharge',
     plant: 'Haridwar',
     avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80'
   },
@@ -56,12 +68,60 @@ export const INITIAL_USER_PROFILES: UserProfile[] = [
     avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80'
   },
   {
+    id: 'usr_iqc_1',
+    name: 'Sunil Rawat',
+    role: 'IQC_INSPECTOR',
+    roleTitle: 'Incoming Quality Control (IQC) Inspector',
+    plant: 'Haridwar',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80'
+  },
+  {
+    id: 'usr_fpa_1',
+    name: 'Deepak Joshi',
+    role: 'FPA_IPQC_INSPECTOR',
+    roleTitle: 'FPA Golden Gate & Shift IPQC Inspector',
+    plant: 'Haridwar',
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80'
+  },
+  {
+    id: 'usr_oqc_1',
+    name: 'Pankaj Kumar',
+    role: 'OQC_PDI_INSPECTOR',
+    roleTitle: 'Outgoing Quality (OQC) & PDI Inspector',
+    plant: 'Haridwar',
+    avatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80'
+  },
+  {
     id: 'usr_qa_1',
-    name: 'Amit Verma',
-    role: 'QA_QC',
-    roleTitle: 'Lead QA / QC Engineer (IATF Auditor)',
+    name: 'Rajesh Nair',
+    role: 'MANAGER_QA',
+    roleTitle: 'Head of Quality Assurance & MNC Compliance',
     plant: 'Haridwar',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'
+  },
+  {
+    id: 'usr_operator_1',
+    name: 'Raju Painter',
+    role: 'OPERATOR',
+    roleTitle: 'Master Booth Painter (W.No. 42)',
+    plant: 'Haridwar',
+    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80'
+  },
+  {
+    id: 'usr_hr_1',
+    name: 'Pooja Mehra',
+    role: 'HR',
+    roleTitle: 'Human Resources & Plant Administration',
+    plant: 'Haridwar',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80'
+  },
+  {
+    id: 'usr_dept_1',
+    name: 'Sanjay Gupta',
+    role: 'DEPT_INCHARGE',
+    roleTitle: 'Surface Prep & Jigging Department Incharge',
+    plant: 'Haridwar',
+    avatar: 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&w=150&q=80'
   },
   {
     id: 'usr_billing_1',
@@ -971,4 +1031,302 @@ export const INITIAL_MATERIAL_OUTWARD = [
     plant: 'Haridwar' as const
   }
 ];
+
+// 12. 8D CAPA Records (PK-QA-8D-001)
+export const INITIAL_CAPA_8D_RECORDS: Capa8DRecord[] = [
+  {
+    id: 'CAPA-8D-2026-001',
+    complaintNo: 'CC-SCHN-2026-08',
+    customerName: 'Schneider Electric India',
+    partName: 'Smart Touch Panel Fascia Frame',
+    partCode: 'SE-FAS-9920-W',
+    dateOpened: '2026-09-08',
+    targetClosureDate: '2026-09-22',
+    actualClosureDate: '2026-09-13',
+    status: 'Verified & Closed',
+    severity: 'Major',
+
+    d1Champion: 'Rajesh Nair (Manager QA)',
+    d1Leader: 'Amit Verma (Lead QA Auditor)',
+    d1Members: ['Deepak Joshi (IPQC)', 'Raju Painter (Booth Lead)', 'Vikram Patel (Prod. Sup.)'],
+
+    d2What: 'Minor orange peel texturing and slight edge paint thinness observed on left corner',
+    d2Where: 'Haridwar Plant - Line 1 (Booth 2)',
+    d2When: 'Shift A on Batch PK-BAT-2026-88',
+    d2Who: 'Reported by Schneider SQE during incoming sampling inspection',
+    d2Why: 'Causes aesthetic mismatch with mating ABS housing',
+    d2HowMany: '24 pcs out of 1,200 pcs lot (2.0% defect rate)',
+    d2ProblemStatement: 'Orange peel defect on SE-FAS-9920-W exceeding Schneider cosmetic threshold ΔE 0.70 / smooth surface spec.',
+
+    d3ContainmentAction: '100% sorting of all 1,176 pcs at warehouse and customer dock. Quarantined 24 defective pcs in Red Bin. Shipped 500 buffer replacement pcs.',
+    d3ContainmentQtyChecked: 1200,
+    d3ContainmentQtyRejected: 24,
+    d3ImplementedDate: '2026-09-09',
+    d3Owner: 'Deepak Joshi (IPQC Inspector)',
+
+    d4Fishbone: {
+      man: ['Operator sprayed at faster traverse speed (0.6 m/s instead of 0.4 m/s)'],
+      machine: ['Air pressure regulator gauge had needle hysteresis deviation (-0.5 bar)'],
+      material: ['Paint viscosity was 18.5s Ford Cup 4 (standard is 14-16s) due to lower thinner ratio'],
+      method: ['Flash-off time between coat 1 and coat 2 was shortened from 7 min to 4 min'],
+      measurement: ['DFT gauge calibration probe tip had dust deposit'],
+      environment: ['Booth temperature rose to 34°C during afternoon run']
+    },
+    d4FiveWhy: [
+      'Why 1: Why did orange peel occur? Paint did not flow and level properly before curing.',
+      'Why 2: Why did paint not level? Viscosity was too high (18.5s) and atomization air pressure was insufficient (1.9 bar).',
+      'Why 3: Why was viscosity high? Solvent evaporation happened in pot due to temperature rise (34°C).',
+      'Why 4: Why was solvent ratio not adjusted? Viscosity was checked only at initial mixing and not monitored every 2 hours.',
+      'Why 5 (Root Cause): Lack of dynamic temperature-compensated thinner ratio chart and mandatory 2-hourly viscosity monitoring in SOP PK-SOP-PNT-02.'
+    ],
+    d4RootCauseSummary: 'High paint viscosity (18.5s vs 15s) combined with 1.9 bar atomization pressure prevented droplet coalescence, creating orange peel.',
+    d4EscapePoint: 'IPQC 2-hour interval check missed the viscosity drift during shift transition.',
+
+    d5CorrectiveActions: [
+      'Updated Paint Mixing SOP to include 2-hourly Ford Cup 4 viscosity check and log.',
+      'Installed temperature-viscosity reference chart next to mixing booth.',
+      'Calibrated and locked Booth 2 air pressure regulator at 2.4 bar with tamper tag.'
+    ],
+    d5PcaOwner: 'Vikram Patel & Rajesh Nair',
+    d5TargetDate: '2026-09-11',
+
+    d6ValidationMethod: 'Trial run of 350 pcs with controlled 15s viscosity and 2.4 bar pressure. 100% inspection with 60° Glossmeter and Spectrophotometer.',
+    d6TrialQuantity: 350,
+    d6TrialDefectRate: 0.0,
+    d6ImplementationDate: '2026-09-12',
+
+    d7SopUpdated: true,
+    d7ControlPlanUpdated: true,
+    d7FmeaUpdated: true,
+    d7HorizontalDeploymentParts: ['SE-FAS-9920-B (Black)', 'MINDA-CLUSTER-01', 'ROOP-VENT-BEZEL-01'],
+
+    d8ReviewedByQA: 'Rajesh Nair (Head QA)',
+    d8ApprovedByDirector: 'Gurprit Singh (Executive Director)',
+    d8ClosureDate: '2026-09-13',
+    d8EffectivenessVerified: true
+  }
+];
+
+// 13. 4M Change Control Register (PK-QA-4MC-001)
+export const INITIAL_4M_CHANGE_RECORDS: FourMChangeRecord[] = [
+  {
+    id: '4M-2026-012',
+    date: '2026-09-10',
+    changeType: 'Material (Paint/Thinner/Substrate)',
+    description: 'Transition from PPG Slow Thinner 300 to Medium Fast PU Thinner 400 for winter drying cycle',
+    reasonForChange: 'Customer seasonal ambient change to avoid solvent popping in curing oven',
+    impactAssessment: 'Improves leveling and reduces cycle bake time by 3 minutes. Zero effect on adhesion or shade.',
+    trialRunApproved: true,
+    trialFpaReportNo: 'PK-FPA-2026-041',
+    customerIntimationRequired: true,
+    customerApprovalReceived: true,
+    plant: 'Haridwar',
+    proposedBy: 'Manoj Tiwari (Stores/Materials)',
+    approvedByQA: 'Rajesh Nair (Manager QA)',
+    status: 'Approved'
+  },
+  {
+    id: '4M-2026-013',
+    date: '2026-09-13',
+    changeType: 'Machine (Gun/Booth/Oven)',
+    description: 'Replacement of worn fluid nozzle on Booth 1 Spray Gun with SATAjet 5000 B 1.3mm nozzle',
+    reasonForChange: 'Routine tip wear after 100,000 passes to maintain uniform fan pattern',
+    impactAssessment: 'Restores spray fan uniformity; verified on test blotter paper and FPA test piece.',
+    trialRunApproved: true,
+    trialFpaReportNo: 'PK-FPA-2026-042',
+    customerIntimationRequired: false,
+    customerApprovalReceived: true,
+    plant: 'Haridwar',
+    proposedBy: 'Vikram Patel (Prod. Supervisor)',
+    approvedByQA: 'Rajesh Nair (Manager QA)',
+    status: 'Approved'
+  }
+];
+
+// 14. Production Offering Report Mock Data (PK-PRD-OFF-01 / Doc No: PRD-OFF)
+export const INITIAL_PRODUCTION_OFFERING_REPORTS: ProductionOfferingReport[] = [
+  {
+    id: 'PRD-OFF-2026-089',
+    docNo: 'PK-PRD-OFF-01',
+    date: '2026-09-14',
+    shift: 'Day 12H',
+    plant: 'Haridwar',
+    lineItems: [
+      {
+        id: 'off_item_1',
+        jobCardNo: 'JC-99824-RED',
+        customer: 'ROOP POLYMERS LTD',
+        partDescription: 'Car AC Vent Outer Bezel Ring',
+        color: 'Monza Red Metallic',
+        offeredQty: 250,
+        passedQty: 246,
+        rejectionQty: 4,
+        reworkQty: 2,
+        remarks: '2 touch-up rework approved, 2 scrapped due to substrate crack.'
+      },
+      {
+        id: 'off_item_2',
+        jobCardNo: 'JC-99824-BLK',
+        customer: 'ROOP POLYMERS LTD',
+        partDescription: 'Car AC Vent Outer Bezel Ring',
+        color: 'Piano Gloss Black',
+        offeredQty: 700,
+        passedQty: 692,
+        rejectionQty: 8,
+        reworkQty: 4,
+        remarks: 'Batch passes all visual and adhesion requirements.'
+      }
+    ],
+    totalOfferedQty: 950,
+    totalPassedQty: 938,
+    totalRejectionQty: 12,
+    totalReworkQty: 6,
+    preparedBy: 'Raju Painter (Booth Incharge)',
+    preparedDate: '2026-09-14 15:30',
+    checkedBy: 'Vikram Patel (Prod. Supervisor)',
+    checkedDate: '2026-09-14 16:00',
+    qaCheckedBy: 'Deepak Joshi (FPA/IPQC Inspector)',
+    qaDate: '2026-09-14 16:30',
+    approvedBy: 'Satish Sharma (Plant Head)',
+    approvalDate: '2026-09-14 17:00',
+    status: 'Approved'
+  }
+];
+
+// 15. HR Leave Application Format Mock Data (PK-HR-LV-01)
+export const INITIAL_HR_LEAVE_RECORDS: HRLeaveRecord[] = [
+  {
+    id: 'LV-2026-044',
+    docNo: 'PK-HR-LV-01',
+    employeeId: 'PK-EMP-042',
+    employeeName: 'Raju Painter',
+    fatherName: 'Harish Chandra Painter',
+    department: 'Production / Liquid Spray Booth',
+    designation: 'Senior Booth Painter (Grade A)',
+    currentAddress: 'Room 12, Shiv Colony, Sector 4, BHEL Industrial Area, Haridwar',
+    permanentAddress: 'Village Rampur, Post Office Nawabganj, Dist. Bareilly, UP',
+    reasonForLeave: "Attending sister's wedding in home village. Handover of Booth 1 completed with Dinesh Kumar.",
+    leaveFromDate: '2026-09-20',
+    leaveToDate: '2026-09-24',
+    totalDays: 5,
+    employeeSignatureDate: '2026-09-14',
+
+    deptInchargeStatus: 'Recommended',
+    deptInchargeName: 'Vikram Patel (Prod. Supervisor)',
+    deptInchargeRemarks: 'Shift coverage arranged with night painter. Recommended.',
+    deptInchargeSignDate: '2026-09-14 11:30 AM',
+
+    hrStatus: 'Verified',
+    hrName: 'Pooja Mehra (HR Executive)',
+    hrRemarks: 'Leave balance verified: 8 days privilege leave available.',
+    hrSignDate: '2026-09-14 02:15 PM',
+
+    mdStatus: 'Sanctioned',
+    mdName: 'Gurprit Singh (Executive Director)',
+    mdSignDate: '2026-09-14 04:45 PM',
+
+    finalStatus: 'Sanctioned'
+  }
+];
+
+// 16. Machine & Equipment Calibration Master Register (PK-MTN-CAL-001)
+export const INITIAL_CALIBRATION_RECORDS: CalibrationRecord[] = [
+  {
+    id: 'CAL-2026-001',
+    equipmentName: 'Portable Spectrophotometer (Colorimetry)',
+    equipmentCode: 'PK-EQ-SPC-01',
+    makeModel: 'X-Rite Ci62 Portable 45/0',
+    serialNo: 'XR-88219-IND',
+    rangeAccuracy: '400-700nm, repeatability ΔE 0.01 CIELAB',
+    calibrationAgency: 'X-Rite India Calibration Lab (NABL CC-2981)',
+    certificateNo: 'NABL/XR/2026/0819',
+    lastCalibrationDate: '2026-02-15',
+    nextCalibrationDue: '2027-02-14',
+    calibrationFrequencyMonths: 12,
+    status: 'Calibrated (Valid)',
+    location: 'QA Testing Lab - Cabinet A',
+    custodian: 'Amit Verma (Lead QA Auditor)'
+  },
+  {
+    id: 'CAL-2026-002',
+    equipmentName: 'Digital Coating Thickness Gauge (DFT)',
+    equipmentCode: 'PK-EQ-DFT-02',
+    makeModel: 'Elcometer 456 Dual F/NF',
+    serialNo: 'ELC-44102-UK',
+    rangeAccuracy: '0 - 1500 μm (Accuracy ±1%)',
+    calibrationAgency: 'Zenith Metrology NABL Accredited Lab',
+    certificateNo: 'ZEN/CAL/2026/1104',
+    lastCalibrationDate: '2025-11-30',
+    nextCalibrationDue: '2026-11-29',
+    calibrationFrequencyMonths: 12,
+    status: 'Calibrated (Valid)',
+    location: 'Production Floor - Booth 1 Inspection Stand',
+    custodian: 'Deepak Joshi (IPQC Inspector)'
+  },
+  {
+    id: 'CAL-2026-003',
+    equipmentName: 'Micro-Tri-Gloss Meter (20° / 60° / 85°)',
+    equipmentCode: 'PK-EQ-GLS-03',
+    makeModel: 'BYK-Gardner 4446',
+    serialNo: 'BYK-99214-DE',
+    rangeAccuracy: '0 - 2000 GU (Repeatability 0.2 GU)',
+    calibrationAgency: 'Precision Metrology Services (NABL)',
+    certificateNo: 'PMS/BYK/2025/998',
+    lastCalibrationDate: '2025-10-15',
+    nextCalibrationDue: '2026-10-14',
+    calibrationFrequencyMonths: 12,
+    status: 'Due Soon',
+    location: 'QA Testing Lab - Bench 2',
+    custodian: 'Amit Verma (Lead QA Auditor)'
+  },
+  {
+    id: 'CAL-2026-004',
+    equipmentName: 'Ford Viscosity Cup No. 4 with Stand',
+    equipmentCode: 'PK-EQ-VIS-04',
+    makeModel: 'Sheen Instruments ASTM D1200',
+    serialNo: 'SHN-FC4-019',
+    rangeAccuracy: '10 - 60 seconds efflux time (±0.2s)',
+    calibrationAgency: 'National Metrology Testing Center',
+    certificateNo: 'NMTC/VIS/2026/039',
+    lastCalibrationDate: '2026-04-10',
+    nextCalibrationDue: '2027-04-09',
+    calibrationFrequencyMonths: 12,
+    status: 'Calibrated (Valid)',
+    location: 'Paint Mixing & Viscosity Control Station',
+    custodian: 'Manoj Tiwari (Stores & Mixing)'
+  },
+  {
+    id: 'CAL-2026-005',
+    equipmentName: 'Cross-Hatch Adhesion Multi-Blade Cutter Kit',
+    equipmentCode: 'PK-EQ-ADH-05',
+    makeModel: 'Elcometer 107 (1mm & 2mm blades)',
+    serialNo: 'ELC-ADH-882',
+    rangeAccuracy: 'ASTM D3359 / ISO 2409 Standard Spacing',
+    calibrationAgency: 'Zenith Metrology (Blade Gap Inspection)',
+    certificateNo: 'ZEN/ADH/2026/041',
+    lastCalibrationDate: '2026-03-20',
+    nextCalibrationDue: '2027-03-19',
+    calibrationFrequencyMonths: 12,
+    status: 'Calibrated (Valid)',
+    location: 'QA Lab - Physical Testing Station',
+    custodian: 'Amit Verma (Lead QA Auditor)'
+  },
+  {
+    id: 'CAL-2026-006',
+    equipmentName: 'Digital Temperature & Humidity Thermo-Hygrometer',
+    equipmentCode: 'PK-EQ-THM-06',
+    makeModel: 'Testo 625 with Dew Point Calculation',
+    serialNo: 'TST-625-771',
+    rangeAccuracy: '-10 to +60°C (±0.5°C), 0-100% RH (±2.5%)',
+    calibrationAgency: 'Zenith Metrology NABL Lab',
+    certificateNo: 'ZEN/THM/2026/055',
+    lastCalibrationDate: '2026-05-12',
+    nextCalibrationDue: '2027-05-11',
+    calibrationFrequencyMonths: 12,
+    status: 'Calibrated (Valid)',
+    location: 'Cleanroom Spray Booth Chamber 1 & 2',
+    custodian: 'Deepak Joshi (IPQC Inspector)'
+  }
+];
+
 

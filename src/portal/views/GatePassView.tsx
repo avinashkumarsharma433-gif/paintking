@@ -15,8 +15,11 @@ import {
   UserCheck, 
   Building2,
   Trash2,
-  Layers
+  Layers,
+  Sparkles,
+  Save
 } from 'lucide-react';
+import { UniversalJobModal } from '../components/UniversalJobModal';
 
 export const GatePassView: React.FC = () => {
   const { 
