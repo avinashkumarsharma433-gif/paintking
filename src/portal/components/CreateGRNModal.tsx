@@ -6,8 +6,6 @@ import {
   Truck, 
   Package, 
   ShieldCheck, 
-  ArrowRight, 
-  ArrowLeft, 
   Download, 
   Printer, 
   Save, 
@@ -16,15 +14,13 @@ import {
   X,
   FileText,
   BadgeCheck,
-  ChevronRight,
-  AlertCircle,
   Building2,
   Calendar,
   Layers,
-  FileSpreadsheet
+  MapPin
 } from 'lucide-react';
 import { OfficialGRNDocument } from './OfficialGRNDocument';
-import { downloadStandardGRNPdf } from '../utils/pdfStandardHeader';
+import { downloadStandardGRNPdf, formatDateDDMMYYYY } from '../utils/pdfStandardHeader';
 import { PaintkingDatePicker } from './PaintkingDatePicker';
 
 interface CreateGRNModalProps {
@@ -37,36 +33,33 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
   const { addGRN, activePlant, currentUser, materialInwardLogs } = usePortalStore();
 
   const latestGateInward = materialInwardLogs[0];
-  const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
 
   // Success state after receiving material into store
   const [createdGRN, setCreatedGRN] = useState<GoodsReceiptNote | null>(null);
 
-  // Track verified status for each item
-  const [verifiedItemIds, setVerifiedItemIds] = useState<Record<string, boolean>>({});
-
-  // 1. Header Information (8 Primary Fields from Gate/IQC)
+  // 1. Inward & Party Metadata (Pre-filled from Gate & IQC)
   const [grnNo, setGrnNo] = useState<string>(`PK-GRN-2026-${Math.floor(1000 + Math.random() * 9000)}`);
-  const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [receivedDate, setReceivedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [vehicleNo, setVehicleNo] = useState<string>('UK-08-AL-4412');
   const [supplierCustomer, setSupplierCustomer] = useState<string>('ROOP POLYMERS LTD');
   const [invoiceChallanNo, setInvoiceChallanNo] = useState<string>('RP/CH/99824');
   const [invoiceDate, setInvoiceDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [receivedDate, setReceivedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [transportName, setTransportName] = useState<string>('VRL LOGISTICS');
+  const [iqcReportNo, setIqcReportNo] = useState<string>('IQC-2026-001');
 
-  // 2. Official Signatures (3 Signature Fields)
+  // 2. Official Signatures & Storage Location
   const [storeIncharge, setStoreIncharge] = useState<string>(currentUser?.name || 'Manoj Tiwari (Stores)');
   const [qualityApprovedBy, setQualityApprovedBy] = useState<string>('Amit Verma (QA Lead)');
   const [approvedBy, setApprovedBy] = useState<string>('Satish Sharma (Plant Head)');
-  const [remarks, setRemarks] = useState<string>('Physical box count and IQC quality clearance verified.');
+  const [storeBayLocation, setStoreBayLocation] = useState<string>('Bay A-1 (Substrates Rack)');
+  const [remarks, setRemarks] = useState<string>('Physical box count & IQC quality clearance verified.');
 
   // Customer Color Splits for Job Cards
   const [colorSplits, setColorSplits] = useState<OrderColorSplit[]>([
     { colorName: 'Standard OEM Basecoat', colorCode: 'OEM-01', orderedQty: 1000, unitRate: 25 }
   ]);
 
-  // Line Items from IQC Inspection
+  // Line Items with editable Actual Received Qty
   const [items, setItems] = useState<GRNLineItem[]>([
     {
       id: '1',
@@ -77,7 +70,7 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
       shortExcessQty: 0,
       okByIqcQty: 1000,
       rejectionQty: 0,
-      remark: 'IQC Cleared - Zero flash'
+      remark: 'IQC Cleared'
     }
   ]);
 
@@ -85,30 +78,29 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
   useEffect(() => {
     if (isOpen) {
       setCreatedGRN(null);
-      setActiveStep(1);
 
       const genGrnNo = `PK-GRN-2026-${Math.floor(1000 + Math.random() * 9000)}`;
       setGrnNo(genGrnNo);
+      setReceivedDate(new Date().toISOString().split('T')[0]);
 
       if (pendingJob) {
         setSupplierCustomer(pendingJob.vendorCustomer || pendingJob.partyName || 'ROOP POLYMERS LTD');
         setInvoiceChallanNo(pendingJob.invoiceChallanNo || pendingJob.challanNo || 'CH-001');
         setVehicleNo(pendingJob.vehicleNo || 'UK-08-AL-4412');
+        setTransportName(pendingJob.transporter || 'VRL LOGISTICS');
         setInvoiceDate(pendingJob.invoiceChallanDate || pendingJob.challanDate || new Date().toISOString().split('T')[0]);
-        setReceivedDate(pendingJob.receivedDate || new Date().toISOString().split('T')[0]);
-        setRemarks(`IQC Cleared (Report No: ${pendingJob.reportNo || pendingJob.iqcReportNo || 'IQC-OK'}). Approved for Store Intake.`);
+        setIqcReportNo(pendingJob.reportNo || pendingJob.iqcReportNo || 'IQC-OK');
+        setRemarks(`IQC Cleared (Report: ${pendingJob.reportNo || pendingJob.iqcReportNo || 'IQC-OK'}). Received into store.`);
         setQualityApprovedBy(pendingJob.preparedBy || pendingJob.iqcRecord?.inspector || 'Amit Verma (QA Lead)');
         setApprovedBy(pendingJob.verifiedBy || pendingJob.iqcRecord?.verifiedBy || 'Satish Sharma (Plant Head)');
 
         if (pendingJob.items && pendingJob.items.length > 0) {
-          const initialVerified: Record<string, boolean> = {};
           const mappedItems: GRNLineItem[] = pendingJob.items.map((it: any, i: number) => {
             const itemId = it.id || String(i + 1);
-            initialVerified[itemId] = true; // Auto-marked as verified from IQC
             const invQ = Number(it.challanQty || it.quantity || pendingJob.totalQty || 1000);
             const okQ = Number(it.passQty !== undefined ? it.passQty : (it.actualQty || it.quantity || pendingJob.totalQty || 1000));
             const rejQ = Number(it.rejectQty || 0);
-            const actQ = okQ; // Default actual store received to OK quantity from IQC
+            const actQ = okQ; // Default actual store received to IQC approved quantity
 
             return {
               id: itemId,
@@ -119,12 +111,11 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
               shortExcessQty: actQ - invQ,
               okByIqcQty: okQ,
               rejectionQty: rejQ,
-              remark: it.defectDetail || it.notes || 'IQC Inspection Passed'
+              remark: it.defectDetail || it.notes || 'IQC Cleared'
             };
           });
 
           setItems(mappedItems);
-          setVerifiedItemIds(initialVerified);
 
           const totalQ = mappedItems.reduce((acc, curr) => acc + curr.actualReceivedQty, 0);
           setColorSplits([
@@ -144,9 +135,8 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
             shortExcessQty: okQ - totQ,
             okByIqcQty: okQ,
             rejectionQty: rejQ,
-            remark: 'IQC inspection clear'
+            remark: 'IQC Cleared'
           }]);
-          setVerifiedItemIds({ '1': true });
 
           setColorSplits([
             { colorName: 'Standard OEM Basecoat', colorCode: 'OEM-01', orderedQty: okQ, unitRate: 25 }
@@ -156,14 +146,13 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
         setSupplierCustomer(latestGateInward?.partyName || 'ROOP POLYMERS LTD');
         setInvoiceChallanNo(latestGateInward?.challanNo || 'RP/CH/99824');
         setVehicleNo(latestGateInward?.vehicleNo || 'UK-08-AL-4412');
-        setVerifiedItemIds({ '1': true });
       }
     }
   }, [isOpen, pendingJob, latestGateInward, currentUser]);
 
   if (!isOpen) return null;
 
-  // Total sums
+  // Total calculations
   const totalInvoicedQty = items.reduce((sum, item) => sum + (Number(item.invoicedQty) || 0), 0);
   const totalActualReceivedQty = items.reduce((sum, item) => sum + (Number(item.actualReceivedQty) || 0), 0);
   const totalOkByIqcQty = items.reduce((sum, item) => sum + (Number(item.okByIqcQty) || 0), 0);
@@ -182,28 +171,13 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
     }));
   };
 
-  const handleToggleVerifyItem = (id: string) => {
-    setVerifiedItemIds(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
-  };
-
-  const handleVerifyAll = () => {
-    const next: Record<string, boolean> = {};
-    items.forEach(it => {
-      if (it.id) next[it.id] = true;
-    });
-    setVerifiedItemIds(next);
-  };
-
   // Preview object matching GoodsReceiptNote
   const previewGRN: GoodsReceiptNote = {
     docNo: 'Doc No:00',
     revNo: '00',
     revDate: new Date().toISOString().split('T')[0],
     grnNo,
-    date,
+    date: receivedDate,
     plant: activePlant,
     vehicleNo,
     supplierCustomer,
@@ -217,8 +191,8 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
     storeIncharge,
     qualityApprovedBy,
     approvedBy,
-    remarks: pendingJob ? `${remarks} (Linked IQC: ${pendingJob.reportNo || pendingJob.iqcReportNo})` : remarks,
-    sourceIqcReportNo: pendingJob?.reportNo || pendingJob?.iqcReportNo,
+    remarks: `${remarks} [Location: ${storeBayLocation}] (Linked IQC: ${iqcReportNo})`,
+    sourceIqcReportNo: iqcReportNo,
     colorSplits,
     partCode: items[0]?.partCode || 'SUBSTRATE',
     description: items[0]?.partDescription || 'Raw Parts',
@@ -226,7 +200,7 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
     actualReceivedQty: totalActualReceivedQty
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleAcceptAndGenerateGRN = (e: React.FormEvent) => {
     e.preventDefault();
 
     addGRN(previewGRN);
@@ -234,23 +208,23 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-5 overflow-y-auto">
-      <div className="bg-white rounded-[18px] sm:rounded-[20px] max-w-2xl w-full p-4 sm:p-7 md:p-8 shadow-2xl border border-[#ececec] flex flex-col justify-between max-h-[92vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150 relative">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-5 overflow-y-auto">
+      <div className="bg-white rounded-[20px] max-w-3xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 max-h-[92vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150 relative">
         
         {/* Top Close Button */}
         <button 
           onClick={onClose}
           className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition z-10"
-          title="Close Form"
+          title="Close"
         >
           <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         </button>
 
         {/* ========================================================================= */}
-        {/* VIEW 1: SUCCESS STATE (MATERIAL IN STORE INVENTORY & OFFICIAL GRN)         */}
+        {/* VIEW 1: SUCCESS STATE (OFFICIAL GRN GENERATED & PDF READY)                 */}
         {/* ========================================================================= */}
         {createdGRN ? (
-          <div className="space-y-4 sm:space-y-5 animate-in fade-in duration-150">
+          <div className="space-y-4 animate-in fade-in duration-150">
             {/* Top Celebration Strip */}
             <div className="p-4 sm:p-5 rounded-[16px] bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -259,10 +233,10 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                 </div>
                 <div>
                   <h3 className="font-bold text-sm sm:text-base text-emerald-950">
-                    Material Received Successfully into Store!
+                    Material Received & GRN Generated!
                   </h3>
                   <p className="text-[11px] sm:text-xs text-emerald-800">
-                    Official Goods Receipt Note ({createdGRN.grnNo}) has been generated and stock added to inventory.
+                    Official Goods Receipt Note (<strong>{createdGRN.grnNo}</strong>) has been generated and stock added to inventory.
                   </p>
                 </div>
               </div>
@@ -271,7 +245,7 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                 <button
                   type="button"
                   onClick={() => downloadStandardGRNPdf(createdGRN)}
-                  className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                  className="px-4 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
                 >
                   <Download className="w-3.5 h-3.5 text-[#17191c]" />
                   <span>Download PDF</span>
@@ -279,7 +253,7 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-emerald-300 bg-white hover:bg-emerald-100 text-emerald-900 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                  className="px-4 py-2 rounded-full border border-emerald-300 bg-white hover:bg-emerald-100 text-emerald-900 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Print GRN</span>
@@ -297,7 +271,7 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
               <button
                 type="button"
                 onClick={onClose}
-                className="px-6 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] font-semibold text-xs transition cursor-pointer shadow-2xs active:scale-95"
+                className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] font-semibold text-xs transition cursor-pointer shadow-2xs active:scale-95"
               >
                 Done (Return to Stores Dashboard)
               </button>
@@ -305,12 +279,13 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
           </div>
         ) : (
           /* ========================================================================= */
-          /* VIEW 2: 3-STEP GUIDED STORE INTAKE WIZARD (Strict Gate/IQC Inspired)      */
+          /* VIEW 2: CLEAN 2-PART MATERIAL ACCEPTANCE & GRN SLIP                        */
           /* ========================================================================= */
-          <div className="space-y-4 sm:space-y-5">
-            {/* Form Title & Guided Subtitle */}
-            <div className="text-center space-y-1 pb-2 sm:pb-3 pr-6 sm:pr-0">
-              <div className="flex items-center justify-center gap-2 mb-1">
+          <form onSubmit={handleAcceptAndGenerateGRN} className="space-y-4">
+            
+            {/* Modal Header */}
+            <div className="space-y-1 pb-2 border-b border-[#ececec] pr-8">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold">
                   DOC NO: 00 • Rev.00
                 </span>
@@ -318,449 +293,200 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                   <Sparkles className="w-3 h-3 text-emerald-600" />
                   Auto-Filled from IQC
                 </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
+                  IQC Ref: {iqcReportNo}
+                </span>
               </div>
-              <h2 className="text-lg sm:text-2xl font-bold text-[#17191c] tracking-tight">
-                Material Acceptance & GRN Creation
+              <h2 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal tracking-tight">
+                Goods Receipt Note (GRN) Inward Acceptance
               </h2>
               <p className="text-[11px] sm:text-xs text-[#777b86]">
-                Accept IQC approved material into Store inventory & generate official GRN
+                Review IQC cleared material, confirm physical intake count & generate official GRN into Store Inventory
               </p>
             </div>
 
-            {/* Step Stepper Indicator (Plain & Simple Connected Pills) */}
-            <div className="flex items-center justify-center gap-1 sm:gap-2.5 py-1.5 border-b border-[#f0f0f2] mb-3 sm:mb-4 overflow-x-auto no-scrollbar">
-              {/* Step 1 Pill */}
-              <button
-                type="button"
-                onClick={() => setActiveStep(1)}
-                className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 sm:gap-2 border shrink-0 ${
-                  activeStep === 1
-                    ? 'border-[#17191c] text-[#17191c] bg-[#fafafb] shadow-2xs'
-                    : 'border-[#e5e7eb] text-[#777b86] hover:border-gray-400'
-                }`}
-              >
-                <span className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full text-[9px] sm:text-[10px] font-bold flex items-center justify-center ${
-                  activeStep === 1 ? 'bg-[#17191c] text-white' : 'bg-gray-200 text-[#777b86]'
-                }`}>
-                  1
-                </span>
-                <span>Inward Info</span>
-              </button>
+            {/* ========================================================================= */}
+            {/* PART 1: INWARD & IQC DETAILS (CLEAN READ-ONLY OVERVIEW)                   */}
+            {/* ========================================================================= */}
+            <div className="space-y-2">
+              <span className="text-[10.5px] font-semibold text-[#777b86] uppercase tracking-wider block font-mono">
+                1. Inward & Quality Clearance Overview
+              </span>
 
-              <div className="w-3 sm:w-6 h-px bg-[#e5e7eb] shrink-0" />
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {/* Supplier / Party */}
+                <div className="p-3 rounded-[12px] bg-[#fafafb] border border-[#ececec] space-y-0.5 col-span-2 sm:col-span-1">
+                  <span className="text-[10px] text-[#777b86] block font-mono uppercase">Supplier / Party</span>
+                  <div className="font-semibold text-xs text-[#17191c] truncate" title={supplierCustomer}>
+                    {supplierCustomer}
+                  </div>
+                </div>
 
-              {/* Step 2 Pill */}
-              <button
-                type="button"
-                onClick={() => setActiveStep(2)}
-                className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 sm:gap-2 border shrink-0 ${
-                  activeStep === 2
-                    ? 'border-[#17191c] text-[#17191c] bg-[#fafafb] shadow-2xs'
-                    : 'border-[#e5e7eb] text-[#777b86] hover:border-gray-400'
-                }`}
-              >
-                <span className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full text-[9px] sm:text-[10px] font-bold flex items-center justify-center ${
-                  activeStep === 2 ? 'bg-[#17191c] text-white' : 'bg-gray-200 text-[#777b86]'
-                }`}>
-                  2
-                </span>
-                <span>Materials ({items.length})</span>
-              </button>
+                {/* Challan No & Date */}
+                <div className="p-3 rounded-[12px] bg-[#fafafb] border border-[#ececec] space-y-0.5">
+                  <span className="text-[10px] text-[#777b86] block font-mono uppercase">Challan / Invoice</span>
+                  <div className="font-mono font-bold text-xs text-[#17191c] truncate">
+                    {invoiceChallanNo}
+                  </div>
+                  <div className="text-[10px] text-[#777b86]">
+                    Date: {formatDateDDMMYYYY(invoiceDate)}
+                  </div>
+                </div>
 
-              <div className="w-3 sm:w-6 h-px bg-[#e5e7eb] shrink-0" />
+                {/* Vehicle & Transporter */}
+                <div className="p-3 rounded-[12px] bg-[#fafafb] border border-[#ececec] space-y-0.5">
+                  <span className="text-[10px] text-[#777b86] block font-mono uppercase">Vehicle & Transporter</span>
+                  <div className="font-mono text-xs font-semibold text-[#17191c] uppercase">
+                    {vehicleNo}
+                  </div>
+                  <div className="text-[10px] text-[#777b86] truncate">
+                    {transportName}
+                  </div>
+                </div>
 
-              {/* Step 3 Pill */}
-              <button
-                type="button"
-                onClick={() => setActiveStep(3)}
-                className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 sm:gap-2 border shrink-0 ${
-                  activeStep === 3
-                    ? 'border-[#17191c] text-[#17191c] bg-[#fafafb] shadow-2xs'
-                    : 'border-[#e5e7eb] text-[#777b86] hover:border-gray-400'
-                }`}
-              >
-                <span className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full text-[9px] sm:text-[10px] font-bold flex items-center justify-center ${
-                  activeStep === 3 ? 'bg-[#17191c] text-white' : 'bg-gray-200 text-[#777b86]'
-                }`}>
-                  3
-                </span>
-                <span>Sign-Off & Accept</span>
-              </button>
+                {/* Auto GRN Number */}
+                <div className="p-3 rounded-[12px] bg-[#faf7ed] border border-[#f4e5be] space-y-0.5">
+                  <span className="text-[10px] text-[#8a6521] block font-mono uppercase font-semibold">GRN No. (Auto)</span>
+                  <div className="font-mono font-bold text-xs text-[#8a6521]">
+                    {grnNo}
+                  </div>
+                </div>
+
+                {/* IQC Clearance Record */}
+                <div className="p-3 rounded-[12px] bg-emerald-50/60 border border-emerald-200 space-y-0.5">
+                  <span className="text-[10px] text-emerald-800 block font-mono uppercase font-semibold">IQC Clearance</span>
+                  <div className="font-semibold text-xs text-emerald-900 truncate">
+                    {qualityApprovedBy}
+                  </div>
+                  <div className="text-[10px] text-emerald-700 font-medium">
+                    100% Quality Approved
+                  </div>
+                </div>
+
+                {/* Store Received Date */}
+                <div className="p-3 rounded-[12px] bg-[#fafafb] border border-[#ececec] space-y-0.5">
+                  <span className="text-[10px] text-[#777b86] block font-mono uppercase">Intake Date</span>
+                  <div className="font-mono text-xs font-semibold text-[#17191c]">
+                    {formatDateDDMMYYYY(receivedDate)}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+            {/* ========================================================================= */}
+            {/* PART 2: MATERIAL & ACTUALLY RECEIVED QUANTITY ENTER OPTION                */}
+            {/* ========================================================================= */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10.5px] font-semibold text-[#777b86] uppercase tracking-wider font-mono">
+                  2. Material & Actually Received Quantity ({items.length} Items)
+                </span>
+                <span className="text-[11px] text-[#777b86]">
+                  IQC Passed Quantity pre-filled below. Adjust if any physical discrepancy.
+                </span>
+              </div>
 
-              {/* ========================================================================= */}
-              {/* STEP 1: INWARD & LOGISTICS OVERVIEW (Clean Guided Process)                 */}
-              {/* ========================================================================= */}
-              {activeStep === 1 && (
-                <div className="space-y-3.5 sm:space-y-4 animate-in fade-in duration-100">
-                  {/* Step Header */}
-                  <div>
-                    <span className="text-[10px] sm:text-[11px] font-medium text-[#777b86] block">Step 1</span>
-                    <h3 className="text-xs sm:text-sm font-bold text-[#17191c]">Inward & Logistics Overview</h3>
-                  </div>
+              {/* Items List */}
+              <div className="space-y-2.5">
+                {items.map((item, idx) => (
+                  <div key={item.id || idx} className="p-3.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] space-y-2.5">
+                    {/* Item Description Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-[#c09748] px-2 py-0.5 rounded-full bg-[#faf7ed] border border-[#f4e5be]">
+                          {item.partCode}
+                        </span>
+                        <span className="font-semibold text-xs text-[#17191c]">
+                          {item.partDescription}
+                        </span>
+                      </div>
 
-                  {/* Clean 2-Column Responsive Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
-                    {/* Supplier / Party Name */}
-                    <div className="sm:col-span-2 space-y-1">
-                      <label className="block text-xs font-semibold text-[#17191c]">
-                        Supplier / Customer Party <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={supplierCustomer}
-                        onChange={e => setSupplierCustomer(e.target.value)}
-                        placeholder="e.g. ROOP POLYMERS LTD"
-                        className="w-full h-10 px-3 rounded-[10px] sm:rounded-[12px] border border-[#e5e7eb] bg-white text-xs sm:text-sm font-semibold text-[#17191c] focus:outline-none focus:border-[#17191c] transition"
-                      />
+                      <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <span className="text-[10.5px] text-[#777b86]">Invoiced: <strong>{item.invoicedQty}</strong></span>
+                        <span className="text-[10.5px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          OK IQC: <strong>{item.okByIqcQty}</strong>
+                        </span>
+                        {Number(item.rejectionQty) > 0 && (
+                          <span className="text-[10.5px] text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                            Rej: <strong>{item.rejectionQty}</strong>
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    {/* GRN Number */}
-                    <div className="space-y-1">
-                      <label className="block text-xs font-semibold text-[#17191c]">
-                        GRN No. <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={grnNo}
-                        onChange={e => setGrnNo(e.target.value)}
-                        className="w-full h-10 px-3 rounded-[10px] sm:rounded-[12px] border border-[#e5e7eb] bg-[#fafafb] font-mono font-bold text-xs sm:text-sm text-[#17191c] focus:outline-none focus:border-[#17191c] transition"
-                      />
-                    </div>
+                    {/* Actually Received Editable Section */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-[#f0f0f2] items-center">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-semibold text-[#17191c] whitespace-nowrap">
+                          Actually Received Qty:
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          required
+                          value={item.actualReceivedQty}
+                          onChange={e => handleUpdateItemActual(item.id!, Number(e.target.value))}
+                          className="w-28 h-9 px-3 rounded-[10px] border border-[#dcdfe4] font-mono font-bold text-center text-xs text-[#17191c] bg-white focus:outline-none focus:border-[#17191c]"
+                        />
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold ${
+                          item.shortExcessQty < 0 
+                            ? 'bg-red-50 text-red-700 border border-red-200' 
+                            : item.shortExcessQty > 0 
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                            : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        }`}>
+                          {item.shortExcessQty > 0 ? `+${item.shortExcessQty} (Excess)` : item.shortExcessQty === 0 ? '✓ Match' : `${item.shortExcessQty} (Short)`}
+                        </span>
+                      </div>
 
-                    {/* GRN Date */}
-                    <div className="space-y-1">
-                      <label className="block text-xs font-semibold text-[#17191c]">
-                        GRN Date <span className="text-red-500">*</span>
-                      </label>
-                      <PaintkingDatePicker
-                        value={date}
-                        onChange={setDate}
-                        placeholder="DD-MM-YYYY"
-                      />
-                    </div>
-
-                    {/* Challan No */}
-                    <div className="space-y-1">
-                      <label className="block text-xs font-semibold text-[#17191c]">
-                        Challan / Invoice No. <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={invoiceChallanNo}
-                        onChange={e => setInvoiceChallanNo(e.target.value)}
-                        placeholder="e.g. RP/CH/99824"
-                        className="w-full h-10 px-3 rounded-[10px] sm:rounded-[12px] border border-[#e5e7eb] bg-white font-mono text-xs sm:text-sm font-bold text-[#17191c] focus:outline-none focus:border-[#17191c] transition"
-                      />
-                    </div>
-
-                    {/* Challan Date */}
-                    <div className="space-y-1">
-                      <label className="block text-xs font-semibold text-[#17191c]">
-                        Challan Date <span className="text-red-500">*</span>
-                      </label>
-                      <PaintkingDatePicker
-                        value={invoiceDate}
-                        onChange={setInvoiceDate}
-                        placeholder="DD-MM-YYYY"
-                      />
-                    </div>
-
-                    {/* Vehicle No */}
-                    <div className="space-y-1">
-                      <label className="block text-xs font-semibold text-[#17191c]">
-                        Vehicle No. <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={vehicleNo}
-                        onChange={e => setVehicleNo(e.target.value)}
-                        placeholder="e.g. UK-08-AL-4412"
-                        className="w-full h-10 px-3 rounded-[10px] sm:rounded-[12px] border border-[#e5e7eb] bg-white font-mono uppercase text-xs sm:text-sm text-[#17191c] focus:outline-none focus:border-[#17191c] transition"
-                      />
-                    </div>
-
-                    {/* Transporter */}
-                    <div className="space-y-1">
-                      <label className="block text-xs font-semibold text-[#17191c]">
-                        Transporter Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={transportName}
-                        onChange={e => setTransportName(e.target.value)}
-                        placeholder="e.g. VRL LOGISTICS"
-                        className="w-full h-10 px-3 rounded-[10px] sm:rounded-[12px] border border-[#e5e7eb] bg-white text-xs sm:text-sm text-[#17191c] focus:outline-none focus:border-[#17191c] transition"
-                      />
+                      <div className="flex items-center gap-2 sm:justify-end">
+                        <label className="text-xs font-medium text-[#777b86] whitespace-nowrap">
+                          Store Bay / Bin:
+                        </label>
+                        <input
+                          type="text"
+                          value={storeBayLocation}
+                          onChange={e => setStoreBayLocation(e.target.value)}
+                          placeholder="e.g. Bay A-1 / Rack 4"
+                          className="w-full sm:w-44 h-9 px-2.5 rounded-[10px] border border-[#e5e7eb] text-xs text-[#17191c] bg-white focus:outline-none focus:border-[#17191c]"
+                        />
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
+            </div>
 
-                  {/* Form Actions */}
-                  <div className="flex items-center justify-between pt-3 sm:pt-4 border-t border-[#ececec]">
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#dcdfe4] text-xs font-medium text-[#777b86] hover:bg-gray-50 cursor-pointer transition"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveStep(2)}
-                      className="flex items-center gap-1.5 px-4 sm:px-5 py-1.5 sm:py-2 rounded-full bg-[#17191c] text-[#c09748] text-xs font-bold hover:bg-black transition cursor-pointer shadow-xs active:scale-95"
-                    >
-                      <span>Next: Verify Material Quantities</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-[#c09748]" />
-                    </button>
-                  </div>
-                </div>
-              )}
+            {/* ========================================================================= */}
+            {/* PART 3: ACCEPTANCE & REPORT GENERATION ACTION BAR                         */}
+            {/* ========================================================================= */}
+            <div className="pt-2 border-t border-[#ececec] flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <span className="text-xs text-[#777b86]">Total Ingestion:</span>
+                <span className="font-mono font-bold text-sm text-[#17191c] px-2.5 py-0.5 bg-[#fafafb] rounded-full border border-[#ececec]">
+                  {totalActualReceivedQty} Pcs
+                </span>
+              </div>
 
-              {/* ========================================================================= */}
-              {/* STEP 2: MATERIAL QUANTITIES VERIFICATION                                  */}
-              {/* ========================================================================= */}
-              {activeStep === 2 && (
-                <div className="space-y-3.5 sm:space-y-4 animate-in fade-in duration-100">
-                  {/* Step Header */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] sm:text-[11px] font-medium text-[#777b86] block">Step 2</span>
-                      <h3 className="text-xs sm:text-sm font-bold text-[#17191c]">
-                        Material Quantities Verification ({items.length} Items)
-                      </h3>
-                    </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-full border border-[#dcdfe4] text-xs font-semibold text-[#777b86] hover:bg-gray-50 cursor-pointer transition active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-full bg-[#17191c] hover:bg-[#25282d] text-[#c09748] font-bold text-xs cursor-pointer flex items-center gap-2 shadow-xs transition active:scale-95"
+                >
+                  <Save className="w-4 h-4 text-[#c09748]" />
+                  <span>Accept Material & Generate Official GRN</span>
+                </button>
+              </div>
+            </div>
 
-                    <button
-                      type="button"
-                      onClick={handleVerifyAll}
-                      className="px-3 py-1 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[11px] font-semibold text-[#17191c] border border-[#dcdfe4] transition cursor-pointer flex items-center gap-1 shadow-2xs"
-                    >
-                      <Check className="w-3 h-3 text-emerald-600" />
-                      <span>Verify All</span>
-                    </button>
-                  </div>
-
-                  {/* Items Verification List */}
-                  <div className="space-y-3">
-                    {items.map((item, idx) => {
-                      const isVerified = Boolean(item.id && verifiedItemIds[item.id]);
-                      return (
-                        <div key={item.id || idx} className="p-3.5 sm:p-4 rounded-[14px] bg-[#fafafb] border border-[#ececec] space-y-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-xs font-bold text-[#c09748] px-2 py-0.5 rounded-full bg-[#faf7ed] border border-[#f4e5be]">
-                                  {item.partCode}
-                                </span>
-                                <span className="font-semibold text-xs text-[#17191c]">
-                                  {item.partDescription}
-                                </span>
-                              </div>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => handleToggleVerifyItem(item.id!)}
-                              className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1 cursor-pointer transition ${
-                                isVerified 
-                                  ? 'bg-emerald-600 text-white shadow-xs' 
-                                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                              }`}
-                            >
-                              <Check className="w-3 h-3" />
-                              <span>{isVerified ? 'Verified' : 'Verify'}</span>
-                            </button>
-                          </div>
-
-                          {/* 3-Column Stats Grid */}
-                          <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                            <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
-                              <div className="text-[10px] text-[#777b86] font-mono">Invoiced Qty</div>
-                              <div className="font-bold text-[#17191c]">{item.invoicedQty}</div>
-                            </div>
-                            <div className="p-2 rounded-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800">
-                              <div className="text-[10px] font-mono">OK by IQC</div>
-                              <div className="font-bold">{item.okByIqcQty}</div>
-                            </div>
-                            <div className="p-2 rounded-[10px] bg-red-50 border border-red-200 text-red-700">
-                              <div className="text-[10px] font-mono">Rej. IQC</div>
-                              <div className="font-bold">{item.rejectionQty}</div>
-                            </div>
-                          </div>
-
-                          {/* Editable Store Intake Input */}
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-[#f0f0f2]">
-                            <label className="text-xs font-semibold text-[#17191c]">
-                              Actual Received into Store:
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                min="0"
-                                value={item.actualReceivedQty}
-                                onChange={e => handleUpdateItemActual(item.id!, Number(e.target.value))}
-                                className="w-28 h-9 px-3 rounded-[10px] border border-[#dcdfe4] font-mono font-bold text-center text-xs text-[#17191c] bg-white focus:outline-none focus:border-[#17191c]"
-                              />
-                              <span className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold ${
-                                item.shortExcessQty < 0 
-                                  ? 'bg-red-50 text-red-700 border border-red-200' 
-                                  : item.shortExcessQty > 0 
-                                  ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                                  : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                              }`}>
-                                {item.shortExcessQty > 0 ? `+${item.shortExcessQty}` : item.shortExcessQty === 0 ? 'Match' : item.shortExcessQty}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Summary Bar */}
-                  <div className="p-3 rounded-[12px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between text-xs font-medium">
-                    <span className="text-[#777b86]">Total Store Ingestion:</span>
-                    <span className="font-mono font-bold text-[#17191c] text-sm">
-                      {totalActualReceivedQty} Pcs
-                    </span>
-                  </div>
-
-                  {/* Form Actions */}
-                  <div className="flex items-center justify-between pt-3 sm:pt-4 border-t border-[#ececec]">
-                    <button
-                      type="button"
-                      onClick={() => setActiveStep(1)}
-                      className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#dcdfe4] text-xs font-medium text-[#777b86] hover:bg-gray-50 cursor-pointer flex items-center gap-1.5 transition"
-                    >
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                      <span>Back to Inward Info</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveStep(3)}
-                      className="flex items-center gap-1.5 px-4 sm:px-5 py-1.5 sm:py-2 rounded-full bg-[#17191c] text-[#c09748] text-xs font-bold hover:bg-black transition cursor-pointer shadow-xs active:scale-95"
-                    >
-                      <span>Next: Sign-Off & Accept</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-[#c09748]" />
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* ========================================================================= */}
-              {/* STEP 3: AUTHORIZATION, SIGN-OFF & ACCEPTANCE                              */}
-              {/* ========================================================================= */}
-              {activeStep === 3 && (
-                <div className="space-y-3.5 sm:space-y-4 animate-in fade-in duration-100">
-                  {/* Step Header */}
-                  <div>
-                    <span className="text-[10px] sm:text-[11px] font-medium text-[#777b86] block">Step 3</span>
-                    <h3 className="text-xs sm:text-sm font-bold text-[#17191c]">Authorization, Sign-Off & Acceptance</h3>
-                  </div>
-
-                  {/* Summary Box */}
-                  <div className="p-3.5 sm:p-4 rounded-[14px] bg-[#fafafb] border border-[#ececec] space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#777b86]">Party / Supplier:</span>
-                      <span className="font-semibold text-[#17191c]">{supplierCustomer}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#777b86]">Challan Reference:</span>
-                      <span className="font-mono font-bold text-[#17191c]">{invoiceChallanNo}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#777b86]">Total Accepted Quantity:</span>
-                      <span className="font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                        {totalActualReceivedQty} Pcs
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 3 Signatures Fields */}
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <label className="block text-xs font-semibold text-[#17191c]">
-                        Store Incharge :- <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={storeIncharge}
-                        onChange={e => setStoreIncharge(e.target.value)}
-                        className="w-full h-10 px-3 rounded-[10px] sm:rounded-[12px] border border-[#e5e7eb] bg-white text-xs sm:text-sm text-[#17191c] focus:outline-none focus:border-[#17191c] transition"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="block text-xs font-semibold text-[#17191c]">
-                        Quality Approved By :- <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={qualityApprovedBy}
-                        onChange={e => setQualityApprovedBy(e.target.value)}
-                        className="w-full h-10 px-3 rounded-[10px] sm:rounded-[12px] border border-[#e5e7eb] bg-white text-xs sm:text-sm text-emerald-900 font-medium focus:outline-none focus:border-[#17191c] transition"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="block text-xs font-semibold text-[#17191c]">
-                        Approved By (Plant Head) :- <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={approvedBy}
-                        onChange={e => setApprovedBy(e.target.value)}
-                        className="w-full h-10 px-3 rounded-[10px] sm:rounded-[12px] border border-[#e5e7eb] bg-white text-xs sm:text-sm text-[#17191c] focus:outline-none focus:border-[#17191c] transition"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="block text-xs font-semibold text-[#17191c]">
-                        Remarks & Intake Notes
-                      </label>
-                      <input
-                        type="text"
-                        value={remarks}
-                        onChange={e => setRemarks(e.target.value)}
-                        placeholder="e.g. Physical count verified & stored in Bay A-1"
-                        className="w-full h-10 px-3 rounded-[10px] sm:rounded-[12px] border border-[#e5e7eb] bg-white text-xs sm:text-sm text-[#17191c] focus:outline-none focus:border-[#17191c] transition"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Form Actions */}
-                  <div className="flex items-center justify-between pt-3 sm:pt-4 border-t border-[#ececec]">
-                    <button
-                      type="button"
-                      onClick={() => setActiveStep(2)}
-                      className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#dcdfe4] text-xs font-medium text-[#777b86] hover:bg-gray-50 cursor-pointer flex items-center gap-1.5 transition"
-                    >
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                      <span>Back to Quantity Verification</span>
-                    </button>
-                    <button
-                      type="submit"
-                      className="flex items-center gap-2 px-5 sm:px-6 py-2 sm:py-2.5 rounded-full bg-[#17191c] text-[#c09748] text-xs font-bold hover:bg-black transition cursor-pointer shadow-xs active:scale-95"
-                    >
-                      <Save className="w-3.5 h-3.5 text-[#c09748]" />
-                      <span>Accept Material & Generate GRN</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-            </form>
-          </div>
+          </form>
         )}
 
       </div>
