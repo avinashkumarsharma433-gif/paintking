@@ -1897,79 +1897,74 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
   doc.setTextColor(119, 123, 134);
   doc.text(`Doc: ${grn.docNo || 'DOC NO: 00'}  |  Rev: ${grn.revNo || '00'}  |  Date: ${grn.revDate || '2026-08-01'}`, 196, startY + 5, { align: 'right' });
 
-  // 3. Section 1: Inward & Supplier Overview Card (Rounded card)
+  // 3. Section 1: Inward & Vehicle Metadata Grid (3 Structured Rows matching Gate/IQC Standard)
   const metaY = startY + 8;
-  const metaBoxHeight = 35;
-  doc.setDrawColor(230, 230, 230);
+  doc.setDrawColor(220, 222, 228);
   doc.setFillColor(250, 250, 251);
-  doc.roundedRect(14, metaY, 182, metaBoxHeight, 2.5, 2.5, 'FD');
+  doc.roundedRect(14, metaY, 182, 44, 3, 3, 'FD');
 
-  const col1LabelX = 18;
-  const col1ValueX = 55;
-  const col2LabelX = 108;
-  const col2ValueX = 146;
+  const metaCol1X = 20;
+  const metaCol2X = 80;
+  const metaCol3X = 140;
 
-  // Row 1: GRN NO | INVOICED / CHALLAN NO
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(119, 123, 134);
-  doc.text('GRN NO:', col1LabelX, metaY + 6);
-  doc.text('INVOICED / CHALLAN NO:', col2LabelX, metaY + 6);
+  // Helper to draw clean standardized label-value pairs with exact typographic hierarchy
+  const drawMetaField = (
+    label: string,
+    value: string,
+    x: number,
+    labelY: number,
+    valueY: number,
+    maxWidth: number = 52
+  ) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.0);
+    doc.setTextColor(23, 25, 28);
+    doc.text(label, x, labelY);
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(23, 25, 28);
-  doc.text(grn.grnNo, col1ValueX, metaY + 6);
-  doc.text(grn.invoiceChallanNo || '-', col2ValueX, metaY + 6);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.0);
+    doc.setTextColor(100, 105, 115);
 
-  // Row 2: DATE | CHALLAN DATE
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(119, 123, 134);
-  doc.text('DATE:', col1LabelX, metaY + 13.5);
-  doc.text('CHALLAN DATE:', col2LabelX, metaY + 13.5);
+    const cleanVal = (value || '-').trim();
+    const allLines: string[] = doc.splitTextToSize(cleanVal, maxWidth);
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(23, 25, 28);
-  doc.text(formatDateDDMMYYYY(grn.date), col1ValueX, metaY + 13.5);
-  doc.text(formatDateDDMMYYYY(grn.invoiceDate || '-'), col2ValueX, metaY + 13.5);
+    if (allLines.length <= 1) {
+      doc.text(allLines[0] || '-', x, valueY);
+    } else if (allLines.length === 2) {
+      doc.text(allLines[0], x, valueY - 1.2);
+      doc.text(allLines[1], x, valueY + 2.2);
+    } else {
+      doc.text(allLines[0], x, valueY - 1.2);
+      let line2 = allLines[1];
+      while (line2.length > 0 && doc.getTextWidth(line2 + '...') > maxWidth) {
+        line2 = line2.slice(0, -1);
+      }
+      doc.text(line2 + '...', x, valueY + 2.2);
+    }
+  };
 
-  // Row 3: VEHICLE NO | RECEIVED DATE
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(119, 123, 134);
-  doc.text('VEHICLE NO:', col1LabelX, metaY + 21);
-  doc.text('RECEIVED DATE:', col2LabelX, metaY + 21);
+  // Row 1: GRN NUMBER | GRN DATE | INWARD RECEIVE DATE
+  drawMetaField('GRN NUMBER', grn.grnNo, metaCol1X, metaY + 5.5, metaY + 11.0, 54);
+  drawMetaField('GRN DATE', formatDateDDMMYYYY(grn.date), metaCol2X, metaY + 5.5, metaY + 11.0, 54);
+  drawMetaField('INWARD RECEIVE DATE', formatDateDDMMYYYY(grn.receivedDate || grn.date), metaCol3X, metaY + 5.5, metaY + 11.0, 48);
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(23, 25, 28);
-  doc.text(grn.vehicleNo || '-', col1ValueX, metaY + 21);
-  doc.text(formatDateDDMMYYYY(grn.receivedDate || grn.date || '-'), col2ValueX, metaY + 21);
+  // Row 2: CHALLAN / DC NUMBER | NAME OF PARTY / VENDOR | CHALLAN DATE
+  drawMetaField('CHALLAN / DC NUMBER', grn.invoiceChallanNo || '-', metaCol1X, metaY + 18.5, metaY + 24.0, 54);
+  drawMetaField('NAME OF PARTY / VENDOR', grn.supplierCustomer || '-', metaCol2X, metaY + 18.5, metaY + 24.0, 54);
+  drawMetaField('CHALLAN DATE', formatDateDDMMYYYY(grn.invoiceDate || grn.date), metaCol3X, metaY + 18.5, metaY + 24.0, 48);
 
-  // Row 4: SUPPLIER / PARTY | TRANSPORT NAME
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(119, 123, 134);
-  doc.text('SUPPLIER / PARTY:', col1LabelX, metaY + 28.5);
-  doc.text('TRANSPORT NAME:', col2LabelX, metaY + 28.5);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(23, 25, 28);
-  const supplierText = (grn.supplierCustomer || '-').length > 28 ? (grn.supplierCustomer || '-').slice(0, 26) + '...' : (grn.supplierCustomer || '-');
-  doc.text(supplierText, col1ValueX, metaY + 28.5);
-  const transText = (grn.transporter || 'Direct Delivery').length > 25 ? (grn.transporter || 'Direct Delivery').slice(0, 23) + '...' : (grn.transporter || 'Direct Delivery');
-  doc.text(transText, col2ValueX, metaY + 28.5);
+  // Row 3: VEHICLE NUMBER | TRANSPORTER NAME | IQC INSPECTION REF
+  drawMetaField('VEHICLE NUMBER', grn.vehicleNo || '-', metaCol1X, metaY + 31.5, metaY + 37.0, 54);
+  drawMetaField('TRANSPORTER NAME', grn.transporter || 'Direct Delivery', metaCol2X, metaY + 31.5, metaY + 37.0, 54);
+  drawMetaField('IQC INSPECTION REF', grn.sourceIqcReportNo || 'IQC-PASSED', metaCol3X, metaY + 31.5, metaY + 37.0, 48);
 
   // 4. Section 2: Material Items Verification Table (with Multi-Page Pagination)
-  let currentY = metaY + metaBoxHeight + 8;
-  const colX = [14, 42, 90, 110, 126, 142, 168, 196]; // Column boundaries
+  let currentY = metaY + 44 + 8;
+  const colX = [14, 40, 96, 116, 134, 152, 175, 196]; // Balanced column boundaries
   const TABLE_BORDER_COLOR = [180, 185, 195] as const;
   const TABLE_LINE_WIDTH = 0.45;
-  const ROW_HEIGHT = 7.5;
-  const HEADER_HEIGHT = 7.5;
+  const ROW_HEIGHT = 7.0;
+  const HEADER_HEIGHT = 7.0;
   const FOOTER_RESERVED_Y = 275;
   const SIGNATURE_BLOCK_HEIGHT = 36;
 
@@ -1982,15 +1977,15 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
     doc.line(14, y + HEADER_HEIGHT, 196, y + HEADER_HEIGHT);
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
+    doc.setFontSize(6.8);
     doc.setTextColor(23, 25, 28);
-    doc.text('PART CODE', 17, y + 5);
-    doc.text('PART DESCRIPTION', 45, y + 5);
-    doc.text('INVOICED', 100, y + 5, { align: 'center' });
-    doc.text('OK (IQC)', 118, y + 5, { align: 'center' });
-    doc.text('REJ (IQC)', 134, y + 5, { align: 'center' });
-    doc.text('ACTUAL (STORE)', 155, y + 5, { align: 'center' });
-    doc.text('SHORT/EXCESS', 182, y + 5, { align: 'center' });
+    doc.text('PART CODE', 17, y + 4.8);
+    doc.text('PART DESCRIPTION', 43, y + 4.8);
+    doc.text('INVOICED', 106, y + 4.8, { align: 'center' });
+    doc.text('OK (IQC)', 125, y + 4.8, { align: 'center' });
+    doc.text('REJ (IQC)', 143, y + 4.8, { align: 'center' });
+    doc.text('ACTUAL (STORE)', 163.5, y + 4.8, { align: 'center' });
+    doc.text('SHORT/EXCESS', 185.5, y + 4.8, { align: 'center' });
   };
 
   const drawGrnTableVerticalLines = (startY: number, endY: number) => {
@@ -2044,7 +2039,7 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
     }
 
     const isEven = idx % 2 === 0;
-    doc.setFillColor(isEven ? 255 : 235, isEven ? 255 : 238, isEven ? 255 : 244);
+    doc.setFillColor(isEven ? 255 : 250, isEven ? 255 : 250, isEven ? 255 : 251);
     doc.rect(14, currentY, 182, ROW_HEIGHT, 'F');
 
     doc.setDrawColor(...TABLE_BORDER_COLOR);
@@ -2067,21 +2062,21 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7);
     doc.setTextColor(192, 151, 72); // Brand Gold #c09748
-    doc.text(item.partCode || 'SUBSTRATE', 17, currentY + 5);
+    doc.text(item.partCode || 'SUBSTRATE', 17, currentY + 4.8);
 
     // Part Description
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.8);
     doc.setTextColor(23, 25, 28);
-    const descText = (item.partDescription || '-').length > 32 ? (item.partDescription || '-').slice(0, 30) + '...' : (item.partDescription || '-');
-    doc.text(descText, 45, currentY + 5);
+    const descText = (item.partDescription || '-').length > 34 ? (item.partDescription || '-').slice(0, 32) + '...' : (item.partDescription || '-');
+    doc.text(descText, 43, currentY + 4.8);
 
     // Invoiced Qty
-    doc.text(String(invQ), 100, currentY + 5, { align: 'center' });
+    doc.text(String(invQ), 106, currentY + 4.8, { align: 'center' });
 
     // Ok By IQC (Green)
     doc.setTextColor(16, 116, 55);
-    doc.text(String(okQ), 118, currentY + 5, { align: 'center' });
+    doc.text(String(okQ), 125, currentY + 4.8, { align: 'center' });
 
     // Rej Qty (Red or Grey)
     if (rejQ > 0) {
@@ -2089,24 +2084,24 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
     } else {
       doc.setTextColor(119, 123, 134);
     }
-    doc.text(String(rejQ), 134, currentY + 5, { align: 'center' });
+    doc.text(String(rejQ), 143, currentY + 4.8, { align: 'center' });
 
     // Actual Received into Store (Bold Charcoal)
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(23, 25, 28);
-    doc.text(String(actQ), 155, currentY + 5, { align: 'center' });
+    doc.text(String(actQ), 163.5, currentY + 4.8, { align: 'center' });
 
     // Short/Excess
     doc.setFont('helvetica', 'normal');
     if (diffQ < 0) {
       doc.setTextColor(220, 38, 38);
-      doc.text(String(diffQ), 182, currentY + 5, { align: 'center' });
+      doc.text(String(diffQ), 185.5, currentY + 4.8, { align: 'center' });
     } else if (diffQ > 0) {
       doc.setTextColor(30, 64, 175);
-      doc.text(`+${diffQ}`, 182, currentY + 5, { align: 'center' });
+      doc.text(`+${diffQ}`, 185.5, currentY + 4.8, { align: 'center' });
     } else {
       doc.setTextColor(16, 116, 55);
-      doc.text('0 (Match)', 182, currentY + 5, { align: 'center' });
+      doc.text('0 (Match)', 185.5, currentY + 4.8, { align: 'center' });
     }
 
     currentY += ROW_HEIGHT;
@@ -2123,27 +2118,27 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
     currentY += HEADER_HEIGHT;
   }
 
-  // Total Summary Row with distinct darker background
-  doc.setFillColor(215, 220, 228);
-  doc.rect(14, currentY, 182, 8, 'F');
+  // Total Summary Row with distinct clean grey background
+  doc.setFillColor(242, 242, 243);
+  doc.rect(14, currentY, 182, 7.5, 'F');
   doc.setDrawColor(...TABLE_BORDER_COLOR);
   doc.setLineWidth(TABLE_LINE_WIDTH);
-  doc.line(14, currentY + 8, 196, currentY + 8);
+  doc.line(14, currentY + 7.5, 196, currentY + 7.5);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7.2);
   doc.setTextColor(15, 18, 22);
-  doc.text('TOTAL STORE INGESTION:', 17, currentY + 5.2);
-  doc.text(String(sumInvoiced), 100, currentY + 5.2, { align: 'center' });
+  doc.text('TOTAL STORE INTAKE:', 17, currentY + 5.0);
+  doc.text(String(sumInvoiced), 106, currentY + 5.0, { align: 'center' });
   doc.setTextColor(16, 116, 55);
-  doc.text(String(sumOkIqc), 118, currentY + 5.2, { align: 'center' });
+  doc.text(String(sumOkIqc), 125, currentY + 5.0, { align: 'center' });
   doc.setTextColor(sumRej > 0 ? 220 : 119, sumRej > 0 ? 38 : 123, sumRej > 0 ? 38 : 134);
-  doc.text(String(sumRej), 134, currentY + 5.2, { align: 'center' });
+  doc.text(String(sumRej), 143, currentY + 5.0, { align: 'center' });
   doc.setTextColor(15, 18, 22);
-  doc.text(`${sumActual} Pcs`, 155, currentY + 5.2, { align: 'center' });
-  doc.text(sumShortExcess > 0 ? `+${sumShortExcess}` : String(sumShortExcess), 182, currentY + 5.2, { align: 'center' });
+  doc.text(`${sumActual} Pcs`, 163.5, currentY + 5.0, { align: 'center' });
+  doc.text(sumShortExcess > 0 ? `+${sumShortExcess}` : String(sumShortExcess), 185.5, currentY + 5.0, { align: 'center' });
 
-  currentY += 8;
+  currentY += 7.5;
 
   // Draw Vertical Lines for the final table segment
   drawGrnTableVerticalLines(pageTableStartY, currentY);

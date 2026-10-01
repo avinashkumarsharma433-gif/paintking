@@ -87,40 +87,74 @@ export const OfficialGRNDocument: React.FC<OfficialGRNDocumentProps> = ({
       </div>
 
       {/* 2. INWARD & SUPPLIER OVERVIEW (8 TRACKED FIELDS) */}
+      {/* 2. INWARD & SUPPLIER OVERVIEW (3-ROW STRUCTURED GRID) */}
       <div className="bg-[#fafafb] rounded-[20px] border border-[#ececec] p-5 space-y-4">
         <div className="flex items-center justify-between pb-2 border-b border-[#ececec]/80">
           <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#c09748]">
-            Inward Consignment & Transport Metadata
+            Inward Consignment & Store Intake Metadata
           </span>
           <span className="text-[11px] font-mono text-[#777b86]">
             Gate Receipt Date: <strong className="text-[#17191c]">{grn.receivedDate || grn.date}</strong>
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-          <div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[#777b86] block mb-0.5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
+          {/* Row 1 */}
+          <div className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-1">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#17191c] font-bold block">
               GRN Number
             </span>
-            <div className="font-mono font-bold text-sm text-[#17191c]">{grn.grnNo}</div>
+            <div className="font-mono font-bold text-sm text-[#c09748]">{grn.grnNo}</div>
           </div>
 
-          <div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[#777b86] block mb-0.5">
+          <div className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-1">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#17191c] font-bold block">
               GRN Date
             </span>
-            <div className="font-mono font-medium text-xs text-[#17191c]">{grn.date}</div>
+            <div className="font-mono text-xs text-[#777b86]">{grn.date}</div>
           </div>
 
-          <div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[#777b86] block mb-0.5">
+          <div className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-1">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#17191c] font-bold block">
+              Inward Receive Date
+            </span>
+            <div className="font-mono text-xs text-[#777b86]">{grn.receivedDate || grn.date}</div>
+          </div>
+
+          {/* Row 2 */}
+          <div className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-1">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#17191c] font-bold block">
+              Challan / DC Number
+            </span>
+            <div className="font-mono font-bold text-xs text-[#17191c]">{grn.invoiceChallanNo || '-'}</div>
+          </div>
+
+          <div className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-1">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#17191c] font-bold block">
+              Name of Party / Vendor
+            </span>
+            <div className="font-semibold text-xs text-[#17191c] truncate" title={grn.supplierCustomer}>
+              {grn.supplierCustomer || '-'}
+            </div>
+          </div>
+
+          <div className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-1">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#17191c] font-bold block">
+              Challan Date
+            </span>
+            <div className="font-mono text-xs text-[#777b86]">{grn.invoiceDate || '-'}</div>
+          </div>
+
+          {/* Row 3 */}
+          <div className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-1">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#17191c] font-bold block">
               Vehicle Number
             </span>
-            <div className="font-mono font-bold text-xs text-[#17191c] uppercase">{grn.vehicleNo}</div>
+            <div className="font-mono font-bold text-xs text-[#17191c] uppercase">{grn.vehicleNo || '-'}</div>
           </div>
 
-          <div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[#777b86] block mb-0.5">
+          <div className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-1">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#17191c] font-bold block">
               Transporter Name
             </span>
             <div className="font-medium text-xs text-[#17191c] truncate" title={grn.transporter || 'Direct'}>
@@ -128,25 +162,13 @@ export const OfficialGRNDocument: React.FC<OfficialGRNDocumentProps> = ({
             </div>
           </div>
 
-          <div className="sm:col-span-2">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[#777b86] block mb-0.5">
-              Supplier / Party Name
+          <div className="p-3 rounded-[14px] bg-emerald-50/60 border border-emerald-200 space-y-1">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-900 font-bold block">
+              IQC Inspection Ref
             </span>
-            <div className="font-semibold text-xs text-[#17191c]">{grn.supplierCustomer}</div>
-          </div>
-
-          <div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[#777b86] block mb-0.5">
-              Invoiced / Challan No.
-            </span>
-            <div className="font-mono font-bold text-xs text-[#17191c]">{grn.invoiceChallanNo}</div>
-          </div>
-
-          <div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-[#777b86] block mb-0.5">
-              Challan Date
-            </span>
-            <div className="font-mono font-medium text-xs text-[#17191c]">{grn.invoiceDate}</div>
+            <div className="font-mono text-xs font-semibold text-emerald-800 truncate">
+              {grn.sourceIqcReportNo || 'IQC-PASSED'}
+            </div>
           </div>
         </div>
       </div>
@@ -155,25 +177,25 @@ export const OfficialGRNDocument: React.FC<OfficialGRNDocumentProps> = ({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#c09748]">
-            Line Items Intake & Quantity Reconciliation (Verified from IQC)
+            Line Items Intake & Quantity Verification (Verified from IQC)
           </span>
           <span className="text-xs font-mono text-[#777b86]">
-            Total Received: <strong className="text-emerald-800">{totalActual} Pcs</strong>
+            Total Store Intake: <strong className="text-emerald-800">{totalActual} Pcs</strong>
           </span>
         </div>
 
         <div className="overflow-x-auto border border-[#ececec] rounded-[18px]">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-[#17191c] text-white font-medium uppercase text-[10px] tracking-wider">
+              <tr className="bg-[#f2f2f3] text-[#17191c] font-bold uppercase text-[10px] tracking-wider border-b border-[#ececec]">
                 <th className="p-3 w-12 text-center">#</th>
                 <th className="p-3 w-28">Part Code</th>
                 <th className="p-3 min-w-[200px]">Part Description</th>
-                <th className="p-3 text-center w-24">Invoiced Qty</th>
-                <th className="p-3 text-center w-24">Ok By IQC</th>
-                <th className="p-3 text-center w-20">Rej. Qty</th>
-                <th className="p-3 text-center w-32">Actual Received</th>
-                <th className="p-3 text-center w-28">Short / Excess</th>
+                <th className="p-3 text-center w-24">Invoiced</th>
+                <th className="p-3 text-center w-24">OK (IQC)</th>
+                <th className="p-3 text-center w-20">Rej (IQC)</th>
+                <th className="p-3 text-center w-32">Actual (Store)</th>
+                <th className="p-3 text-center w-28">Short/Excess</th>
                 <th className="p-3 min-w-[140px]">Remark</th>
               </tr>
             </thead>
@@ -237,7 +259,7 @@ export const OfficialGRNDocument: React.FC<OfficialGRNDocumentProps> = ({
               {/* Total Summary Row */}
               <tr className="bg-[#f2f2f3] font-bold text-[#17191c] border-t border-[#ececec]">
                 <td colSpan={3} className="p-3 text-center uppercase tracking-wider text-[11px] text-[#17191c]">
-                  Total Ingestion Count ({rawItems.length} Items):
+                  TOTAL STORE INTAKE ({rawItems.length} Items):
                 </td>
                 <td className="p-3 text-center font-mono text-xs">
                   {totalInvoiced}
