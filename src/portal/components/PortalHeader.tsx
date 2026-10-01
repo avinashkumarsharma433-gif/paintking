@@ -24,7 +24,8 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
     activeShift,
     setActiveShift,
     unresolvedHandoversCount,
-    openOverrunCount
+    openOverrunCount,
+    isPlantDayClosed
   } = usePortalStore();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -127,31 +128,27 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             ))}
           </div>
 
-          {/* Shift Selector */}
-          <div className="flex items-center bg-[#f2f2f3] rounded-full p-1 border border-[#ececec]">
-            <Clock className="w-3.5 h-3.5 text-[#777b86] ml-2 mr-1" />
-            {(['Day 12H', 'Night 12H'] as ShiftType[]).map(shift => (
-              <button
-                key={shift}
-                onClick={() => setActiveShift(shift)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer ${
-                  activeShift === shift
-                    ? 'bg-white text-[#17191c] font-semibold shadow-xs'
-                    : 'text-[#777b86] hover:text-[#17191c]'
-                }`}
-              >
-                {shift}
-              </button>
-            ))}
+          {/* Plant Operating Shift Indicator */}
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#f2f2f3] border border-[#ececec] text-xs">
+            <Clock className="w-3.5 h-3.5 text-[#c09748]" />
+            <span className="font-medium text-[#17191c]">Single Day Shift</span>
+            <span className="text-[10px] text-[#777b86] font-mono">(08:30–18:30)</span>
           </div>
 
-          {/* Handover Loss Alert Chip */}
-          {unresolvedHandoversCount > 0 && (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 border border-red-200 text-red-700 text-xs font-semibold animate-pulse">
-              <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
-              <span>{unresolvedHandoversCount} Handover Loss Alert</span>
+          {/* Plant EOD Shutdown Indicator */}
+          {isPlantDayClosed ? (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-amber-600" />
+              <span>EOD Locked</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+              <span>Plant Active</span>
             </div>
           )}
+
+
 
           {/* Color Over-Run Alert Chip */}
           {openOverrunCount > 0 && (
@@ -296,17 +293,17 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
         </div>
       </div>
 
-      {/* Mobile Sub-strip for plant, shift & alerts */}
-      <div className="flex lg:hidden items-center gap-2 mt-2 pt-2 border-t border-[#ececec]/60 overflow-x-auto no-scrollbar scroll-smooth pb-0.5">
-        <div className="flex items-center gap-1 bg-[#f2f2f3] rounded-full p-0.5 border border-[#ececec] shrink-0">
+      {/* Mobile Sub-strip for plant, shift & alerts (Clean, Horizontal Swipe, No Overflow Cut) */}
+      <div className="flex lg:hidden items-center gap-2 mt-2 pt-2 border-t border-[#ececec]/80 overflow-x-auto no-scrollbar scroll-smooth py-1 -mx-3 px-3">
+        <div className="flex items-center gap-0.5 bg-[#f2f2f3] rounded-full p-0.5 border border-[#ececec] shrink-0">
           <Building2 className="w-3 h-3 text-[#c09748] ml-1.5 mr-0.5" />
           {(['Haridwar', 'Vasai'] as PlantLocation[]).map(plant => (
             <button
               key={plant}
               onClick={() => setActivePlant(plant)}
-              className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition cursor-pointer shrink-0 ${
                 activePlant === plant
-                  ? 'bg-[#c09748] text-[#17191c] font-semibold'
+                  ? 'bg-[#c09748] text-[#17191c] font-semibold shadow-2xs'
                   : 'text-[#777b86]'
               }`}
             >
@@ -315,15 +312,15 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
           ))}
         </div>
 
-        <div className="flex items-center gap-1 bg-[#f2f2f3] rounded-full p-0.5 border border-[#ececec] shrink-0">
+        <div className="flex items-center gap-0.5 bg-[#f2f2f3] rounded-full p-0.5 border border-[#ececec] shrink-0">
           <Clock className="w-3 h-3 text-[#777b86] ml-1.5 mr-0.5" />
           {(['Day 12H', 'Night 12H'] as ShiftType[]).map(shift => (
             <button
               key={shift}
               onClick={() => setActiveShift(shift)}
-              className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium transition cursor-pointer ${
+              className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition cursor-pointer shrink-0 ${
                 activeShift === shift
-                  ? 'bg-white text-[#17191c] font-semibold'
+                  ? 'bg-white text-[#17191c] font-semibold shadow-2xs'
                   : 'text-[#777b86]'
               }`}
             >
@@ -333,14 +330,14 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
         </div>
 
         {unresolvedHandoversCount > 0 && (
-          <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-50 border border-red-200 text-red-700 text-[10px] font-bold shrink-0">
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-50 border border-red-200 text-red-700 text-[10.5px] font-bold shrink-0">
             <AlertTriangle className="w-3 h-3 text-red-600" />
             <span>{unresolvedHandoversCount} Alert</span>
           </div>
         )}
 
         {openOverrunCount > 0 && (
-          <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-bold shrink-0">
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10.5px] font-bold shrink-0">
             <span>{openOverrunCount} Over-run</span>
           </div>
         )}

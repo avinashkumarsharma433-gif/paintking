@@ -20,7 +20,9 @@ import {
   AuditQuestionItem,
   IQCInspectionRecord,
   MaterialInwardRecord,
-  MaterialOutwardRecord
+  MaterialOutwardRecord,
+  PlantDayEndClosure,
+  MaterialRequisitionNote
 } from '../types/portalTypes';
 import { INITIAL_MNC_AUDIT_QUESTIONS } from './mncAuditQuestionsData';
 export { INITIAL_MNC_AUDIT_QUESTIONS };
@@ -271,6 +273,7 @@ export const INITIAL_GRN_DATA: GoodsReceiptNote[] = [
     revNo: '00',
     revDate: '2026-08-01',
     grnNo: 'PK-GRN-2026-0891',
+    sourceIqcReportNo: 'IQC-2026-0912-01',
     date: '2026-09-12',
     plant: 'Haridwar',
     vehicleNo: 'UK-08-AL-4412',
@@ -330,6 +333,7 @@ export const INITIAL_GRN_DATA: GoodsReceiptNote[] = [
     revNo: '00',
     revDate: '2026-08-01',
     grnNo: 'PK-GRN-2026-0892',
+    sourceIqcReportNo: 'IQC-2026-0910-PAINTS',
     date: '2026-09-12',
     plant: 'Haridwar',
     vehicleNo: 'MH-04-CP-8819',
@@ -361,6 +365,84 @@ export const INITIAL_GRN_DATA: GoodsReceiptNote[] = [
     description: 'Monza Red 2K Polyurethane Basecoat',
     invoicedQty: 200,
     actualReceivedQty: 200,
+    colorSplits: []
+  },
+  {
+    docNo: 'DOC NO: 00',
+    revNo: '00',
+    revDate: '2026-08-01',
+    grnNo: 'PK-GRN-2026-0893',
+    sourceIqcReportNo: 'IQC-2026-0905-HRD',
+    date: '2026-09-02',
+    plant: 'Haridwar',
+    vehicleNo: 'MH-04-AZ-9901',
+    supplierCustomer: 'COVESTRO CHEMICALS LTD',
+    invoiceChallanNo: 'COV/INV/7721',
+    invoiceDate: '2026-09-01',
+    receivedDate: '2026-09-02',
+    transporter: 'DIRECT LOGISTICS',
+    items: [
+      {
+        id: 'grn_item_3',
+        partCode: 'CHEM-HRD-2K',
+        partDescription: '2K Isocyanate PU Fast Hardener (5L Can)',
+        invoicedQty: 50,
+        actualReceivedQty: 50,
+        shortExcessQty: 0,
+        okByIqcQty: 50,
+        rejectionQty: 0,
+        remark: 'COA moisture test passed. Shelf life: 20 Days'
+      }
+    ],
+    totalQty: 50,
+    iqcStatus: 'Accepted',
+    storeIncharge: 'Manoj Tiwari',
+    qualityApprovedBy: 'Amit Verma (QA)',
+    approvedBy: 'Satish Sharma (Plant Head)',
+    remarks: 'Critical shelf life chemical. Keep air-tight sealed.',
+    partCode: 'CHEM-HRD-2K',
+    description: '2K Isocyanate PU Fast Hardener (5L Can)',
+    invoicedQty: 50,
+    actualReceivedQty: 50,
+    colorSplits: []
+  },
+  {
+    docNo: 'DOC NO: 00',
+    revNo: '00',
+    revDate: '2026-08-01',
+    grnNo: 'PK-GRN-2026-0894',
+    sourceIqcReportNo: 'IQC-2026-0918-CLR',
+    date: '2026-09-18',
+    plant: 'Haridwar',
+    vehicleNo: 'MH-04-CP-8819',
+    supplierCustomer: 'ASIAN PAINTS PPG LTD',
+    invoiceChallanNo: 'PPG/INV/4490',
+    invoiceDate: '2026-09-16',
+    receivedDate: '2026-09-18',
+    transporter: 'SAFEEXPRESS',
+    items: [
+      {
+        id: 'grn_item_4',
+        partCode: 'CHEM-CLR-GLS',
+        partDescription: 'Automotive High Gloss 2K PU Clearcoat (20L Drum)',
+        invoicedQty: 100,
+        actualReceivedQty: 100,
+        shortExcessQty: 0,
+        okByIqcQty: 100,
+        rejectionQty: 0,
+        remark: 'Batch certified. Viscosity Ford Cup 4: 16s'
+      }
+    ],
+    totalQty: 100,
+    iqcStatus: 'Accepted',
+    storeIncharge: 'Manoj Tiwari',
+    qualityApprovedBy: 'Amit Verma (QA)',
+    approvedBy: 'Satish Sharma (Plant Head)',
+    remarks: 'High solid clearcoat resin. Standard clean store storage.',
+    partCode: 'CHEM-CLR-GLS',
+    description: 'Automotive High Gloss 2K PU Clearcoat (20L Drum)',
+    invoicedQty: 100,
+    actualReceivedQty: 100,
     colorSplits: []
   }
 ];
@@ -445,50 +527,44 @@ export const INITIAL_HANDOVERS: CustodyHandover[] = [
   }
 ];
 
-// Ground Problem 1 Scenario Data: Sub-Job Cards with Target Caps (Doc No: 001)
+// Ground-Truth Operational Data: Master Job Cards + 3-Painter Split + Rework Child Cards
 export const INITIAL_JOB_CARDS: JobCard[] = [
+  // 1. Master Job Card (Overall Batch: 3,000 pcs)
   {
     docNo: 'Doc No: 001',
     revNo: '00',
     revDate: '2026-08-01',
     jobCardNo: 'JC-1042-RED',
+    jobCardType: 'master',
     woNo: 'WO-1042',
     customer: 'ROOP POLYMERS LTD',
     partCode: 'RP-8841',
     partDescription: 'Car AC Vent Bezel',
     model: 'Swift 2026 Model',
     color: 'Monza Red Gloss',
-    targetQty: 250,      // TARGET CAP
-    sprayedQty: 300,     // Ground Problem 1: Painter sprayed 300 (Over-run +50)
-    goodQty: 285,
-    rejectQty: 15,
-    status: 'Over-Run Flagged',
+    targetQty: 3000,
+    sprayedQty: 1910,
+    goodQty: 1875,
+    rejectQty: 35,
+    reworkFlaggedQty: 35,
+    reworkRecoveredQty: 33,
+    scrapQty: 2,
+    status: 'In Process',
     fpaStatus: 'Approved',
-
-    // INITIAL PROCESS (Exact Screenshot 1)
-    painterName: 'Ramesh Sharma',
+    painterName: 'Split Across 3 Line Painters (P1, P2, P3)',
     wNo: 'WO-1042',
-    issueDate: '2026-09-12',
+    issueDate: '2026-09-25',
     issueTime: '08:30 AM',
-    leadTime: '4 Hours',
+    leadTime: '8 Hours',
     dept: 'Cubic Dipping & Spray Line #2',
-
-    // FINAL PROCESS (Return tracking - Exact Screenshot 1)
-    returnMaterialDesc: 'Unused Basecoat Monza Red & Leftover Thinner',
-    returnPainterName: 'Ramesh Sharma',
-    returnDate: '2026-09-12',
-    returnTime: '01:30 PM',
-    returnOkQty: 285,
-    returnRejectionQty: 15,
-    checkingPerson: 'Amit Verma (QA Lead)',
-    headerRemark: 'Target 250 met. 15 rejected for dust spots.',
-
-    // ISSUE MATERIAL DETAILS TABLE (Exact Screenshot 1)
+    storeIncharge: 'Manoj Tiwari',
+    prodSupervisor: 'Vikram Patel',
+    approvedBy: 'Satish Sharma (Plant Head)',
     issuedMaterials: [
       {
         id: 'mat_1',
         itemDescription: 'Auto AC Center Vent Bezel Substrate (ABS)',
-        qty: 320,
+        qty: 3050,
         colour: 'Raw ABS Black',
         uom: 'Pcs',
         remark: 'Issued from GRN-0891 bay 2'
@@ -496,51 +572,171 @@ export const INITIAL_JOB_CARDS: JobCard[] = [
       {
         id: 'mat_2',
         itemDescription: 'Monza Red 2K PU Basecoat Paint (PPG)',
-        qty: 15,
+        qty: 75,
         colour: 'Monza Red Gloss',
         uom: 'Litres',
         remark: 'Batch BAT-PPG-2609-R4'
-      },
-      {
-        id: 'mat_3',
-        itemDescription: 'PU Thinner 400 Fast Evaporating',
-        qty: 5,
-        colour: 'Clear Liquid',
-        uom: 'Litres',
-        remark: 'Mix ratio 4:1:1'
-      },
-      {
-        id: 'mat_4',
-        itemDescription: 'High-Gloss Clear Lacquer Coat',
-        qty: 10,
-        colour: 'Transparent High-Gloss',
-        uom: 'Litres',
-        remark: 'Top coat UV protective'
       }
     ],
+    boothNo: 'Booths #1, #2, #3',
+    paintBatch: 'BAT-PPG-2609-R4'
+  },
 
-    // SIGNATURES
+  // 1a. Painter 1 Child Job Card (Ramesh Kumar - P1, Booth #1)
+  {
+    docNo: 'Doc No: 001-P1',
+    revNo: '00',
+    revDate: '2026-08-01',
+    jobCardNo: 'JC-1042-RED-P1',
+    jobCardType: 'painter_child',
+    parentJobCardId: 'JC-1042-RED',
+    assignedPainterId: 'p1_ramesh',
+    assignedPainterName: 'Ramesh Kumar (Painter 1)',
+    allocatedQty: 1000,
+    woNo: 'WO-1042',
+    customer: 'ROOP POLYMERS LTD',
+    partCode: 'RP-8841',
+    partDescription: 'Car AC Vent Bezel',
+    model: 'Swift 2026 Model',
+    color: 'Monza Red Gloss',
+    targetQty: 1000,
+    sprayedQty: 650,
+    firstPassGoodQty: 638,
+    goodQty: 638,
+    rejectQty: 12,
+    reworkFlaggedQty: 12,
+    status: 'In Process',
+    fpaStatus: 'Approved',
+    painterName: 'Ramesh Kumar',
+    wNo: 'WO-1042',
+    issueDate: '2026-09-25',
+    issueTime: '08:30 AM',
+    leadTime: '8 Hours',
+    dept: 'Booth #1 (Enclosed)',
     storeIncharge: 'Manoj Tiwari',
     prodSupervisor: 'Vikram Patel',
     approvedBy: 'Satish Sharma',
-
-    // 3-STAGE PRODUCTION PROCESS TRACKING (Exact Screenshot 1)
-    stageProcessFirst: { totalQty: 320, okQty: 310, rejectionQty: 10 },
-    stageProcessSecond: { totalQty: 310, okQty: 300, rejectionQty: 10 },
-    stageProcessThird: { totalQty: 300, okQty: 285, rejectionQty: 15 },
-    stageRemark: 'Final lacquer cured at 80°C for 45 mins',
-    preparedBy: 'Manoj Tiwari (Stores)',
-    checkedBy: 'Vikram Patel (Supervisor)',
-    stageApprovedBy: 'Satish Sharma (Plant Head)',
-
-    // Legacy fields
-    boothNo: 'Booth #2 (Enclosed Dust-Free)',
+    boothNo: 'Booth #1',
     paintBatch: 'BAT-PPG-2609-R4',
-    thinnerBatch: 'THN-2609-02',
-    hardenerBatch: 'HDN-2609-01',
-    issuedRawQty: 320,
-    startTime: '08:30 AM',
-    endTime: '01:00 PM'
+    issuedMaterials: []
+  },
+
+  // 1b. Painter 2 Child Job Card (Suresh Verma - P2, Booth #2)
+  {
+    docNo: 'Doc No: 001-P2',
+    revNo: '00',
+    revDate: '2026-08-01',
+    jobCardNo: 'JC-1042-RED-P2',
+    jobCardType: 'painter_child',
+    parentJobCardId: 'JC-1042-RED',
+    assignedPainterId: 'p2_suresh',
+    assignedPainterName: 'Suresh Verma (Painter 2)',
+    allocatedQty: 1000,
+    woNo: 'WO-1042',
+    customer: 'ROOP POLYMERS LTD',
+    partCode: 'RP-8841',
+    partDescription: 'Car AC Vent Bezel',
+    model: 'Swift 2026 Model',
+    color: 'Monza Red Gloss',
+    targetQty: 1000,
+    sprayedQty: 620,
+    firstPassGoodQty: 611,
+    goodQty: 611,
+    rejectQty: 9,
+    reworkFlaggedQty: 9,
+    status: 'In Process',
+    fpaStatus: 'Approved',
+    painterName: 'Suresh Verma',
+    wNo: 'WO-1042',
+    issueDate: '2026-09-25',
+    issueTime: '08:30 AM',
+    leadTime: '8 Hours',
+    dept: 'Booth #2 (Enclosed)',
+    storeIncharge: 'Manoj Tiwari',
+    prodSupervisor: 'Vikram Patel',
+    approvedBy: 'Satish Sharma',
+    boothNo: 'Booth #2',
+    paintBatch: 'BAT-PPG-2609-R4',
+    issuedMaterials: []
+  },
+
+  // 1c. Painter 3 Child Job Card (Mahesh Sharma - P3, Booth #3)
+  {
+    docNo: 'Doc No: 001-P3',
+    revNo: '00',
+    revDate: '2026-08-01',
+    jobCardNo: 'JC-1042-RED-P3',
+    jobCardType: 'painter_child',
+    parentJobCardId: 'JC-1042-RED',
+    assignedPainterId: 'p3_mahesh',
+    assignedPainterName: 'Mahesh Sharma (Painter 3)',
+    allocatedQty: 1000,
+    woNo: 'WO-1042',
+    customer: 'ROOP POLYMERS LTD',
+    partCode: 'RP-8841',
+    partDescription: 'Car AC Vent Bezel',
+    model: 'Swift 2026 Model',
+    color: 'Monza Red Gloss',
+    targetQty: 1000,
+    sprayedQty: 640,
+    firstPassGoodQty: 626,
+    goodQty: 626,
+    rejectQty: 14,
+    reworkFlaggedQty: 14,
+    status: 'In Process',
+    fpaStatus: 'Approved',
+    painterName: 'Mahesh Sharma',
+    wNo: 'WO-1042',
+    issueDate: '2026-09-25',
+    issueTime: '08:30 AM',
+    leadTime: '8 Hours',
+    dept: 'Booth #3 (Enclosed)',
+    storeIncharge: 'Manoj Tiwari',
+    prodSupervisor: 'Vikram Patel',
+    approvedBy: 'Satish Sharma',
+    boothNo: 'Booth #3',
+    paintBatch: 'BAT-PPG-2609-R4',
+    issuedMaterials: []
+  },
+
+  // 1d. Rework Child Job Card (35 Defective Pieces routed for salvage)
+  {
+    docNo: 'Doc No: 001-RW1',
+    revNo: '00',
+    revDate: '2026-08-01',
+    jobCardNo: 'JC-1042-RED-RW1',
+    jobCardType: 'rework_child',
+    parentJobCardId: 'JC-1042-RED',
+    defectCategory: 'dust_nibs',
+    reworkInstructions: 'De-nib surface with 1500 grit abrasive paper, solvent wipe, apply light mist topcoat and cure 30 mins at 75°C.',
+    reworkStatus: 'Passed QC',
+    woNo: 'WO-1042',
+    customer: 'ROOP POLYMERS LTD',
+    partCode: 'RP-8841',
+    partDescription: 'Car AC Vent Bezel [REWORK SALVAGE]',
+    model: 'Swift 2026 Model',
+    color: 'Monza Red Gloss',
+    targetQty: 35,
+    sprayedQty: 35,
+    goodQty: 33, // 33 recovered out of 35!
+    firstPassGoodQty: 33,
+    rejectQty: 2, // only 2 non-salvageable scrap
+    scrapQty: 2,
+    reworkRecoveredQty: 33,
+    status: 'Completed',
+    fpaStatus: 'Approved',
+    painterName: 'Ramesh Kumar & Rework Bench',
+    wNo: 'WO-1042',
+    issueDate: '2026-09-25',
+    issueTime: '02:00 PM',
+    leadTime: '2 Hours',
+    dept: 'Rework Station & Booth #1',
+    storeIncharge: 'Manoj Tiwari',
+    prodSupervisor: 'Vikram Patel',
+    approvedBy: 'Satish Sharma',
+    boothNo: 'Booth #1',
+    paintBatch: 'BAT-PPG-2609-R4',
+    issuedMaterials: []
   },
   {
     docNo: 'Doc No: 001',
@@ -694,13 +890,44 @@ export const INITIAL_PAINT_MIXING: PaintMixingRecord[] = [
 export const INITIAL_IQC_RECORDS: IQCInspectionRecord[] = [
   {
     reportNo: 'IQC-2026-0912-01',
+    inwardSrNo: 'INW-2026-001',
     date: '2026-09-12',
+    inspectionDate: '2026-09-12',
+    inspectionTime: '08:30 AM',
     plant: 'Haridwar',
+    vendorCustomer: 'ROOP POLYMERS LTD',
     supplierCustomer: 'ROOP POLYMERS LTD',
+    partComponent: 'RP-8841',
     partCode: 'RP-8841',
+    partDescription: 'ABS Car AC Vent Bezel Substrates',
+    invoiceChallanNo: 'RP/CH/99824',
+    invoiceChallanDate: '2026-09-11',
     batchNo: 'B-RP-202609-01',
+    invQuantity: 1000,
     totalQty: 1000,
+    uom: 'Pcs',
+    unit: 'Pcs',
+    actualReceived: 1000,
+    shortageQty: 0,
+    excessQty: 0,
+    boxCondition: 'Intact & Clean',
+    hasDiscrepancy: false,
+    discrepancyReportedToProductionManager: false,
+    sampleSize: 50,
     sampledQty: 50,
+    passQty: 50,
+    rejectQty: 0,
+    rejectionPercent: 0,
+    rejectionDetail: 'Nil - All parts pass visual and physical checks',
+    aspects: [
+      { srNo: 1, aspect: 'Packing (Box Condition)', methodOfMeasurement: 'Visual (Cartons Should be Proper Condition)', impact: 'Major', result: 'Pass', observation: '20 tote crates received intact, sealed' },
+      { srNo: 2, aspect: 'Traceability (Batch No)', methodOfMeasurement: 'Visual barcode/lot sticker', impact: 'Critical', result: 'Pass', observation: 'Batch lot B-RP-202609-01 verified' },
+      { srNo: 3, aspect: 'Quantity', methodOfMeasurement: 'Weight / Physical count', impact: 'Major', result: 'Pass', observation: 'Exact 1000 Pcs verified' },
+      { srNo: 4, aspect: 'Physical Inspection', methodOfMeasurement: 'No Damages / Silver Line / Lock Damages / Bend / Flash', impact: 'Critical', result: 'Pass', observation: 'No flash, zero silver lines, locks intact' },
+      { srNo: 5, aspect: 'Conductivity', methodOfMeasurement: 'As per Vendor Report', impact: 'Major', result: 'Pass', observation: 'Vendor COA matches standard' },
+      { srNo: 6, aspect: 'Adhesion', methodOfMeasurement: 'Cross Cut and then Tape test', impact: 'Critical', result: 'Pass', observation: 'ASTM 5B compliant (100% adhesion)' },
+      { srNo: 7, aspect: 'Delta Value', methodOfMeasurement: 'To be checked with Spectrophotometer (Should be within 1)', impact: 'Critical', result: 'Pass (ΔE 0.42)', observation: 'ΔE = 0.42 ≤ 1.00' }
+    ],
     damage: 'Pass',
     scratch: 'Pass',
     sinkMark: 'Pass',
@@ -712,9 +939,75 @@ export const INITIAL_IQC_RECORDS: IQCInspectionRecord[] = [
     paintMissing: 'Pass',
     colour: 'Pass',
     overallFinishing: 'Pass',
+    rootCause: 'N/A - Compliant batch',
+    correctiveAction: 'N/A',
+    preventiveAction: 'Maintain current packing and storage standards',
     status: 'Accepted',
-    inspector: 'Manoj Tiwari',
-    remarks: 'Raw ABS substrate free of oil contamination or sink marks.'
+    inspector: 'Manoj Tiwari (IQC Inspector)',
+    preparedBy: 'Manoj Tiwari (IQC Inspector)',
+    verifiedBy: 'Sanjay Rawat (Production Manager)',
+    remarks: 'Raw ABS substrate free of oil contamination or sink marks. Cleared for Pre-Treatment & Primer Spray.'
+  },
+  {
+    reportNo: 'IQC-2026-0922-03',
+    inwardSrNo: 'INW-2026-003',
+    date: '2026-09-22',
+    inspectionDate: '2026-09-22',
+    inspectionTime: '11:45 AM',
+    generatedAt: '2026-09-22T11:45:00.000Z',
+    generatedTimestamp: '22 Sep 2026, 11:45 AM',
+    plant: 'Haridwar',
+    vendorCustomer: 'SPARK MINDA AUTOMOTIVE LTD',
+    supplierCustomer: 'SPARK MINDA AUTOMOTIVE LTD',
+    partComponent: 'SM-LC-990',
+    partCode: 'SM-LC-990',
+    partDescription: 'Lock Cylinder Housing Substrates (ABS/PC)',
+    invoiceChallanNo: 'MINDA/CH/88120',
+    invoiceChallanDate: '2026-09-21',
+    batchNo: 'B-88120-0922',
+    invQuantity: 1500,
+    totalQty: 1500,
+    uom: 'Pcs',
+    unit: 'Pcs',
+    actualReceived: 1500,
+    shortageQty: 0,
+    excessQty: 0,
+    boxCondition: 'Intact & Clean',
+    hasDiscrepancy: false,
+    discrepancyReportedToProductionManager: false,
+    items: [
+      {
+        id: 'item_3a',
+        materialName: 'Lock Cylinder Housing Substrates (ABS/PC)',
+        challanQty: 1500,
+        actualQty: 1500,
+        unit: 'Pcs',
+        isReceived: true,
+        condition: 'Intact & Clean',
+        shortageQty: 0,
+        sampleSize: 80,
+        passQty: 80,
+        rejectQty: 0,
+        rejectionPercent: 0,
+        defectDetail: 'Nil - All parts pass dimensional & adhesion tests'
+      }
+    ],
+    sampleSize: 80,
+    passQty: 80,
+    rejectQty: 0,
+    rejectionPercent: 0,
+    rejectionDetail: 'Nil - All parts pass dimensional & adhesion tests',
+    scratch: 'Pass',
+    damage: 'Pass',
+    overallFinishing: 'Pass',
+    rootCause: 'N/A - Compliant lot',
+    correctiveAction: 'N/A',
+    preventiveAction: 'Standard cleanroom storage maintained',
+    status: 'Accepted',
+    inspector: 'Manoj Tiwari (IQC Inspector)',
+    preparedBy: 'Manoj Tiwari (IQC Inspector)',
+    verifiedBy: 'Sanjay Rawat (Production Manager)',
+    remarks: 'Approved for Stores Intake & Production Job Card creation.'
   }
 ];
 
@@ -968,6 +1261,8 @@ export const INITIAL_MATERIAL_INWARD: MaterialInwardRecord[] = [
     srNo: 'INW-2026-001',
     date: '2026-09-12',
     challanNo: 'RP/CH/99824',
+    challanDate: '2026-09-11',
+    receivingDate: '2026-09-12',
     grnNo: 'PK-GRN-2026-0891',
     inTime: '07:45 AM',
     vehicleNo: 'UK-08-AL-4412',
@@ -984,13 +1279,17 @@ export const INITIAL_MATERIAL_INWARD: MaterialInwardRecord[] = [
     securitySignature: 'RAM_SINGH_VERIFIED',
     remarks: 'Received 1000 pcs intact in 20 tote crates. Handed to Stores Manoj Tiwari.',
     plant: 'Haridwar',
-    status: 'Handed to Stores'
+    status: 'Handed to Stores',
+    iqcStatus: 'Passed',
+    iqcReportNo: 'IQC-2026-0912-01'
   },
   {
     srNo: 'INW-2026-002',
     date: '2026-09-12',
     challanNo: 'PPG/INV/4412',
-    grnNo: 'PK-GRN-2026-0892',
+    challanDate: '2026-09-10',
+    receivingDate: '2026-09-12',
+    grnNo: 'PK-GRN-2026-882',
     inTime: '09:30 AM',
     vehicleNo: 'MH-04-CP-8819',
     partyName: 'ASIAN PAINTS PPG LTD',
@@ -1008,7 +1307,34 @@ export const INITIAL_MATERIAL_INWARD: MaterialInwardRecord[] = [
     securitySignature: 'RAM_SINGH_VERIFIED',
     remarks: 'Internal company purchase. Passed COA check.',
     plant: 'Haridwar',
-    status: 'Handed to Stores'
+    status: 'Handed to Stores',
+    iqcStatus: 'Pending'
+  },
+  {
+    srNo: 'INW-2026-003',
+    date: '2026-09-22',
+    challanNo: 'MINDA/CH/88120',
+    challanDate: '2026-09-21',
+    receivingDate: '2026-09-22',
+    grnNo: '',
+    inTime: '11:15 AM',
+    vehicleNo: 'HR-55-AK-9921',
+    partyName: 'SPARK MINDA AUTOMOTIVE LTD',
+    items: [
+      { id: 'item_3a', materialName: 'Lock Cylinder Housing Substrates (ABS/PC)', quantity: 1500, unit: 'Pcs' }
+    ],
+    descriptionOfMaterial: 'Lock Cylinder Housing Substrates (ABS/PC) - 1500 Pcs',
+    quantity: 1500,
+    unit: 'Pcs',
+    totalQuantity: 1500,
+    materialCategory: 'Party Material',
+    receivedBy: 'Ram Singh (Gate Security)',
+    securitySignature: 'RAM_SINGH_VERIFIED',
+    remarks: 'Pre-production batch for Maruti Swift lock sets. Handed to IQC Manoj Tiwari.',
+    plant: 'Haridwar',
+    status: 'Handed to Stores',
+    iqcStatus: 'Passed',
+    iqcReportNo: 'IQC-2026-0922-03'
   }
 ];
 
@@ -1328,5 +1654,81 @@ export const INITIAL_CALIBRATION_RECORDS: CalibrationRecord[] = [
     custodian: 'Deepak Joshi (IPQC Inspector)'
   }
 ];
+
+export const INITIAL_DAY_END_CLOSURES: PlantDayEndClosure[] = [
+  {
+    id: 'EOD-2026-0925',
+    plant: 'Vasai',
+    closureDate: '2026-09-25',
+    shiftName: 'General Day Shift (08:30 - 18:30)',
+    totalPiecesSprayed: 1910,
+    totalFirstPassGood: 1875,
+    totalReworkInQueue: 35,
+    totalScrap: 3,
+    overnightWipCount: 120,
+    status: 'Open Day Active',
+    closedBy: 'Vikram Patel (Production Supervisor)',
+    closedAt: '2026-09-25 18:35',
+    reopenedBy: 'Vikram Patel (Production Supervisor)',
+    reopenedAt: '2026-09-26 08:30',
+    remarks: 'Evening shutdown verified. Booth filters purged, paint lines cleaned with solvent. Reopened for morning single-shift run.'
+  }
+];
+
+export const INITIAL_REQUISITIONS: MaterialRequisitionNote[] = [
+  {
+    mrnNo: 'MRN-2026-001',
+    date: '2026-09-28',
+    time: '08:45 AM',
+    plant: 'Haridwar',
+    jobCardNo: 'JC-1042-RED',
+    woNo: 'WO-1042',
+    customer: 'TATA AUTOCOMP SYSTEMS',
+    partCode: 'RP-8841',
+    partDescription: 'Automotive Front Fascia Bumper Grille (ABS PC Blend)',
+    colorName: 'Monza Red Gloss',
+    requestedQty: 1000,
+    uom: 'Pcs',
+    requiredShift: 'Shift A (Morning)',
+    requestedBy: 'Vikram Patel (Production Manager)',
+    urgency: 'Normal',
+    status: 'Dispatched by Store',
+    issuedSlipNo: 'MIN-2026-001',
+    sourceGrnNo: 'PK-GRN-2026-1252',
+    issuedQty: 1000,
+    storeInchargeName: 'Manoj Tiwari (Store Incharge)',
+    storeIssuedTimestamp: '2026-09-28 09:15 AM',
+    storeRemarks: 'Dispatched 10 boxes (100 pcs/box) via internal electric tugger trolley #02.'
+  },
+  {
+    mrnNo: 'MRN-2026-002',
+    date: '2026-09-28',
+    time: '09:30 AM',
+    plant: 'Haridwar',
+    jobCardNo: 'JC-1042-RED',
+    woNo: 'WO-1042',
+    customer: 'ASIAN PAINTS PPG LTD',
+    partCode: 'MR-PNT-99',
+    partDescription: 'Monza Red 2K PU Basecoat Paint (20L Drum)',
+    colorName: 'Monza Red',
+    requestedQty: 20,
+    uom: 'Litres',
+    requiredShift: 'Shift A (Morning)',
+    requestedBy: 'Ramesh Kumar (Line 1 Supervisor)',
+    urgency: 'High (Line Stoppage Risk)',
+    status: 'Received by Production',
+    issuedSlipNo: 'MIN-2026-002',
+    sourceGrnNo: 'PK-GRN-2026-1250',
+    issuedQty: 20,
+    storeInchargeName: 'Manoj Tiwari (Store Incharge)',
+    storeIssuedTimestamp: '2026-09-28 09:45 AM',
+    storeRemarks: 'Lot batch certified. Pre-warmed to 24°C.',
+    receivedQty: 20,
+    receivedBy: 'Ramesh Kumar (Line 1 Supervisor)',
+    receivedTimestamp: '2026-09-28 10:00 AM',
+    productionRemarks: 'Verified viscosity & seal intact. Transferred to booth mixing tank.'
+  }
+];
+
 
 

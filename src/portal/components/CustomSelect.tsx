@@ -61,16 +61,16 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full p-3 rounded-[16px] border text-left transition flex items-center justify-between gap-2 cursor-pointer shadow-2xs ${
+        className={`w-full px-3.5 py-2.5 rounded-[12px] border text-left transition flex items-center justify-between gap-2 cursor-pointer shadow-2xs ${
           isOpen
-            ? 'border-[#c09748] bg-white ring-2 ring-[#c09748]/20'
-            : 'border-[#ececec] bg-[#fafafb] hover:bg-white hover:border-[#c09748]/50'
+            ? 'border-[#17191c] bg-white ring-1 ring-[#17191c]/10'
+            : 'border-[#e5e7eb] bg-white hover:border-gray-300'
         }`}
       >
         <div className="flex items-center gap-2 truncate">
           {selectedOption ? (
             <div className="truncate">
-              <span className="font-semibold text-xs text-[#17191c] block truncate">
+              <span className="font-normal text-xs text-[#17191c] block truncate">
                 {selectedOption.label}
               </span>
               {selectedOption.sublabel && (
@@ -80,23 +80,23 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
               )}
             </div>
           ) : (
-            <span className="text-xs text-[#979799] font-medium">{placeholder}</span>
+            <span className="text-xs text-gray-400 font-normal">{placeholder}</span>
           )}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
           {selectedOption?.badge && (
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${selectedOption.badgeColor || 'bg-[#faf3e0] text-[#8a6521]'}`}>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-medium ${selectedOption.badgeColor || 'bg-[#fafafb] border border-[#ececec] text-[#777b86]'}`}>
               {selectedOption.badge}
             </span>
           )}
-          <ChevronDown className={`w-4 h-4 text-[#777b86] transition-transform ${isOpen ? 'rotate-180 text-[#c09748]' : ''}`} />
+          <ChevronDown className={`w-4 h-4 text-[#777b86] transition-transform ${isOpen ? 'rotate-180 text-[#17191c]' : ''}`} />
         </div>
       </button>
 
       {/* Dropdown Options Popup */}
       {isOpen && (
-        <div className="absolute z-50 mt-1.5 w-full bg-white rounded-[20px] border border-[#ececec] shadow-xl p-2 space-y-1.5 max-h-60 overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute z-50 mt-1.5 w-full bg-white rounded-[16px] border border-[#ececec] shadow-xl p-1.5 space-y-1 max-h-60 overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-150">
           
           {options.length > 5 && (
             <div className="relative p-1">
@@ -106,13 +106,13 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                 placeholder="Search options..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-[12px] bg-[#fafafb] border border-[#ececec] focus:outline-none focus:border-[#c09748]"
+                className="w-full pl-8 pr-3 py-1.5 text-xs rounded-[10px] bg-[#fafafb] border border-[#ececec] focus:outline-none focus:border-[#17191c]"
                 onClick={e => e.stopPropagation()}
               />
             </div>
           )}
 
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {filteredOptions.map((opt) => {
               const isSelected = opt.value === value;
               return (
@@ -124,10 +124,10 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                     setIsOpen(false);
                     setSearch('');
                   }}
-                  className={`w-full p-2.5 rounded-[14px] text-left transition flex items-center justify-between gap-2 cursor-pointer ${
+                  className={`w-full px-3 py-2 rounded-[10px] text-left transition flex items-center justify-between gap-2 cursor-pointer ${
                     isSelected
-                      ? 'bg-[#17191c] text-[#c09748] font-bold'
-                      : 'hover:bg-[#fafafb] text-[#17191c] font-medium'
+                      ? 'bg-[#17191c] text-white font-medium'
+                      : 'hover:bg-[#fafafb] text-[#17191c] font-normal'
                   }`}
                 >
                   <div className="truncate">

@@ -28,7 +28,11 @@ import {
   ProductionOfferingReport,
   HRLeaveRecord,
   CalibrationRecord,
-  AuditQuestionItem
+  AuditQuestionItem,
+  PlantDayEndClosure,
+  JobCardType,
+  DefectCategory,
+  MaterialRequisitionNote
 } from '../types/portalTypes';
 import {
   INITIAL_USER_PROFILES,
@@ -52,7 +56,9 @@ import {
   INITIAL_PRODUCTION_OFFERING_REPORTS,
   INITIAL_HR_LEAVE_RECORDS,
   INITIAL_CALIBRATION_RECORDS,
-  INITIAL_MNC_AUDIT_QUESTIONS
+  INITIAL_MNC_AUDIT_QUESTIONS,
+  INITIAL_DAY_END_CLOSURES,
+  INITIAL_REQUISITIONS
 } from '../data/mockInitialData';
 
 
@@ -64,6 +70,8 @@ interface PortalContextType {
   setActivePlant: (plant: PlantLocation) => void;
   activeShift: ShiftType;
   setActiveShift: (shift: ShiftType) => void;
+  activeSubTab: string | null;
+  setActiveSubTab: (subTab: string | null) => void;
 
   // Data Collections
   universalJobs: UniversalJobRecord[];
@@ -81,6 +89,25 @@ interface PortalContextType {
   materialInwardLogs: MaterialInwardRecord[];
   materialOutwardLogs: MaterialOutwardRecord[];
   defects: DefectItem[];
+  materialRequisitions: MaterialRequisitionNote[];
+
+  // Store <-> Production Material Handshake Engine
+  createMaterialRequisition: (req: Omit<MaterialRequisitionNote, 'mrnNo' | 'status' | 'date' | 'time'>) => void;
+  issueMaterialRequisition: (
+    mrnNo: string,
+    issuedSlipNo: string,
+    sourceGrnNo: string,
+    issuedQty: number,
+    storeInchargeName: string,
+    storeRemarks?: string
+  ) => void;
+  acceptMaterialRequisition: (
+    mrnNo: string,
+    receivedQty: number,
+    receivedBy: string,
+    discrepancyReason?: MaterialRequisitionNote['discrepancyReason'],
+    productionRemarks?: string
+  ) => void;
 
   // Next-Gen Universal Job Engine Actions
   addUniversalJob: (job: UniversalJobRecord) => void;
@@ -105,6 +132,7 @@ interface PortalContextType {
   // Logic Engine Actions
   addGRN: (grn: GoodsReceiptNote) => void;
   addIQCRecord: (iqc: IQCInspectionRecord) => void;
+  submitMasterIQCReport: (report: IQCInspectionRecord) => void;
   addIPQCRecord: (ipqc: IPQCRecord) => void;
   addOQCRelease: (release: FinalQualityRelease) => void;
   addJobCard: (jc: JobCard) => void;
@@ -199,6 +227,27 @@ interface PortalContextType {
   canIssueJobCard: (grnNo: string) => { allowed: boolean; reason?: string };
   canStartBulkProduction: (jobCardNo: string) => { allowed: boolean; reason?: string };
   canPrintPackingSlip: (jobCardNo: string) => { allowed: boolean; reason?: string };
+
+  // 3-Painters, Rework & Single Shift Day-End Operations
+  dayEndClosures: PlantDayEndClosure[];
+  isPlantDayClosed: boolean;
+  splitJobCardToPainters: (masterJobCardNo: string, splits: { painterName: string; allocatedQty: number }[]) => void;
+  routeToRework: (parentJobCardNo: string, reworkQty: number, defectCategory: DefectCategory, instructions: string) => void;
+  passReworkClearance: (reworkJobCardNo: string, salvagedQty: number, scrapQty: number) => void;
+  updateJobCardStageReceipt: (
+    jobCardNo: string,
+    stage: 'first' | 'second' | 'third',
+    data: {
+      receivedQty: number;
+      operatorName: string;
+      notes?: string;
+      okQty?: number;
+      rejectionQty?: number;
+    }
+  ) => void;
+  addPackingSlip: (slip: PackingSlipRecord) => void;
+  executeDayEndClosure: (notes?: string) => void;
+  reopenPlant: () => void;
 }
 
 const PortalContext = createContext<PortalContextType | undefined>(undefined);
@@ -219,8 +268,23 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
   const [activeShift, setActiveShift] = useState<ShiftType>(() => {
     const s = localStorage.getItem('pk_active_shift');
-    return (s as ShiftType) || 'Day 12H';
+    return (s as ShiftType) || 'General Day Shift (08:30 - 18:30)';
   });
+
+  const [dayEndClosures, setDayEndClosures] = useState<PlantDayEndClosure[]>(() => {
+    const s = localStorage.getItem('pk_day_end_closures');
+    return s ? JSON.parse(s) : INITIAL_DAY_END_CLOSURES;
+  });
+
+  const [isPlantDayClosed, setIsPlantDayClosed] = useState<boolean>(() => {
+    return false;
+  });
+
+  const [activeSubTab, setActiveSubTab] = useState<string | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('pk_day_end_closures', JSON.stringify(dayEndClosures));
+  }, [dayEndClosures]);
 
   // Operational State Collections with localStorage
   const [universalJobs, setUniversalJobs] = useState<UniversalJobRecord[]>(() => {
@@ -232,6 +296,77 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const s = localStorage.getItem('pk_grn_data');
     return s ? JSON.parse(s) : INITIAL_GRN_DATA;
   });
+
+  const [materialRequisitions, setMaterialRequisitions] = useState<MaterialRequisitionNote[]>(() => {
+    const s = localStorage.getItem('pk_material_requisitions');
+    return s ? JSON.parse(s) : INITIAL_REQUISITIONS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('pk_material_requisitions', JSON.stringify(materialRequisitions));
+  }, [materialRequisitions]);
+
+  // Store <-> Production Material Handshake Handlers
+  const createMaterialRequisition = (req: Omit<MaterialRequisitionNote, 'mrnNo' | 'status' | 'date' | 'time'>) => {
+    const mrnNo = `MRN-2026-${String(materialRequisitions.length + 1).padStart(3, '0')}`;
+    const newReq: MaterialRequisitionNote = {
+      ...req,
+      mrnNo,
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'Pending Store Issue'
+    };
+    setMaterialRequisitions(prev => [newReq, ...prev]);
+  };
+
+  const issueMaterialRequisition = (
+    mrnNo: string,
+    issuedSlipNo: string,
+    sourceGrnNo: string,
+    issuedQty: number,
+    storeInchargeName: string,
+    storeRemarks?: string
+  ) => {
+    setMaterialRequisitions(prev => prev.map(req => {
+      if (req.mrnNo !== mrnNo) return req;
+      return {
+        ...req,
+        status: 'Dispatched by Store',
+        issuedSlipNo,
+        sourceGrnNo,
+        issuedQty,
+        storeInchargeName,
+        storeIssuedTimestamp: `${new Date().toISOString().split('T')[0]} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        storeRemarks
+      };
+    }));
+  };
+
+  const acceptMaterialRequisition = (
+    mrnNo: string,
+    receivedQty: number,
+    receivedBy: string,
+    discrepancyReason?: MaterialRequisitionNote['discrepancyReason'],
+    productionRemarks?: string
+  ) => {
+    setMaterialRequisitions(prev => prev.map(req => {
+      if (req.mrnNo !== mrnNo) return req;
+      const expected = req.issuedQty || req.requestedQty;
+      const discrepancy = expected - receivedQty;
+      const isDiscrepant = discrepancy !== 0;
+
+      return {
+        ...req,
+        status: isDiscrepant ? 'Discrepancy Flagged' : 'Received by Production',
+        receivedQty,
+        receivedBy,
+        receivedTimestamp: `${new Date().toISOString().split('T')[0]} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+        discrepancyQty: isDiscrepant ? discrepancy : 0,
+        discrepancyReason,
+        productionRemarks
+      };
+    }));
+  };
 
   useEffect(() => {
     localStorage.setItem('pk_universal_jobs', JSON.stringify(universalJobs));
@@ -453,6 +588,10 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [ipqcRecords]);
 
   useEffect(() => {
+    localStorage.setItem('pk_iqc_data', JSON.stringify(iqcRecords));
+  }, [iqcRecords]);
+
+  useEffect(() => {
     localStorage.setItem('pk_packing_data', JSON.stringify(packingSlips));
   }, [packingSlips]);
 
@@ -515,7 +654,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       invoiceChallanNo: record.challanNo,
       invoiceDate: record.date,
       vehicleNo: record.vehicleNo,
-      transporter: 'Main Gate Transporter',
+      transporter: record.transporter || 'Direct Delivery',
       partCode: record.materialCategory === 'Party Material' ? 'SUBSTRATE-IN' : 'PAINT-RAW-01',
       description: summaryDesc,
       batchNo: `BAT-IN-${Date.now().toString().slice(-4)}`,
@@ -556,6 +695,20 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const addGRN = (grn: GoodsReceiptNote) => {
     if (!grn || !grn.grnNo) return;
     setGrnList(prev => [grn, ...prev]);
+
+    // Update matching Material Inward Log so it is marked as GRN Created
+    setMaterialInwardLogs(prev => prev.map(inw => {
+      const isMatch = (grn.sourceIqcReportNo && inw.iqcReportNo === grn.sourceIqcReportNo) ||
+                      (grn.invoiceChallanNo && inw.challanNo === grn.invoiceChallanNo);
+      if (isMatch) {
+        return {
+          ...inw,
+          grnNo: grn.grnNo,
+          status: 'GRN Created - In Stores'
+        };
+      }
+      return inw;
+    }));
 
     // Automatically create Color-Split Job Cards for each color requirement!
     if (grn.colorSplits && grn.colorSplits.length > 0) {
@@ -737,11 +890,14 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         newStatus = 'Open';
       }
 
+      const netAddedGood = Math.max(0, Number(addedSprayedQty || 0) - Number(addedRejectQty || 0));
+
       return {
         ...jc,
         sprayedQty: newSprayed,
         goodQty: newGood,
         rejectQty: newReject,
+        firstPassGoodQty: (jc.firstPassGoodQty || 0) + netAddedGood,
         status: newStatus
       };
     }));
@@ -763,6 +919,211 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return d;
       }));
     }
+  };
+
+  // 3-Painters Sub-Job Card Split Logic
+  const splitJobCardToPainters = (
+    masterJobCardNo: string,
+    splits: { painterName: string; allocatedQty: number }[]
+  ) => {
+    setJobCards(prev => {
+      const master = prev.find(j => j.jobCardNo === masterJobCardNo);
+      if (!master) return prev;
+
+      const childCards: JobCard[] = splits.map((s, idx) => ({
+        ...master,
+        docNo: `${master.docNo || 'Doc No: 001'}-P${idx + 1}`,
+        jobCardNo: `${master.jobCardNo}-P${idx + 1}`,
+        jobCardType: 'painter_child',
+        parentJobCardId: master.jobCardNo,
+        assignedPainterName: s.painterName,
+        allocatedQty: s.allocatedQty,
+        targetQty: s.allocatedQty,
+        sprayedQty: 0,
+        goodQty: 0,
+        firstPassGoodQty: 0,
+        rejectQty: 0,
+        reworkFlaggedQty: 0,
+        status: 'In Process',
+        boothNo: `Booth #${idx + 1}`,
+        dept: `Booth #${idx + 1} (Line Spray)`
+      }));
+
+      const updatedMaster: JobCard = {
+        ...master,
+        jobCardType: 'master',
+        status: 'In Process'
+      };
+
+      return [
+        updatedMaster,
+        ...childCards,
+        ...prev.filter(j => j.jobCardNo !== masterJobCardNo)
+      ];
+    });
+  };
+
+  // Rework on Rejection Routing Logic with Deterministic Sequential Indexing (RW1, RW2...)
+  const routeToRework = (
+    parentJobCardNo: string,
+    reworkQty: number,
+    defectCategory: DefectCategory,
+    instructions: string
+  ) => {
+    setJobCards(prev => {
+      const parent = prev.find(j => j.jobCardNo === parentJobCardNo);
+      if (!parent) return prev;
+
+      const existingReworkCount = prev.filter(j => j.parentJobCardId === parentJobCardNo && j.jobCardType === 'rework_child').length;
+      const reworkCardNo = `${parentJobCardNo}-RW${existingReworkCount + 1}`;
+      const reworkCard: JobCard = {
+        ...parent,
+        docNo: `${parent.docNo || 'Doc No: 001'}-RW${existingReworkCount + 1}`,
+        jobCardNo: reworkCardNo,
+        jobCardType: 'rework_child',
+        parentJobCardId: parentJobCardNo,
+        defectCategory,
+        reworkInstructions: instructions,
+        reworkStatus: 'Pending Sanding',
+        targetQty: reworkQty,
+        allocatedQty: reworkQty,
+        sprayedQty: reworkQty,
+        goodQty: reworkQty,
+        rejectQty: 0,
+        reworkRecoveredQty: reworkQty,
+        scrapQty: 0,
+        status: 'In Process',
+        partDescription: `${parent.partDescription} [REWORK SALVAGE]`,
+        dept: 'Rework Station & Booth #1'
+      };
+
+      return [
+        reworkCard,
+        ...prev.map(j => {
+          if (j.jobCardNo !== parentJobCardNo) return j;
+          return {
+            ...j,
+            reworkFlaggedQty: (j.reworkFlaggedQty || 0) + reworkQty
+          };
+        })
+      ];
+    });
+  };
+
+  // Inspect & Pass Rework Clearance Action
+  const passReworkClearance = (reworkJobCardNo: string, salvagedQty: number, scrapQty: number) => {
+    setJobCards(prev => {
+      const rw = prev.find(j => j.jobCardNo === reworkJobCardNo);
+      if (!rw) return prev;
+
+      return prev.map(j => {
+        if (j.jobCardNo === reworkJobCardNo) {
+          return {
+            ...j,
+            reworkRecoveredQty: salvagedQty,
+            scrapQty,
+            reworkStatus: 'Passed QC',
+            status: 'Completed'
+          };
+        }
+        if (j.jobCardNo === rw.parentJobCardId) {
+          return {
+            ...j,
+            goodQty: (j.goodQty || 0) + salvagedQty,
+            scrapQty: (j.scrapQty || 0) + scrapQty
+          };
+        }
+        return j;
+      });
+    });
+  };
+
+  // Dynamic Stage Receipt & Handshake: Each stage operator verifies incoming pieces from previous stage
+  const updateJobCardStageReceipt = (
+    jobCardNo: string,
+    stage: 'first' | 'second' | 'third',
+    data: {
+      receivedQty: number;
+      operatorName: string;
+      notes?: string;
+      okQty?: number;
+      rejectionQty?: number;
+    }
+  ) => {
+    setJobCards(prev => prev.map(jc => {
+      if (jc.jobCardNo !== jobCardNo) return jc;
+
+      const currentStageObj = stage === 'first' 
+        ? jc.stageProcessFirst 
+        : stage === 'second' 
+        ? jc.stageProcessSecond 
+        : jc.stageProcessThird;
+
+      const prevOk = stage === 'second' 
+        ? (jc.stageProcessFirst?.okQty || jc.targetQty) 
+        : stage === 'third' 
+        ? (jc.stageProcessSecond?.okQty || jc.targetQty) 
+        : jc.targetQty;
+
+      const diff = data.receivedQty - prevOk;
+      const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const nowDate = new Date().toISOString().slice(0, 10);
+
+      const updatedStageData: ProcessStageCount = {
+        totalQty: data.receivedQty,
+        okQty: data.okQty !== undefined ? data.okQty : (currentStageObj?.okQty || data.receivedQty),
+        rejectionQty: data.rejectionQty !== undefined ? data.rejectionQty : (currentStageObj?.rejectionQty || 0),
+        receivedBy: data.operatorName,
+        receivedTimestamp: `${nowDate} ${nowTime}`,
+        isReceivedVerified: true,
+        receivedDiscrepancyQty: diff !== 0 ? diff : 0,
+        stageOperatorNotes: data.notes || currentStageObj?.stageOperatorNotes || ''
+      };
+
+      if (stage === 'first') {
+        return { ...jc, stageProcessFirst: updatedStageData };
+      } else if (stage === 'second') {
+        return { ...jc, stageProcessSecond: updatedStageData };
+      } else {
+        return { ...jc, stageProcessThird: updatedStageData };
+      }
+    }));
+  };
+
+  // Dynamic Packing Slip Registration
+  const addPackingSlip = (slip: PackingSlipRecord) => {
+    setPackingSlips(prev => [slip, ...prev]);
+  };
+
+  // Single General Day Shift Day-End (EOD) Plant Shutdown
+  const executeDayEndClosure = (notes?: string) => {
+    const totalSprayed = jobCards.reduce((acc, curr) => acc + (curr.sprayedQty || 0), 0);
+    const totalGood = jobCards.reduce((acc, curr) => acc + (curr.goodQty || 0), 0);
+    const totalRework = jobCards.filter(j => j.jobCardType === 'rework_child' && j.status !== 'Completed').reduce((acc, curr) => acc + (curr.targetQty || 0), 0);
+    const totalScrap = jobCards.reduce((acc, curr) => acc + (curr.scrapQty || 0), 0);
+
+    const newClosure: PlantDayEndClosure = {
+      id: `EOD-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`,
+      plant: activePlant,
+      closureDate: new Date().toISOString().slice(0, 10),
+      shiftName: 'General Day Shift (08:30 - 18:30)',
+      totalPiecesSprayed: totalSprayed,
+      totalFirstPassGood: totalGood,
+      totalReworkInQueue: totalRework,
+      totalScrap: totalScrap,
+      overnightWipCount: 150,
+      status: 'EOD Shutdown (Locked)',
+      closedBy: currentUser.name,
+      closedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      remarks: notes || 'Evening plant shutdown executed. Spray booths locked and WIP safely stored until morning.'
+    };
+
+    setDayEndClosures(prev => [newClosure, ...prev]);
+    setIsPlantDayClosed(true);
+  };
+
+  const reopenPlant = () => {
+    setIsPlantDayClosed(false);
   };
 
   // Quality FPA Golden Gate
@@ -904,6 +1265,47 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
   const addIQCRecord = (iqc: IQCInspectionRecord) => {
     setIqcRecords(prev => [iqc, ...prev]);
+  };
+
+  const submitMasterIQCReport = (report: IQCInspectionRecord) => {
+    setIqcRecords(prev => {
+      const filtered = prev.filter(r => r.reportNo !== report.reportNo);
+      return [report, ...filtered];
+    });
+
+    // Link and update Material Inward Log status
+    setMaterialInwardLogs(prev => prev.map(inw => {
+      const isMatch = (report.inwardSrNo && inw.srNo === report.inwardSrNo) ||
+                      (report.invoiceChallanNo && inw.challanNo === report.invoiceChallanNo) ||
+                      (inw.iqcReportNo && inw.iqcReportNo === report.reportNo);
+      if (isMatch) {
+        return {
+          ...inw,
+          iqcStatus: report.status === 'Accepted' 
+            ? 'Passed' 
+            : report.status === 'Rejected' 
+              ? 'Rejected' 
+              : report.hasDiscrepancy 
+                ? 'Discrepancy Halt' 
+                : 'Passed',
+          iqcReportNo: report.reportNo,
+          status: report.status === 'Accepted' ? 'IQC Cleared - Awaiting Stores GRN' : inw.status
+        };
+      }
+      return inw;
+    }));
+
+    // Update GRN if matching
+    setGrnList(prev => prev.map(grn => {
+      if ((grn.sourceIqcReportNo && grn.sourceIqcReportNo === report.reportNo) || (report.inwardSrNo && grn.remarks?.includes(report.inwardSrNo))) {
+        return {
+          ...grn,
+          iqcStatus: report.status === 'Accepted' ? 'Accepted' : report.status === 'Rejected' ? 'Rejected' : 'Hold',
+          actualReceivedQty: report.actualReceived || grn.actualReceivedQty
+        };
+      }
+      return grn;
+    }));
   };
 
   const addIPQCRecord = (ipqc: IPQCRecord) => {
@@ -1133,8 +1535,13 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         materialInwardLogs,
         materialOutwardLogs,
         defects,
+        materialRequisitions,
+        createMaterialRequisition,
+        issueMaterialRequisition,
+        acceptMaterialRequisition,
         addGRN,
         addIQCRecord,
+        submitMasterIQCReport,
         addIPQCRecord,
         addOQCRelease,
         addJobCard,
@@ -1185,7 +1592,20 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Gatekeeper helpers
         canIssueJobCard,
         canStartBulkProduction,
-        canPrintPackingSlip
+        canPrintPackingSlip,
+
+        // 3-Painters, Rework & Single Shift Day-End Operations
+        dayEndClosures,
+        isPlantDayClosed,
+        splitJobCardToPainters,
+        routeToRework,
+        passReworkClearance,
+        updateJobCardStageReceipt,
+        addPackingSlip,
+        executeDayEndClosure,
+        reopenPlant,
+        activeSubTab,
+        setActiveSubTab
       }}
     >
       {children}

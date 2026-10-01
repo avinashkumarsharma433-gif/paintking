@@ -1,123 +1,120 @@
-# 👑 PaintKing - Business Knowledge Base (Single Source of Truth)
+# 🏢 PaintKing Surface Solutions - Business Blueprint (`Business.md`)
 
-> **Document Version:** 1.1 (Finalized)  
-> **Brand Name:** PaintKing  
-> **Official Website:** https://paintking.in/  
-> **Primary Tagline:** Innovative Kingdom of Paint & Print Solutions  
-> **Core Purpose:** To serve as an extension of manufacturing teams across India, delivering precision custom surface finishing, cleanroom liquid spray painting, 3D hydrographic printing, direct flatbed UV digital printing, and custom injection moulding.
+> **Document Type:** Master Enterprise Business Profile & Strategic Operations Blueprint  
+> **Brand Entity:** PaintKing Surface Solutions (`https://paintking.in/`)  
+> **Legal Entity:** Paintking Solutions Pvt Ltd.  
+> **Industry:** B2B Custom Industrial Surface Finishing, Automotive Coatings & Thermoplastic Moulding  
+> **Last Updated:** September 2026  
 
 ---
 
-## 1. Company Overview & Executive Profile
+## 1. Executive Summary & Brand Identity
 
-| Attribute | Official Verified Detail |
-|---|---|
-| **Legal / Brand Entity** | **PaintKing** |
-| **Founding Experience** | Over 30+ Years of Industrial Leadership |
-| **Founder / Leadership** | **Kuldeep Singh** (Founder) & **Gurprit Singh** (Managing Director / Operations) |
-| **Certifications** | , RoHS Compliant, REACH Compliant |
-| **Workforce Scale** | 250+ Engineers, Finish Specialists & Technicians |
-| **Daily Production Capacity** | 100,000+ Coated & Finished Parts per day |
-| **Core Client Model** | Tier-1 B2B OEM Supplier, Custom Prototyping to High-Volume Mass Production |
+PaintKing is India's leading industrial surface treatment enterprise, serving as an integrated tier-1 and tier-2 manufacturing extension for multinational corporations, domestic automotive OEMs, electrical giants, and consumer appliance brands.
+
+With over **30+ years of industrial heritage**, PaintKing bridges the gap between raw substrate fabrication and luxury consumer-ready tactile presentation—providing cleanroom liquid spray painting, hydrographic 3D immersion dipping, industrial flatbed direct UV printing, and custom thermoplastic injection moulding under one certified roof.
+
+### Core Metrics at a Glance:
+- **Manufacturing Footprint:** 4 Strategic Manufacturing Plants across West and North India.
+- **Daily Capacity:** 100,000+ precision-coated and finished components per day.
+- **Workforce Scale:** 250+ chemical engineers, paint chemists, tooling specialists, and certified quality technicians.
+- **Operating Philosophy:** *"Innovative Kingdom of Paint & Print Solutions — To be an extension of your team and deliver uncompromising quality with zero vendor sprawl."*
+
+---
+
+## 2. Leadership & Corporate Governance
+
+| Executive | Designation | Strategic Responsibility |
+|---|---|---|
+| **Kuldeep Singh** | Founder & Chairman | Visionary direction, industrial chemistry innovation, and high-tonnage capital plant expansion. |
+| **Gurprit Singh** | Managing Director & Head of Operations | Multi-plant operations, OEM vendor partnerships, ERP deployment, and quality management systems. |
 
 ### Mission & Vision
-- **Mission:** *"To be an extension of your team and help you deliver quality products to the end consumer. From Multi-National Corporations to the Youthful Start-up around the corner, we believe in offering the best service in terms of quality, pricing and reliability."*
-- **Vision:** *"When you grow, we grow. At PaintKing, we truly believe in fostering mutually beneficial relationships. Our vision is to build a brand name that is the first name that comes to your mind when you think of Spray painting and Digital Printing."*
+- **Mission:** To serve as a seamless, high-integrity manufacturing partner for Tier-1 OEMs and ambitious startups, delivering superior surface aesthetics, strict colorimetry consistency, and rapid production cycles with zero transit defects.
+- **Vision:** To remain India’s benchmark brand name in surface engineering—where every automotive dashboard, consumer gadget, and architectural component achieves global-class finishing standards.
 
 ---
 
-## 2. Contact Information & 4 Strategic Manufacturing Units
+## 3. Four Strategic Plant Locations
 
-### Central Communication Hotlines
-- **Primary Hotline / WhatsApp:** `+91 9594591313`
-- **Official RFQ Email:** `info@paintking.in`
-- **Operating Hours:** Monday – Saturday: 09:00 AM – 07:00 PM IST (Closed Sundays)
+PaintKing's multi-plant footprint strategically flanks India's key industrial automotive and manufacturing corridors:
 
-### 4 Strategic Manufacturing Units
-1. **Mumbai HO:**  
-   `37/A, 1st Floor, Charkop Industrial Estate, Kandivali West, Mumbai, Maharashtra 400067`
-2. **Haridwar High-Volume Unit:**  
-   `Plot No. 150, Integrated Industrial Estate (IIE), Sector IIDC, SIDCUL, Haridwar, Uttarakhand 249403`
-3. **Vapi Unit:**  
-   `S. No. 3351, Daman Ganga Industrial Park, Gala No. 2, Plot No. 46/7, Dungra, Vapi, Gujarat 396195`
-4. **Vasai Unit:**  
-   `Unit No. 4, Building "B", Plot No. 6/1, 6/2, 6/3, S.No.70, H.No. 1+5, Old Sharp Factory Compound, Opp. IPOL, Waliv Phata, Sativali Road, Vasai (E) 401208`
-
----
-
-## 3. Four Core Service Divisions
-
-### 1. Spray Painting
-- Conveyorized and manual liquid spray coating inside Dust-Free positive-pressure dust-purged cleanroom enclosures.
-- Multi-coat 2K Polyurethane, acrylic enamels, high-gloss piano lacquers, and soft-touch velvet rubber finishes.
-- Adhesion testing according to ASTM D3359 cross-hatch standards and Delta-E spectrophotometer color verification.
-
-### 2. 3D Hydrographic Printing
-- 3D water transfer immersion dipping using precision-aligned PVA films.
-- Seamless 360-degree compound curvature wrapping for carbon fiber, natural wood grains, marble, and custom textures.
-- Clear coat protection with high-durability UV lacquers.
-
-### 3. Direct Flatbed UV Digital Printing
-- Direct-to-substrate UV printing with instant LED UV cold curing.
-- Multi-layer registration with opaque white underlay, full-color CMYK graphics, and tactile relief spot gloss embossing.
-- Compatible with plastics, metals, glass, acrylics, and wood.
-
-### 4. Custom Injection Moulding
-- High-tonnage hydraulic and electric molding machinery (80T to 450T).
-- Integrated tooling and molding under one roof, producing ABS, PC, Nylon (PA6/PA66), POM, PP, and HIPS components ready for direct surface finishing.
+1. **Mumbai Corporate Head Office & R&D Center (Maharashtra):**  
+   - `37/A, 1st Floor, Charkop Industrial Estate, Kandivali West, Mumbai - 400067`  
+   - *Role:* Corporate management, client technical briefs, master color formulation lab, and rapid sample prototyping.
+2. **Haridwar High-Volume Manufacturing Unit (Uttarakhand):**  
+   - `Plot No. 150, Integrated Industrial Estate (IIE), Sector IIDC, SIDCUL, Haridwar - 249403`  
+   - *Role:* Dedicated high-tonnage automotive Tier-1 supplier unit, automated conveyorized cleanroom spray booths, high-capacity baking ovens.
+3. **Vapi Industrial Unit (Gujarat):**  
+   - `S. No. 3351, Daman Ganga Industrial Park, Gala No. 2, Plot No. 46/7, Dungra, Vapi - 396195`  
+   - *Role:* Chemical finishing hub, polymer dipping, and direct logistics route for Western India automotive clusters.
+4. **Vasai Unit (Maharashtra):**  
+   - `Unit No. 4, Building "B", Plot No. 6/1-6/3, Old Sharp Factory Compound, Waliv Phata, Sativali Road, Vasai (E) - 401208`  
+   - *Role:* High-precision injection moulding lines (80T to 450T), hydrographic PVA immersion dipping, and assembly.
 
 ---
 
-## 4. Standard 14 Surface Finishes Library
+## 4. Core Industrial Service Divisions
 
-1. **Sunwood Finish:** Rich natural timber grain pattern.
-2. **Silver Texture:** Metallic flake aluminum tactile texture.
-3. **Soft Feel Rubber:** Velvet-touch matte polymer finish.
-4. **Leather Finish:** Stippled faux leather pattern.
-5. **Granite Effect:** Stone-flecked composite mineral pattern.
-6. **Pastel Shades:** Modern muted soft-hue architectural colors.
-7. **Two-Tone Effect:** Color-shifting chromatic transition across contours.
-8. **Color Changing (Chameleon):** Angle-dependent interference pigment finish.
-9. **Sand Finish:** Micro-grit scratch-resistant industrial matte texture.
-10. **Texture Painting:** Custom stippled and orange-peel tactile coating.
-11. **Marble Effect:** High-gloss swirling natural marble veining.
-12. **Antique Effect:** Aged weathered bronze, brass, or steel patina.
-13. **Screen Printing:** Precision micro-line industrial graphics and dial typography.
-14. **Brass Effect:** Electroplated-look metallic brass gold coating.
+### Division 1: Cleanroom Liquid Spray Painting
+- **Cleanroom Infrastructure:** Positive-pressure dust-purged cleanroom enclosures with 3-stage HEPA air filtration to eliminate airborne contamination (micro-dust spots, orange peel, pinholes).
+- **Chemical Systems:** 2K Polyurethane (PU), thermosetting acrylic enamels, high-gloss piano black lacquers, matte finishes, and soft-touch rubber velvet coatings.
+- **Quality Verification:** Standard ASTM D3359 cross-hatch adhesion tape testing (5B pass criteria) and computerized spectrophotometer color matching ($\Delta E \le 0.70$).
 
----
+### Division 2: 3D Hydrographic Printing (Water Immersion Dipping)
+- **Technology:** 3D water transfer printing utilizing polyvinyl alcohol (PVA) patterned films floating on precision-temperature immersion tanks.
+- **Geometry Handling:** Seamless 360-degree wrapping around complex contours, compound curves, and textured automotive bezels without seam stretching.
+- **Pattern Portfolio:** Real carbon fiber weaves, exotic burl and natural timber grains, brushed metals, marble swirls, and custom bespoke camouflage patterns.
 
-## 5. Client Engagement & Working Workflow (4 Steps)
+### Division 3: Direct Flatbed UV Digital Printing
+- **Technology:** High-definition multi-channel piezo flatbed printing up to 1440 DPI with instant cold-curing LED UV pinning.
+- **Capabilities:** Direct printing over curved, flat, or irregular substrates up to 100mm height. Instant opaque white underlay for dark plastics, full CMYK color vibrancy, and spot tactile gloss/matte varnish embossing.
+- **Applications:** Appliance control fascias, dial scales, backlit switch panels, and branded logo serialization.
 
-1. **Step 1: Requirement & Component Brief:** Client shares raw component, 3D CAD design, target finish expectations, and required durability or environmental specifications.
-2. **Step 2: In-House R&D & Custom Prototyping:** Chemical engineers and finish technicians develop tailored 2K formulas, custom PVA hydrographic alignments, or UV tooling matching exact requirements.
-3. **Step 3: Sample Coupon & Pilot Delivery:** Physical finished sample coupons or pilot coated parts produced and dispatched to client for tactile inspection, aesthetic sign-off, and lab testing.
-4. **Step 4: Final Approval & Mass Production:** Once the client officially approves the sample quality, the master recipe is locked and high-volume mass production begins with guaranteed consistency.
+### Division 4: Custom Thermoplastic Injection Moulding
+- **Machinery Fleet:** Hydraulic and all-electric injection moulding presses ranging from 80-Ton to 450-Ton clamp capacity.
+- **Materials Processed:** ABS, Polycarbonate (PC), Nylon (PA6 / PA66), POM (Delrin), PP, and High-Impact Polystyrene (HIPS).
+- **Turnkey Single-Roof Advantage:** Eliminates external transit scratches and logistical delays by tooling, moulding, and surface finishing components in one uninterrupted workflow.
 
 ---
 
-## 6. Official OEM Client & Partner Portfolio
+## 5. Standard 14 Surface Finishes Library
 
-- **Electricals & Switchgear:** Goldmedal, Salzer Electronics, Schneider Electric, HPL Electric, Kolors Switches, Girish Switches, Polycab.
-- **Appliances & Consumer Goods:** Godrej, Hamilton (Milton), V-Guard, Nilkamal Plastics, Stallion Barware.
-- **Lifestyle, Wellness & FMCG:** Adidas, Lotus Herbals, Wow Skin Science, Dabur.
+1. **Sunwood Finish:** Rich natural timber grain pattern for luxury automotive cabins and interior trim.
+2. **Silver Texture:** Metallic aluminum flake tactile stippling for high-durability electronics.
+3. **Soft Feel Rubber:** Velvet-touch matte polymer finish for handheld devices, steering stalks, and consumer remotes.
+4. **Leather Finish:** Authentic stippled faux-leather grain for interior door panels and grips.
+5. **Granite Effect:** Stone-flecked composite mineral pattern for luxury architectural fittings.
+6. **Pastel Shades:** Modern muted soft-hue architectural colors for lifestyle hardware.
+7. **Two-Tone Effect:** Color-shifting chromatic transition across contours and sharp styling creases.
+8. **Color Changing (Chameleon):** Angle-dependent interference pigment finish shifting from teal to violet.
+9. **Sand Finish:** Micro-grit scratch-resistant industrial matte texture for rugged industrial enclosures.
+10. **Texture Painting:** Custom stippled and orange-peel tactile coating for electrical enclosures.
+11. **Marble Effect:** High-gloss swirling natural marble veining for decorative luxury panels.
+12. **Antique Effect:** Aged weathered bronze, brass, or steel patina for heritage fixtures.
+13. **Screen Printing:** Precision micro-line industrial graphics, regulatory symbols, and dial typography.
+14. **Brass Effect:** Electroplated-look metallic brass gold coating for premium consumer hardware.
 
 ---
 
-## 7. Official Final Business Email Signatures (LOCKED & PRESERVED)
+## 6. Client Verticals & OEM Trust Portfolio
 
-> **Status:** Finalized & Locked (Never modify or remove)  
-> **Source File:** `email_signatures.html`
+### Primary Client Industries:
+- **Automotive OEM (Tier-1):** AC center vent bezels, dashboard cluster garnishes, steering wheel covers, gear knobs, door armrest trims, exterior mirror caps.
+- **Consumer Appliances & White Goods:** Washing machine control facias, refrigerator handles, air cooler panels, air conditioner display bezels.
+- **Electrical & Smart Home:** Modular switch plates, smart home automation faceplates, distribution board covers.
+- **Audio & Consumer Electronics:** Bluetooth speaker grilles, headphone housings, gaming console fascias.
+- **Medical & Laboratory Equipment:** Enclosure covers for diagnostic equipment requiring chemical and alcohol resistance.
 
-1. **Managing Director (Gurpreet Singh):**
-   - High-resolution logo (`Paintking-logo-PNG-hi-rez-e1729592247105-1024x405.png`)
-   - Tagline under logo: `"Innovative Kingdom of Paint & Print Solutions"`
-   - Typography: `Newsreader` (Executive Title) + `Plus Jakarta Sans` (Body)
-   - Layout: Warm Ivory Gradient (`#ffffff` ➔ `#faf8f2` ➔ `#f4eee0`), Gold Vertical Separator (`#c09748`)
-   - Icons: Nested table perfect circular badges (`rounded-full`, `#faf3e0` champagne tint with `#f4e5be` border)
-   - Contact: `+91 9594591313`, `gurpritsingh@paintking.in`, `www.paintking.in`
-   - Units: `Mumbai HO • Haridwar • Vapi • Vasai` (No street address)
+### Trusted Client Roster:
+PaintKing supplies components for leading industrial groups including **Roop Polymers, Asian Paints, Varroc, Lumax, Uno Minda, Anchor Electricals (Panasonic), Godrej, Havells**, and specialized automotive Tier-1 vendors across NCR, Pune, and Gujarat.
 
-2. **General Business / Technical RFQ Team:**
-   - Same master styling adapted for central RFQ (`info@paintking.in` / `+91 9594591313`).
+---
 
+## 7. Commercial Model & Pricing Strategy
+
+- **Core Revenue Model:** B2B Job-Work Surface Treatment & Contract Manufacturing under **SAC Code 9988** (Manufacturing services on physical inputs owned by others, taxed at **18% GST: CGST 9% + SGST 9%**).
+- **Turnaround SLAs:** 24–48 hours for rapid R&D sample coupon submission; 3–5 working days for high-volume batch delivery.
+- **The Operations OS (`PK-OS`) Competitive Moat:**
+  - Traditional surface coaters rely on paper logbooks or scattered Google Drive Excel sheets, leading to component shrinkage, untracked color discrepancies, and chaotic audits.
+  - PaintKing’s proprietary digital Operations OS enforces **First Part Approval (FPA)**, **Chain-of-Custody handovers with Discrepancy Halt protection**, and **automotive thermal QR tracking**, providing clients with 100% audit-proof provenance and guaranteed delivery counts.

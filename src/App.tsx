@@ -21,9 +21,40 @@ import { PortalApp } from './portal/PortalApp';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowUp } from 'lucide-react';
 
+const getInitialPage = (): string => {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const pageParam = urlParams.get('page');
+    if (pageParam) return pageParam;
+
+    const hash = window.location.hash.replace(/^#\/?/, '');
+    if (hash) return hash;
+
+    const saved = localStorage.getItem('pk_active_page');
+    if (saved) return saved;
+  } catch (e) {
+    // fallback
+  }
+  return 'home';
+};
+
 const App: React.FC = () => {
-  const [activePage, setActivePage] = useState<string>('home');
+  const [activePage, setActivePage] = useState<string>(getInitialPage);
   const [showScrollTop, setShowScrollTop] = useState<boolean>(false);
+
+  // Synchronize state with browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const pageParam = urlParams.get('page');
+      const hash = window.location.hash.replace(/^#\/?/, '');
+      const target = pageParam || hash || localStorage.getItem('pk_active_page') || 'home';
+      setActivePage(target);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Monitor scroll for back-to-top trigger
   useEffect(() => {
@@ -49,9 +80,22 @@ const App: React.FC = () => {
     return () => window.removeEventListener('dragstart', handleDragStart);
   }, []);
 
-  // Multi-page fluid router state
+  // Multi-page fluid router state with URL & localStorage persistence
   const navigateTo = (page: string) => {
     setActivePage(page);
+    try {
+      localStorage.setItem('pk_active_page', page);
+      const url = new URL(window.location.href);
+      if (page === 'home') {
+        url.searchParams.delete('page');
+        url.searchParams.delete('tab');
+      } else {
+        url.searchParams.set('page', page);
+      }
+      window.history.replaceState(null, '', url.toString());
+    } catch (e) {
+      // fallback
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

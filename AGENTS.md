@@ -1,4 +1,4 @@
-﻿# AGENTS.MD - PaintKing Surface Solutions Architecture & UI/UX Design System
+# AGENTS.MD - PaintKing Surface Solutions Architecture & UI/UX Design System
 
 > **Project Name:** PaintKing Website Management  
 > **Brand Entity:** PaintKing Surface Solutions ()  
@@ -161,10 +161,31 @@ Routing is managed via client-side active page state in src/App.tsx:
 ## 7. Developer & Agent Guidelines
 
 When maintaining or adding features to this codebase:
-- **Build Command**: 
-pm run build
-- **Development Server**: 
-pm run dev (http://localhost:3000/)
-- **Motion React**: Always import from motion/react (e.g. import { motion, AnimatePresence } from 'motion/react';).
-- **Tailwind Version**: Tailwind CSS v4 using @theme block in src/index.css.
-- **Preserve Colors**: Keep #c09748 as primary gold and #17191c as primary charcoal.
+- **Build Command**: `npm run build`
+- **Development Server**: `npm run dev` (http://localhost:3000/)
+- **Motion React**: Always import from `motion/react` (e.g. `import { motion, AnimatePresence } from 'motion/react';`).
+- **Tailwind Version**: Tailwind CSS v4 using `@theme` block in `src/index.css`.
+- **Preserve Colors**: Keep `#c09748` as primary gold and `#17191c` as primary charcoal.
+
+### 8. Standard Portal UI/UX & Component Architecture (Crucial Rules)
+
+1. **Button Language (No Pitch Black `#000000`)**:
+   - Primary buttons: `bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer flex items-center gap-1.5 active:scale-95`.
+   - Never use solid pitch black buttons.
+2. **List View Architecture (4-Column Rule & No Cognitive Anxiety)**:
+   - Desktop tables display only 4-5 core summary columns (`Ref & Date`, `Party/Supplier`, `Material & Qty`, `Status`, `Action`).
+   - Action column includes `View Details` modal trigger button and `PDF` download button.
+   - Mobile screens (`<640px`) hide table and render clean 3-row responsive cards (`bg-[#fafafb] rounded-[18px] border border-[#ececec] p-3.5`).
+3. **Form Architecture & Stepper**:
+   - Multi-step wizards use connected pill steppers.
+   - Date inputs MUST use `<PaintkingDatePicker value={...} onChange={...} placeholder="DD-MM-YYYY" />`.
+   - Dynamic item lists MUST have `p-1` safe container padding to avoid focus ring clipping and have an explicit 12th column for delete trash button (`sm:col-span-1`).
+4. **Official PDF Generation & Table Architecture (Universal Standard)**:
+   - Standard PDF generator in `src/portal/utils/pdfStandardHeader.ts` with PaintKing logo header, 3-row metadata grid (`drawMetaField`), ISO certified footer, and Indian timestamp.
+   - **MANDATORY TABLE STYLING RULE (Strict Across ALL PDFs)**:
+     - **Table Header Background**: Light grey `doc.setFillColor(242, 242, 243);` (Never use dark/black `#17191c` or `#000000`).
+     - **Table Header Text**: Bold deep charcoal `doc.setTextColor(23, 25, 28);` (font-size 7.0–7.5pt).
+     - **Table Border Color & Line Width**: `TABLE_BORDER_COLOR = [180, 185, 195]` and `TABLE_LINE_WIDTH = 0.45` applied uniformly across all outer boundaries, header borders, alternating row lines, and inner vertical column dividers.
+     - **Zebra Striping**: Alternating white (`255, 255, 255`) and soft tint (`235, 238, 244` / `250, 250, 251`).
+     - **Total / Summary Row**: Light grey `242, 242, 243` or solid summary bar `215, 220, 228` with bold charcoal text.
+

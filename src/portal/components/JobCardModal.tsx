@@ -10,7 +10,7 @@ interface JobCardModalProps {
 }
 
 export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, initialData }) => {
-  const { addJobCard, activePlant, currentUser } = usePortalStore();
+  const { addJobCard, activePlant, currentUser, grnList } = usePortalStore();
 
   const [viewMode, setViewMode] = useState<'PORTAL' | 'PRINT'>('PORTAL');
 
@@ -25,7 +25,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [painterName, setPainterName] = useState<string>(initialData?.painterName || 'Ramesh Sharma');
   const [issueDate, setIssueDate] = useState<string>(initialData?.issueDate || new Date().toISOString().split('T')[0]);
   const [issueTime, setIssueTime] = useState<string>(initialData?.issueTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-  const [customer, setCustomer] = useState<string>(initialData?.customer || 'ROOP POLYMERS LTD');
+  const [customer, setCustomer] = useState<string>(initialData?.customer || (grnList[0]?.supplierCustomer) || 'ROOP POLYMERS LTD');
+  const [partCode, setPartCode] = useState<string>(initialData?.partCode || (grnList[0]?.items?.[0]?.partCode) || 'RP-8841');
+  const [selectedGrnNo, setSelectedGrnNo] = useState<string>(initialData?.woNo || grnList[0]?.grnNo || '');
   const [leadTime, setLeadTime] = useState<string>(initialData?.leadTime || '4 Hours');
   const [dept, setDept] = useState<string>(initialData?.dept || 'Cubic Dipping & Spray Line #2');
   const [headerRemark, setHeaderRemark] = useState<string>(initialData?.headerRemark || 'Target cap enforced for shop floor.');
@@ -127,7 +129,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       jobCardNo,
       woNo: wNo,
       customer,
-      partCode: initialData?.partCode || 'SUBSTRATE',
+      partCode: partCode || initialData?.partCode || 'SUBSTRATE',
       partDescription: issuedMaterials[0]?.itemDescription || 'Raw Part Substrate',
       model: initialData?.model || 'OEM Batch',
       color: colorVal,
@@ -254,7 +256,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       Initial Process & Dispatch Header
                     </span>
                     <h3 className="text-xl font-serif text-[#17191c] font-bold mt-0.5">
-                      {customer}
+                      {customer || 'Enter Customer / OEM Client'}
                     </h3>
                   </div>
                   <div className="flex items-center gap-2">
@@ -268,6 +270,64 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {grnList.length > 0 && (
+                    <div className="sm:col-span-2 lg:col-span-4 p-3 bg-white rounded-[16px] border border-[#f4e5be] bg-[#faf7ed]/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-[#8a6521] uppercase tracking-wider font-mono">
+                          Import from Received Store GRN Lot (Recommended)
+                        </span>
+                        <p className="text-[11px] text-[#777b86]">Select a store-received GRN to auto-fill Customer, Part Code, and Material items</p>
+                      </div>
+                      <select
+                        value={selectedGrnNo}
+                        onChange={e => {
+                          const chosen = grnList.find(g => g.grnNo === e.target.value);
+                          if (chosen) {
+                            setSelectedGrnNo(chosen.grnNo);
+                            setCustomer(chosen.supplierCustomer || customer);
+                            setWNo(chosen.invoiceChallanNo || wNo);
+                            const firstItem = chosen.items?.[0];
+                            if (firstItem) {
+                              setPartCode(firstItem.partCode || partCode);
+                              setIssuedMaterials([
+                                {
+                                  id: '1',
+                                  itemDescription: firstItem.partDescription || 'ABS Raw Substrates',
+                                  qty: firstItem.actualReceivedQty || chosen.totalQty || 500,
+                                  colour: chosen.colorSplits?.[0]?.colorName || 'Basecoat Red',
+                                  uom: 'Pcs',
+                                  remark: `Issued from ${chosen.grnNo}`
+                                }
+                              ]);
+                            }
+                          }
+                        }}
+                        className="p-2 rounded-[12px] border border-[#c09748] bg-white font-mono font-bold text-xs text-[#17191c] cursor-pointer"
+                      >
+                        <option value="">-- Or Pick Store GRN Lot --</option>
+                        {grnList.map(g => (
+                          <option key={g.grnNo} value={g.grnNo}>
+                            {g.grnNo} • {g.supplierCustomer} ({g.totalQty} pcs)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1">
+                      Customer / Client Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={customer}
+                      onChange={e => setCustomer(e.target.value)}
+                      placeholder="e.g. TATA AUTOCOMP SYSTEMS / ROOP POLYMERS"
+                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1">
                       Painter Name *
@@ -277,7 +337,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       required
                       value={painterName}
                       onChange={e => setPainterName(e.target.value)}
-                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-semibold text-[#17191c]"
+                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
                     />
                   </div>
 
@@ -290,7 +350,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       required
                       value={wNo}
                       onChange={e => setWNo(e.target.value)}
-                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-mono font-bold text-[#17191c]"
+                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none"
                     />
                   </div>
 
@@ -326,6 +386,20 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       value={dept}
                       onChange={e => setDept(e.target.value)}
                       className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-semibold text-[#17191c]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1">
+                      Part Code (OEM Specification) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={partCode}
+                      onChange={e => setPartCode(e.target.value)}
+                      placeholder="e.g. RP-8841 / MS-VENT-01"
+                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-mono font-bold text-[#17191c]"
                     />
                   </div>
                 </div>

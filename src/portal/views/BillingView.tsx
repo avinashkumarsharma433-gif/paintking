@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
 import { BillingInvoice, BillableLineItem } from '../types/portalTypes';
+import { 
+  downloadStandardTaxInvoicePdf, 
+  downloadStandardDeliveryChallanPdf 
+} from '../utils/pdfStandardHeader';
 import { 
   ReceiptText, 
   Printer, 
@@ -52,7 +56,8 @@ export const BillingView: React.FC = () => {
     generateNewInvoiceFromPDI,
     universalJobs,
     activePlant,
-    currentUser
+    currentUser,
+    activeSubTab
   } = usePortalStore();
 
   const qaApprovedJobs = universalJobs.filter(
@@ -65,6 +70,16 @@ export const BillingView: React.FC = () => {
   const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
   const [docType, setDocType] = useState<'TAX_INVOICE' | 'DELIVERY_CHALLAN'>('TAX_INVOICE');
 
+  useEffect(() => {
+    if (activeSubTab === 'TAX_INVOICE') {
+      setDocType('TAX_INVOICE');
+      setShowPrintModal(true);
+    } else if (activeSubTab === 'DELIVERY_CHALLAN') {
+      setDocType('DELIVERY_CHALLAN');
+      setShowPrintModal(true);
+    }
+  }, [activeSubTab]);
+
   // Active Invoice lookup (defaults to first available or selected)
   const activeInv = billingInvoices.find(inv => inv.invoiceNo === selectedInvoiceNo) || billingInvoices[0] || null;
 
@@ -73,20 +88,18 @@ export const BillingView: React.FC = () => {
     r => r.pdiStatus === 'Cleared for Invoicing'
   );
 
-  // Instant Green Button Handler: Auto-Generates Invoice & Triggers PDF Download!
+  // Instant Green Button Handler: Auto-Generates Invoice & Triggers Official Standard PDF Download!
   const handleAutoGenerateAndDownloadPdf = () => {
     if (availableOqcOrders.length > 0) {
       const firstWo = availableOqcOrders[0].woNo;
       generateNewInvoiceFromPDI(firstWo);
+      if (activeInv) {
+        downloadStandardTaxInvoicePdf(activeInv);
+      }
       setShowPrintModal(true);
-      setTimeout(() => {
-        window.print();
-      }, 400);
     } else if (activeInv) {
+      downloadStandardTaxInvoicePdf(activeInv);
       setShowPrintModal(true);
-      setTimeout(() => {
-        window.print();
-      }, 400);
     }
   };
 
@@ -116,22 +129,25 @@ export const BillingView: React.FC = () => {
         }
       `}</style>
 
-      {/* ISO Header Banner */}
+      {/* Header Banner - Standardized Persona Layout */}
       <div className="bg-white rounded-[20px] sm:rounded-[24px] p-4 sm:p-6 border border-[#ececec] shadow-xs sm:shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5">
             <span className="px-2 sm:px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[9px] sm:text-[10px] font-mono uppercase tracking-widest font-bold">
-              PK-ACC-INV-001 • AUTOMATED COMMERCIAL DESK
+              PK-ACC-INV-001 • COMMERCIAL & BILLING DESK
             </span>
-            <span className="text-[10px] sm:text-xs text-[#777b86]">
-              Zero-Touch Auto-Invoicing • GST Tax Invoice & Delivery Challan (Rule 55)
+            <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#17191c] text-[10px] font-semibold">
+              👤 {currentUser.name} ({currentUser.roleTitle})
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold">
+              📍 {activePlant}
             </span>
           </div>
           <h1 className="text-xl sm:text-3xl font-serif font-normal text-[#17191c] tracking-tight">
             Automated Billing & Dispatch Engine
           </h1>
           <p className="text-[11px] sm:text-xs text-[#777b86] mt-1">
-            Work finishes in OQC ➔ Invoice & Challan auto-generated with 0 human effort
+            Work finishes in OQC ➔ Invoice & Challan auto-generated with 0 human effort • GST Rule 55 Transport Note
           </p>
         </div>
 
@@ -237,6 +253,20 @@ export const BillingView: React.FC = () => {
                 >
                   <Truck className="w-3.5 h-3.5 text-[#c09748]" />
                   <span>Delivery Challan Template</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeInv) {
+                      downloadStandardTaxInvoicePdf(activeInv);
+                    }
+                  }}
+                  className="px-3.5 py-1.5 rounded-full bg-[#17191c] hover:bg-black text-white text-xs font-medium transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+                  title="Direct 1-Click Official Tax Invoice PDF Download"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span>Download PDF</span>
                 </button>
               </div>
             </div>
@@ -411,13 +441,32 @@ export const BillingView: React.FC = () => {
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => window.print()}
-                  className="px-4 py-1.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-bold text-xs shadow-xs cursor-pointer transition flex items-center gap-1.5"
+                  type="button"
+                  onClick={() => {
+                    if (activeInv) {
+                      if (docType === 'TAX_INVOICE') {
+                        downloadStandardTaxInvoicePdf(activeInv);
+                      } else {
+                        downloadStandardDeliveryChallanPdf(activeInv);
+                      }
+                    }
+                  }}
+                  className="px-4 py-1.5 rounded-full bg-[#17191c] hover:bg-black text-white font-medium text-xs shadow-xs cursor-pointer transition flex items-center gap-1.5"
+                  title="Download standard official PDF with PaintKing company header"
                 >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print / Save PDF</span>
+                  <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span>Download Official PDF</span>
                 </button>
                 <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-1.5 rounded-full border border-[#e5e7eb] bg-white hover:bg-gray-50 text-[#17191c] font-medium text-xs shadow-2xs cursor-pointer transition flex items-center gap-1.5"
+                >
+                  <Printer className="w-3.5 h-3.5 text-[#777b86]" />
+                  <span>Print</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setShowPrintModal(false)}
                   className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-[#17191c] font-bold flex items-center justify-center cursor-pointer transition"
                   title="Close Preview"

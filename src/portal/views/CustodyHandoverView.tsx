@@ -100,18 +100,21 @@ export const CustodyHandoverView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* ISO Header Banner */}
-      <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      {/* Header Banner - Standardized Persona Layout */}
+      <div className="bg-white rounded-[24px] p-5 sm:p-6 border border-[#ececec] shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="px-2.5 py-0.5 rounded-full bg-red-50 border border-red-200 text-red-700 text-[10px] font-mono uppercase tracking-widest font-bold">
-              PK-PRD-TRF-001 • CUSTODY CONTROL
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+            <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+              PK-PRD-TRF-001 • CUSTODY CONTROL DESK
             </span>
-            <span className="text-xs text-[#777b86]">
-              Digital Chain-of-Custody & Inter-Stage Handover
+            <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#17191c] text-[10px] font-semibold">
+              👤 {currentUser.name} ({currentUser.roleTitle})
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold">
+              📍 {activePlant}
             </span>
           </div>
-          <h1 className="text-3xl font-serif font-normal text-[#17191c] tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-serif font-normal text-[#17191c] tracking-tight">
             Inter-Stage Material Handover Ledger
           </h1>
           <p className="text-xs text-[#777b86] mt-1">
@@ -121,7 +124,7 @@ export const CustodyHandoverView: React.FC = () => {
 
         <button
           onClick={() => setShowSendModal(true)}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold shadow-sm transition cursor-pointer w-full md:w-auto"
+          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold shadow-xs transition cursor-pointer w-full md:w-auto active:scale-95"
         >
           <Plus className="w-4 h-4 text-[#17191c]" />
           <span>Send Batch to Next Station</span>

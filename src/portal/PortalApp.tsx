@@ -11,8 +11,6 @@ import { QAView } from './views/QAView';
 import { PaintMixingView } from './views/PaintMixingView';
 import { PackingView } from './views/PackingView';
 import { GatePassView } from './views/GatePassView';
-import { MncAuditView } from './views/MncAuditView';
-import { Capa8DView } from './views/Capa8DView';
 import { ProductionOfferingView } from './views/ProductionOfferingView';
 import { HRLeaveView } from './views/HRLeaveView';
 import { CalibrationView } from './views/CalibrationView';
@@ -30,10 +28,10 @@ const ROLE_DEFAULT_TABS: Record<UserRole, PortalTab> = {
   QA_QC: 'qa',
   BILLING: 'billing',
   SECURITY: 'gatepass',
-  IQC_INSPECTOR: 'stores',
+  IQC_INSPECTOR: 'qa',
   FPA_IPQC_INSPECTOR: 'qa',
-  OQC_PDI_INSPECTOR: 'packing',
-  MANAGER_QA: 'mnc_audit',
+  OQC_PDI_INSPECTOR: 'qa',
+  MANAGER_QA: 'qa',
   OPERATOR: 'jobcards',
   HR: 'hr_leave',
   DEPT_INCHARGE: 'hr_leave'
@@ -47,7 +45,6 @@ const ALL_ROLES: UserRole[] = [
 
 const TAB_ALLOWED_ROLES: Record<PortalTab, UserRole[]> = {
   dashboard: ['DIRECTOR', 'PLANT_HEAD'],
-  handovers: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'FPA_IPQC_INSPECTOR', 'DEPT_INCHARGE'],
   jobcards: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'STORES', 'OPERATOR', 'DEPT_INCHARGE'],
   billing: ['DIRECTOR', 'PLANT_HEAD', 'BILLING', 'STORES'],
   stores: ['DIRECTOR', 'PLANT_HEAD', 'STORES', 'IQC_INSPECTOR'],
@@ -55,24 +52,118 @@ const TAB_ALLOWED_ROLES: Record<PortalTab, UserRole[]> = {
   qa: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA', 'IQC_INSPECTOR', 'FPA_IPQC_INSPECTOR', 'OQC_PDI_INSPECTOR'],
   packing: ['DIRECTOR', 'PLANT_HEAD', 'STORES', 'PRODUCTION', 'QA_QC', 'OQC_PDI_INSPECTOR'],
   gatepass: ['DIRECTOR', 'PLANT_HEAD', 'SECURITY', 'STORES'],
-  mnc_audit: ALL_ROLES,
-  capa_8d: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA', 'PRODUCTION', 'FPA_IPQC_INSPECTOR', 'OQC_PDI_INSPECTOR'],
   production_offering: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'FPA_IPQC_INSPECTOR', 'OPERATOR', 'DEPT_INCHARGE'],
   hr_leave: ALL_ROLES,
   calibration: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA', 'PRODUCTION', 'STORES', 'FPA_IPQC_INSPECTOR']
 };
 
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  activeKey: string;
+  onReset: () => void;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class PortalErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("Portal Module Caught Error:", error, errorInfo);
+  }
+
+  componentDidUpdate(prevProps: ErrorBoundaryProps) {
+    if (prevProps.activeKey !== this.props.activeKey && this.state.hasError) {
+      this.setState({ hasError: false, error: null });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 sm:p-8 bg-white rounded-[24px] border border-rose-200 shadow-sm max-w-xl mx-auto my-8 text-center space-y-4">
+          <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-700 flex items-center justify-center mx-auto font-bold text-xl border border-rose-200">
+            ⚠️
+          </div>
+          <h2 className="text-xl font-serif font-normal text-[#17191c]">Module Loading Exception Caught</h2>
+          <p className="text-xs text-[#777b86] leading-relaxed">
+            {this.state.error?.message || "An unexpected error occurred while rendering this module."}
+          </p>
+          <button
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              this.props.onReset();
+            }}
+            className="px-5 py-2.5 rounded-full bg-[#17191c] text-[#c09748] font-bold text-xs cursor-pointer shadow-xs hover:bg-black transition"
+          >
+            Reset Module & Return to Home
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const PortalInner: React.FC<PortalAppProps> = ({ onBackToWebsite }) => {
   const { currentUser } = usePortalStore();
-  const [activeTab, setActiveTab] = useState<PortalTab>(() => ROLE_DEFAULT_TABS[currentUser.role] || 'dashboard');
+  
+  const [activeTab, setActiveTab] = useState<PortalTab>(() => {
+    try {
+      const urlTab = new URLSearchParams(window.location.search).get('tab');
+      if (urlTab && urlTab in TAB_ALLOWED_ROLES) {
+        const isDirectorOrHead = currentUser.role === 'DIRECTOR' || currentUser.role === 'PLANT_HEAD';
+        const allowed = TAB_ALLOWED_ROLES[urlTab as PortalTab];
+        if (isDirectorOrHead || (allowed && allowed.includes(currentUser.role))) {
+          return urlTab as PortalTab;
+        }
+      }
+
+      const savedTab = localStorage.getItem('pk_portal_active_tab');
+      if (savedTab && savedTab in TAB_ALLOWED_ROLES) {
+        const isDirectorOrHead = currentUser.role === 'DIRECTOR' || currentUser.role === 'PLANT_HEAD';
+        const allowed = TAB_ALLOWED_ROLES[savedTab as PortalTab];
+        if (isDirectorOrHead || (allowed && allowed.includes(currentUser.role))) {
+          return savedTab as PortalTab;
+        }
+      }
+    } catch (e) {
+      // fallback
+    }
+    return ROLE_DEFAULT_TABS[currentUser.role] || 'dashboard';
+  });
+
   const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
   const prevUserRoleRef = useRef<UserRole>(currentUser.role);
+
+  // Sync activeTab to localStorage & URL without reload
+  useEffect(() => {
+    try {
+      localStorage.setItem('pk_portal_active_tab', activeTab);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', activeTab);
+      window.history.replaceState(null, '', url.toString());
+    } catch (e) {
+      // fallback
+    }
+  }, [activeTab]);
 
   // When switching persona, auto-navigate to that specific role's primary module & close drawer
   useEffect(() => {
     if (prevUserRoleRef.current !== currentUser.role) {
       prevUserRoleRef.current = currentUser.role;
-      setActiveTab(ROLE_DEFAULT_TABS[currentUser.role] || 'stores');
+      const targetTab = ROLE_DEFAULT_TABS[currentUser.role] || 'stores';
+      setActiveTab(targetTab);
       setMobileNavOpen(false);
     }
   }, [currentUser.role]);
@@ -99,8 +190,6 @@ const PortalInner: React.FC<PortalAppProps> = ({ onBackToWebsite }) => {
     switch (tab) {
       case 'dashboard':
         return <DashboardView onNavigateTab={(t) => { setActiveTab(t); setMobileNavOpen(false); }} />;
-      case 'handovers':
-        return <CustodyHandoverView />;
       case 'jobcards':
         return <JobCardsView />;
       case 'billing':
@@ -115,10 +204,6 @@ const PortalInner: React.FC<PortalAppProps> = ({ onBackToWebsite }) => {
         return <PackingView />;
       case 'gatepass':
         return <GatePassView />;
-      case 'mnc_audit':
-        return <MncAuditView />;
-      case 'capa_8d':
-        return <Capa8DView />;
       case 'production_offering':
         return <ProductionOfferingView />;
       case 'hr_leave':
@@ -150,7 +235,12 @@ const PortalInner: React.FC<PortalAppProps> = ({ onBackToWebsite }) => {
         />
 
         <main className="flex-1 overflow-y-auto p-3.5 sm:p-6 max-w-7xl mx-auto w-full">
-          {renderActiveTabContent()}
+          <PortalErrorBoundary 
+            activeKey={activeTab} 
+            onReset={() => setActiveTab(ROLE_DEFAULT_TABS[currentUser.role] || 'stores')}
+          >
+            {renderActiveTabContent()}
+          </PortalErrorBoundary>
         </main>
       </div>
     </div>

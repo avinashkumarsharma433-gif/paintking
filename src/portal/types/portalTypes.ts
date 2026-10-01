@@ -21,7 +21,37 @@ export type UserRole =
 
 export type PlantLocation = 'Vasai' | 'Haridwar' | 'Vapi' | 'Mumbai';
 
-export type ShiftType = 'Day 12H' | 'Night 12H';
+export type ShiftType = 'General Day Shift (08:30 - 18:30)' | 'Day 12H' | 'Night 12H';
+
+export type JobCardType = 'master' | 'painter_child' | 'rework_child';
+
+export type DefectCategory = 
+  | 'dust_nibs' 
+  | 'paint_run' 
+  | 'orange_peel' 
+  | 'scratch' 
+  | 'undercoat_show' 
+  | 'shade_deviation' 
+  | 'pinhole' 
+  | 'none';
+
+export interface PlantDayEndClosure {
+  id: string;
+  plant: PlantLocation;
+  closureDate: string;
+  shiftName: string; // 'General Day Shift (08:30 - 18:30)'
+  totalPiecesSprayed: number;
+  totalFirstPassGood: number;
+  totalReworkInQueue: number;
+  totalScrap: number;
+  overnightWipCount: number;
+  status: 'Open Day Active' | 'EOD Shutdown (Locked)';
+  closedBy?: string;
+  closedAt?: string;
+  reopenedBy?: string;
+  reopenedAt?: string;
+  remarks?: string;
+}
 
 export type DocumentStatus = 'Draft' | 'Submitted' | 'Verified' | 'Approved' | 'Hold' | 'Closed';
 
@@ -83,6 +113,8 @@ export interface UniversalJobRecord {
   jobId: string;             // SINGLE UNIVERSAL ID e.g. "PK-JOB-2026-101"
   partyName: string;
   customerRefChallan: string;
+  challanDate?: string;
+  receivingDate?: string;
   vehicleNo: string;
   category: MaterialCategoryOption; // STRICT 2 OPTIONS: 'Party Material' | 'Internal Company'
   createdDate: string;
@@ -162,6 +194,50 @@ export interface GoodsReceiptNote {
   invoicedQty?: number;
   actualReceivedQty?: number;
   colorSplits?: OrderColorSplit[];
+  sourceIqcReportNo?: string;
+}
+
+// 1.5 Material Requisition & Store-to-Production Handshake (PK-PRD-MRN-001 / Doc No: 002)
+export type RequisitionStatus = 
+  | 'Pending Store Issue'      // Production raised demand, waiting for Store
+  | 'Dispatched by Store'     // Store issued MIN slip, waiting for Production to receive
+  | 'Received by Production'   // Production Supervisor verified count & accepted
+  | 'Discrepancy Flagged'     // Physical count mismatch (e.g. sent 500, received 490)
+  | 'Cancelled';
+
+export interface MaterialRequisitionNote {
+  mrnNo: string;               // e.g. "MRN-2026-001"
+  date: string;
+  time: string;
+  plant: PlantLocation;
+  jobCardNo: string;           // Target Job Card e.g. "JC-1042-RED"
+  woNo: string;
+  customer: string;
+  partCode: string;
+  partDescription: string;
+  colorName?: string;
+  requestedQty: number;
+  uom: string;                 // Pcs, Litres, Kg
+  requiredShift: ShiftType;
+  requestedBy: string;         // Production Manager / Line Supervisor
+  urgency: 'Normal' | 'High (Line Stoppage Risk)' | 'Urgent Batch Run';
+  status: RequisitionStatus;
+  
+  // Store Handshake Fields
+  issuedSlipNo?: string;       // Generated MIN slip e.g. "MIN-2026-001"
+  sourceGrnNo?: string;        // Inward lot allocated e.g. "PK-GRN-2026-1252"
+  issuedQty?: number;
+  storeInchargeName?: string;
+  storeIssuedTimestamp?: string;
+  storeRemarks?: string;
+
+  // Production Handshake & Receipt Fields
+  receivedQty?: number;
+  receivedBy?: string;
+  receivedTimestamp?: string;
+  discrepancyQty?: number;     // e.g. -10 pcs
+  discrepancyReason?: 'Damaged in Trolley Transit' | 'Count Shortage from Store' | 'Wrong Shade / Drum' | 'Packaging Tear';
+  productionRemarks?: string;
 }
 
 // 2. Inter-Stage Handover & Custody Transfer (PK-PRD-TRF-001)
@@ -212,6 +288,11 @@ export interface ProcessStageCount {
   totalQty: number;
   okQty: number;
   rejectionQty: number;
+  receivedBy?: string;
+  receivedTimestamp?: string;
+  isReceivedVerified?: boolean;
+  receivedDiscrepancyQty?: number;
+  stageOperatorNotes?: string;
 }
 
 export interface JobCard {
@@ -232,6 +313,20 @@ export interface JobCard {
   status: 'Open' | 'In Process' | 'Target Met' | 'Over-Run Flagged' | 'Completed' | 'Closed';
   fpaStatus?: 'Pending' | 'Approved' | 'Hold' | 'Rejected';
   
+  // 3-Painters & Rework Architecture
+  jobCardType?: JobCardType;
+  assignedPainterId?: string;
+  assignedPainterName?: string; // e.g. "Ramesh Kumar (P1)", "Suresh Verma (P2)", "Mahesh Sharma (P3)"
+  parentJobCardId?: string;
+  allocatedQty?: number;
+  firstPassGoodQty?: number;
+  reworkFlaggedQty?: number;
+  reworkRecoveredQty?: number;
+  scrapQty?: number;
+  defectCategory?: DefectCategory;
+  reworkInstructions?: string;
+  reworkStatus?: 'Pending Sanding' | 'In Re-spray' | 'In Oven Re-bake' | 'Passed QC' | 'Scrapped';
+
   // SLA & Sequential Gate Control
   slaHours?: number;
   slaDeadline?: string;
@@ -342,29 +437,102 @@ export interface PaintMixingRecord {
 }
 
 // 1b. IQC Incoming Material Inspection (PK-STR-IQC-001)
+export interface IQCAspectItem {
+  srNo: number;
+  aspect: string;
+  methodOfMeasurement: string;
+  impact: 'Critical' | 'Major' | 'Minor';
+  result: 'Pass' | 'Fail' | string;
+  observation?: string;
+}
+
+export interface IQCVerifiedItem {
+  id: string;
+  materialName: string;
+  challanQty: number;
+  actualQty: number;
+  unit: string;
+  isReceived: boolean;
+  condition: 'Intact & Clean' | 'Damaged / Scratched' | 'Wet' | 'Repacked';
+  shortageQty: number;
+  notes?: string;
+  sampleSize?: number;
+  passQty?: number;
+  rejectQty?: number;
+  rejectionPercent?: number;
+  defectDetail?: string;
+}
+
 export interface IQCInspectionRecord {
   reportNo: string;
+  inwardSrNo?: string;           // Linked Security Gate Inward Entry
   date: string;
+  inspectionDate?: string;
+  inspectionTime?: string;
+  generatedAt?: string;          // ISO timestamp when report was generated
+  generatedTimestamp?: string;   // Formatted human-readable timestamp e.g. "22 Sep 2026, 04:47 PM"
   plant: PlantLocation;
-  supplierCustomer: string;
-  partCode: string;
+  vendorCustomer: string;
+  supplierCustomer?: string;     // Backward compat
+  partComponent: string;
+  partCode?: string;             // Backward compat
+  partDescription?: string;
+  invoiceChallanNo: string;
+  invoiceChallanDate: string;
   batchNo: string;
-  totalQty: number;
-  sampledQty: number;
-  damage: 'Pass' | 'Fail';
-  scratch: 'Pass' | 'Fail';
-  sinkMark: 'Pass' | 'Fail';
-  shortFill: 'Pass' | 'Fail';
-  bubble: 'Pass' | 'Fail';
-  pinMark: 'Pass' | 'Fail';
-  dustSpot: 'Pass' | 'Fail';
-  overPaint: 'Pass' | 'Fail';
-  paintMissing: 'Pass' | 'Fail';
-  colour: 'Pass' | 'Fail';
-  overallFinishing: 'Pass' | 'Fail';
-  status: 'Accepted' | 'Hold' | 'Rejected';
-  inspector: string;
+  invQuantity: number;
+  totalQty?: number;             // Backward compat
+  uom: string;
+  unit?: string;
+  actualReceived: number;
+  shortageQty?: number;          // Discrepancy = invQuantity - actualReceived
+  excessQty?: number;
+  boxCondition?: 'Intact & Clean' | 'Damaged / Crushed' | 'Wet / Moisture' | 'Repacked';
+  hasDiscrepancy?: boolean;
+  discrepancyReportedToProductionManager?: boolean;
+  productionManagerNote?: string;
+  
+  // Security line items verified by IQC
+  items?: IQCVerifiedItem[];
+
+  // The 7 Core + any Optional aspects
+  aspects?: IQCAspectItem[];
+
+  sampleSize?: number;
+  samplePercentage?: number;     // Standard 20% rule
+  sampledQty?: number;           // Backward compat
+  passQty?: number;
+  rejectQty?: number;
+  rejectionPercent?: number;
+  rejectionDetail?: string;
+  batchRejectionTriggered?: boolean; // Triggered if rejection >= 1.0% in sample
+  
+  docNo?: string;                // "DOC NO: 00" / "Issue Date - 01.01.2021"
+  revNo?: string;                // "00"
+  revDate?: string;              // "00"
+  
+  rootCause?: string;
+  correctiveAction?: string;
+  preventiveAction?: string;
   remarks?: string;
+
+  // Visual individual defect checks for backward compat
+  damage?: 'Pass' | 'Fail';
+  scratch?: 'Pass' | 'Fail';
+  sinkMark?: 'Pass' | 'Fail';
+  shortFill?: 'Pass' | 'Fail';
+  bubble?: 'Pass' | 'Fail';
+  pinMark?: 'Pass' | 'Fail';
+  dustSpot?: 'Pass' | 'Fail';
+  overPaint?: 'Pass' | 'Fail';
+  paintMissing?: 'Pass' | 'Fail';
+  colour?: 'Pass' | 'Fail';
+  overallFinishing?: 'Pass' | 'Fail';
+
+  status: 'Accepted' | 'Hold' | 'Rejected' | 'Part Accepted';
+  inspector?: string;
+  preparedBy?: string;           // IQC Inspector
+  verifiedBy?: string;           // Production Manager / QA Manager
 }
 
 // 6. 3-Hourly IPQC Inspection (PK-QA-IPQ-001)
@@ -492,9 +660,12 @@ export interface GatePassRecord {
 // 10b. Dynamic Line Item for Material Inward (Supports 4-5 different items per truck arrival)
 export interface InwardMaterialLineItem {
   id: string;
+  itemCode?: string;    // Optional Item / Part Code e.g. "PK-VENT-01", "ABS-MOLD-77"
   materialName: string; // e.g. "Paint Daba 2KG", "ABS Vent Bezel", "Thinner Drum"
   quantity: number;     // e.g. 5
   unit: 'Pcs' | 'Litres' | 'Drums' | 'Boxes' | 'Kg' | 'Rolls' | 'Packets';
+  batchNo?: string;     // Optional Lot / Batch number
+  rawSubstrate?: string;// Optional Substrate (ABS, PC, Nylon, Aluminum, Steel, etc.)
   remarks?: string;
 }
 
@@ -503,21 +674,31 @@ export interface MaterialInwardRecord {
   srNo: string;
   date: string;
   challanNo: string;
+  challanDate?: string;     // Supplier Challan Date
+  receivingDate?: string;   // Physical Material Receiving Date at factory
   grnNo: string;
   inTime: string;
   vehicleNo: string;
   partyName: string;
   descriptionOfMaterial?: string; // Summary of items
   quantity?: number;
-  unit?: 'Pcs' | 'Litres' | 'Drums' | 'Boxes' | 'Kg' | 'Rolls' | 'Packets';
+  unit?: 'Pcs' | 'Litres' | 'Drums' | 'Boxes' | 'Kg' | 'Rolls' | 'Packets' | 'Mixed';
   items: InwardMaterialLineItem[]; // Multi-item dynamic rows for 1 vehicle!
   totalQuantity: number;
   materialCategory: 'Party Material' | 'Internal Company'; // EXACT 2 OPTIONS REQUESTED!
+  transporter?: string;
+  driverName?: string;      // Optional Driver Name
+  driverPhone?: string;     // Optional Driver Contact
+  ewayBillNo?: string;      // Optional GST E-Way Bill Number
+  poNumber?: string;        // Optional Customer Purchase Order / Ref
+  totalBoxes?: string;      // Optional Box / Package count (e.g. "5 Cartons")
   receivedBy: string;
   securitySignature: string;
   remarks?: string;
   plant: PlantLocation;
   status: 'Received at Gate' | 'Handed to Stores' | 'Issued to Floor';
+  iqcStatus?: 'Pending' | 'In-Progress' | 'Passed' | 'Rejected' | 'Discrepancy Halt';
+  iqcReportNo?: string;
 }
 
 

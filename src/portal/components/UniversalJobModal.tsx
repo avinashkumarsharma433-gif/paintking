@@ -15,6 +15,8 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
   const [jobId, setJobId] = useState<string>(`PK-JOB-2026-${Math.floor(100 + Math.random() * 900)}`);
   const [partyName, setPartyName] = useState<string>('ROOP POLYMERS LTD');
   const [customerRefChallan, setCustomerRefChallan] = useState<string>('RP/CH/99824');
+  const [challanDate, setChallanDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [receivingDate, setReceivingDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [vehicleNo, setVehicleNo] = useState<string>('UK-08-AL-4412');
   
   // Category Dropdown - Strict 2 Options
@@ -65,6 +67,8 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
       jobId,
       partyName,
       customerRefChallan,
+      challanDate,
+      receivingDate,
       vehicleNo,
       category,
       createdDate: new Date().toISOString().split('T')[0],
@@ -132,9 +136,9 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
         <form onSubmit={handleSubmit} className="space-y-5 text-xs">
           
           {/* Universal Job ID Hero Card */}
-          <div className="bg-[#fafafb] p-4 sm:p-5 rounded-[20px] border border-[#ececec] space-y-3">
+          <div className="bg-[#fafafb] p-4 sm:p-5 rounded-[16px] border border-[#ececec] space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-[#17191c] uppercase tracking-wider flex flex items-center gap-1.5">
                 <Hash className="w-4 h-4 text-[#c09748]" />
                 Universal Job Identifier (Used Across All 8 Factory Stages)
               </span>
@@ -143,7 +147,7 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1">
+                <label className="block text-[11px] font-semibold text-[#777b86] uppercase tracking-wider mb-1.5">
                   Universal Job ID *
                 </label>
                 <input
@@ -151,12 +155,12 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
                   required
                   value={jobId}
                   onChange={e => setJobId(e.target.value)}
-                  className="w-full p-3 rounded-[16px] border border-[#c09748] bg-white font-mono font-bold text-base text-[#c09748] focus:outline-none"
+                  className="w-full px-3.5 py-2.5 rounded-[12px] border border-[#17191c] bg-white font-mono font-semibold text-xs text-[#17191c] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1">
+                <label className="block text-[11px] font-semibold text-[#777b86] uppercase tracking-wider mb-1.5">
                   Customer / Party Name *
                 </label>
                 <input
@@ -165,12 +169,12 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
                   value={partyName}
                   onChange={e => setPartyName(e.target.value)}
                   placeholder="e.g. ROOP POLYMERS LTD"
-                  className="w-full p-3 rounded-[16px] border border-[#ececec] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                  className="w-full px-3.5 py-2.5 rounded-[12px] border border-[#e5e7eb] bg-white text-xs text-[#17191c] placeholder:text-gray-400 focus:border-[#c09748] focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1">
+                <label className="block text-[11px] font-semibold text-[#777b86] uppercase tracking-wider mb-1.5">
                   Party Ref Challan / PO No *
                 </label>
                 <input
@@ -179,7 +183,31 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
                   value={customerRefChallan}
                   onChange={e => setCustomerRefChallan(e.target.value)}
                   placeholder="e.g. RP/CH/99824"
-                  className="w-full p-3 rounded-[16px] border border-[#ececec] bg-white font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                  className="w-full px-3.5 py-2.5 rounded-[12px] border border-[#e5e7eb] bg-white font-mono text-xs text-[#17191c] placeholder:text-gray-400 focus:border-[#c09748] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-[#777b86] uppercase tracking-wider mb-1.5">
+                  Challan Date <span className="text-gray-400 font-normal font-sans">(As on Challan)</span>
+                </label>
+                <input
+                  type="date"
+                  value={challanDate}
+                  onChange={e => setChallanDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-[12px] border border-[#e5e7eb] bg-white font-mono text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-[#777b86] uppercase tracking-wider mb-1.5">
+                  Physical Receiving Date <span className="text-gray-400 font-normal font-sans">(at Gate)</span>
+                </label>
+                <input
+                  type="date"
+                  value={receivingDate}
+                  onChange={e => setReceivingDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-[12px] border border-[#e5e7eb] bg-white font-mono text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
                 />
               </div>
             </div>
@@ -198,7 +226,7 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
             />
 
             <div>
-              <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1.5">
+              <label className="block text-[11px] font-semibold text-[#777b86] uppercase tracking-wider mb-1.5.5">
                 Vehicle Number *
               </label>
               <input
@@ -207,15 +235,15 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
                 value={vehicleNo}
                 onChange={e => setVehicleNo(e.target.value)}
                 placeholder="e.g. UK-08-AL-4412"
-                className="w-full p-3 rounded-[16px] border border-[#ececec] bg-[#fafafb] font-mono font-bold text-[#17191c] uppercase focus:border-[#c09748] focus:outline-none"
+                className="w-full px-3.5 py-2.5 rounded-[12px] border border-[#e5e7eb] bg-white font-mono text-xs text-[#17191c] placeholder:text-gray-400 uppercase focus:border-[#c09748] focus:outline-none"
               />
             </div>
 
           </div>
 
           {/* Material Specifications & Piece Quantity */}
-          <div className="bg-[#fafafb] p-4 sm:p-5 rounded-[20px] border border-[#ececec] space-y-4">
-            <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
+          <div className="bg-[#fafafb] p-4 sm:p-5 rounded-[16px] border border-[#ececec] space-y-4">
+            <span className="text-[11px] font-semibold text-[#17191c] uppercase tracking-wider flex flex items-center gap-1.5">
               <Package className="w-4 h-4 text-[#c09748]" />
               Material Specifications & Inward Piece Quantity
             </span>
@@ -223,7 +251,7 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
               
               <div className="sm:col-span-6">
-                <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1">
+                <label className="block text-[11px] font-semibold text-[#777b86] uppercase tracking-wider mb-1.5">
                   Material / Component Name *
                 </label>
                 <input
@@ -232,12 +260,12 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
                   value={materialName}
                   onChange={e => setMaterialName(e.target.value)}
                   placeholder="e.g. Auto AC Center Vent Bezel Substrate (ABS)"
-                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                  className="w-full px-3.5 py-2.5 rounded-[12px] border border-[#e5e7eb] bg-white text-xs text-[#17191c] placeholder:text-gray-400 focus:border-[#c09748] focus:outline-none"
                 />
               </div>
 
               <div className="sm:col-span-3">
-                <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1">
+                <label className="block text-[11px] font-semibold text-[#777b86] uppercase tracking-wider mb-1.5">
                   Total Quantity *
                 </label>
                 <input
@@ -246,7 +274,7 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
                   min="1"
                   value={totalQuantity}
                   onChange={e => setTotalQuantity(Number(e.target.value))}
-                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-[#17191c] text-center focus:border-[#c09748] focus:outline-none text-sm"
+                  className="w-full px-3.5 py-2.5 rounded-[12px] border border-[#e5e7eb] bg-white font-mono text-xs text-[#17191c] text-center focus:border-[#c09748] focus:outline-none text-sm"
                 />
               </div>
 
@@ -264,7 +292,7 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1">
+                <label className="block text-[11px] font-semibold text-[#777b86] uppercase tracking-wider mb-1.5">
                   Target Color Name *
                 </label>
                 <input
@@ -273,12 +301,12 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
                   value={colorName}
                   onChange={e => setColorName(e.target.value)}
                   placeholder="e.g. Monza Red Gloss"
-                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-semibold text-[#17191c]"
+                  className="w-full px-3.5 py-2.5 rounded-[12px] border border-[#e5e7eb] bg-white text-xs text-[#17191c] placeholder:text-gray-400"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1">
+                <label className="block text-[11px] font-semibold text-[#777b86] uppercase tracking-wider mb-1.5">
                   Color Shade Code
                 </label>
                 <input
@@ -286,12 +314,12 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
                   value={colorCode}
                   onChange={e => setColorCode(e.target.value)}
                   placeholder="e.g. RD-01"
-                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-[#17191c]"
+                  className="w-full px-3.5 py-2.5 rounded-[12px] border border-[#e5e7eb] bg-white font-mono text-xs text-[#17191c]"
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1">
+                <label className="block text-[11px] font-semibold text-[#777b86] uppercase tracking-wider mb-1.5">
                   Agreed Unit Rate ₹/pc
                 </label>
                 <input
@@ -306,14 +334,14 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-[#777b86] uppercase mb-1">
+            <label className="block text-[11px] font-semibold text-[#777b86] uppercase tracking-wider mb-1.5">
               Inspection & Gate Pass Remarks
             </label>
             <textarea
               rows={2}
               value={remarks}
               onChange={e => setRemarks(e.target.value)}
-              className="w-full p-3 rounded-[16px] border border-[#ececec] bg-[#fafafb] font-medium text-[#17191c] focus:outline-none"
+              className="w-full px-3.5 py-2.5 rounded-[12px] border border-[#e5e7eb] bg-white text-xs text-[#17191c] placeholder:text-gray-400 focus:outline-none"
             />
           </div>
 
@@ -327,7 +355,7 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
             </button>
             <button
               type="submit"
-              className="px-7 py-3 rounded-full bg-[#17191c] text-[#c09748] font-bold cursor-pointer hover:bg-black flex items-center gap-2 shadow-lg transition active:scale-95"
+              className="px-6 py-2.5 rounded-full bg-[#17191c] hover:bg-black text-white text-xs font-medium font-bold cursor-pointer hover:bg-black flex items-center gap-2 shadow-lg transition active:scale-95"
             >
               <Save className="w-4 h-4 text-[#c09748]" />
               Register Universal Job ID & Intake Material

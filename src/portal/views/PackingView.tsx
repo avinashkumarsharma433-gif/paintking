@@ -1,11 +1,51 @@
 import React, { useState } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { Printer } from 'lucide-react';
+import { Printer, Plus, QrCode, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { PackingSlipRecord } from '../types/portalTypes';
 
 export const PackingView: React.FC = () => {
-  const { packingSlips, activePlant } = usePortalStore();
+  const { packingSlips, qualityReleases, addPackingSlip, canPrintPackingSlip, activePlant, currentUser } = usePortalStore();
   const [selectedSlip, setSelectedSlip] = useState(packingSlips[0] || null);
   const [showPrintModal, setShowPrintModal] = useState(false);
+
+  // New Packing Slip Modal State
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedPdiWo, setSelectedPdiWo] = useState<string>('');
+  const [boxCount, setBoxCount] = useState<number>(50);
+  const [boxLabel, setBoxLabel] = useState<string>('BOX-01/06');
+
+  // Filter QA Releases ready for packing
+  const clearedPdiReleases = qualityReleases.filter(r => r.pdiStatus === 'Cleared for Invoicing' || r.oqcStatus === 'Accepted');
+
+  const handleCreatePackingSlip = (e: React.FormEvent) => {
+    e.preventDefault();
+    const rel = clearedPdiReleases.find(r => r.woNo === selectedPdiWo) || clearedPdiReleases[0];
+    if (!rel) {
+      alert('No QA/PDI cleared batches available for packing.');
+      return;
+    }
+
+    const newSlip: PackingSlipRecord = {
+      slipNo: `PKG-2026-${Math.floor(100 + Math.random() * 900)}`,
+      date: new Date().toISOString().split('T')[0],
+      plant: activePlant,
+      customer: rel.customer,
+      woNo: rel.woNo,
+      partCode: rel.partCode,
+      model: 'Automotive Spec (PDI Cleared)',
+      color: rel.color,
+      boxNo: boxLabel,
+      packedQty: boxCount,
+      painter: '3-Painter Line Squad',
+      paintBatch: 'BAT-PPG-2609-R4',
+      packedBy: currentUser?.name || 'Gopal Singh (Packing Lead)',
+      qcVerified: true
+    };
+
+    addPackingSlip(newSlip);
+    setSelectedSlip(newSlip);
+    setShowCreateModal(false);
+  };
 
   return (
     <div className="space-y-6">
@@ -27,9 +67,23 @@ export const PackingView: React.FC = () => {
           </p>
         </div>
 
-        <span className="text-xs font-mono text-[#c09748] font-bold">
-          Plant: {activePlant}
-        </span>
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <button
+            onClick={() => {
+              if (clearedPdiReleases.length > 0) {
+                setSelectedPdiWo(clearedPdiReleases[0].woNo);
+              }
+              setShowCreateModal(true);
+            }}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-bold transition shadow-xs cursor-pointer w-full md:w-auto"
+          >
+            <Plus className="w-4 h-4 text-[#17191c]" />
+            <span>+ Create Packing Slip from Cleared PDI</span>
+          </button>
+          <span className="text-xs font-mono text-[#c09748] font-bold hidden sm:inline">
+            Plant: {activePlant}
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -182,13 +236,108 @@ export const PackingView: React.FC = () => {
                 Close
               </button>
               <button
-                onClick={() => window.print()}
+                onClick={() => {
+                  const gate = canPrintPackingSlip(selectedSlip.woNo);
+                  if (!gate.allowed) {
+                    alert(`QA Gatekeeper Lock: Cannot print packing slip for ${selectedSlip.woNo}.\n\nReason: ${gate.reason}`);
+                    return;
+                  }
+                  window.print();
+                }}
                 className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-semibold text-xs shadow-sm cursor-pointer transition flex items-center gap-2"
               >
                 <Printer className="w-3.5 h-3.5" />
                 <span>Print Thermal Sticker</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Create New Packing Slip from QA/PDI Cleared Order */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] max-w-md w-full p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
+                <h3 className="text-base font-serif font-normal text-[#17191c]">
+                  Create Box Packing Slip from Cleared PDI
+                </h3>
+                <p className="text-[11px] text-[#777b86]">
+                  Select QA/OQC approved batch to generate 4"x6" barcode label
+                </p>
+              </div>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreatePackingSlip} className="space-y-3.5">
+              <div>
+                <label className="block text-[#17191c] font-semibold mb-1">
+                  PDI Cleared Work Order / Batch *
+                </label>
+                <select
+                  value={selectedPdiWo}
+                  onChange={e => setSelectedPdiWo(e.target.value)}
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer"
+                  required
+                >
+                  {clearedPdiReleases.map(rel => (
+                    <option key={rel.releaseId} value={rel.woNo}>
+                      {rel.woNo} • {rel.customer} ({rel.partCode} - {rel.color})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[#17191c] font-semibold mb-1">
+                  Box Serial / Identification *
+                </label>
+                <input
+                  type="text"
+                  value={boxLabel}
+                  onChange={e => setBoxLabel(e.target.value)}
+                  placeholder="e.g. BOX-01/06"
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono text-xs"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#17191c] font-semibold mb-1">
+                  Packed Box Count (Pcs) *
+                </label>
+                <input
+                  type="number"
+                  value={boxCount}
+                  onChange={e => setBoxCount(Math.max(1, Number(e.target.value)))}
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c]"
+                  min={1}
+                  required
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-bold shadow-xs cursor-pointer transition"
+                >
+                  Generate Box Label
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
