@@ -97,9 +97,10 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
           const mappedItems: GRNLineItem[] = pendingJob.items.map((it: any, i: number) => {
             const itemId = it.id || String(i + 1);
             const invQ = Number(it.challanQty || it.quantity || pendingJob.totalQty || 1000);
-            const okQ = Number(it.passQty !== undefined ? it.passQty : (it.actualQty || it.quantity || pendingJob.totalQty || 1000));
             const rejQ = Number(it.rejectQty || 0);
-            const actQ = okQ; // Default actual store received to IQC approved quantity
+            // Default store received quantity is the full inward/challan quantity minus rejections
+            const actQ = invQ - rejQ;
+            const okQ = actQ;
 
             return {
               id: itemId,
@@ -110,6 +111,7 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
               shortExcessQty: actQ - invQ,
               okByIqcQty: okQ,
               rejectionQty: rejQ,
+              sampleCheckedQty: Number(it.sampleSize || it.passQty || pendingJob.aqlSampleChecked || 0),
               remark: it.defectDetail || it.notes || 'IQC Cleared'
             };
           });
@@ -121,24 +123,25 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
             { colorName: 'Standard OEM Basecoat', colorCode: 'OEM-01', orderedQty: totalQ, unitRate: 25 }
           ]);
         } else {
-          const totQ = Number(pendingJob.totalQty) || 1000;
-          const okQ = pendingJob.iqcRecord ? Number(pendingJob.iqcRecord.passQty || totQ) : totQ;
+          const totQ = Number(pendingJob.totalQty || pendingJob.challanQty) || 1000;
           const rejQ = pendingJob.iqcRecord ? Number(pendingJob.iqcRecord.rejectQty || 0) : 0;
+          const actQ = totQ - rejQ;
 
           setItems([{
             id: '1',
             partCode: (pendingJob.partComponent || 'SUBSTRATE').slice(0, 10).replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || 'SUBSTRATE',
             partDescription: pendingJob.partDescription || pendingJob.partComponent || 'Raw Substrate',
             invoicedQty: totQ,
-            actualReceivedQty: okQ,
-            shortExcessQty: okQ - totQ,
-            okByIqcQty: okQ,
+            actualReceivedQty: actQ,
+            shortExcessQty: actQ - totQ,
+            okByIqcQty: actQ,
             rejectionQty: rejQ,
+            sampleCheckedQty: Number(pendingJob.aqlSampleChecked || pendingJob.iqcRecord?.passQty || 0),
             remark: 'IQC Cleared'
           }]);
 
           setColorSplits([
-            { colorName: 'Standard OEM Basecoat', colorCode: 'OEM-01', orderedQty: okQ, unitRate: 25 }
+            { colorName: 'Standard OEM Basecoat', colorCode: 'OEM-01', orderedQty: actQ, unitRate: 25 }
           ]);
         }
       } else {
@@ -400,10 +403,15 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                       </div>
 
                       <div className="flex items-center gap-2 self-start sm:self-auto text-xs">
-                        <span className="text-[11px] text-[#777b86] font-mono">Invoiced: <strong className="text-[#17191c]">{item.invoicedQty}</strong></span>
+                        <span className="text-[11px] text-[#777b86] font-mono">Challan Qty: <strong className="text-[#17191c]">{item.invoicedQty}</strong></span>
                         <span className="text-[11px] text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 font-mono">
-                          OK IQC: <strong>{item.okByIqcQty}</strong>
+                          IQC Approved: <strong>{item.okByIqcQty}</strong>
                         </span>
+                        {item.sampleCheckedQty ? (
+                          <span className="text-[10px] text-[#777b86] font-mono hidden sm:inline-block">
+                            ({item.sampleCheckedQty} Sampled)
+                          </span>
+                        ) : null}
                         {Number(item.rejectionQty) > 0 && (
                           <span className="text-[11px] text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200 font-mono">
                             Rej: <strong>{item.rejectionQty}</strong>
