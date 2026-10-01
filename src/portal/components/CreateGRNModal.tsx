@@ -388,73 +388,80 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
               </div>
 
               {/* Items List */}
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 {items.map((item, idx) => (
-                  <div key={item.id || idx} className="p-3.5 sm:p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] space-y-3">
-                    {/* Item Description Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-[#8a6521] px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be]">
+                  <div key={item.id || idx} className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] space-y-3.5 shadow-2xs hover:border-[#dcdfe4] transition">
+                    {/* Header Row: Part Code + Description + Status Badges */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-[#ececec]">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="font-mono text-xs font-bold text-[#8a6521] px-2.5 py-1 rounded-full bg-[#faf3e0] border border-[#f4e5be] shrink-0">
                           {item.partCode}
                         </span>
-                        <span className="font-semibold text-xs sm:text-sm text-[#17191c]">
+                        <div className="font-semibold text-xs sm:text-sm text-[#17191c] truncate" title={item.partDescription}>
                           {item.partDescription}
-                        </span>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-2 self-start sm:self-auto text-xs">
-                        <span className="text-[11px] text-[#777b86] font-mono">Challan Qty: <strong className="text-[#17191c]">{item.invoicedQty}</strong></span>
-                        <span className="text-[11px] text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 font-mono">
-                          IQC Approved: <strong>{item.okByIqcQty}</strong>
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
+                        <span className="px-2.5 py-1 rounded-full bg-white border border-[#ececec] text-[11px] font-mono text-[#777b86]">
+                          Challan: <strong className="text-[#17191c]">{Number(item.invoicedQty).toLocaleString('en-IN')}</strong>
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-mono font-semibold text-emerald-800 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>IQC Approved: {Number(item.okByIqcQty).toLocaleString('en-IN')}</span>
                         </span>
                         {item.sampleCheckedQty ? (
-                          <span className="text-[10px] text-[#777b86] font-mono hidden sm:inline-block">
-                            ({item.sampleCheckedQty} Sampled)
+                          <span className="px-2 py-1 rounded-full bg-[#f2f2f3] text-[10.5px] font-mono text-[#777b86]">
+                            {item.sampleCheckedQty} Sampled
                           </span>
                         ) : null}
                         {Number(item.rejectionQty) > 0 && (
-                          <span className="text-[11px] text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200 font-mono">
-                            Rej: <strong>{item.rejectionQty}</strong>
+                          <span className="px-2.5 py-1 rounded-full bg-red-50 border border-red-200 text-[11px] font-mono font-bold text-red-700">
+                            Rej: {item.rejectionQty}
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Actually Received Editable Section */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2.5 border-t border-[#ececec] items-center">
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs font-semibold text-[#17191c] whitespace-nowrap">
-                          Actually Received Qty:
+                    {/* Body Row: 2-Column Responsive Input Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-0.5">
+                      {/* Col 1: Actually Received Qty (Store Intake) */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-semibold text-[#777b86] uppercase tracking-wider font-mono">
+                          Actually Received Qty (Store Intake)
                         </label>
-                        <input
-                          type="number"
-                          min="0"
-                          required
-                          value={item.actualReceivedQty}
-                          onChange={e => handleUpdateItemActual(item.id!, Number(e.target.value))}
-                          className="w-28 h-9 px-3 rounded-[12px] border border-[#dcdfe4] font-mono font-bold text-center text-xs text-[#17191c] bg-white focus:outline-none focus:ring-2 focus:ring-[#c09748]/20 focus:border-[#c09748] transition"
-                        />
-                        <span className={`px-2.5 py-1 rounded-full text-[10.5px] font-mono font-semibold ${
-                          item.shortExcessQty < 0 
-                            ? 'bg-red-50 text-red-700 border border-red-200' 
-                            : item.shortExcessQty > 0 
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200' 
-                            : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                        }`}>
-                          {item.shortExcessQty > 0 ? `+${item.shortExcessQty} (Excess)` : item.shortExcessQty === 0 ? '✓ Match' : `${item.shortExcessQty} (Short)`}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            required
+                            value={item.actualReceivedQty}
+                            onChange={e => handleUpdateItemActual(item.id!, Number(e.target.value))}
+                            className="w-full sm:w-36 h-10 px-3.5 rounded-[12px] border border-[#dcdfe4] font-mono font-bold text-xs sm:text-sm text-[#17191c] bg-white focus:outline-none focus:ring-2 focus:ring-[#c09748]/20 focus:border-[#c09748] transition shadow-2xs"
+                          />
+                          <span className={`px-3 py-2 rounded-[12px] text-xs font-mono font-bold shrink-0 flex items-center gap-1 ${
+                            item.shortExcessQty < 0 
+                              ? 'bg-red-50 text-red-700 border border-red-200' 
+                              : item.shortExcessQty > 0 
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200' 
+                              : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          }`}>
+                            {item.shortExcessQty > 0 ? `+${item.shortExcessQty} Excess` : item.shortExcessQty === 0 ? '✓ Match (0)' : `${item.shortExcessQty} Short`}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-2 sm:justify-end">
-                        <label className="text-xs font-medium text-[#777b86] whitespace-nowrap">
-                          Store Bay / Bin:
+                      {/* Col 2: Store Bay / Rack Bin Placement */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-semibold text-[#777b86] uppercase tracking-wider font-mono">
+                          Store Bay / Rack Bin Placement
                         </label>
                         <input
                           type="text"
                           value={storeBayLocation}
                           onChange={e => setStoreBayLocation(e.target.value)}
                           placeholder="e.g. Bay A-1 / Rack 4"
-                          className="w-full sm:w-48 h-9 px-3 rounded-[12px] border border-[#dcdfe4] text-xs text-[#17191c] bg-white focus:outline-none focus:ring-2 focus:ring-[#c09748]/20 focus:border-[#c09748] transition"
+                          className="w-full h-10 px-3.5 rounded-[12px] border border-[#dcdfe4] text-xs text-[#17191c] font-medium bg-white focus:outline-none focus:ring-2 focus:ring-[#c09748]/20 focus:border-[#c09748] transition shadow-2xs"
                         />
                       </div>
                     </div>
