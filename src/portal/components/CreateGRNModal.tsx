@@ -21,7 +21,6 @@ import {
 } from 'lucide-react';
 import { OfficialGRNDocument } from './OfficialGRNDocument';
 import { downloadStandardGRNPdf, formatDateDDMMYYYY } from '../utils/pdfStandardHeader';
-import { PaintkingDatePicker } from './PaintkingDatePicker';
 
 interface CreateGRNModalProps {
   isOpen: boolean;
@@ -209,15 +208,15 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-5 overflow-y-auto">
-      <div className="bg-white rounded-[20px] max-w-3xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 max-h-[92vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150 relative">
+      <div className="bg-white rounded-[24px] max-w-3xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 max-h-[92vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150 relative">
         
         {/* Top Close Button */}
         <button 
           onClick={onClose}
-          className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition z-10"
+          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition z-10 active:scale-95"
           title="Close"
         >
-          <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          <X className="w-4 h-4" />
         </button>
 
         {/* ========================================================================= */}
@@ -226,7 +225,7 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
         {createdGRN ? (
           <div className="space-y-4 animate-in fade-in duration-150">
             {/* Top Celebration Strip */}
-            <div className="p-4 sm:p-5 rounded-[16px] bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="p-4 sm:p-5 rounded-[20px] bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                   <CheckCircle2 className="w-6 h-6" />
@@ -245,9 +244,9 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                 <button
                   type="button"
                   onClick={() => downloadStandardGRNPdf(createdGRN)}
-                  className="px-4 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                  className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
                 >
-                  <Download className="w-3.5 h-3.5 text-[#17191c]" />
+                  <Download className="w-3.5 h-3.5 text-[#8a6521]" />
                   <span>Download PDF</span>
                 </button>
                 <button
@@ -262,7 +261,7 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
             </div>
 
             {/* Render Official GRN Document */}
-            <div className="p-1 sm:p-2 bg-[#fafafb] rounded-[16px] border border-[#ececec] overflow-x-auto">
+            <div className="p-1 sm:p-2 bg-[#fafafb] rounded-[20px] border border-[#ececec] overflow-x-auto">
               <OfficialGRNDocument grn={createdGRN} />
             </div>
 
@@ -297,7 +296,7 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                   IQC Ref: {iqcReportNo}
                 </span>
               </div>
-              <h2 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal tracking-tight">
+              <h2 className="text-xl sm:text-2xl font-serif text-[#17191c] font-normal tracking-tight">
                 Goods Receipt Note (GRN) Inward Acceptance
               </h2>
               <p className="text-[11px] sm:text-xs text-[#777b86]">
@@ -306,25 +305,34 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
             </div>
 
             {/* ========================================================================= */}
-            {/* PART 1: INWARD & IQC DETAILS (CLEAN READ-ONLY OVERVIEW)                   */}
+            {/* PART 1: INWARD & IQC DETAILS (SLEEK 4-TILE OVERVIEW)                      */}
             {/* ========================================================================= */}
             <div className="space-y-2">
               <span className="text-[10.5px] font-semibold text-[#777b86] uppercase tracking-wider block font-mono">
                 1. Inward & Quality Clearance Overview
               </span>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {/* Supplier / Party */}
-                <div className="p-3 rounded-[12px] bg-[#fafafb] border border-[#ececec] space-y-0.5 col-span-2 sm:col-span-1">
-                  <span className="text-[10px] text-[#777b86] block font-mono uppercase">Supplier / Party</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                {/* Tile 1: Supplier / Party */}
+                <div className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-1">
+                  <div className="flex items-center gap-1.5 text-[#777b86]">
+                    <Building2 className="w-3.5 h-3.5 text-[#c09748]" />
+                    <span className="text-[10px] font-mono uppercase font-semibold">Party / Supplier</span>
+                  </div>
                   <div className="font-semibold text-xs text-[#17191c] truncate" title={supplierCustomer}>
                     {supplierCustomer}
                   </div>
+                  <div className="text-[10px] text-[#777b86] font-mono">
+                    Intake: {formatDateDDMMYYYY(receivedDate)}
+                  </div>
                 </div>
 
-                {/* Challan No & Date */}
-                <div className="p-3 rounded-[12px] bg-[#fafafb] border border-[#ececec] space-y-0.5">
-                  <span className="text-[10px] text-[#777b86] block font-mono uppercase">Challan / Invoice</span>
+                {/* Tile 2: Challan No & Date */}
+                <div className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-1">
+                  <div className="flex items-center gap-1.5 text-[#777b86]">
+                    <FileText className="w-3.5 h-3.5 text-[#c09748]" />
+                    <span className="text-[10px] font-mono uppercase font-semibold">Challan / Invoice</span>
+                  </div>
                   <div className="font-mono font-bold text-xs text-[#17191c] truncate">
                     {invoiceChallanNo}
                   </div>
@@ -333,10 +341,13 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                   </div>
                 </div>
 
-                {/* Vehicle & Transporter */}
-                <div className="p-3 rounded-[12px] bg-[#fafafb] border border-[#ececec] space-y-0.5">
-                  <span className="text-[10px] text-[#777b86] block font-mono uppercase">Vehicle & Transporter</span>
-                  <div className="font-mono text-xs font-semibold text-[#17191c] uppercase">
+                {/* Tile 3: Vehicle & Transporter */}
+                <div className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-1">
+                  <div className="flex items-center gap-1.5 text-[#777b86]">
+                    <Truck className="w-3.5 h-3.5 text-[#c09748]" />
+                    <span className="text-[10px] font-mono uppercase font-semibold">Logistics</span>
+                  </div>
+                  <div className="font-mono text-xs font-semibold text-[#17191c] uppercase truncate">
                     {vehicleNo}
                   </div>
                   <div className="text-[10px] text-[#777b86] truncate">
@@ -344,30 +355,17 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                   </div>
                 </div>
 
-                {/* Auto GRN Number */}
-                <div className="p-3 rounded-[12px] bg-[#faf7ed] border border-[#f4e5be] space-y-0.5">
-                  <span className="text-[10px] text-[#8a6521] block font-mono uppercase font-semibold">GRN No. (Auto)</span>
-                  <div className="font-mono font-bold text-xs text-[#8a6521]">
-                    {grnNo}
+                {/* Tile 4: Auto GRN & IQC Clearance */}
+                <div className="p-3 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be] space-y-1">
+                  <div className="flex items-center gap-1.5 text-[#8a6521]">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-[10px] font-mono uppercase font-bold">GRN Ref (Auto)</span>
                   </div>
-                </div>
-
-                {/* IQC Clearance Record */}
-                <div className="p-3 rounded-[12px] bg-emerald-50/60 border border-emerald-200 space-y-0.5">
-                  <span className="text-[10px] text-emerald-800 block font-mono uppercase font-semibold">IQC Clearance</span>
-                  <div className="font-semibold text-xs text-emerald-900 truncate">
-                    {qualityApprovedBy}
+                  <div className="font-mono font-bold text-xs text-[#8a6521] truncate">
+                    {grnNo}
                   </div>
                   <div className="text-[10px] text-emerald-700 font-medium">
                     100% Quality Approved
-                  </div>
-                </div>
-
-                {/* Store Received Date */}
-                <div className="p-3 rounded-[12px] bg-[#fafafb] border border-[#ececec] space-y-0.5">
-                  <span className="text-[10px] text-[#777b86] block font-mono uppercase">Intake Date</span>
-                  <div className="font-mono text-xs font-semibold text-[#17191c]">
-                    {formatDateDDMMYYYY(receivedDate)}
                   </div>
                 </div>
               </div>
@@ -382,32 +380,32 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                   2. Material & Actually Received Quantity ({items.length} Items)
                 </span>
                 <span className="text-[11px] text-[#777b86]">
-                  IQC Passed Quantity pre-filled below. Adjust if any physical discrepancy.
+                  IQC Passed count pre-filled. Adjust if any discrepancy.
                 </span>
               </div>
 
               {/* Items List */}
               <div className="space-y-2.5">
                 {items.map((item, idx) => (
-                  <div key={item.id || idx} className="p-3.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] space-y-2.5">
+                  <div key={item.id || idx} className="p-3.5 sm:p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] space-y-3">
                     {/* Item Description Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-bold text-[#c09748] px-2 py-0.5 rounded-full bg-[#faf7ed] border border-[#f4e5be]">
+                        <span className="font-mono text-xs font-bold text-[#8a6521] px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be]">
                           {item.partCode}
                         </span>
-                        <span className="font-semibold text-xs text-[#17191c]">
+                        <span className="font-semibold text-xs sm:text-sm text-[#17191c]">
                           {item.partDescription}
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-2 self-start sm:self-auto">
-                        <span className="text-[10.5px] text-[#777b86]">Invoiced: <strong>{item.invoicedQty}</strong></span>
-                        <span className="text-[10.5px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <div className="flex items-center gap-2 self-start sm:self-auto text-xs">
+                        <span className="text-[11px] text-[#777b86] font-mono">Invoiced: <strong className="text-[#17191c]">{item.invoicedQty}</strong></span>
+                        <span className="text-[11px] text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 font-mono">
                           OK IQC: <strong>{item.okByIqcQty}</strong>
                         </span>
                         {Number(item.rejectionQty) > 0 && (
-                          <span className="text-[10.5px] text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                          <span className="text-[11px] text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200 font-mono">
                             Rej: <strong>{item.rejectionQty}</strong>
                           </span>
                         )}
@@ -415,7 +413,7 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                     </div>
 
                     {/* Actually Received Editable Section */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-[#f0f0f2] items-center">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2.5 border-t border-[#ececec] items-center">
                       <div className="flex items-center gap-2">
                         <label className="text-xs font-semibold text-[#17191c] whitespace-nowrap">
                           Actually Received Qty:
@@ -426,9 +424,9 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                           required
                           value={item.actualReceivedQty}
                           onChange={e => handleUpdateItemActual(item.id!, Number(e.target.value))}
-                          className="w-28 h-9 px-3 rounded-[10px] border border-[#dcdfe4] font-mono font-bold text-center text-xs text-[#17191c] bg-white focus:outline-none focus:border-[#17191c]"
+                          className="w-28 h-9 px-3 rounded-[12px] border border-[#dcdfe4] font-mono font-bold text-center text-xs text-[#17191c] bg-white focus:outline-none focus:ring-2 focus:ring-[#c09748]/20 focus:border-[#c09748] transition"
                         />
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold ${
+                        <span className={`px-2.5 py-1 rounded-full text-[10.5px] font-mono font-semibold ${
                           item.shortExcessQty < 0 
                             ? 'bg-red-50 text-red-700 border border-red-200' 
                             : item.shortExcessQty > 0 
@@ -448,7 +446,7 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                           value={storeBayLocation}
                           onChange={e => setStoreBayLocation(e.target.value)}
                           placeholder="e.g. Bay A-1 / Rack 4"
-                          className="w-full sm:w-44 h-9 px-2.5 rounded-[10px] border border-[#e5e7eb] text-xs text-[#17191c] bg-white focus:outline-none focus:border-[#17191c]"
+                          className="w-full sm:w-48 h-9 px-3 rounded-[12px] border border-[#dcdfe4] text-xs text-[#17191c] bg-white focus:outline-none focus:ring-2 focus:ring-[#c09748]/20 focus:border-[#c09748] transition"
                         />
                       </div>
                     </div>
@@ -458,29 +456,29 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
             </div>
 
             {/* ========================================================================= */}
-            {/* PART 3: ACCEPTANCE & REPORT GENERATION ACTION BAR                         */}
+            {/* PART 3: ACCEPTANCE & REPORT GENERATION ACTION BAR (NO BLACK BUTTONS)       */}
             {/* ========================================================================= */}
-            <div className="pt-2 border-t border-[#ececec] flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="pt-3 border-t border-[#ececec] flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-2 self-start sm:self-auto">
-                <span className="text-xs text-[#777b86]">Total Ingestion:</span>
-                <span className="font-mono font-bold text-sm text-[#17191c] px-2.5 py-0.5 bg-[#fafafb] rounded-full border border-[#ececec]">
+                <span className="text-xs text-[#777b86]">Total Intake Quantity:</span>
+                <span className="font-mono font-bold text-xs text-[#8a6521] px-3 py-1 bg-[#faf3e0] rounded-full border border-[#f4e5be]">
                   {totalActualReceivedQty} Pcs
                 </span>
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 rounded-full border border-[#dcdfe4] text-xs font-semibold text-[#777b86] hover:bg-gray-50 cursor-pointer transition active:scale-95"
+                  className="px-5 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold cursor-pointer transition active:scale-95"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-full bg-[#17191c] hover:bg-[#25282d] text-[#c09748] font-bold text-xs cursor-pointer flex items-center gap-2 shadow-xs transition active:scale-95"
+                  className="px-6 py-2.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs cursor-pointer flex items-center gap-2 shadow-2xs transition active:scale-95"
                 >
-                  <Save className="w-4 h-4 text-[#c09748]" />
+                  <Save className="w-4 h-4 text-[#8a6521]" />
                   <span>Accept Material & Generate Official GRN</span>
                 </button>
               </div>
