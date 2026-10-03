@@ -210,7 +210,7 @@ export const OfficialGRNDocument: React.FC<OfficialGRNDocumentProps> = ({
                 return (
                   <tr key={item.id || idx} className="hover:bg-[#fafafb] transition">
                     <td className="p-3 text-center font-mono text-[#777b86] text-[11px]">{idx + 1}</td>
-                    <td className="p-3 font-mono font-bold text-[#c09748]">
+                    <td className="p-3 font-mono text-[#17191c]">
                       {item.partCode}
                     </td>
                     <td className="p-3 font-medium text-[#17191c]">

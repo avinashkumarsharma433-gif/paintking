@@ -2069,10 +2069,10 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
     sumActual += actQ;
     sumShortExcess += diffQ;
 
-    // Part Code (Gold Brand Touch)
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.setTextColor(192, 151, 72); // Brand Gold #c09748
+    // Part Code (Normal Regular Charcoal Text)
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.0);
+    doc.setTextColor(23, 25, 28);
     doc.text(item.partCode || 'SUBSTRATE', 17, currentY + 4.8);
 
     // Part Description
