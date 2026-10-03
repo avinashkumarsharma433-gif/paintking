@@ -1969,7 +1969,7 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
   const SIGNATURE_BLOCK_HEIGHT = 36;
 
   const drawGrnTableHeader = (y: number) => {
-    doc.setFillColor(242, 242, 243); // Clean light grey
+    doc.setFillColor(242, 242, 243); // Clean light grey #f2f2f3
     doc.rect(14, y, 182, HEADER_HEIGHT, 'F');
     doc.setDrawColor(...TABLE_BORDER_COLOR);
     doc.setLineWidth(TABLE_LINE_WIDTH);
@@ -1988,10 +1988,21 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
     doc.text('SHORT/EXCESS', 185.5, y + 4.8, { align: 'center' });
   };
 
-  const drawGrnTableVerticalLines = (startY: number, endY: number) => {
+  const drawGrnTableVerticalLines = (startY: number, endY: number, hasTotalRow: boolean = false, totalRowStartY?: number) => {
     doc.setDrawColor(...TABLE_BORDER_COLOR);
     doc.setLineWidth(TABLE_LINE_WIDTH);
-    colX.forEach(x => {
+
+    // 1. Outer Left and Right Boundaries
+    doc.line(14, startY, 14, endY);
+    doc.line(196, startY, 196, endY);
+
+    // 2. Col 1 Divider (x = 40 between Part Code & Description)
+    // Stops at totalRowStartY so it NEVER cuts through 'TOTAL STORE INTAKE:'
+    const col1DividerEndY = (hasTotalRow && totalRowStartY !== undefined) ? totalRowStartY : endY;
+    doc.line(40, startY, 40, col1DividerEndY);
+
+    // 3. Numeric Column Dividers (run full height across data rows and total row)
+    [96, 116, 134, 152, 175].forEach(x => {
       doc.line(x, startY, x, endY);
     });
   };
@@ -2028,7 +2039,7 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
   rawItems.forEach((item, idx) => {
     // If next row exceeds page limit, close current table page and start a new page
     if (currentY + ROW_HEIGHT > FOOTER_RESERVED_Y) {
-      drawGrnTableVerticalLines(pageTableStartY, currentY);
+      drawGrnTableVerticalLines(pageTableStartY, currentY, false);
       doc.addPage();
       const nextStartY = drawStandardPdfHeader(doc);
 
@@ -2108,8 +2119,8 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
   });
 
   // Check if Total Summary Row fits on this page
-  if (currentY + 8 > FOOTER_RESERVED_Y) {
-    drawGrnTableVerticalLines(pageTableStartY, currentY);
+  if (currentY + 7.5 > FOOTER_RESERVED_Y) {
+    drawGrnTableVerticalLines(pageTableStartY, currentY, false);
     doc.addPage();
     const nextStartY = drawStandardPdfHeader(doc);
     currentY = nextStartY + 6;
@@ -2118,7 +2129,9 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
     currentY += HEADER_HEIGHT;
   }
 
-  // Total Summary Row with distinct clean grey background
+  const totalRowStartY = currentY;
+
+  // Total Summary Row with distinct clean light grey background
   doc.setFillColor(242, 242, 243);
   doc.rect(14, currentY, 182, 7.5, 'F');
   doc.setDrawColor(...TABLE_BORDER_COLOR);
@@ -2140,8 +2153,8 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
 
   currentY += 7.5;
 
-  // Draw Vertical Lines for the final table segment
-  drawGrnTableVerticalLines(pageTableStartY, currentY);
+  // Draw Vertical Lines for the final table segment (stopping the col1 divider before the total row)
+  drawGrnTableVerticalLines(pageTableStartY, currentY, true, totalRowStartY);
 
   // 5. Section 3: Official Signatures Block (3 Columns)
   if (currentY + SIGNATURE_BLOCK_HEIGHT > FOOTER_RESERVED_Y) {
