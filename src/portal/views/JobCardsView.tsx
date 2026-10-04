@@ -55,20 +55,30 @@ export const JobCardsView: React.FC = () => {
     updateJobCardStageReceipt,
     currentUser,
     activeSubTab,
-    setActiveSubTab
+    setActiveSubTab,
+    painters,
+    getPainterActiveJobCount,
+    canAssignPainter,
+    assignJobCardToPainter,
+    verifyAndAcceptJob,
+    rejectAndRequestRework,
+    pendingVerificationJobsCount
   } = usePortalStore();
 
-  // Active filter tab: ALL, MASTER, PAINTER_CHILD, REWORK_CHILD, REQUISITIONS, STORE_STOCK
-  const [activeTab, setActiveTab] = useState<'ALL' | 'MASTER' | 'PAINTERS' | 'REWORK' | 'REQUISITIONS' | 'STORE_STOCK'>('ALL');
+  // Active filter tab: ALL, MASTER, PAINTERS, REWORK, REQUISITIONS, STORE_STOCK, BOOTH_FLEET
+  const [activeTab, setActiveTab] = useState<'ALL' | 'MASTER' | 'PAINTERS' | 'REWORK' | 'REQUISITIONS' | 'STORE_STOCK' | 'BOOTH_FLEET'>('ALL');
 
   // Synchronize with sidebar sub-item clicks
   useEffect(() => {
-    if (activeSubTab === 'ALL' || activeSubTab === 'MASTER' || activeSubTab === 'PAINTERS' || activeSubTab === 'REWORK' || activeSubTab === 'REQUISITIONS' || activeSubTab === 'STORE_STOCK') {
-      setActiveTab(activeSubTab);
-    } else if (activeSubTab === 'BOOTH_FLEET') {
-      setShowLineFleetModal(true);
+    if (activeSubTab === 'ALL' || activeSubTab === 'MASTER' || activeSubTab === 'PAINTERS' || activeSubTab === 'REWORK' || activeSubTab === 'REQUISITIONS' || activeSubTab === 'STORE_STOCK' || activeSubTab === 'BOOTH_FLEET') {
+      setActiveTab(activeSubTab as any);
     }
   }, [activeSubTab]);
+
+  const handleSelectTab = (tab: 'ALL' | 'MASTER' | 'PAINTERS' | 'REWORK' | 'REQUISITIONS' | 'STORE_STOCK' | 'BOOTH_FLEET') => {
+    setActiveTab(tab);
+    setActiveSubTab(tab);
+  };
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [stockClientFilter, setStockClientFilter] = useState<string>('ALL');
@@ -159,6 +169,18 @@ export const JobCardsView: React.FC = () => {
   const [stageExpectedCount, setStageExpectedCount] = useState<number>(0);
   const [stageVerifiedCount, setStageVerifiedCount] = useState<number>(0);
   const [stageHandshakeNotes, setStageHandshakeNotes] = useState<string>('Count verified physically before process initiation.');
+
+  // Painter Assignment Modal State (Max-2 Guardrail)
+  const [showAssignPainterModal, setShowAssignPainterModal] = useState<boolean>(false);
+  const [selectedJcForAssign, setSelectedJcForAssign] = useState<JobCard | null>(null);
+  const [selectedPainterToAssign, setSelectedPainterToAssign] = useState<string>('Ramesh Kumar (P1)');
+  const [assignPainterError, setAssignPainterError] = useState<string | null>(null);
+
+  // PM Floor Verification Review Modal State
+  const [showVerificationModal, setShowVerificationModal] = useState<boolean>(false);
+  const [selectedJcForVerification, setSelectedJcForVerification] = useState<JobCard | null>(null);
+  const [verificationRemarksInput, setVerificationRemarksInput] = useState<string>('Approved and verified on shop floor.');
+  const [reworkRemarksInput, setReworkRemarksInput] = useState<string>('Requires de-nibbing and clear coat respray.');
 
   const toggleMasterExpand = (id: string) => {
     setExpandedMasterIds(prev => ({ ...prev, [id]: !prev[id] }));
@@ -283,6 +305,52 @@ export const JobCardsView: React.FC = () => {
     setShowJobCardModal(true);
   };
 
+  const handleOpenAssignPainterModal = (jc: JobCard) => {
+    setSelectedJcForAssign(jc);
+    setSelectedPainterToAssign(jc.assignedPainterName || 'Ramesh Kumar (P1)');
+    setAssignPainterError(null);
+    setShowAssignPainterModal(true);
+  };
+
+  const handleAssignPainterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedJcForAssign) return;
+
+    const result = assignJobCardToPainter(selectedJcForAssign.jobCardNo, selectedPainterToAssign);
+    if (!result.success) {
+      setAssignPainterError(result.message);
+      return;
+    }
+
+    setShowAssignPainterModal(false);
+    setSelectedJcForAssign(null);
+    setToastMessage(`✓ Job Card ${selectedJcForAssign.jobCardNo} successfully assigned to ${selectedPainterToAssign}!`);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleOpenVerificationModal = (jc: JobCard) => {
+    setSelectedJcForVerification(jc);
+    setVerificationRemarksInput(`Physical inspection passed on shop floor. Verified by ${currentUser.name}.`);
+    setReworkRemarksInput('Rejection observed: Need de-nibbing and clear coat respray.');
+    setShowVerificationModal(true);
+  };
+
+  const handleDirectVerifyAccept = (jc: JobCard) => {
+    verifyAndAcceptJob(jc.jobCardNo, currentUser.name, 'Approved & Verified on Shop Floor by Production Manager');
+    setShowVerificationModal(false);
+    setSelectedJcForVerification(null);
+    setToastMessage(`✓ Job Card ${jc.jobCardNo} verified & accepted! Painter slot freed.`);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleDirectRequestRework = (jc: JobCard) => {
+    rejectAndRequestRework(jc.jobCardNo, reworkRemarksInput || 'Rework required after PM inspection');
+    setShowVerificationModal(false);
+    setSelectedJcForVerification(null);
+    setToastMessage(`⚠️ Job Card ${jc.jobCardNo} routed back for floor rework.`);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
   // Open Requisition (MRN) Modal - demanded for a specific Painting Line / Booth
   const handleOpenRequisitionModal = (targetJc?: JobCard, targetLine?: string) => {
     if (targetLine) {
@@ -389,19 +457,63 @@ export const JobCardsView: React.FC = () => {
     setShowJobCardModal(true);
   };
 
-  // Open Requisition directly from Store Stock Item for a specific Booth Line
+  // DIRECT 1-CLICK JOB CARD CREATION & STORE MATERIAL DEMAND from Store Stock Item
   const handleRequestFromSpecificStock = (stockItem: any) => {
-    setReqAllocationMode('new_batch');
-    setReqJobCardNo('Pending Job Card Creation');
-    setReqPartCode(stockItem.partCode);
-    setReqPartDesc(stockItem.partDesc);
-    setReqCustomer(stockItem.customer);
-    setReqColor('Standard Shade');
-    setReqWoNo(stockItem.challanNo || 'WO-PLANNED');
-    setReqQty(stockItem.balanceAvailable > 0 ? Math.min(stockItem.balanceAvailable, 500) : 100);
-    setReqUom(stockItem.uom);
-    setReqUrgency('Normal');
-    setShowRequisitionModal(true);
+    const nextJcIndex = String(jobCards.length + 1).padStart(3, '0');
+    const availableCount = stockItem.balanceAvailable > 0 ? stockItem.balanceAvailable : 250;
+    
+    const initialJcData: Partial<JobCard> = {
+      jobCardNo: `JC-2026-${nextJcIndex}`,
+      woNo: stockItem.challanNo || `WO-2026-${nextJcIndex}`,
+      wNo: stockItem.challanNo || `WO-2026-${nextJcIndex}`,
+      customer: stockItem.customer,
+      partCode: stockItem.partCode,
+      partDescription: stockItem.partDesc,
+      color: 'Monza Red Gloss',
+      targetQty: availableCount,
+      issuedRawQty: availableCount,
+      sprayedQty: 0,
+      goodQty: 0,
+      rejectQty: 0,
+      status: 'Open',
+      jobCardType: 'master',
+      docNo: 'Doc No: 001',
+      dept: 'Booth #1 (Continuous Conveyor Line)',
+      boothNo: 'Booth #1 (Continuous Conveyor Line)',
+      painterName: 'Ramesh Kumar (P1)',
+      assignedPainterName: 'Ramesh Kumar (P1)',
+      assignedPainterId: 'PAINTER-01',
+      checkingPerson: 'Amit Verma (QA Lead)',
+      issuedMaterials: [
+        {
+          id: '1',
+          itemDescription: stockItem.partDesc || 'ABS Raw Substrates',
+          qty: availableCount,
+          colour: 'Raw Tone',
+          uom: stockItem.uom || 'Pcs',
+          remark: `Store Lot ${stockItem.grnNo} (${stockItem.customer})`
+        },
+        {
+          id: '2',
+          itemDescription: 'Monza Red 2K PU Basecoat Paint (PPG)',
+          qty: Math.max(5, Math.round(availableCount * 0.05)),
+          colour: 'Monza Red Gloss',
+          uom: 'Litres',
+          remark: 'Store paint batch'
+        },
+        {
+          id: '3',
+          itemDescription: 'PU Thinner 400 Solvent',
+          qty: Math.max(2, Math.round(availableCount * 0.02)),
+          colour: 'Clear',
+          uom: 'Litres',
+          remark: 'Solvent line mix'
+        }
+      ]
+    };
+
+    setSelectedJobCardForView(initialJcData as JobCard);
+    setShowJobCardModal(true);
   };
 
   // Add / manage line fleet
@@ -586,243 +698,181 @@ export const JobCardsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Operational Principles Strip */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="p-4 rounded-[20px] bg-white border border-[#ececec] shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-[#faf3e0] text-[#c09748] flex items-center justify-center shrink-0">
-            <Users className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-[10px] font-bold text-[#777b86] uppercase tracking-wider">3-Painter Dedicated Splitting</div>
-            <div className="text-sm font-semibold text-[#17191c]">Ramesh (P1) • Suresh (P2) • Mahesh (P3)</div>
-            <div className="text-[10px] text-[#777b86]">Individual piece accountability & pace parity</div>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-[20px] bg-white border border-[#ececec] shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
-            <RotateCcw className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-[10px] font-bold text-[#777b86] uppercase tracking-wider">Rework on Rejection Loop</div>
-            <div className="text-sm font-semibold text-[#17191c]">De-nibbing, Sanding & Re-spray</div>
-            <div className="text-[10px] text-[#777b86]">Defects salvaged via dedicated RW Child Cards</div>
-          </div>
-        </div>
-
-        <div className="p-4 rounded-[20px] bg-white border border-[#ececec] shadow-xs flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-            <Clock className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="text-[10px] font-bold text-[#777b86] uppercase tracking-wider">Single Shift Floor Governance</div>
-            <div className="text-sm font-semibold text-[#17191c]">08:30 – 18:30 Plant Hours</div>
-            <div className="text-[10px] text-[#777b86]">Daily EOD shutdown & physical tally lock</div>
-          </div>
-        </div>
+      {/* ====================================================================== */}
+      {/* 2. TAB NAVIGATION CHIPS (7 SUB-MODULES LINKED)                            */}
+      {/* ====================================================================== */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-[#ececec] pb-3">
+        <button
+          onClick={() => handleSelectTab('ALL')}
+          className={`px-4 py-2 rounded-full text-xs font-semibold transition cursor-pointer ${
+            activeTab === 'ALL'
+              ? 'bg-[#17191c] text-[#c09748] shadow-xs'
+              : 'bg-white hover:bg-[#fafafb] text-[#777b86] border border-[#ececec]'
+          }`}
+        >
+          All Job Cards ({jobCards.length})
+        </button>
+        <button
+          onClick={() => handleSelectTab('MASTER')}
+          className={`px-4 py-2 rounded-full text-xs font-semibold transition cursor-pointer ${
+            activeTab === 'MASTER'
+              ? 'bg-[#17191c] text-[#c09748] shadow-xs'
+              : 'bg-white hover:bg-[#fafafb] text-[#777b86] border border-[#ececec]'
+          }`}
+        >
+          Master Batches ({masterCount})
+        </button>
+        <button
+          onClick={() => handleSelectTab('PAINTERS')}
+          className={`px-4 py-2 rounded-full text-xs font-semibold transition cursor-pointer ${
+            activeTab === 'PAINTERS'
+              ? 'bg-[#17191c] text-[#c09748] shadow-xs'
+              : 'bg-white hover:bg-[#fafafb] text-[#777b86] border border-[#ececec]'
+          }`}
+        >
+          3-Painter Splits ({painterChildCount})
+        </button>
+        <button
+          onClick={() => handleSelectTab('REWORK')}
+          className={`px-4 py-2 rounded-full text-xs font-semibold transition cursor-pointer ${
+            activeTab === 'REWORK'
+              ? 'bg-[#17191c] text-[#c09748] shadow-xs'
+              : 'bg-white hover:bg-[#fafafb] text-[#777b86] border border-[#ececec]'
+          }`}
+        >
+          Rework & Salvage ({reworkChildCount})
+        </button>
+        <button
+          onClick={() => handleSelectTab('REQUISITIONS')}
+          className={`px-4 py-2 rounded-full text-xs font-semibold transition cursor-pointer ${
+            activeTab === 'REQUISITIONS'
+              ? 'bg-[#17191c] text-[#c09748] shadow-xs'
+              : 'bg-white hover:bg-[#fafafb] text-[#777b86] border border-[#ececec]'
+          }`}
+        >
+          Store Demands (MRN) ({materialRequisitions.length})
+        </button>
+        <button
+          onClick={() => handleSelectTab('STORE_STOCK')}
+          className={`px-4 py-2 rounded-full text-xs font-semibold transition cursor-pointer ${
+            activeTab === 'STORE_STOCK'
+              ? 'bg-[#17191c] text-[#c09748] shadow-xs'
+              : 'bg-white hover:bg-[#fafafb] text-[#777b86] border border-[#ececec]'
+          }`}
+        >
+          Available Store Stock ({storeStockList.length})
+        </button>
+        <button
+          onClick={() => handleSelectTab('BOOTH_FLEET')}
+          className={`px-4 py-2 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'BOOTH_FLEET'
+              ? 'bg-[#17191c] text-[#c09748] shadow-xs'
+              : 'bg-white hover:bg-[#fafafb] text-[#777b86] border border-[#ececec]'
+          }`}
+        >
+          <Settings className="w-3.5 h-3.5 text-[#c09748]" />
+          <span>Painting Lines & Spray Booth Fleet ({paintingLines.length})</span>
+        </button>
       </div>
 
-      {/* Painting Lines & Spray Booth Fleet Configuration Strip */}
-      <div className="bg-white rounded-[24px] border border-[#ececec] p-4 sm:p-5 shadow-xs space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#c09748] animate-pulse" />
-              <h2 className="font-serif font-normal text-lg sm:text-xl text-[#17191c]">
-                Operational Painting Lines & Spray Booth Fleet
+      {/* PENDING FLOOR VERIFICATION REVIEW DESK (MANAGER ACCEPTANCE GATEWAY) */}
+      {pendingVerificationJobsCount > 0 && (
+        <div className="p-4 sm:p-5 rounded-[24px] bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-white border border-amber-300 shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <span className="w-3 h-3 rounded-full bg-amber-500 animate-ping" />
+              <h2 className="font-serif font-normal text-base sm:text-lg text-[#17191c]">
+                ⚡ Urgent Floor Action: {pendingVerificationJobsCount} Job Cards Awaiting Production Manager Verification
               </h2>
-              <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold">
-                {paintingLines.filter(l => l.status === 'Active').length} Active Lines
-              </span>
             </div>
-            <p className="text-xs text-[#777b86] mt-0.5">
-              Production Manager floor booth layout configures karta hai. Har booth ke hisaab se Store se material demand (MRN) ki jaati hai, fir receipt ke baad Job Card generate hota hai.
-            </p>
+            <span className="text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 self-start sm:self-auto">
+              Painter marked finished • Slot locked until verified
+            </span>
           </div>
+          <p className="text-xs text-[#777b86]">
+            Floor painters ne yeh jobs finish mark kar diye hain. Physical quality verify karke <strong>"Verify & Accept"</strong> click karein taaki painter ka slot free ho sake, ya <strong>"Request Rework"</strong> karein.
+          </p>
 
-          <button
-            type="button"
-            onClick={() => setShowLineFleetModal(true)}
-            className="px-3.5 py-1.5 rounded-full bg-white hover:bg-gray-50 border border-[#ececec] text-[#17191c] hover:border-[#c09748] text-xs font-semibold flex items-center gap-1.5 shadow-2xs cursor-pointer transition self-start sm:self-auto"
-          >
-            <Settings className="w-3.5 h-3.5 text-[#c09748]" />
-            <span>⚙️ Configure Booths & Lines</span>
-          </button>
-        </div>
-
-        {/* Fleet Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {paintingLines.map(line => {
-            const isActive = line.status === 'Active';
-            return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+            {jobCards.filter(j => j.painterJobStatus === 'Pending Verification' || j.status === 'Pending Verification').map(jc => (
               <div
-                key={line.id}
-                className={`p-3.5 rounded-[18px] border transition flex flex-col justify-between gap-2.5 ${
-                  isActive
-                    ? 'border-[#ececec] bg-white hover:border-[#c09748]/50 shadow-2xs'
-                    : 'border-dashed border-gray-300 bg-gray-50/70 opacity-75'
-                }`}
+                key={jc.jobCardNo}
+                className="p-3.5 rounded-[18px] bg-white border border-amber-200 shadow-xs flex flex-col justify-between gap-3"
               >
                 <div>
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="text-[10px] font-mono font-bold text-[#8a6521] px-1.5 py-0.5 rounded-md bg-[#faf3e0]">
-                      {line.id}
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="text-xs font-mono font-bold text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-md">
+                      {jc.jobCardNo}
                     </span>
-                    <span className={`px-2 py-0.2 rounded-full text-[9px] font-bold ${
-                      isActive ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
-                    }`}>
-                      {line.status}
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                      Finished at {jc.painterFinishedAt ? new Date(jc.painterFinishedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Floor'}
                     </span>
                   </div>
-                  <div className="font-semibold text-xs text-[#17191c] line-clamp-1" title={line.name}>
-                    {line.name}
+                  <div className="text-xs font-bold text-[#17191c]">{jc.partDescription}</div>
+                  <div className="text-[11px] text-[#777b86] flex items-center justify-between mt-1 font-mono">
+                    <span>Target: <strong>{jc.targetQty} pcs</strong></span>
+                    <span className="text-emerald-700">OK: <strong>{jc.sprayedQty || jc.targetQty} pcs</strong></span>
+                    <span className="text-rose-700">Rej: <strong>{jc.rejectQty || 0} pcs</strong></span>
                   </div>
-                  <div className="text-[10px] text-[#777b86] mt-0.5">
-                    {line.type}
+                  <div className="text-[11px] text-[#17191c] font-semibold mt-1.5 flex items-center gap-1">
+                    <Paintbrush className="w-3 h-3 text-[#c09748]" />
+                    <span>Painter: {jc.assignedPainterName || jc.painterName || 'Floor Sprayer'}</span>
                   </div>
+                  {jc.painterNotes && (
+                    <div className="text-[10px] text-[#777b86] italic bg-[#fafafb] p-1.5 rounded-lg mt-1.5 border border-[#ececec]">
+                      "{jc.painterNotes}"
+                    </div>
+                  )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleOpenRequisitionModal(undefined, line.name)}
-                  disabled={isPlantDayClosed || !isActive}
-                  className={`w-full py-1.5 rounded-full text-[11px] font-medium flex items-center justify-center gap-1 transition ${
-                    isActive && !isPlantDayClosed
-                      ? 'bg-[#17191c] hover:bg-black text-[#c09748] cursor-pointer shadow-2xs'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  <ArrowRightLeft className="w-3 h-3 text-[#c09748]" />
-                  <span>+ Demand Material</span>
-                </button>
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#ececec]">
+                  <button
+                    type="button"
+                    onClick={() => handleDirectRequestRework(jc)}
+                    className="py-1.5 px-2 rounded-full border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-[11px] font-bold cursor-pointer transition text-center"
+                  >
+                    🔄 Request Rework
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDirectVerifyAccept(jc)}
+                    className="py-1.5 px-2 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold cursor-pointer transition shadow-xs flex items-center justify-center gap-1"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>✓ Verify & Accept</span>
+                  </button>
+                </div>
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* DEDICATED SEARCH ROW */}
-      <div className="relative w-full">
-        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none z-10">
-          <Search className="w-4 h-4 text-[#c09748]" />
+      {/* DEDICATED SEARCH ROW for Cards */}
+      {(activeTab === 'ALL' || activeTab === 'MASTER' || activeTab === 'PAINTERS' || activeTab === 'REWORK') && (
+        <div className="relative w-full">
+          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none z-10">
+            <Search className="w-4 h-4 text-[#c09748]" />
+          </div>
+          <input
+            type="text"
+            placeholder="Search Job Card, Part Code, Customer, Assigned Painter..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ paddingLeft: '40px' }}
+            className="w-full pr-10 py-2.5 rounded-[16px] bg-white border border-[#ececec] text-xs text-[#17191c] placeholder:text-[#a3a6af] shadow-2xs focus:outline-none focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/20 transition"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-[#777b86] hover:text-[#17191c] cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
-        <input
-          type="text"
-          placeholder="Search Job Card, Part Code, Customer, Assigned Painter..."
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          style={{ paddingLeft: '40px' }}
-          className="w-full pr-10 py-2.5 rounded-[16px] bg-white border border-[#ececec] text-xs text-[#17191c] placeholder:text-[#a3a6af] shadow-2xs focus:outline-none focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/20 transition"
-        />
-        {searchQuery && (
-          <button
-            type="button"
-            onClick={() => setSearchQuery('')}
-            className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-[#777b86] hover:text-[#17191c] cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-
-      {/* Real-time Production Overview Cards - All 4 Clickable */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Card 1: Master Batches (Clickable -> Master Cards) */}
-        <div
-          onClick={() => setActiveTab('MASTER')}
-          className={`p-4 rounded-[20px] bg-white border shadow-xs space-y-1 cursor-pointer transition hover:shadow-sm hover:border-[#c09748] active:scale-[0.98] ${
-            activeTab === 'MASTER' ? 'border-[#c09748] ring-1 ring-[#c09748]/30' : 'border-[#ececec]'
-          }`}
-          title="Click to view Master Batch Orders"
-        >
-          <div className="text-[10px] font-bold text-[#777b86] uppercase tracking-wider flex items-center justify-between font-mono">
-            <span className="flex items-center gap-1">
-              <Layers className="w-3.5 h-3.5 text-[#c09748]" />
-              MASTER BATCHES
-            </span>
-            <span className="text-[9px] underline font-sans text-[#8a6521]">View &rarr;</span>
-          </div>
-          <div className="text-xl sm:text-2xl font-serif font-bold text-[#17191c]">
-            {masterCount} Batches
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-[#777b86] truncate">
-            {jobCards.length} Total Cards registered
-          </div>
-        </div>
-
-        {/* Card 2: 3-Painter Splits (Clickable -> Painter Cards) */}
-        <div
-          onClick={() => setActiveTab('PAINTERS')}
-          className={`p-4 rounded-[20px] bg-white border shadow-xs space-y-1 cursor-pointer transition hover:shadow-sm hover:border-blue-400 active:scale-[0.98] ${
-            activeTab === 'PAINTERS' ? 'border-blue-400 ring-1 ring-blue-300' : 'border-[#ececec]'
-          }`}
-          title="Click to view 3-Painter P1/P2/P3 Sub-Cards"
-        >
-          <div className="text-[10px] font-bold text-blue-700 uppercase tracking-wider flex items-center justify-between font-mono">
-            <span className="flex items-center gap-1">
-              <Users className="w-3.5 h-3.5 text-blue-600" />
-              PAINTER SPLITS
-            </span>
-            <span className="text-[9px] underline font-sans text-blue-600">View &rarr;</span>
-          </div>
-          <div className="text-xl sm:text-2xl font-serif font-bold text-blue-900">
-            {painterChildCount} Sub-Cards
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-[#777b86] truncate">
-            {totalSprayed.toLocaleString('en-IN')} pcs sprayed
-          </div>
-        </div>
-
-        {/* Card 3: Rework Salvage (Clickable -> Rework Child Cards) */}
-        <div
-          onClick={() => setActiveTab('REWORK')}
-          className={`p-4 rounded-[20px] border shadow-xs space-y-1 cursor-pointer transition hover:shadow-sm active:scale-[0.98] ${
-            activeTab === 'REWORK'
-              ? 'border-amber-400 ring-1 ring-amber-300 bg-amber-50/40'
-              : reworkChildCount > 0
-                ? 'bg-amber-50/30 border-amber-200 hover:border-amber-400'
-                : 'bg-white border-[#ececec] hover:border-[#c09748]'
-          }`}
-          title="Click to view Rework Child Cards"
-        >
-          <div className="text-[10px] font-bold text-amber-800 uppercase tracking-wider flex items-center justify-between font-mono">
-            <span className="flex items-center gap-1">
-              <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
-              REWORK SALVAGE
-            </span>
-            <span className="text-[9px] underline font-sans text-amber-700">View &rarr;</span>
-          </div>
-          <div className="text-xl sm:text-2xl font-serif font-bold text-amber-900">
-            {reworkChildCount} RW Cards
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-[#777b86] truncate">
-            {totalRework} pcs under de-nib/respray
-          </div>
-        </div>
-
-        {/* Card 4: Store Demands MRN (Clickable -> Material Demands & Stock) */}
-        <div
-          onClick={() => setActiveTab('REQUISITIONS')}
-          className={`p-4 rounded-[20px] bg-[#faf7ed] border shadow-xs space-y-1 cursor-pointer transition hover:shadow-sm hover:border-[#c09748] active:scale-[0.98] ${
-            activeTab === 'REQUISITIONS' ? 'border-[#c09748] ring-1 ring-[#c09748]/30' : 'border-[#f4e5be]'
-          }`}
-          title="Click to view Store Demands & Incoming Materials"
-        >
-          <div className="text-[10px] font-bold text-[#8a6521] uppercase tracking-wider flex items-center justify-between font-mono">
-            <span className="flex items-center gap-1">
-              <ArrowRightLeft className="w-3.5 h-3.5 text-[#c09748]" />
-              STORE DEMANDS
-            </span>
-            <span className="text-[9px] underline font-sans text-[#8a6521]">View MRN &rarr;</span>
-          </div>
-          <div className="text-xl sm:text-2xl font-serif font-bold text-[#8a6521]">
-            {materialRequisitions.length} Demands
-          </div>
-          <div className="text-[10px] sm:text-[11px] text-[#8a6521]/80 truncate">
-            {materialRequisitions.filter(r => r.status === 'Pending Store Issue').length} Awaiting Store MIN
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* ====================================================================== */}
       {/* TAB 5: MATERIAL REQUISITIONS & CUSTODY ACCEPTANCE DESK                 */}
@@ -1104,10 +1154,10 @@ export const JobCardsView: React.FC = () => {
                     Live Store Balance
                   </span>
                 </div>
-                <p className="text-xs text-[#777b86] mt-0.5">
-                  Store me kis party ka kaun sa material aur substrate pada hai. Kisi bhi item par <strong>"Request Material"</strong> click karke turant Job Card demand raise karein.
-                </p>
-              </div>
+                  <p className="text-xs text-[#777b86] mt-0.5">
+                    Store me live substrate aur paint stock. Kisi bhi item par <strong>"+ Create Job Card"</strong> click karke turant Job Card banayein, painter assign karein, aur Store ko material release demand bhejein.
+                  </p>
+                </div>
 
               {/* Customer Filter */}
               <div className="flex items-center gap-2">
@@ -1189,10 +1239,10 @@ export const JobCardsView: React.FC = () => {
                                 type="button"
                                 onClick={() => handleRequestFromSpecificStock(item)}
                                 disabled={isPlantDayClosed}
-                                className="px-3.5 py-1.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs shadow-2xs cursor-pointer transition flex items-center gap-1.5 ml-auto"
+                                className="px-3.5 py-1.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs shadow-2xs cursor-pointer transition flex items-center gap-1.5 ml-auto active:scale-95"
                               >
-                                <ShoppingCart className="w-3.5 h-3.5 text-[#c09748]" />
-                                <span>+ Request Material</span>
+                                <Plus className="w-3.5 h-3.5 text-[#c09748]" />
+                                <span>+ Create Job Card ({item.balanceAvailable} {item.uom})</span>
                               </button>
                             ) : (
                               <span className="text-[11px] text-gray-400 italic">Fully Issued</span>
@@ -1242,14 +1292,102 @@ export const JobCardsView: React.FC = () => {
                       type="button"
                       onClick={() => handleRequestFromSpecificStock(item)}
                       disabled={isPlantDayClosed}
-                      className="w-full py-2 rounded-full bg-[#17191c] text-[#c09748] font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                      className="w-full py-2.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
                     >
-                      <ShoppingCart className="w-4 h-4 text-[#c09748]" />
-                      <span>+ Demand from Store ({item.balanceAvailable} Available)</span>
+                      <Plus className="w-4 h-4 text-[#c09748]" />
+                      <span>+ Create Job Card for this Stock ({item.balanceAvailable} {item.uom})</span>
                     </button>
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      ) : activeTab === 'BOOTH_FLEET' ? (
+        /* ====================================================================== */
+        /* TAB 7: PAINTING LINES & SPRAY BOOTH FLEET DEDICATED VIEW               */
+        /* ====================================================================== */
+        <div className="space-y-4">
+          <div className="bg-white rounded-[24px] border border-[#ececec] p-4 sm:p-6 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#c09748] animate-pulse" />
+                  <h3 className="font-serif font-normal text-lg sm:text-2xl text-[#17191c]">
+                    Operational Painting Lines & Spray Booth Fleet
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold">
+                    {paintingLines.filter(l => l.status === 'Active').length}/{paintingLines.length} Active Lines
+                  </span>
+                </div>
+                <p className="text-xs text-[#777b86] mt-1">
+                  Production Manager har booth ke hisaab se Store se material demand (MRN) raise karta hai aur line throughput monitor karta hai.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowLineFleetModal(true)}
+                className="px-4 py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition self-start sm:self-auto"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>+ Add / Configure Booths</span>
+              </button>
+            </div>
+
+            {/* Comprehensive Fleet Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {paintingLines.map(line => {
+                const isActive = line.status === 'Active';
+                return (
+                  <div
+                    key={line.id}
+                    className={`p-4 rounded-[20px] border transition flex flex-col justify-between gap-4 ${
+                      isActive
+                        ? 'border-[#f4e5be] bg-white hover:border-[#c09748] shadow-xs'
+                        : 'border-dashed border-gray-300 bg-gray-50/70 opacity-75'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-xs font-mono font-bold text-[#8a6521] px-2 py-0.5 rounded-md bg-[#faf3e0]">
+                          {line.id}
+                        </span>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          isActive ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
+                        }`}>
+                          {line.status}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-sm text-[#17191c]">
+                        {line.name}
+                      </h4>
+                      <div className="text-xs text-[#777b86] mt-1 font-mono">
+                        Tech: {line.type}
+                      </div>
+                      <div className="text-[11px] text-[#8a6521] mt-2 p-2 rounded-[12px] bg-[#fafafb] border border-[#ececec]">
+                        Capacity: <strong>1,200 pcs / shift</strong> • Air Pressure: 4.2 Bar
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-[#ececec]">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenRequisitionModal(undefined, line.name)}
+                        disabled={isPlantDayClosed || !isActive}
+                        className={`w-full py-2 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
+                          isActive && !isPlantDayClosed
+                            ? 'bg-[#17191c] hover:bg-black text-[#c09748] cursor-pointer shadow-2xs'
+                            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        }`}
+                      >
+                        <ArrowRightLeft className="w-3.5 h-3.5 text-[#c09748]" />
+                        <span>+ Demand Material (MRN)</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1594,25 +1732,48 @@ export const JobCardsView: React.FC = () => {
                           onClick={() => toggleMasterExpand(jc.jobCardNo)}
                           className="px-3.5 py-2 rounded-full border border-[#ececec] bg-white text-[#777b86] hover:text-[#17191c] text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
                         >
-                          {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                          {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-[#c09748]" /> : <ChevronRight className="w-3.5 h-3.5 text-[#c09748]" />}
                           <span>{childCards.length} Sub-Cards</span>
                         </button>
                       )}
+
+                      {/* Assign Floor Painter Button */}
+                      <button
+                        onClick={() => handleOpenAssignPainterModal(jc)}
+                        disabled={isPlantDayClosed}
+                        className="px-3.5 py-2 rounded-full border border-[#f4e5be] bg-[#faf7ed] text-[#8a6521] hover:bg-[#faf3e0] text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer"
+                        title="Assign to floor painter with max-2 active card limit check"
+                      >
+                        <Paintbrush className="w-3.5 h-3.5 text-[#c09748]" />
+                        <span>{jc.assignedPainterName ? `Painter: ${jc.assignedPainterName.split(' ')[0]}` : 'Assign Painter'}</span>
+                      </button>
                     </div>
 
-                    <button
-                      onClick={() => handleOpenBatchModal(jc)}
-                      disabled={isPlantDayClosed}
-                      title={isPlantDayClosed ? "Floor locked after 18:30 EOD shutdown." : ""}
-                      className={`px-5 py-2 rounded-full text-xs font-bold transition shadow-xs w-full sm:w-auto flex items-center justify-center gap-1.5 ${
-                        isPlantDayClosed
-                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300'
-                          : 'bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] cursor-pointer'
-                      }`}
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>Log Shift Output (+Qty)</span>
-                    </button>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      {jc.painterJobStatus === 'Pending Verification' ? (
+                        <button
+                          onClick={() => handleOpenVerificationModal(jc)}
+                          className="px-4 py-2 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer w-full sm:w-auto animate-pulse"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Verify & Accept</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenBatchModal(jc)}
+                          disabled={isPlantDayClosed}
+                          title={isPlantDayClosed ? "Floor locked after 18:30 EOD shutdown." : ""}
+                          className={`px-5 py-2 rounded-full text-xs font-bold transition shadow-xs w-full sm:w-auto flex items-center justify-center gap-1.5 ${
+                            isPlantDayClosed
+                              ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300'
+                              : 'bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] cursor-pointer'
+                          }`}
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Log Shift Output (+Qty)</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -2647,6 +2808,214 @@ export const JobCardsView: React.FC = () => {
               >
                 Close Fleet Settings
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================== */}
+      {/* MODAL 8: PAINTER FLOOR ASSIGNMENT WITH MAX-2 GUARDRAIL                 */}
+      {/* ====================================================================== */}
+      {showAssignPainterModal && selectedJcForAssign && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+                  FLOOR WORKLOAD GOVERNANCE • MAX 2 JOBS
+                </span>
+                <h3 className="text-base sm:text-lg font-serif font-normal text-[#17191c] mt-1">
+                  Assign Job Card to Floor Painter
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowAssignPainterModal(false)}
+                className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Selected Job Card details */}
+            <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-1.5 font-mono">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm text-[#17191c]">{selectedJcForAssign.jobCardNo}</span>
+                <span className="text-[#8a6521] font-bold">{selectedJcForAssign.targetQty} Pcs Target</span>
+              </div>
+              <div className="text-xs text-[#777b86] font-sans">
+                {selectedJcForAssign.customer} • {selectedJcForAssign.partDescription} ({selectedJcForAssign.partCode})
+              </div>
+            </div>
+
+            {assignPainterError && (
+              <div className="p-3 rounded-[14px] bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{assignPainterError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleAssignPainterSubmit} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-[#17191c] mb-1.5">
+                  Select Target Floor Painter (Showing Live Workload):
+                </label>
+                <div className="space-y-2">
+                  {painters.map(painter => {
+                    const activeCount = getPainterActiveJobCount(painter.name);
+                    const isAvailable = canAssignPainter(painter.name);
+                    const isSelected = selectedPainterToAssign === painter.name;
+
+                    return (
+                      <div
+                        key={painter.id}
+                        onClick={() => {
+                          if (isAvailable) {
+                            setSelectedPainterToAssign(painter.name);
+                            setAssignPainterError(null);
+                          }
+                        }}
+                        className={`p-3 rounded-[16px] border transition flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? 'border-[#c09748] bg-[#faf7ed] ring-2 ring-[#c09748]/30 cursor-pointer'
+                            : isAvailable
+                              ? 'border-[#ececec] bg-white hover:border-[#c09748]/60 cursor-pointer'
+                              : 'border-dashed border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <input
+                            type="radio"
+                            name="painter_selection"
+                            checked={isSelected}
+                            disabled={!isAvailable}
+                            onChange={() => {
+                              setSelectedPainterToAssign(painter.name);
+                              setAssignPainterError(null);
+                            }}
+                            className="text-[#c09748] focus:ring-[#c09748]"
+                          />
+                          <div>
+                            <div className="font-bold text-xs text-[#17191c]">{painter.name}</div>
+                            <div className="text-[10px] text-[#777b86]">{painter.boothNumber} • {painter.specialization}</div>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                            activeCount === 0
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                              : activeCount === 1
+                                ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                                : 'bg-rose-50 text-rose-800 border border-rose-200'
+                          }`}>
+                            {activeCount}/2 Active
+                          </span>
+                          <div className="text-[9px] text-[#777b86] mt-0.5">
+                            {isAvailable ? 'Available for job' : '⚠️ CAP REACHED'}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowAssignPainterModal(false)}
+                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!canAssignPainter(selectedPainterToAssign)}
+                  className={`px-6 py-2.5 rounded-full font-bold shadow-xs transition flex items-center gap-1.5 ${
+                    canAssignPainter(selectedPainterToAssign)
+                      ? 'bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] cursor-pointer'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  <Paintbrush className="w-4 h-4" />
+                  <span>Assign to {selectedPainterToAssign.split(' ')[0]}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================== */}
+      {/* MODAL 9: PM FLOOR VERIFICATION & REWORK DESK MODAL                    */}
+      {/* ====================================================================== */}
+      {showVerificationModal && selectedJcForVerification && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-900 text-[10px] font-mono uppercase tracking-widest font-bold">
+                  PM VERIFICATION GATEWAY
+                </span>
+                <h3 className="text-base sm:text-lg font-serif font-normal text-[#17191c] mt-1">
+                  Verify & Accept Finished Job Card
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowVerificationModal(false)}
+                className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2">
+              <div className="flex items-center justify-between font-mono">
+                <span className="font-bold text-sm text-[#17191c]">{selectedJcForVerification.jobCardNo}</span>
+                <span className="text-emerald-700 font-bold">Sprayed: {selectedJcForVerification.sprayedQty || selectedJcForVerification.targetQty} Pcs</span>
+              </div>
+              <div className="text-xs text-[#777b86]">
+                {selectedJcForVerification.customer} • {selectedJcForVerification.partDescription}
+              </div>
+              <div className="text-xs text-[#17191c] font-semibold flex items-center gap-1.5 pt-1">
+                <Paintbrush className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>Finished by: {selectedJcForVerification.assignedPainterName || selectedJcForVerification.painterName}</span>
+              </div>
+              {selectedJcForVerification.painterNotes && (
+                <div className="text-[11px] text-[#777b86] italic bg-white p-2 rounded-lg border border-[#ececec]">
+                  "{selectedJcForVerification.painterNotes}"
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-[#17191c] mb-1">PM Inspection Verification Remarks</label>
+                <input
+                  type="text"
+                  value={verificationRemarksInput}
+                  onChange={e => setVerificationRemarksInput(e.target.value)}
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs text-[#17191c]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleDirectRequestRework(selectedJcForVerification)}
+                  className="py-2.5 px-4 rounded-full border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs cursor-pointer transition text-center"
+                >
+                  🔄 Request Floor Rework
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDirectVerifyAccept(selectedJcForVerification)}
+                  className="py-2.5 px-4 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs cursor-pointer transition shadow-xs flex items-center justify-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>✓ Accept & Complete</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

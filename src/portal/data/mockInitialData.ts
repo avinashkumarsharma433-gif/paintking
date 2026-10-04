@@ -22,10 +22,68 @@ import {
   MaterialInwardRecord,
   MaterialOutwardRecord,
   PlantDayEndClosure,
-  MaterialRequisitionNote
+  MaterialRequisitionNote,
+  PainterProfile
 } from '../types/portalTypes';
 import { INITIAL_MNC_AUDIT_QUESTIONS } from './mncAuditQuestionsData';
 export { INITIAL_MNC_AUDIT_QUESTIONS };
+
+export const INITIAL_PAINTERS: PainterProfile[] = [
+  {
+    id: 'ptr_1',
+    name: 'Ramesh Kumar (P1)',
+    code: 'P1',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+    boothNo: 'Booth #1 (Automotive Robotic Line)',
+    shift: 'General Day Shift (08:30 - 18:30)',
+    specialization: 'High Gloss Metallic Red & Basecoat'
+  },
+  {
+    id: 'ptr_2',
+    name: 'Suresh Verma (P2)',
+    code: 'P2',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80',
+    boothNo: 'Booth #2 (Hydrographic & Dipping Line)',
+    shift: 'General Day Shift (08:30 - 18:30)',
+    specialization: 'Carbon Fiber PVA Film Dipping & Base'
+  },
+  {
+    id: 'ptr_3',
+    name: 'Mahesh Sharma (P3)',
+    code: 'P3',
+    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80',
+    boothNo: 'Booth #3 (UV Flatbed & Digital Coater)',
+    shift: 'General Day Shift (08:30 - 18:30)',
+    specialization: 'UV Digital Primer & Anti-Scratch Topcoat'
+  },
+  {
+    id: 'ptr_4',
+    name: 'Kailash Yadav (Senior Coating Tech)',
+    code: 'P4',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
+    boothNo: 'Booth #1 (Automotive Robotic Line)',
+    shift: 'General Day Shift (08:30 - 18:30)',
+    specialization: '2K Polyurethane Satin & Matte Jet Black'
+  },
+  {
+    id: 'ptr_5',
+    name: 'Imran Khan (Specialty Finishing Tech)',
+    code: 'P5',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
+    boothNo: 'Booth #4 (Manual Cleanroom Precision)',
+    shift: 'Day 12H',
+    specialization: 'Soft-Touch Velvet Feel & Dual-Tone'
+  },
+  {
+    id: 'ptr_6',
+    name: 'Raju Painter (Booth Specialist)',
+    code: 'P6',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80',
+    boothNo: 'Booth #2 (Hydrographic & Dipping Line)',
+    shift: 'Night 12H',
+    specialization: 'Automotive Clear Lacquer Topcoat 2K'
+  }
+];
 
 
 export const INITIAL_USER_PROFILES: UserProfile[] = [
@@ -103,6 +161,38 @@ export const INITIAL_USER_PROFILES: UserProfile[] = [
   },
   {
     id: 'usr_operator_1',
+    name: 'Ramesh Kumar (P1)',
+    role: 'OPERATOR',
+    roleTitle: 'Booth #1 Robotic Line Painter (P1)',
+    plant: 'Haridwar',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'
+  },
+  {
+    id: 'usr_operator_2',
+    name: 'Suresh Verma (P2)',
+    role: 'OPERATOR',
+    roleTitle: 'Booth #2 Dipping & Immersion Painter (P2)',
+    plant: 'Haridwar',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80'
+  },
+  {
+    id: 'usr_operator_3',
+    name: 'Mahesh Sharma (P3)',
+    role: 'OPERATOR',
+    roleTitle: 'Booth #3 UV Flatbed & Topcoat Painter (P3)',
+    plant: 'Haridwar',
+    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80'
+  },
+  {
+    id: 'usr_operator_4',
+    name: 'Kailash Yadav',
+    role: 'OPERATOR',
+    roleTitle: 'Senior 2K Polyurethane Coating Tech',
+    plant: 'Haridwar',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80'
+  },
+  {
+    id: 'usr_operator_5',
     name: 'Raju Painter',
     role: 'OPERATOR',
     roleTitle: 'Master Booth Painter (W.No. 42)',

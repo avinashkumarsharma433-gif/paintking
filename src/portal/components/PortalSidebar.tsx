@@ -14,7 +14,8 @@ import {
   ClipboardList,
   UserCheck,
   Wrench,
-  ChevronRight
+  ChevronRight,
+  Paintbrush
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -22,6 +23,7 @@ export type PortalTab =
   | 'dashboard'
   | 'handovers'
   | 'jobcards'
+  | 'painter_desk'
   | 'billing'
   | 'stores'
   | 'paintmixing'
@@ -36,6 +38,7 @@ export const TAB_LABELS: Record<PortalTab, string> = {
   dashboard: 'Executive Cockpit',
   handovers: 'Stage Handover',
   jobcards: 'Job Cards & Batches',
+  painter_desk: 'Painter Floor Desk (Kiosk)',
   billing: 'Billing & PO Rec',
   stores: 'Stores & Inward GRN',
   paintmixing: 'Paint Mixing Lab',
@@ -69,6 +72,7 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
     currentUser, 
     unresolvedHandoversCount, 
     openOverrunCount, 
+    pendingVerificationJobsCount,
     activePlant, 
     isPlantDayClosed,
     activeSubTab,
@@ -122,7 +126,6 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
         { label: 'Shift Closure & EOD Status', subTab: 'EOD_STATUS' }
       ]
     },
-
     {
       id: 'jobcards',
       label: 'Job Cards & Batches',
@@ -140,6 +143,20 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
         { label: 'Store Demands & Arriving (MRN)', subTab: 'REQUISITIONS' },
         { label: 'Available Store Stock', subTab: 'STORE_STOCK' },
         { label: 'Painting Lines & Spray Booth Fleet', subTab: 'BOOTH_FLEET' }
+      ]
+    },
+    {
+      id: 'painter_desk',
+      label: 'Painter Floor Desk',
+      subtitle: 'Booth Touch Kiosk & Handshake',
+      docCode: 'PK-PRD-FLR-001',
+      icon: Paintbrush,
+      badge: pendingVerificationJobsCount > 0 ? `${pendingVerificationJobsCount} Verification` : 'Max 2 Jobs Limit',
+      badgeColor: pendingVerificationJobsCount > 0 ? 'bg-amber-100 border border-amber-300 text-amber-800' : 'bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521]',
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'OPERATOR', 'DEPT_INCHARGE'],
+      subItems: [
+        { label: 'Pending Work (Active Queue)', subTab: 'PENDING' },
+        { label: 'Completed Work (History)', subTab: 'COMPLETED' }
       ]
     },
     {

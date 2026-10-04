@@ -295,6 +295,23 @@ export interface ProcessStageCount {
   stageOperatorNotes?: string;
 }
 
+export type PainterJobStatus = 
+  | 'Assigned'                           // Production Manager assigned, Painter not started
+  | 'In Progress'                        // Painter started spraying
+  | 'Painter Finished (Pending Review)'  // Painter marked complete, awaiting PM floor verification
+  | 'Verified & Accepted'                // PM inspected & accepted -> releases to QA
+  | 'Rework Requested';                  // PM found defects, returned to painter
+
+export interface PainterProfile {
+  id: string;
+  name: string;
+  code: string; // e.g. "P1", "P2"
+  avatar: string;
+  boothNo: string;
+  shift: ShiftType;
+  specialization: string; // e.g. "PU Metallic Spray", "Clear Coat & Dipping"
+}
+
 export interface JobCard {
   docNo?: string;           // "Doc No: 001"
   revNo?: string;           // "00"
@@ -313,6 +330,15 @@ export interface JobCard {
   status: 'Open' | 'In Process' | 'Target Met' | 'Over-Run Flagged' | 'Completed' | 'Closed';
   fpaStatus?: 'Pending' | 'Approved' | 'Hold' | 'Rejected';
   
+  // Painter Execution & Verification Lifecycle
+  painterJobStatus?: PainterJobStatus;
+  painterStartedAt?: string;
+  painterFinishedAt?: string;
+  painterNotes?: string;
+  verifiedBy?: string;
+  verifiedAt?: string;
+  verificationRemarks?: string;
+
   // 3-Painters & Rework Architecture
   jobCardType?: JobCardType;
   assignedPainterId?: string;

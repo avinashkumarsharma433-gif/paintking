@@ -10,7 +10,7 @@ interface JobCardModalProps {
 }
 
 export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, initialData }) => {
-  const { addJobCard, activePlant, currentUser, grnList } = usePortalStore();
+  const { addJobCard, activePlant, currentUser, grnList, painters, getPainterActiveJobCount } = usePortalStore();
 
   const [viewMode, setViewMode] = useState<'PORTAL' | 'PRINT'>('PORTAL');
 
@@ -22,7 +22,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   // INITIAL PROCESS
   const [jobCardNo, setJobCardNo] = useState<string>(initialData?.jobCardNo || `JC-${Math.floor(1000 + Math.random() * 9000)}-RD`);
   const [wNo, setWNo] = useState<string>(initialData?.wNo || initialData?.woNo || 'WO-1042');
-  const [painterName, setPainterName] = useState<string>(initialData?.painterName || 'Ramesh Sharma');
+  const [painterName, setPainterName] = useState<string>(initialData?.assignedPainterName || initialData?.painterName || painters[0]?.name || 'Ramesh Kumar (P1)');
+  const [assignedPainterId, setAssignedPainterId] = useState<string>(initialData?.assignedPainterId || painters[0]?.id || 'PAINTER-01');
   const [issueDate, setIssueDate] = useState<string>(initialData?.issueDate || new Date().toISOString().split('T')[0]);
   const [issueTime, setIssueTime] = useState<string>(initialData?.issueTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   const [customer, setCustomer] = useState<string>(initialData?.customer || (grnList[0]?.supplierCustomer) || 'ROOP POLYMERS LTD');
@@ -141,6 +142,10 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       fpaStatus: initialData?.fpaStatus || 'Approved',
 
       painterName,
+      assignedPainterName: painterName,
+      assignedPainterId: assignedPainterId,
+      painterJobStatus: 'Assigned',
+      allocatedQty: targetQtyVal,
       wNo,
       issueDate,
       issueTime,
@@ -330,15 +335,31 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
 
                   <div>
                     <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1">
-                      Painter Name *
+                      Assign Floor Painter (Max 2 Jobs) *
                     </label>
-                    <input
-                      type="text"
+                    <select
                       required
                       value={painterName}
-                      onChange={e => setPainterName(e.target.value)}
-                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                    />
+                      onChange={e => {
+                        const selectedP = painters.find(p => p.name === e.target.value);
+                        setPainterName(e.target.value);
+                        if (selectedP) setAssignedPainterId(selectedP.id);
+                      }}
+                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
+                    >
+                      {painters.map(p => {
+                        const count = getPainterActiveJobCount ? getPainterActiveJobCount(p.id) : 0;
+                        const isCap = count >= 2;
+                        return (
+                          <option key={p.id} value={p.name}>
+                            {p.name} ({count}/2 Active Jobs){isCap ? ' - ⚠️ CAP REACHED' : ' - Available'} • {p.boothNo}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <div className="text-[10px] text-[#777b86] mt-1 flex items-center gap-1 font-mono">
+                      <span>Assigned to Booth: <strong>{painters.find(p => p.name === painterName)?.boothNo || 'Booth #1'}</strong></span>
+                    </div>
                   </div>
 
                   <div>
@@ -857,6 +878,23 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
             </div>
           )}
 
+          {/* Store Requisition & Painter Queue Notice */}
+          <div className="p-3.5 rounded-[18px] bg-[#faf7ed] border border-[#f4e5be] text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-[#17191c] text-[#c09748] flex items-center justify-center shrink-0">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="font-bold text-[#17191c] text-xs">
+                  Unified Store Material Demand & Painter Assignment
+                </div>
+                <div className="text-[11px] text-[#8a6521]">
+                  Job Card banate hi Store Incharge ko <strong>Material Release Demand (MIN)</strong> chali jayegi aur <strong>{painterName}</strong> ke workspace me ye pending work list me add ho jayega.
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Action Buttons (Hidden on print) */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-[#ececec] print:hidden">
             <button
@@ -872,7 +910,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               className="px-7 py-3 rounded-full bg-[#17191c] text-[#c09748] font-bold cursor-pointer hover:bg-black flex items-center gap-2 shadow-lg transition active:scale-95 w-full sm:w-auto justify-center"
             >
               <Save className="w-4 h-4 text-[#c09748]" />
-              Issue Material & Launch Job Card (Doc No: 001)
+              Create Job Card & Demand Material from Store
             </button>
           </div>
 

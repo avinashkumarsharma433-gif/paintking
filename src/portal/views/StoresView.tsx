@@ -1120,6 +1120,11 @@ export const StoresView: React.FC = () => {
                           {req.colorName && (
                             <div className="text-[11px] text-[#777b86]">Color: {req.colorName}</div>
                           )}
+                          {req.productionRemarks && (
+                            <div className="text-[10px] text-[#8a6521] bg-[#faf7ed] border border-[#f4e5be] p-1 rounded-md mt-1 font-mono">
+                              {req.productionRemarks}
+                            </div>
+                          )}
                         </td>
                         <td className="p-3 text-center font-mono font-bold text-sm bg-[#faf7ed]/60 text-[#8a6521]">
                           {req.requestedQty.toLocaleString('en-IN')} {req.uom}
@@ -1229,6 +1234,11 @@ export const StoresView: React.FC = () => {
 
                   <div className="text-xs space-y-1 bg-[#fafafb] p-2.5 rounded-[12px]">
                     <div className="text-[11px] text-[#17191c] font-medium">{req.partDescription}</div>
+                    {req.productionRemarks && (
+                      <div className="text-[10px] text-[#8a6521] bg-[#faf7ed] border border-[#f4e5be] p-1.5 rounded-md font-mono">
+                        {req.productionRemarks}
+                      </div>
+                    )}
                     <div className="flex justify-between text-[#777b86]">
                       <span>Requested By:</span>
                       <span className="text-[#17191c] font-medium">{req.requestedBy}</span>

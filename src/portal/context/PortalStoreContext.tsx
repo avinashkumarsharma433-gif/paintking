@@ -32,7 +32,9 @@ import {
   PlantDayEndClosure,
   JobCardType,
   DefectCategory,
-  MaterialRequisitionNote
+  MaterialRequisitionNote,
+  PainterProfile,
+  PainterJobStatus
 } from '../types/portalTypes';
 import {
   INITIAL_USER_PROFILES,
@@ -58,6 +60,7 @@ import {
   INITIAL_CALIBRATION_RECORDS,
   INITIAL_MNC_AUDIT_QUESTIONS,
   INITIAL_DAY_END_CLOSURES,
+  INITIAL_PAINTERS,
   INITIAL_REQUISITIONS
 } from '../data/mockInitialData';
 
@@ -79,6 +82,18 @@ interface PortalContextType {
   iqcRecords: IQCInspectionRecord[];
   handovers: CustodyHandover[];
   jobCards: JobCard[];
+  painters: PainterProfile[];
+  pendingVerificationJobsCount: number;
+
+  // Painter Workspace & Max-2 Guardrail Methods
+  getPainterActiveJobCount: (painterNameOrId: string) => number;
+  canAssignPainter: (painterNameOrId: string) => boolean;
+  assignJobCardToPainter: (jobCardNo: string, painterName: string) => { success: boolean; error?: string };
+  startPainterJob: (jobCardNo: string, painterName: string) => void;
+  markPainterJobFinished: (jobCardNo: string, painterNotes?: string) => void;
+  verifyAndAcceptJob: (jobCardNo: string, okQty: number, rejQty: number, remarks?: string) => void;
+  rejectAndRequestRework: (jobCardNo: string, reworkInstruction: string, defect: DefectCategory) => void;
+
   fpaRecords: FPARecord[];
   paintMixing: PaintMixingRecord[];
   ipqcRecords: IPQCRecord[];
@@ -467,6 +482,11 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return s ? JSON.parse(s) : INITIAL_JOB_CARDS;
   });
 
+  const [painters, setPainters] = useState<PainterProfile[]>(() => {
+    const s = localStorage.getItem('pk_painters');
+    return s ? JSON.parse(s) : INITIAL_PAINTERS;
+  });
+
   const [fpaRecords, setFpaRecords] = useState<FPARecord[]>(() => {
     const s = localStorage.getItem('pk_fpa_data');
     return s ? JSON.parse(s) : INITIAL_FPA_RECORDS;
@@ -574,6 +594,10 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     localStorage.setItem('pk_jobcards_data', JSON.stringify(jobCards));
   }, [jobCards]);
+
+  useEffect(() => {
+    localStorage.setItem('pk_painters', JSON.stringify(painters));
+  }, [painters]);
 
   useEffect(() => {
     localStorage.setItem('pk_fpa_data', JSON.stringify(fpaRecords));
@@ -689,7 +713,44 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const addJobCard = (jc: JobCard) => {
-    setJobCards(prev => [jc, ...prev]);
+    const formattedJc: JobCard = {
+      ...jc,
+      painterJobStatus: jc.painterJobStatus || 'Assigned',
+      assignedPainterName: jc.assignedPainterName || jc.painterName,
+      allocatedQty: jc.allocatedQty || jc.targetQty,
+      fpaStatus: jc.fpaStatus || 'Approved',
+      status: jc.status || 'Open'
+    };
+
+    setJobCards(prev => [formattedJc, ...prev]);
+
+    // SMART UNIFIED WORKFLOW:
+    // Creating a Job Card automatically creates a Material Release Demand (MRN) for Store Incharge
+    const itemsSummary = formattedJc.issuedMaterials && formattedJc.issuedMaterials.length > 0
+      ? formattedJc.issuedMaterials.map(m => `${m.itemDescription} (${m.qty} ${m.uom})`).join(', ')
+      : `${formattedJc.partDescription} (${formattedJc.targetQty} Pcs)`;
+
+    const autoMrn: MaterialRequisitionNote = {
+      mrnNo: `MRN-2026-${String(materialRequisitions.length + 1).padStart(3, '0')}`,
+      date: formattedJc.issueDate || new Date().toISOString().split('T')[0],
+      time: formattedJc.issueTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      plant: activePlant,
+      jobCardNo: formattedJc.jobCardNo,
+      woNo: formattedJc.woNo || 'WO-AUTO',
+      customer: formattedJc.customer,
+      partCode: formattedJc.partCode,
+      partDescription: formattedJc.partDescription,
+      colorName: formattedJc.color,
+      requestedQty: formattedJc.targetQty,
+      uom: formattedJc.issuedMaterials?.[0]?.uom || 'Pcs',
+      requiredShift: activeShift,
+      requestedBy: formattedJc.prodSupervisor || currentUser.name || 'Production Manager',
+      urgency: 'High (Line Stoppage Risk)',
+      status: 'Pending Store Issue',
+      productionRemarks: `Auto-generated from Job Card creation for Painter [${formattedJc.painterName}]. Store to release: ${itemsSummary}`
+    };
+
+    setMaterialRequisitions(prev => [autoMrn, ...prev]);
   };
 
   const addGRN = (grn: GoodsReceiptNote) => {
@@ -1094,6 +1155,106 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const addPackingSlip = (slip: PackingSlipRecord) => {
     setPackingSlips(prev => [slip, ...prev]);
   };
+
+  // Painter Workload & Max-2 Active Jobs Guardrail Helpers
+  const getPainterActiveJobCount = (painterNameOrId: string): number => {
+    if (!painterNameOrId) return 0;
+    const cleanTarget = painterNameOrId.trim().toLowerCase();
+    return jobCards.filter(jc => {
+      const assigned = (jc.assignedPainterName || jc.painterName || '').trim().toLowerCase();
+      const isMatchingPainter = assigned.includes(cleanTarget) || cleanTarget.includes(assigned);
+      const isJobActive = jc.status !== 'Completed' && jc.status !== 'Closed' && jc.painterJobStatus !== 'Verified & Accepted';
+      return isMatchingPainter && isJobActive;
+    }).length;
+  };
+
+  const canAssignPainter = (painterNameOrId: string): boolean => {
+    return getPainterActiveJobCount(painterNameOrId) < 2;
+  };
+
+  const assignJobCardToPainter = (jobCardNo: string, painterName: string): { success: boolean; error?: string } => {
+    const currentActiveCount = getPainterActiveJobCount(painterName);
+    if (currentActiveCount >= 2) {
+      return {
+        success: false,
+        error: `Guardrail Blocked: Painter "${painterName}" already has ${currentActiveCount}/2 active jobs. Complete one job before assigning another.`
+      };
+    }
+
+    setJobCards(prev => prev.map(jc => {
+      if (jc.jobCardNo !== jobCardNo) return jc;
+      return {
+        ...jc,
+        assignedPainterName: painterName,
+        painterName: painterName,
+        painterJobStatus: 'Assigned',
+        status: jc.status === 'Open' ? 'In Process' : jc.status
+      };
+    }));
+
+    return { success: true };
+  };
+
+  const startPainterJob = (jobCardNo: string, painterName: string) => {
+    setJobCards(prev => prev.map(jc => {
+      if (jc.jobCardNo !== jobCardNo) return jc;
+      return {
+        ...jc,
+        assignedPainterName: jc.assignedPainterName || painterName,
+        painterName: jc.painterName || painterName,
+        painterJobStatus: 'In Progress',
+        painterStartedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: 'In Process'
+      };
+    }));
+  };
+
+  const markPainterJobFinished = (jobCardNo: string, painterNotes?: string) => {
+    setJobCards(prev => prev.map(jc => {
+      if (jc.jobCardNo !== jobCardNo) return jc;
+      return {
+        ...jc,
+        painterJobStatus: 'Painter Finished (Pending Review)',
+        painterFinishedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        painterNotes: painterNotes || 'Work finished by painter and submitted for floor verification',
+        status: 'In Process'
+      };
+    }));
+  };
+
+  const verifyAndAcceptJob = (jobCardNo: string, okQty: number, rejQty: number, remarks?: string) => {
+    setJobCards(prev => prev.map(jc => {
+      if (jc.jobCardNo !== jobCardNo) return jc;
+      const totalCount = okQty + rejQty;
+      return {
+        ...jc,
+        painterJobStatus: 'Verified & Accepted',
+        verifiedBy: currentUser.name,
+        verifiedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        verificationRemarks: remarks || 'Floor inspected and accepted by Production Manager',
+        status: 'Completed',
+        goodQty: okQty,
+        rejectQty: rejQty,
+        sprayedQty: totalCount,
+        firstPassGoodQty: okQty
+      };
+    }));
+  };
+
+  const rejectAndRequestRework = (jobCardNo: string, reworkInstruction: string, defect: DefectCategory) => {
+    setJobCards(prev => prev.map(jc => {
+      if (jc.jobCardNo !== jobCardNo) return jc;
+      return {
+        ...jc,
+        painterJobStatus: 'Rework Requested',
+        reworkInstructions: reworkInstruction,
+        defectCategory: defect,
+        verificationRemarks: `Rework Flagged: ${reworkInstruction}`
+      };
+    }));
+  };
+
+  const pendingVerificationJobsCount = jobCards.filter(j => j.painterJobStatus === 'Painter Finished (Pending Review)').length;
 
   // Single General Day Shift Day-End (EOD) Plant Shutdown
   const executeDayEndClosure = (notes?: string) => {
@@ -1525,6 +1686,15 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         iqcRecords,
         handovers,
         jobCards,
+        painters,
+        pendingVerificationJobsCount,
+        getPainterActiveJobCount,
+        canAssignPainter,
+        assignJobCardToPainter,
+        startPainterJob,
+        markPainterJobFinished,
+        verifyAndAcceptJob,
+        rejectAndRequestRework,
         fpaRecords,
         paintMixing,
         ipqcRecords,

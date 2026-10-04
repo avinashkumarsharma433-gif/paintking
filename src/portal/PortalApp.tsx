@@ -14,6 +14,7 @@ import { GatePassView } from './views/GatePassView';
 import { ProductionOfferingView } from './views/ProductionOfferingView';
 import { HRLeaveView } from './views/HRLeaveView';
 import { CalibrationView } from './views/CalibrationView';
+import { PainterWorkspaceView } from './views/PainterWorkspaceView';
 import { UserRole } from './types/portalTypes';
 
 interface PortalAppProps {
@@ -32,7 +33,7 @@ const ROLE_DEFAULT_TABS: Record<UserRole, PortalTab> = {
   FPA_IPQC_INSPECTOR: 'qa',
   OQC_PDI_INSPECTOR: 'qa',
   MANAGER_QA: 'qa',
-  OPERATOR: 'jobcards',
+  OPERATOR: 'painter_desk',
   HR: 'hr_leave',
   DEPT_INCHARGE: 'hr_leave'
 };
@@ -46,6 +47,7 @@ const ALL_ROLES: UserRole[] = [
 const TAB_ALLOWED_ROLES: Record<PortalTab, UserRole[]> = {
   dashboard: ['DIRECTOR', 'PLANT_HEAD'],
   jobcards: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'STORES', 'OPERATOR', 'DEPT_INCHARGE'],
+  painter_desk: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'OPERATOR', 'DEPT_INCHARGE'],
   billing: ['DIRECTOR', 'PLANT_HEAD', 'BILLING', 'STORES'],
   stores: ['DIRECTOR', 'PLANT_HEAD', 'STORES', 'IQC_INSPECTOR'],
   paintmixing: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'OPERATOR'],
@@ -192,6 +194,8 @@ const PortalInner: React.FC<PortalAppProps> = ({ onBackToWebsite }) => {
         return <DashboardView onNavigateTab={(t) => { setActiveTab(t); setMobileNavOpen(false); }} />;
       case 'jobcards':
         return <JobCardsView />;
+      case 'painter_desk':
+        return <PainterWorkspaceView />;
       case 'billing':
         return <BillingView />;
       case 'stores':
