@@ -134,7 +134,7 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       icon: Briefcase,
       badge: openOverrunCount > 0 ? 'Color Over-run' : null,
       badgeColor: 'bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521]',
-      roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'STORES'],
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION'],
       subItems: [
         { label: 'All Job Cards (Master & Child)', subTab: 'ALL' },
         { label: 'Master Batches (Doc No: 001)', subTab: 'MASTER' },
@@ -167,7 +167,7 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       icon: ReceiptText,
       badge: 'Billed on Passed',
       badgeColor: 'bg-emerald-50 border border-emerald-200 text-emerald-800',
-      roles: ['DIRECTOR', 'PLANT_HEAD', 'BILLING', 'STORES'],
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'BILLING'],
       subItems: [
         { label: 'Tax Invoices (Section 31)', subTab: 'TAX_INVOICE' },
         { label: 'Delivery Challans (Rule 55)', subTab: 'DELIVERY_CHALLAN' },
