@@ -664,33 +664,12 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [calibrationList]);
 
   const addMaterialInwardRecord = (record: MaterialInwardRecord) => {
-    setMaterialInwardLogs(prev => [record, ...prev]);
-
-    // AUTOMATIC STORE HANDOVER: Pushes a GRN into grnList so Store Incharge immediately sees it on Stores Dashboard!
-    const summaryDesc = record.descriptionOfMaterial || record.items?.map(i => `${i.materialName} (${i.quantity} ${i.unit})`).join(', ') || 'Mixed Goods';
-    const totalQtyCount = record.totalQuantity || record.items?.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0) || record.quantity || 1;
-
-    const newGrn: GoodsReceiptNote = {
-      grnNo: record.grnNo || `PK-GRN-${Date.now().toString().slice(-4)}`,
-      date: record.date,
-      plant: record.plant || activePlant,
-      supplierCustomer: record.partyName,
-      invoiceChallanNo: record.challanNo,
-      invoiceDate: record.date,
-      vehicleNo: record.vehicleNo,
-      transporter: record.transporter || 'Direct Delivery',
-      partCode: record.materialCategory === 'Party Material' ? 'SUBSTRATE-IN' : 'PAINT-RAW-01',
-      description: summaryDesc,
-      batchNo: `BAT-IN-${Date.now().toString().slice(-4)}`,
-      invoicedQty: totalQtyCount,
-      actualReceivedQty: totalQtyCount,
-      colorSplits: [],
-      iqcStatus: 'Pending',
-      storeIncharge: record.receivedBy || currentUser.name,
-      remarks: `Auto-ingested from Security Gate Inward Entry [${record.materialCategory}]. Items: ${record.items?.length || 1} rows. Remarks: ${record.remarks || 'None'}`
+    const recordWithDefaults: MaterialInwardRecord = {
+      ...record,
+      iqcStatus: record.iqcStatus || 'Pending',
+      status: record.status || 'Pending IQC Inspection'
     };
-
-    setGrnList(prev => [newGrn, ...prev]);
+    setMaterialInwardLogs(prev => [recordWithDefaults, ...prev]);
   };
 
 

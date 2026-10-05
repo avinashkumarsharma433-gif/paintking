@@ -310,11 +310,13 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         className="p-2 rounded-[12px] border border-[#c09748] bg-white font-mono font-bold text-xs text-[#17191c] cursor-pointer"
                       >
                         <option value="">-- Or Pick Store GRN Lot --</option>
-                        {grnList.map(g => (
-                          <option key={g.grnNo} value={g.grnNo}>
-                            {g.grnNo} • {g.supplierCustomer} ({g.totalQty} pcs)
-                          </option>
-                        ))}
+                        {grnList
+                          .filter(g => (g.iqcStatus === 'Accepted' || g.iqcStatus === 'Passed' || (!g.iqcStatus && g.grnNo)) && g.iqcStatus !== 'Pending' && g.iqcStatus !== 'Rejected')
+                          .map(g => (
+                            <option key={g.grnNo} value={g.grnNo}>
+                              {g.grnNo} • {g.supplierCustomer} ({g.totalQty || g.actualReceivedQty} pcs)
+                            </option>
+                          ))}
                       </select>
                     </div>
                   )}

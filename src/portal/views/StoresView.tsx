@@ -295,7 +295,9 @@ export const StoresView: React.FC = () => {
 
   // MATERIAL TRACKER: Live calculation of Inward vs Issued to Floor vs Available Balance
   const materialTrackerList = useMemo(() => {
-    return grnList.map(grn => {
+    return grnList
+      .filter(grn => (grn.iqcStatus === 'Accepted' || grn.iqcStatus === 'Passed' || (!grn.iqcStatus && grn.grnNo)) && grn.iqcStatus !== 'Pending' && grn.iqcStatus !== 'Rejected')
+      .map(grn => {
       const customer = grn.supplierCustomer;
       const partCode = grn.items?.[0]?.partCode || grn.partCode || 'SUBSTRATE';
       const partDesc = grn.items?.[0]?.partDescription || grn.description || 'Raw Components';
