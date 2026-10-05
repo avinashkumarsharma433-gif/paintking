@@ -556,41 +556,68 @@ export const JobCardsView: React.FC = () => {
     return grnList
       .filter(grn => (grn.iqcStatus === 'Accepted' || grn.iqcStatus === 'Passed' || (!grn.iqcStatus && grn.grnNo)) && grn.iqcStatus !== 'Pending' && grn.iqcStatus !== 'Rejected')
       .map(grn => {
-      const customer = grn.supplierCustomer;
-      const partCode = grn.items?.[0]?.partCode || grn.partCode || 'SUBSTRATE';
-      const partDesc = grn.items?.[0]?.partDescription || grn.description || 'Raw Components';
-      const totalInward = grn.actualReceivedQty || grn.totalQty || 0;
-      const receivedDate = grn.receivedDate || grn.date;
-      const uom = (partCode.startsWith('PNT') || partCode.startsWith('CHEM') || partDesc.toLowerCase().includes('drum') || partDesc.toLowerCase().includes('paint')) ? 'Litres' : 'Pcs';
+        const customer = grn.supplierCustomer;
+        const partCode = grn.items?.[0]?.partCode || grn.partCode || 'SUBSTRATE';
+        const partDesc = grn.items?.[0]?.partDescription || grn.description || 'Raw Components';
+        const totalInward = Number(grn.actualReceivedQty) || Number(grn.totalQty) || 0;
+        const receivedDate = grn.receivedDate || grn.date;
+        const uom = (partCode.startsWith('PNT') || partCode.startsWith('CHEM') || partCode.startsWith('THN') || partCode.startsWith('HDN') || partDesc.toLowerCase().includes('drum') || partDesc.toLowerCase().includes('paint') || partDesc.toLowerCase().includes('thinner')) ? 'Litres' : 'Pcs';
 
-      // Match job cards target quantity
-      const matchingJobCards = jobCards.filter(jc => 
-        (jc.customer && jc.customer.trim().toLowerCase() === customer.trim().toLowerCase()) ||
-        (jc.partCode && jc.partCode.trim().toLowerCase() === partCode.trim().toLowerCase()) ||
-        (jc.woNo && grn.invoiceChallanNo && jc.woNo.includes(grn.invoiceChallanNo))
-      );
-      const primaryJobCards = matchingJobCards.filter(jc => jc.jobCardType === 'master' || (!jc.jobCardType && !jc.parentJobCardId));
-      const totalJobCardDemands = primaryJobCards.reduce((acc, curr) => acc + (curr.targetQty || 0), 0);
+        const isInternalConsumable = 
+          partCode.startsWith('PNT') ||
+          partCode.startsWith('CHEM') ||
+          partCode.startsWith('THN') ||
+          partCode.startsWith('HDN') ||
+          partCode.startsWith('CLR') ||
+          uom === 'Litres' ||
+          partDesc.toLowerCase().includes('paint') ||
+          partDesc.toLowerCase().includes('thinner') ||
+          partDesc.toLowerCase().includes('solvent') ||
+          partDesc.toLowerCase().includes('hardener') ||
+          partDesc.toLowerCase().includes('lacquer') ||
+          partDesc.toLowerCase().includes('chemical') ||
+          customer.toLowerCase().includes('ppg') ||
+          customer.toLowerCase().includes('berger') ||
+          customer.toLowerCase().includes('asian paints') ||
+          grn.remarks?.toLowerCase().includes('internal');
 
-      const totalIssuedToFloor = totalJobCardDemands;
-      const balanceAvailable = Math.max(0, totalInward - totalIssuedToFloor);
+        // Match job cards target quantity
+        const matchingJobCards = jobCards.filter(jc => 
+          (jc.customer && jc.customer.trim().toLowerCase() === customer.trim().toLowerCase()) ||
+          (jc.partCode && jc.partCode.trim().toLowerCase() === partCode.trim().toLowerCase()) ||
+          (jc.woNo && grn.invoiceChallanNo && jc.woNo.includes(grn.invoiceChallanNo)) ||
+          (jc.wNo && grn.invoiceChallanNo && jc.wNo.includes(grn.invoiceChallanNo))
+        );
+        const primaryJobCards = matchingJobCards.filter(jc => jc.jobCardType === 'master' || (!jc.jobCardType && !jc.parentJobCardId));
+        const totalJobCardDemands = primaryJobCards.reduce((acc, curr) => acc + (Number(curr.targetQty) || 0), 0);
 
-      return {
-        grnNo: grn.grnNo,
-        challanNo: grn.invoiceChallanNo,
-        receivedDate,
-        customer,
-        partCode,
-        partDesc,
-        uom,
-        totalInward,
-        totalIssuedToFloor,
-        balanceAvailable,
-        vehicleNo: grn.vehicleNo,
-        iqcStatus: grn.iqcStatus,
-        status: balanceAvailable === 0 ? 'Exhausted' : balanceAvailable < 100 ? 'Low Balance' : 'Ready in Store'
-      };
-    });
+        const totalIssuedToFloor = totalJobCardDemands;
+        const balanceAvailable = Math.max(0, totalInward - totalIssuedToFloor);
+
+        return {
+          grnNo: grn.grnNo,
+          challanNo: grn.invoiceChallanNo,
+          receivedDate,
+          customer,
+          partCode,
+          partDesc,
+          uom,
+          totalInward,
+          totalIssuedToFloor,
+          balanceAvailable,
+          jobCardsCount: primaryJobCards.length,
+          vehicleNo: grn.vehicleNo,
+          iqcStatus: grn.iqcStatus,
+          isInternalConsumable,
+          status: isInternalConsumable 
+            ? 'Internal Chemical / Consumable' 
+            : balanceAvailable === 0 
+              ? 'Exhausted (100% Allocated)' 
+              : balanceAvailable < 100 
+                ? 'Low Balance' 
+                : 'Ready in Store'
+        };
+      });
   }, [grnList, jobCards]);
 
   const uniqueStockCustomers = useMemo(() => {
@@ -1236,18 +1263,25 @@ export const JobCardsView: React.FC = () => {
                             </div>
                           </td>
                           <td className="p-3 text-right">
-                            {hasBalance ? (
+                            {item.isInternalConsumable ? (
+                              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-[#faf7ed] border border-[#f4e5be] text-[#8a6521] text-[11px] font-semibold">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#c09748]" />
+                                <span>Internal Chemical Stock</span>
+                              </span>
+                            ) : hasBalance ? (
                               <button
                                 type="button"
                                 onClick={() => handleRequestFromSpecificStock(item)}
                                 disabled={isPlantDayClosed}
-                                className="px-3.5 py-1.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs shadow-2xs cursor-pointer transition flex items-center gap-1.5 ml-auto active:scale-95"
+                                className="px-3.5 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs shadow-2xs cursor-pointer transition flex items-center gap-1.5 ml-auto active:scale-95"
                               >
-                                <Plus className="w-3.5 h-3.5 text-[#c09748]" />
+                                <Plus className="w-3.5 h-3.5 text-[#8a6521]" />
                                 <span>+ Create Job Card ({item.balanceAvailable} {item.uom})</span>
                               </button>
                             ) : (
-                              <span className="text-[11px] text-gray-400 italic">Fully Issued</span>
+                              <span className="text-[11px] text-gray-400 font-mono italic">
+                                Fully Allocated ({item.jobCardsCount} Cards)
+                              </span>
                             )}
                           </td>
                         </tr>
@@ -1284,21 +1318,29 @@ export const JobCardsView: React.FC = () => {
                       <span className="font-mono font-bold text-[#17191c]">{item.totalInward} {item.uom}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] text-[#777b86] uppercase block">Issued to Floor</span>
+                      <span className="text-[9px] text-[#777b86] uppercase block">Allocated to Cards</span>
                       <span className="font-mono font-bold text-blue-700">{item.totalIssuedToFloor} {item.uom}</span>
                     </div>
                   </div>
 
-                  {item.balanceAvailable > 0 && (
+                  {item.isInternalConsumable ? (
+                    <div className="text-center py-2 px-3 rounded-full bg-[#faf7ed] border border-[#f4e5be] text-[#8a6521] text-xs font-semibold">
+                      Internal Chemical / Paint Stock (Issued via MIN)
+                    </div>
+                  ) : item.balanceAvailable > 0 ? (
                     <button
                       type="button"
                       onClick={() => handleRequestFromSpecificStock(item)}
                       disabled={isPlantDayClosed}
-                      className="w-full py-2.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                      className="w-full py-2.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
                     >
-                      <Plus className="w-4 h-4 text-[#c09748]" />
-                      <span>+ Create Job Card for this Stock ({item.balanceAvailable} {item.uom})</span>
+                      <Plus className="w-4 h-4 text-[#8a6521]" />
+                      <span>+ Create Job Card ({item.balanceAvailable} {item.uom})</span>
                     </button>
+                  ) : (
+                    <div className="text-center text-xs text-gray-400 py-1 font-mono italic">
+                      Fully Allocated Across {item.jobCardsCount} Job Cards
+                    </div>
                   )}
                 </div>
               ))}
