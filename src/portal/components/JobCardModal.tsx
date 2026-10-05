@@ -1,7 +1,28 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
 import { JobCard, IssuedMaterialItem } from '../types/portalTypes';
-import { Plus, Trash2, Save, Printer, Layers, User, Calendar, Clock, Sparkles, CheckCircle2, AlertTriangle, Building2, Package, ShieldCheck, ArrowRightLeft } from 'lucide-react';
+import { 
+  Plus, 
+  Trash2, 
+  Save, 
+  Printer, 
+  Layers, 
+  User, 
+  Calendar, 
+  Clock, 
+  Sparkles, 
+  CheckCircle2, 
+  AlertTriangle, 
+  Building2, 
+  Package, 
+  ShieldCheck, 
+  ArrowRightLeft,
+  X,
+  Droplets,
+  Palette,
+  Check,
+  RotateCcw
+} from 'lucide-react';
 
 interface JobCardModalProps {
   isOpen: boolean;
@@ -154,6 +175,15 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
 
   const isOverAllocated = targetQty > maxAllowedTargetQty;
 
+  // Preset Color Palettes for Quick Selection
+  const colorPresets = [
+    { name: 'Monza Red Gloss', bg: 'bg-red-600', text: 'text-white' },
+    { name: 'Piano High Gloss Black', bg: 'bg-neutral-900', text: 'text-white' },
+    { name: 'Pearl Arctic White', bg: 'bg-neutral-100 border border-neutral-300', text: 'text-neutral-800' },
+    { name: 'Carbon Fiber 3D Dipping', bg: 'bg-neutral-800', text: 'text-amber-400' },
+    { name: 'Satin Silver Metallic', bg: 'bg-slate-300', text: 'text-slate-900' }
+  ];
+
   // Sync targetQty changes into row 1 (Substrate row) and stage counts
   const handleTargetQtyChange = (newQty: number) => {
     setTargetQty(newQty);
@@ -281,23 +311,29 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-      <div className="bg-white rounded-[24px] max-w-4xl w-full p-4 sm:p-7 shadow-2xl border border-[#ececec] space-y-6 max-h-[94vh] overflow-y-auto no-scrollbar print:max-w-none print:w-full print:p-0 print:shadow-none">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+      <div className="bg-white rounded-[24px] max-w-4xl w-full p-4 sm:p-7 shadow-2xl border border-[#ececec] space-y-5 max-h-[94vh] overflow-y-auto no-scrollbar print:max-w-none print:w-full print:p-0 print:shadow-none animate-in zoom-in-95 duration-150 relative">
         
         {/* Top Header & View Toggle (Hidden on print) */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-[#ececec] print:hidden">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3.5 border-b border-[#ececec] print:hidden">
           <div>
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
               <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold uppercase tracking-wider">
-                MASTER JOB CARD CREATION
+                MASTER JOB CARD (FORMAT C.01)
               </span>
               <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono font-bold">
                 {docNo} • {revNo}
               </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
+                Plant: {activePlant}
+              </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-serif text-[#17191c] font-normal tracking-tight">
-              Create Production Job Card & Batch
+              Create Production Master Job Card
             </h2>
+            <p className="text-[11px] sm:text-xs text-[#777b86]">
+              Allocate customer raw substrates, enforce GRN target cap & demand required internal paints and chemicals
+            </p>
           </div>
 
           <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -319,7 +355,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   viewMode === 'PRINT' ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]' : 'text-[#777b86]'
                 }`}
               >
-                Print Sheet Format
+                Print Sheet
               </button>
             </div>
 
@@ -336,27 +372,29 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               onClick={onClose}
               className="w-8 h-8 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition active:scale-95"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        <form onSubmit={handleSave} className="space-y-6">
+        <form onSubmit={handleSave} className="space-y-5">
           
           {/* ========================================================================= */}
           {/* MODE 1: MODERN EDITORIAL INDUSTRIAL PORTAL VIEW */}
           {/* ========================================================================= */}
           {viewMode === 'PORTAL' && (
-            <div className="space-y-6 text-xs">
+            <div className="space-y-5 text-xs">
               
-              {/* SECTION A: GRN ALLOCATION GUARDRAIL & LOT SELECTION HERO CARD */}
-              <div className="bg-[#fafafb] p-5 sm:p-6 rounded-[24px] border border-[#ececec] space-y-4 shadow-2xs">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-[#ececec] pb-3">
+              {/* ========================================================================= */}
+              {/* SECTION 1: CUSTOMER SUBSTRATE & GRN ALLOCATION GUARDRAIL                  */}
+              {/* ========================================================================= */}
+              <div className="bg-[#fafafb] p-4.5 sm:p-5 rounded-[20px] border border-[#ececec] space-y-3.5 shadow-2xs">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-[#ececec] pb-2.5">
                   <div>
                     <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono">
                       1. Customer Part & GRN Allocation Guardrail
                     </span>
-                    <h3 className="text-xl font-serif text-[#17191c] font-normal mt-0.5">
+                    <h3 className="text-base sm:text-lg font-serif text-[#17191c] font-normal">
                       {customer || 'Select Customer / OEM Client'}
                     </h3>
                   </div>
@@ -370,8 +408,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </div>
                 </div>
 
-                {/* GRN Lot Selector Strip */}
-                <div className="p-4 bg-[#faf7ed] rounded-[20px] border border-[#f4e5be] space-y-3">
+                {/* GRN Lot Selector & 4-Tile Balance Display */}
+                <div className="p-3.5 bg-[#faf7ed] rounded-[18px] border border-[#f4e5be] space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <Package className="w-4 h-4 text-[#8a6521]" />
@@ -393,9 +431,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           }
                         }
                       }}
-                      className="px-3 py-1.5 rounded-[12px] border border-[#c09748] bg-white font-mono font-bold text-xs text-[#17191c] cursor-pointer focus:outline-none"
+                      className="px-3 py-1.5 rounded-[12px] border border-[#c09748] bg-white font-mono font-bold text-xs text-[#17191c] cursor-pointer focus:outline-none shadow-2xs"
                     >
-                      <option value="">-- Select Customer GRN Lot --</option>
+                      <option value="">-- Pick Customer GRN Lot --</option>
                       {availableGrnLots.map(g => (
                         <option key={g.grnNo} value={g.grnNo}>
                           {g.grnNo} • {g.supplierCustomer} ({g.actualReceivedQty || g.totalQty} pcs) • Ch: {g.invoiceChallanNo}
@@ -404,23 +442,27 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     </select>
                   </div>
 
-                  {/* Dynamic Balance Guardrail Summary */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-center">
+                  {/* Dynamic 4-Tile Guardrail Summary Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                     <div className="p-2.5 rounded-[14px] bg-white border border-[#f4e5be]">
-                      <span className="text-[10px] text-[#777b86] uppercase font-mono block">GRN Inward Total</span>
-                      <span className="font-mono font-bold text-sm text-[#17191c]">{grnTotalQty.toLocaleString('en-IN')} Pcs</span>
+                      <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">Customer Account</span>
+                      <span className="font-bold text-xs text-[#17191c] truncate block" title={customer}>{customer}</span>
                     </div>
                     <div className="p-2.5 rounded-[14px] bg-white border border-[#f4e5be]">
-                      <span className="text-[10px] text-[#777b86] uppercase font-mono block">Already in Job Cards</span>
-                      <span className="font-mono font-bold text-sm text-blue-800">
+                      <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">GRN Inward Total</span>
+                      <span className="font-mono font-bold text-xs text-[#17191c]">{grnTotalQty.toLocaleString('en-IN')} Pcs</span>
+                    </div>
+                    <div className="p-2.5 rounded-[14px] bg-white border border-[#f4e5be]">
+                      <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">Already in Job Cards</span>
+                      <span className="font-mono font-bold text-xs text-blue-800">
                         {alreadyAllocatedQty.toLocaleString('en-IN')} Pcs ({existingJobCardsForGrn.length} Cards)
                       </span>
                     </div>
                     <div className={`p-2.5 rounded-[14px] border ${
-                      maxAllowedTargetQty > 0 ? 'bg-emerald-50/70 border-emerald-300 text-emerald-900' : 'bg-red-50 border-red-200 text-red-800'
+                      maxAllowedTargetQty > 0 ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900' : 'bg-red-50 border-red-200 text-red-800'
                     }`}>
-                      <span className="text-[10px] uppercase font-mono font-semibold block">Max Available for this Card</span>
-                      <span className="font-mono font-bold text-sm">
+                      <span className="text-[9.5px] uppercase font-mono font-semibold block">Max Available for This Card</span>
+                      <span className="font-mono font-bold text-xs">
                         {maxAllowedTargetQty.toLocaleString('en-IN')} Pcs
                       </span>
                     </div>
@@ -437,12 +479,18 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   )}
                 </div>
 
-                {/* Core Job Card Details Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                      Target Quantity (Pcs) * [Max: {maxAllowedTargetQty}]
+                {/* Target Qty Input with Quick-Fill Pill Controls */}
+                <div className="p-3.5 bg-white rounded-[16px] border border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <label className="block text-[10.5px] font-bold text-[#17191c] uppercase font-mono">
+                      Target Quantity for this Job Card (Pcs) *
                     </label>
+                    <div className="text-[11px] text-[#777b86]">
+                      Max allowed unallocated balance: <strong className="text-[#8a6521] font-mono">{maxAllowedTargetQty} Pcs</strong>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
                     <input
                       type="number"
                       min="1"
@@ -450,16 +498,52 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       required
                       value={targetQty}
                       onChange={e => handleTargetQtyChange(Number(e.target.value))}
-                      className={`w-full p-2.5 rounded-[16px] border font-mono font-bold text-sm bg-white focus:outline-none transition ${
+                      className={`w-32 h-10 px-3.5 rounded-[12px] border font-mono font-bold text-sm bg-white focus:outline-none transition shadow-2xs ${
                         isOverAllocated 
                           ? 'border-red-500 text-red-600 focus:ring-2 focus:ring-red-200' 
-                          : 'border-[#ececec] text-[#17191c] focus:border-[#c09748]'
+                          : 'border-[#dcdfe4] text-[#17191c] focus:border-[#c09748]'
                       }`}
                     />
-                  </div>
 
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
+                    {maxAllowedTargetQty > 0 && targetQty !== maxAllowedTargetQty && (
+                      <button
+                        type="button"
+                        onClick={() => handleTargetQtyChange(maxAllowedTargetQty)}
+                        className="px-3 py-2 rounded-[12px] bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold transition cursor-pointer shadow-2xs active:scale-95"
+                        title="Allocate full remaining GRN balance"
+                      >
+                        Fill All ({maxAllowedTargetQty})
+                      </button>
+                    )}
+
+                    {maxAllowedTargetQty >= 2 && (
+                      <button
+                        type="button"
+                        onClick={() => handleTargetQtyChange(Math.floor(maxAllowedTargetQty / 2))}
+                        className="px-3 py-2 rounded-[12px] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold transition cursor-pointer shadow-2xs active:scale-95"
+                        title="Split into 50% batch"
+                      >
+                        Split 50% ({Math.floor(maxAllowedTargetQty / 2)})
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* ========================================================================= */}
+              {/* SECTION 2: BATCH FINISH SPECIFICATION & LINE ASSIGNMENT                   */}
+              {/* ========================================================================= */}
+              <div className="bg-[#fafafb] p-4.5 sm:p-5 rounded-[20px] border border-[#ececec] space-y-3.5 shadow-2xs">
+                <div className="border-b border-[#ececec] pb-2">
+                  <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono">
+                    2. Batch Finish Specification & Line Assignment
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {/* Color Shade Input + Preset Pills */}
+                  <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
+                    <label className="block text-[10.5px] font-bold text-[#777b86] uppercase font-mono">
                       Batch Finish / Color Shade *
                     </label>
                     <input
@@ -468,12 +552,45 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       value={batchColor}
                       onChange={e => handleColorChange(e.target.value)}
                       placeholder="e.g. Monza Red Gloss / Piano Black"
-                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                      className="w-full h-10 px-3.5 rounded-[12px] border border-[#dcdfe4] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
                     />
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      {colorPresets.map((preset, pIdx) => (
+                        <button
+                          key={pIdx}
+                          type="button"
+                          onClick={() => handleColorChange(preset.name)}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer flex items-center gap-1 ${preset.bg} ${preset.text}`}
+                        >
+                          <span>{preset.name}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
+                  {/* Painting Line / Department */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10.5px] font-bold text-[#777b86] uppercase font-mono">
+                      Department / Painting Line *
+                    </label>
+                    <select
+                      value={dept}
+                      onChange={e => setDept(e.target.value)}
+                      className="w-full h-10 px-3.5 rounded-[12px] border border-[#dcdfe4] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer shadow-2xs"
+                    >
+                      <option value="Booth #1 (Continuous Conveyor Line)">Booth #1 (Continuous Conveyor Line)</option>
+                      <option value="Booth #2 (Dust-Free Pressurized Cleanroom)">Booth #2 (Dust-Free Pressurized Cleanroom)</option>
+                      <option value="Booth #3 (Hydrographic Immersion & Dipping)">Booth #3 (Hydrographic Immersion & Dipping)</option>
+                      <option value="Booth #4 (Flatbed Industrial Direct UV Plotter)">Booth #4 (Flatbed Industrial Direct UV Plotter)</option>
+                    </select>
+                    <div className="text-[10px] text-[#777b86]">
+                      Target Line: <strong>{dept.split('(')[0]}</strong>
+                    </div>
+                  </div>
+
+                  {/* Assign Floor Painter */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10.5px] font-bold text-[#777b86] uppercase font-mono">
                       Assign Floor Painter (Max 2 Jobs) *
                     </label>
                     <select
@@ -484,7 +601,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         setPainterName(e.target.value);
                         if (selectedP) setAssignedPainterId(selectedP.id);
                       }}
-                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
+                      className="w-full h-10 px-3.5 rounded-[12px] border border-[#dcdfe4] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer shadow-2xs"
                     >
                       {painters.map(p => {
                         const count = getPainterActiveJobCount ? getPainterActiveJobCount(p.id) : 0;
@@ -496,37 +613,16 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         );
                       })}
                     </select>
+                    <div className="text-[10px] text-[#777b86] font-mono">
+                      Booth: {painters.find(p => p.name === painterName)?.boothNo || 'Booth #1'}
+                    </div>
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                      Work Order (W.No) *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={wNo}
-                      onChange={e => setWNo(e.target.value)}
-                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                      Customer / Client Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={customer}
-                      onChange={e => setCustomer(e.target.value)}
-                      placeholder="e.g. ROOP POLYMERS LTD / MARUTI SUZUKI"
-                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
+                {/* Second row: Part Code, Work Order & Lead Time */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-[#777b86] uppercase font-mono">
                       Part Code (OEM Spec) *
                     </label>
                     <input
@@ -535,25 +631,25 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       value={partCode}
                       onChange={e => setPartCode(e.target.value)}
                       placeholder="e.g. RP-8841 / MS-VENT-01"
-                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-mono font-bold text-[#17191c]"
+                      className="w-full h-9 px-3 rounded-[12px] border border-[#dcdfe4] bg-white font-mono font-bold text-xs text-[#17191c]"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                      Department / Shop Floor Line *
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-[#777b86] uppercase font-mono">
+                      Work Order Ref (W.No) *
                     </label>
                     <input
                       type="text"
                       required
-                      value={dept}
-                      onChange={e => setDept(e.target.value)}
-                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-semibold text-[#17191c]"
+                      value={wNo}
+                      onChange={e => setWNo(e.target.value)}
+                      className="w-full h-9 px-3 rounded-[12px] border border-[#dcdfe4] bg-white font-mono font-bold text-xs text-[#17191c]"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-[#777b86] uppercase font-mono">
                       Issue Date & Time *
                     </label>
                     <div className="flex gap-2">
@@ -562,26 +658,28 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         required
                         value={issueDate}
                         onChange={e => setIssueDate(e.target.value)}
-                        className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white text-[11px]"
+                        className="w-full h-9 px-2.5 rounded-[12px] border border-[#dcdfe4] bg-white text-xs"
                       />
                       <input
                         type="text"
                         required
                         value={issueTime}
                         onChange={e => setIssueTime(e.target.value)}
-                        className="w-24 p-2.5 rounded-[16px] border border-[#ececec] bg-white text-[11px] text-center font-mono"
+                        className="w-24 h-9 px-2.5 rounded-[12px] border border-[#dcdfe4] bg-white text-xs text-center font-mono"
                       />
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* SECTION B: INTERNAL MATERIAL REQUIREMENTS & STORE DEMAND (MRN) */}
+              {/* ========================================================================= */}
+              {/* SECTION 3: REQUIRED INTERNAL CHEMICALS & PAINTS DEMAND (MRN)              */}
+              {/* ========================================================================= */}
               <div className="space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#ececec] pb-2">
                   <div>
                     <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono">
-                      2. Internal Material Requirements (Paints, Thinners & Chemicals)
+                      3. Internal Material Requirements (Paints, Thinners & Chemicals)
                     </span>
                     <p className="text-xs text-[#777b86]">
                       Store will issue these chemicals against this Job Card via Material Issue Note (MIN)
@@ -597,16 +695,16 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </button>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {issuedMaterials.map((mat, idx) => (
-                    <div key={mat.id} className="bg-[#fafafb] p-4 rounded-[20px] border border-[#ececec] space-y-2 relative group hover:border-[#c09748]/50 transition shadow-2xs">
+                    <div key={mat.id} className="bg-[#fafafb] p-3.5 sm:p-4 rounded-[18px] border border-[#ececec] space-y-2 relative group hover:border-[#c09748]/50 transition shadow-2xs">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="w-5 h-5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] flex items-center justify-center font-bold text-[10px]">
                             {idx + 1}
                           </span>
                           <span className="font-bold text-xs text-[#17191c]">
-                            {idx === 0 ? 'Customer Substrate Component' : `Internal Chemical #${idx}`}
+                            {idx === 0 ? 'Customer Substrate Component (Auto-synced)' : `Internal Chemical #${idx}`}
                           </span>
                         </div>
                         {idx > 0 && (
@@ -621,9 +719,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
                         <div className="sm:col-span-2">
-                          <label className="block text-[9px] font-bold text-[#777b86] uppercase mb-0.5">
+                          <label className="block text-[9.5px] font-bold text-[#777b86] uppercase mb-0.5">
                             Material / Paint Description *
                           </label>
                           <input
@@ -632,12 +730,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                             value={mat.itemDescription}
                             onChange={e => handleUpdateMaterial(mat.id, 'itemDescription', e.target.value)}
                             placeholder="e.g. Monza Red 2K PU Basecoat Paint (PPG)"
-                            className="w-full p-2 rounded-[12px] border border-[#ececec] bg-white text-xs font-semibold text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                            className="w-full h-9 px-3 rounded-[12px] border border-[#dcdfe4] bg-white text-xs font-semibold text-[#17191c] focus:outline-none focus:border-[#c09748]"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[9px] font-bold text-[#777b86] uppercase mb-0.5">
+                          <label className="block text-[9.5px] font-bold text-[#777b86] uppercase mb-0.5">
                             Demand Qty & UOM *
                           </label>
                           <div className="flex gap-1">
@@ -647,12 +745,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                               required
                               value={mat.qty}
                               onChange={e => handleUpdateMaterial(mat.id, 'qty', Number(e.target.value))}
-                              className="w-full p-2 rounded-[12px] border border-[#ececec] bg-white text-xs font-mono font-bold text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                              className="w-full h-9 px-3 rounded-[12px] border border-[#dcdfe4] bg-white text-xs font-mono font-bold text-[#17191c] focus:outline-none focus:border-[#c09748]"
                             />
                             <select
                               value={mat.uom || 'Pcs'}
                               onChange={e => handleUpdateMaterial(mat.id, 'uom', e.target.value)}
-                              className="p-2 rounded-[12px] border border-[#ececec] bg-white text-xs font-mono text-[#17191c]"
+                              className="w-20 h-9 px-2 rounded-[12px] border border-[#dcdfe4] bg-white text-xs font-mono text-[#17191c]"
                             >
                               <option value="Pcs">Pcs</option>
                               <option value="Litres">Ltr</option>
@@ -663,7 +761,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         </div>
 
                         <div>
-                          <label className="block text-[9px] font-bold text-[#777b86] uppercase mb-0.5">
+                          <label className="block text-[9.5px] font-bold text-[#777b86] uppercase mb-0.5">
                             Mix Ratio / Store Remarks
                           </label>
                           <input
@@ -671,7 +769,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                             value={mat.remark || ''}
                             onChange={e => handleUpdateMaterial(mat.id, 'remark', e.target.value)}
                             placeholder="e.g. Ratio 4:1:1 / Visc 16s"
-                            className="w-full p-2 rounded-[12px] border border-[#ececec] bg-white text-xs text-[#17191c]"
+                            className="w-full h-9 px-3 rounded-[12px] border border-[#dcdfe4] bg-white text-xs text-[#17191c]"
                           />
                         </div>
                       </div>
@@ -680,15 +778,17 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 </div>
               </div>
 
-              {/* SECTION C: 3-STAGE INTER-STAGE PROCESS COUNTS */}
-              <div className="bg-[#fafafb] p-5 sm:p-6 rounded-[24px] border border-[#ececec] space-y-4">
+              {/* ========================================================================= */}
+              {/* SECTION 4: 3-STAGE INTER-STAGE PROCESS VERIFICATION                       */}
+              {/* ========================================================================= */}
+              <div className="bg-[#fafafb] p-4.5 sm:p-5 rounded-[20px] border border-[#ececec] space-y-3.5 shadow-2xs">
                 <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono block">
-                  3. 3-Stage Process Verification (Target: {targetQty} Pcs)
+                  4. 3-Stage Process Verification Checkpoints (Target: {targetQty} Pcs)
                 </span>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                   {/* Stage 1 */}
-                  <div className="bg-white p-4 rounded-[18px] border border-[#ececec] space-y-2">
+                  <div className="bg-white p-3.5 rounded-[16px] border border-[#ececec] space-y-1.5">
                     <span className="font-bold text-xs text-[#17191c] block">Stage 1: Basecoat Application</span>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div>
@@ -697,7 +797,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           type="number"
                           value={firstStage.totalQty}
                           onChange={e => setFirstStage({ ...firstStage, totalQty: Number(e.target.value) })}
-                          className="w-full p-1.5 border border-[#ececec] rounded-lg font-mono font-bold"
+                          className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold"
                         />
                       </div>
                       <div>
@@ -706,14 +806,14 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           type="number"
                           value={firstStage.okQty}
                           onChange={e => setFirstStage({ ...firstStage, okQty: Number(e.target.value) })}
-                          className="w-full p-1.5 border border-[#ececec] rounded-lg font-mono font-bold text-emerald-800"
+                          className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold text-emerald-800"
                         />
                       </div>
                     </div>
                   </div>
 
                   {/* Stage 2 */}
-                  <div className="bg-white p-4 rounded-[18px] border border-[#ececec] space-y-2">
+                  <div className="bg-white p-3.5 rounded-[16px] border border-[#ececec] space-y-1.5">
                     <span className="font-bold text-xs text-[#17191c] block">Stage 2: Dipping / UV Pattern</span>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div>
@@ -722,7 +822,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           type="number"
                           value={secondStage.totalQty}
                           onChange={e => setSecondStage({ ...secondStage, totalQty: Number(e.target.value) })}
-                          className="w-full p-1.5 border border-[#ececec] rounded-lg font-mono font-bold"
+                          className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold"
                         />
                       </div>
                       <div>
@@ -731,14 +831,14 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           type="number"
                           value={secondStage.okQty}
                           onChange={e => setSecondStage({ ...secondStage, okQty: Number(e.target.value) })}
-                          className="w-full p-1.5 border border-[#ececec] rounded-lg font-mono font-bold text-emerald-800"
+                          className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold text-emerald-800"
                         />
                       </div>
                     </div>
                   </div>
 
                   {/* Stage 3 */}
-                  <div className="bg-white p-4 rounded-[18px] border border-[#ececec] space-y-2">
+                  <div className="bg-white p-3.5 rounded-[16px] border border-[#ececec] space-y-1.5">
                     <span className="font-bold text-xs text-[#17191c] block">Stage 3: Clear Lacquer Curing</span>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div>
@@ -747,7 +847,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           type="number"
                           value={thirdStage.totalQty}
                           onChange={e => setThirdStage({ ...thirdStage, totalQty: Number(e.target.value) })}
-                          className="w-full p-1.5 border border-[#ececec] rounded-lg font-mono font-bold"
+                          className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold"
                         />
                       </div>
                       <div>
@@ -756,7 +856,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           type="number"
                           value={thirdStage.okQty}
                           onChange={e => setThirdStage({ ...thirdStage, okQty: Number(e.target.value) })}
-                          className="w-full p-1.5 border border-[#ececec] rounded-lg font-mono font-bold text-emerald-800"
+                          className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold text-emerald-800"
                         />
                       </div>
                     </div>
@@ -766,10 +866,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
 
               {/* ACTION BUTTON BAR (NO BLACK BUTTONS) */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-[#ececec]">
-                <div className="flex items-center gap-2 text-xs text-[#777b86]">
-                  <span>Target Batch: <strong className="text-[#17191c]">{targetQty} Pcs</strong></span>
+                <div className="flex items-center gap-2 text-xs text-[#777b86] self-start sm:self-auto">
+                  <span className="px-3 py-1 bg-[#faf3e0] text-[#8a6521] rounded-full border border-[#f4e5be] font-mono font-bold">
+                    Target: {targetQty} Pcs
+                  </span>
                   <span>•</span>
-                  <span>Painter: <strong className="text-[#8a6521]">{painterName}</strong></span>
+                  <span>Painter: <strong className="text-[#17191c]">{painterName}</strong></span>
                 </div>
 
                 <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
