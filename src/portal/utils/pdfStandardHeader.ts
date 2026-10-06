@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { BillingInvoice, MaterialInwardRecord, MaterialOutwardRecord, IQCInspectionRecord, GoodsReceiptNote } from '../types/portalTypes';
+import { BillingInvoice, MaterialInwardRecord, MaterialOutwardRecord, IQCInspectionRecord, GoodsReceiptNote, FPARecord, IPQCRecord } from '../types/portalTypes';
 import { PAINTKING_LOGO_BASE64 } from './paintkingLogoBase64';
 
 export interface StandardPdfHeaderOptions {
@@ -2219,4 +2219,364 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
   }
 
   doc.save(`PaintKing_GRN_${grn.grnNo}.pdf`);
+};
+
+/**
+ * =========================================================================
+ * OFFICIAL FIRST PART APPROVAL (FPA) GOLDEN GATE REPORT PDF (PK-QA-FPA-001)
+ * =========================================================================
+ */
+export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const headerY = drawStandardPdfHeader(doc);
+  let currentY = headerY + 2;
+
+  // Title Box
+  doc.setDrawColor(TABLE_BORDER_COLOR[0], TABLE_BORDER_COLOR[1], TABLE_BORDER_COLOR[2]);
+  doc.setFillColor(242, 242, 243);
+  doc.roundedRect(14, currentY, 182, 11, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(23, 25, 28);
+  doc.text('FIRST PART APPROVAL (FPA) GOLDEN GATE REPORT', 18, currentY + 7);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(119, 123, 134);
+  doc.text(`DOC CODE: PK-QA-FPA-001 • STATUS: ${fpa.overallResult.toUpperCase()}`, 192, currentY + 7, { align: 'right' });
+
+  currentY += 14;
+
+  // Metadata Grid
+  const metaFields = [
+    { label: 'FPA REPORT NO', value: fpa.reportNo, isBold: true },
+    { label: 'INSPECTION DATE', value: formatDateDDMMYYYY(fpa.date), isBold: true },
+    { label: 'PLANT LOCATION', value: `${fpa.plant} Facility` },
+    { label: 'WORK ORDER NO', value: fpa.woNo, isBold: true },
+    { label: 'JOB CARD REF', value: fpa.jobCardNo, isBold: true },
+    { label: 'CUSTOMER / OEM', value: fpa.customer },
+    { label: 'PART COMPONENT', value: fpa.partCode },
+    { label: 'SHADE / COLOR', value: fpa.color },
+    { label: 'PAINT BATCH NO', value: fpa.paintBatch },
+    { label: 'BOOTH & OPERATOR', value: `${fpa.booth} (${fpa.painter})` },
+    { label: 'VISCOSITY (FC4)', value: `${fpa.viscositySec} Seconds` },
+    { label: 'OVERALL RESULT', value: fpa.overallResult === 'Approved' ? 'PASSED & RELEASED' : fpa.overallResult, isBold: true }
+  ];
+
+  const fieldW = 182 / 3;
+  metaFields.forEach((f, idx) => {
+    const row = Math.floor(idx / 3);
+    const col = idx % 3;
+    const x = 14 + col * fieldW;
+    const y = currentY + row * 10;
+    drawMetaField(doc, x, y, fieldW, 10, f.label, f.value, f.isBold);
+  });
+
+  currentY += 44;
+
+  // Section 1: 5 Test Plaques Table
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(23, 25, 28);
+  doc.text('1. GOLDEN SAMPLE TEST PIECES (INITIAL 5-PART RUN)', 14, currentY);
+  currentY += 3.5;
+
+  const sampleCols = [
+    { header: 'SAMPLE NO', width: 36 },
+    { header: 'VISUAL DEFECT INSPECTION', width: 56 },
+    { header: 'COATING CONTINUITY', width: 45 },
+    { header: 'RESULT', width: 45 }
+  ];
+
+  // Draw Header
+  doc.setFillColor(242, 242, 243);
+  doc.setDrawColor(TABLE_BORDER_COLOR[0], TABLE_BORDER_COLOR[1], TABLE_BORDER_COLOR[2]);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.rect(14, currentY, 182, 6.5, 'FD');
+
+  let curX = 14;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(23, 25, 28);
+  sampleCols.forEach(col => {
+    doc.text(col.header, curX + 2.5, currentY + 4.5);
+    curX += col.width;
+  });
+  currentY += 6.5;
+
+  const samples = [
+    { no: 'Sample Plaque #1', test: 'Zero pin marks / silver streak', cont: 'Uniform 100% wet out', res: fpa.sample1 },
+    { no: 'Sample Plaque #2', test: 'Zero dust nibs / runs', cont: 'Uniform 100% wet out', res: fpa.sample2 },
+    { no: 'Sample Plaque #3', test: 'Zero blister / dry spray', cont: 'Uniform 100% wet out', res: fpa.sample3 },
+    { no: 'Sample Plaque #4', test: 'Colorimetry & shade parity', cont: 'Uniform 100% wet out', res: fpa.sample4 },
+    { no: 'Sample Plaque #5', test: 'Edge coverage & film build', cont: 'Uniform 100% wet out', res: fpa.sample5 }
+  ];
+
+  samples.forEach((s, sIdx) => {
+    const bg = sIdx % 2 === 1 ? [250, 250, 251] : [255, 255, 255];
+    doc.setFillColor(bg[0], bg[1], bg[2]);
+    doc.rect(14, currentY, 182, 6, 'FD');
+
+    let x = 14;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.8);
+    doc.setTextColor(23, 25, 28);
+
+    doc.text(s.no, x + 2.5, currentY + 4.2);
+    x += sampleCols[0].width;
+    doc.text(s.test, x + 2.5, currentY + 4.2);
+    x += sampleCols[1].width;
+    doc.text(s.cont, x + 2.5, currentY + 4.2);
+    x += sampleCols[2].width;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(s.res === 'Pass' ? 5 : 190, s.res === 'Pass' ? 150 : 25, s.res === 'Pass' ? 105 : 25);
+    doc.text(`✓ ${s.res}`, x + 2.5, currentY + 4.2);
+
+    currentY += 6;
+  });
+
+  currentY += 6;
+
+  // Section 2: Laboratory Precision Gate (Colorimetry & Adhesion)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(23, 25, 28);
+  doc.text('2. LAB INSTRUMENTAL QUALITY GATES (CIELAB & ASTM D3359)', 14, currentY);
+  currentY += 3.5;
+
+  const labBoxY = currentY;
+  doc.setFillColor(250, 250, 251);
+  doc.setDrawColor(TABLE_BORDER_COLOR[0], TABLE_BORDER_COLOR[1], TABLE_BORDER_COLOR[2]);
+  doc.roundedRect(14, labBoxY, 182, 34, 2, 2, 'FD');
+
+  // Left column: Spectrophotometer Delta E
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text('CIELAB SPECTROPHOTOMETER COLORIMETRY:', 18, labBoxY + 6);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(80, 85, 95);
+  doc.text(`L* (Lightness): ${fpa.L} • a* (Red/Green): ${fpa.a} • b* (Yellow/Blue): ${fpa.b}`, 18, labBoxY + 12);
+  doc.text(`Measured Delta-E (\u0394E): ${fpa.deltaE.toFixed(2)}  (OEM Strict Standard: \u0394E \u2264 0.70)`, 18, labBoxY + 18);
+
+  doc.setFont('helvetica', 'bold');
+  if (fpa.deltaE <= 0.70) {
+    doc.setTextColor(5, 150, 105);
+    doc.text('✓ PASSED: Colorimetry within tight OEM tolerance limit (\u0394E \u2264 0.70)', 18, labBoxY + 26);
+  } else {
+    doc.setTextColor(225, 29, 72);
+    doc.text('⚠️ FAILED: Color deviation exceeds allowable limit (\u0394E > 0.70)', 18, labBoxY + 26);
+  }
+
+  // Right column: Adhesion & Cross-Cut Test
+  const labRightX = 110;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text('COATING ADHESION & TAPE TEST (ASTM 5B):', labRightX, labBoxY + 6);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(80, 85, 95);
+  doc.text(`Cross-Cut Rating: ${fpa.crossCutTest} • Tape Pull Test: ${fpa.tapeTest}`, labRightX, labBoxY + 12);
+  doc.text(`Adhesion Percentage: ${fpa.adhesionPercent}%  (Required: 100% Adhesion)`, labRightX, labBoxY + 18);
+
+  doc.setFont('helvetica', 'bold');
+  if (fpa.adhesionPercent === 100 && fpa.crossCutTest === 'Pass') {
+    doc.setTextColor(5, 150, 105);
+    doc.text('✓ PASSED: Zero flaking / 100% adhesion confirmed', labRightX, labBoxY + 26);
+  } else {
+    doc.setTextColor(225, 29, 72);
+    doc.text('⚠️ FAILED: Coating peeled during 3M tape test', labRightX, labBoxY + 26);
+  }
+
+  currentY = labBoxY + 39;
+
+  // Section 3: Signatures Block
+  doc.setDrawColor(220, 222, 228);
+  doc.setFillColor(250, 250, 251);
+  doc.roundedRect(14, currentY, 182, 24, 2, 2, 'FD');
+
+  const sCol1 = 18;
+  const sCol2 = 80;
+  const sCol3 = 142;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(119, 123, 134);
+  doc.text('QC LAB ENGINEER:', sCol1, currentY + 5.5);
+  doc.text('MANAGER QA SIGN-OFF:', sCol2, currentY + 5.5);
+  doc.text('PLANT HEAD DISPENSATION:', sCol3, currentY + 5.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(23, 25, 28);
+  doc.text(fpa.qcEngineer || 'Amit Verma (QA Lead)', sCol1, currentY + 12);
+  doc.text(fpa.managerQAApproval ? 'Rajesh Nair (Head QA) [APPROVED]' : 'Pending Review', sCol2, currentY + 12);
+  doc.text('Satish Sharma (Plant Head)', sCol3, currentY + 12);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6);
+  doc.setTextColor(119, 123, 134);
+  doc.text('Delta-E & Adhesion Logged', sCol1, currentY + 17.5);
+  doc.text('Released for Mass Run', sCol2, currentY + 17.5);
+  doc.text('Plant Line Clearance Issued', sCol3, currentY + 17.5);
+
+  // Standard Footer
+  const liveTimestamp = new Date().toLocaleString('en-IN');
+  drawStandardPdfFooter(
+    doc,
+    1,
+    1,
+    'PAINTKING • First Part Approval (FPA - Golden Gate) • ISO 9001:2015 & IATF 16949 Certified',
+    liveTimestamp,
+    false
+  );
+
+  doc.save(`PaintKing_FPA_${fpa.reportNo}.pdf`);
+};
+
+/**
+ * =========================================================================
+ * OFFICIAL 3-HOURLY IN-PROCESS QUALITY CONTROL (IPQC) AUDIT PDF (PK-QA-IPQ-001)
+ * =========================================================================
+ */
+export const downloadStandardIPQCPdf = (ipqc: IPQCRecord): void => {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const headerY = drawStandardPdfHeader(doc);
+  let currentY = headerY + 2;
+
+  // Title Box
+  doc.setDrawColor(TABLE_BORDER_COLOR[0], TABLE_BORDER_COLOR[1], TABLE_BORDER_COLOR[2]);
+  doc.setFillColor(242, 242, 243);
+  doc.roundedRect(14, currentY, 182, 11, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(23, 25, 28);
+  doc.text('3-HOURLY IN-PROCESS QUALITY CONTROL (IPQC) AUDIT', 18, currentY + 7);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(119, 123, 134);
+  doc.text(`DOC CODE: PK-QA-IPQ-001 • RESULT: ${ipqc.result.toUpperCase()}`, 192, currentY + 7, { align: 'right' });
+
+  currentY += 14;
+
+  // Metadata Grid
+  const metaFields = [
+    { label: 'IPQC REPORT NO', value: ipqc.reportNo, isBold: true },
+    { label: 'AUDIT DATE & TIME', value: `${formatDateDDMMYYYY(ipqc.date)} • ${ipqc.checkTime}`, isBold: true },
+    { label: 'PLANT & SHIFT', value: `${ipqc.plant} (${ipqc.shift} Shift)` },
+    { label: 'WORK ORDER NO', value: ipqc.woNo, isBold: true },
+    { label: 'PART CODE', value: ipqc.partCode },
+    { label: 'COLOR SHADE', value: ipqc.color },
+    { label: 'SPRAY BOOTH', value: ipqc.booth },
+    { label: 'ACTIVE PAINTER', value: ipqc.painter },
+    { label: 'QC AUDITOR', value: ipqc.inspector, isBold: true }
+  ];
+
+  const fieldW = 182 / 3;
+  metaFields.forEach((f, idx) => {
+    const row = Math.floor(idx / 3);
+    const col = idx % 3;
+    const x = 14 + col * fieldW;
+    const y = currentY + row * 10;
+    drawMetaField(doc, x, y, fieldW, 10, f.label, f.value, f.isBold);
+  });
+
+  currentY += 34;
+
+  // Section 1: In-Process Defect Audits Table
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(23, 25, 28);
+  doc.text('1. LIVE IN-PROCESS DEFECT CHECKPOINTS', 14, currentY);
+  currentY += 3.5;
+
+  const defectRows = [
+    { name: 'Bubble / Blister Defect', desc: 'Zero solvent pop or air bubbles in coating film', res: ipqc.bubble },
+    { name: 'Dust Spot / Particle Nibs', desc: 'Clean room filtration check (Zero dust nibs >0.2mm)', res: ipqc.dustSpot },
+    { name: 'Over-Paint / Runs / Sagging', desc: 'Uniform vertical atomization (Zero paint drip/runs)', res: ipqc.overPaint },
+    { name: 'Paint Missing / Dry Spray', desc: 'Full edge and cavity wrap coverage', res: ipqc.paintMissing },
+    { name: 'Overall Surface Finishing', desc: 'Smooth luxury texture & orange peel within limit', res: ipqc.overallFinishing },
+    { name: 'Coating Adhesion Check', desc: '100% Cross-hatch adhesion on shift sample', res: ipqc.adhesionTest },
+    { name: 'Spectrophotometer Delta-E', desc: `Measured Delta-E: ${ipqc.deltaE.toFixed(2)} (Target <= 0.70)`, res: ipqc.deltaE <= 0.70 ? 'Pass' : 'Fail' }
+  ];
+
+  defectRows.forEach((r, rIdx) => {
+    const bg = rIdx % 2 === 1 ? [250, 250, 251] : [255, 255, 255];
+    doc.setFillColor(bg[0], bg[1], bg[2]);
+    doc.setDrawColor(TABLE_BORDER_COLOR[0], TABLE_BORDER_COLOR[1], TABLE_BORDER_COLOR[2]);
+    doc.rect(14, currentY, 182, 6.5, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(23, 25, 28);
+    doc.text(r.name, 18, currentY + 4.5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.8);
+    doc.setTextColor(100, 105, 115);
+    doc.text(r.desc, 70, currentY + 4.5);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(r.res === 'Pass' ? 5 : 225, r.res === 'Pass' ? 150 : 29, r.res === 'Pass' ? 105 : 72);
+    doc.text(r.res === 'Pass' ? '✓ PASS' : '⚠️ FAIL', 188, currentY + 4.5, { align: 'right' });
+
+    currentY += 6.5;
+  });
+
+  currentY += 8;
+
+  // Section 2: Audit Outcome & Sign-off
+  doc.setDrawColor(220, 222, 228);
+  doc.setFillColor(250, 250, 251);
+  doc.roundedRect(14, currentY, 182, 22, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text('AUDIT DISPOSITION & QUALITY CONCURRENCE:', 18, currentY + 6);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(80, 85, 95);
+  doc.text(
+    ipqc.result === 'Pass'
+      ? '✓ All booth spray parameters and defect tolerances meet PaintKing OEM specifications. Production authorized to proceed.'
+      : '⚠️ Defect flagged during 3-hourly audit. Supervisor notified to check atomization pressure and route affected pieces to rework.',
+    18,
+    currentY + 12
+  );
+
+  doc.setFont('helvetica', 'bold');
+  doc.text(`QC AUDITOR: ${ipqc.inspector}`, 188, currentY + 17, { align: 'right' });
+
+  // Standard Footer
+  const liveTimestamp = new Date().toLocaleString('en-IN');
+  drawStandardPdfFooter(
+    doc,
+    1,
+    1,
+    'PAINTKING • 3-Hourly IPQC Inspection Record • ISO 9001:2015 & IATF 16949 Certified',
+    liveTimestamp,
+    false
+  );
+
+  doc.save(`PaintKing_IPQC_${ipqc.reportNo}.pdf`);
 };

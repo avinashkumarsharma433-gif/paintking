@@ -33,15 +33,22 @@ import {
   Sliders,
   Trash2,
   Check,
-  Paintbrush
+  Paintbrush,
+  FlaskConical,
+  Download
 } from 'lucide-react';
 import { JobCardModal } from '../components/JobCardModal';
+import { FPAModal } from '../components/FPAModal';
+import { IPQCModal } from '../components/IPQCModal';
+import { downloadStandardFPAPdf, downloadStandardIPQCPdf } from '../utils/pdfStandardHeader';
 
 export const JobCardsView: React.FC = () => {
   const { 
     jobCards, 
     universalJobs, 
     grnList,
+    fpaRecords,
+    ipqcRecords,
     updateJobCardSprayed, 
     defects, 
     activePlant, 
@@ -69,8 +76,14 @@ export const JobCardsView: React.FC = () => {
   // Active filter tab: ALL, MASTER, PAINTERS, REWORK, REQUISITIONS, STORE_STOCK, BOOTH_FLEET
   const [activeTab, setActiveTab] = useState<'ALL' | 'MASTER' | 'PAINTERS' | 'REWORK' | 'REQUISITIONS' | 'STORE_STOCK' | 'BOOTH_FLEET'>('ALL');
 
+  // FPA Golden Gate & 3-Hourly IPQC Modal States
+  const [showFpaModal, setShowFpaModal] = useState<boolean>(false);
+  const [selectedJcForFpa, setSelectedJcForFpa] = useState<JobCard | null>(null);
+  const [showIpqcModal, setShowIpqcModal] = useState<boolean>(false);
+  const [selectedJcForIpqc, setSelectedJcForIpqc] = useState<JobCard | null>(null);
+
   // Painter SLA Performance Details Modal State
-  const [selectedPainterForSlaModal, setSelectedPainterForSlaModal] = useState<PainterProfile | null>(null);
+  const [selectedPainterForSlaModal, setSelectedPainterForSlaModal] = useState<any | null>(null);
 
   // Synchronize with sidebar sub-item clicks
   useEffect(() => {
@@ -1515,6 +1528,19 @@ export const JobCardsView: React.FC = () => {
                           {jc.docNo || 'Doc No: 001'}
                         </span>
 
+                        {/* FPA Golden Gate Status Badge */}
+                        {jc.fpaStatus === 'Approved' ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold flex items-center gap-1">
+                            <Sparkles className="w-3 h-3 text-emerald-600" />
+                            <span>FPA Approved ✓</span>
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-amber-900 text-[10px] font-mono font-bold flex items-center gap-1">
+                            <FlaskConical className="w-3 h-3 text-amber-700" />
+                            <span>FPA Pending (Gate 2)</span>
+                          </span>
+                        )}
+
                         {/* SLA / On-Time Marking Badge */}
                         {(() => {
                           const isClosed = jc.status === 'Completed' || jc.status === 'Verified & Accepted' || jc.status === 'Target Met';
@@ -1574,6 +1600,34 @@ export const JobCardsView: React.FC = () => {
                       }`}>
                         {jc.status}
                       </span>
+
+                      {/* FPA Golden Gate Action Button */}
+                      <button
+                        onClick={() => {
+                          setSelectedJcForFpa(jc);
+                          setShowFpaModal(true);
+                        }}
+                        className={`px-3.5 py-1 rounded-full text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
+                          jc.fpaStatus === 'Approved'
+                            ? 'bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                            : 'bg-[#faf7ed] border border-[#f4e5be] text-[#8a6521] hover:bg-[#faf3e0]'
+                        }`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
+                        <span>{jc.fpaStatus === 'Approved' ? 'FPA Approved ✓' : '+ Perform FPA Test'}</span>
+                      </button>
+
+                      {/* In-Process 3-Hourly IPQC Action */}
+                      <button
+                        onClick={() => {
+                          setSelectedJcForIpqc(jc);
+                          setShowIpqcModal(true);
+                        }}
+                        className="px-3.5 py-1 rounded-full bg-white border border-[#ececec] hover:border-[#c09748] text-[#17191c] text-xs font-semibold hover:bg-gray-50 transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                      >
+                        <Clock className="w-3.5 h-3.5 text-[#c09748]" />
+                        <span>+ Log 3h IPQC</span>
+                      </button>
 
                       {/* Requisition Material from Store for this Job Card */}
                       {isMaster && (
@@ -1799,6 +1853,139 @@ export const JobCardsView: React.FC = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* QUALITY GATES: FPA GOLDEN GATE & 3-HOURLY IPQC AUDITS STRIP */}
+                  {(() => {
+                    const matchingFpa = fpaRecords.find(
+                      f => f.jobCardNo.toLowerCase() === jc.jobCardNo.toLowerCase() || (jc.woNo && f.woNo.toLowerCase() === jc.woNo.toLowerCase() && f.color.toLowerCase() === jc.color.toLowerCase())
+                    );
+                    const matchingIpqc = ipqcRecords.filter(
+                      i => (jc.woNo && i.woNo.toLowerCase() === jc.woNo.toLowerCase()) || i.partCode.toLowerCase() === jc.partCode.toLowerCase()
+                    );
+
+                    return (
+                      <div className="p-3.5 rounded-[18px] bg-gradient-to-r from-[#faf7ed] via-[#fafafb] to-white border border-[#f4e5be] space-y-2.5 text-xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#f4e5be]/60 pb-2">
+                          <div className="flex items-center gap-2">
+                            <ShieldCheck className="w-4 h-4 text-[#c09748]" />
+                            <span className="font-bold uppercase tracking-wider text-[11px] text-[#17191c] font-mono">
+                              Quality Gates: FPA Golden Sample & 3-Hourly IPQC Audits
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-[#8a6521] font-mono font-semibold">
+                            Strict Standard: ΔE ≤ 0.70 • ASTM 5B Adhesion (100%)
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {/* FPA Status & Details */}
+                          <div className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-1.5 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] uppercase font-bold text-[#777b86] font-mono flex items-center gap-1">
+                                <FlaskConical className="w-3.5 h-3.5 text-[#c09748]" />
+                                Gate 2: First Part Approval (FPA)
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold ${
+                                jc.fpaStatus === 'Approved' ? 'bg-emerald-100 text-emerald-900' : 'bg-amber-100 text-amber-900'
+                              }`}>
+                                {jc.fpaStatus === 'Approved' ? '✓ APPROVED' : '⚠️ PENDING LAB CHECK'}
+                              </span>
+                            </div>
+
+                            {matchingFpa ? (
+                              <div className="space-y-1 text-[11px]">
+                                <div className="flex items-center justify-between font-mono">
+                                  <span className="text-[#777b86]">Report: <strong>{matchingFpa.reportNo}</strong></span>
+                                  <span className="text-emerald-700 font-bold">ΔE = {matchingFpa.deltaE} (Pass)</span>
+                                  <span className="text-emerald-700 font-bold">Adhesion: {matchingFpa.adhesionPercent}%</span>
+                                </div>
+                                <div className="text-[10px] text-[#777b86] truncate">
+                                  Audited by: {matchingFpa.qcEngineer} • Viscosity: {matchingFpa.viscositySec}s (FC4)
+                                </div>
+                                <div className="pt-1 flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadStandardFPAPdf(matchingFpa)}
+                                    className="px-2.5 py-1 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-bold hover:bg-[#f4e5be] transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                                  >
+                                    <Download className="w-3 h-3" />
+                                    <span>Download FPA Report PDF</span>
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-1.5 pt-0.5">
+                                <p className="text-[10.5px] text-[#777b86]">
+                                  Initial 5 sample test pieces must be recorded before continuing mass production.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedJcForFpa(jc);
+                                    setShowFpaModal(true);
+                                  }}
+                                  className="px-3 py-1.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-[10.5px] font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs active:scale-95"
+                                >
+                                  <Sparkles className="w-3 h-3 text-white" />
+                                  <span>+ Record FPA Golden Sample Test</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 3-Hourly IPQC In-Process Trail */}
+                          <div className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-1.5 shadow-2xs">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] uppercase font-bold text-[#777b86] font-mono flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5 text-[#c09748]" />
+                                In-Process IPQC Audits ({matchingIpqc.length} Recorded)
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedJcForIpqc(jc);
+                                  setShowIpqcModal(true);
+                                }}
+                                className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-[10px] font-bold transition cursor-pointer shadow-2xs"
+                              >
+                                + Log Audit
+                              </button>
+                            </div>
+
+                            {matchingIpqc.length > 0 ? (
+                              <div className="space-y-1 text-[11px]">
+                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                  {matchingIpqc.map((ip, ipIdx) => (
+                                    <span
+                                      key={ipIdx}
+                                      onClick={() => downloadStandardIPQCPdf(ip)}
+                                      title={`Click to download ${ip.reportNo} PDF`}
+                                      className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer hover:opacity-80 transition ${
+                                        ip.result === 'Pass' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
+                                      }`}
+                                    >
+                                      <span>{ip.checkTime}</span>
+                                      <span>({ip.result === 'Pass' ? '✓' : '⚠️'})</span>
+                                      <Download className="w-2.5 h-2.5 ml-0.5" />
+                                    </span>
+                                  ))}
+                                </div>
+                                <div className="text-[10px] text-[#777b86] pt-0.5">
+                                  Latest Audit: {matchingIpqc[0].checkTime} • ΔE: {matchingIpqc[0].deltaE} • Booth: {matchingIpqc[0].booth}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-1 pt-0.5">
+                                <p className="text-[10.5px] text-[#777b86]">
+                                  No 3-hourly line audits logged yet for this batch. Log audits at 09:00, 12:00, 15:00.
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Rework Instructions details if Rework Card */}
                   {isReworkChild && (
@@ -3280,6 +3467,30 @@ export const JobCardsView: React.FC = () => {
           </div>
         );
       })()}
+
+      {/* ====================================================================== */}
+      {/* MODAL 11: FPA (FIRST PART APPROVAL) GOLDEN SAMPLE TEST MODAL           */}
+      {/* ====================================================================== */}
+      <FPAModal
+        isOpen={showFpaModal}
+        onClose={() => {
+          setShowFpaModal(false);
+          setSelectedJcForFpa(null);
+        }}
+        jobCard={selectedJcForFpa}
+      />
+
+      {/* ====================================================================== */}
+      {/* MODAL 12: 3-HOURLY IPQC (IN-PROCESS QUALITY CONTROL) AUDIT MODAL       */}
+      {/* ====================================================================== */}
+      <IPQCModal
+        isOpen={showIpqcModal}
+        onClose={() => {
+          setShowIpqcModal(false);
+          setSelectedJcForIpqc(null);
+        }}
+        jobCard={selectedJcForIpqc}
+      />
 
       {/* Floating Feedback Toast */}
       {toastMessage && (
