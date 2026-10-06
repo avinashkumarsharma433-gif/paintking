@@ -309,19 +309,35 @@ export const GatePassView: React.FC = () => {
     downloadStandardGateOutwardPdf(item);
   };
 
-  // Filtered lists
-  const filteredInward = materialInwardLogs.filter(item => 
-    item.partyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.vehicleNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.challanNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (item.descriptionOfMaterial && item.descriptionOfMaterial.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  // Filtered lists (Robust search across Inward SR No, Party, Vehicle, Challan, GRN, Description & Line Items)
+  const filteredInward = materialInwardLogs.filter(item => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      item.srNo?.toLowerCase().includes(q) ||
+      item.partyName?.toLowerCase().includes(q) ||
+      item.vehicleNo?.toLowerCase().includes(q) ||
+      item.challanNo?.toLowerCase().includes(q) ||
+      item.grnNo?.toLowerCase().includes(q) ||
+      item.descriptionOfMaterial?.toLowerCase().includes(q) ||
+      item.driverName?.toLowerCase().includes(q) ||
+      item.transporter?.toLowerCase().includes(q) ||
+      item.items?.some(i => i.materialName?.toLowerCase().includes(q) || i.itemCode?.toLowerCase().includes(q))
+    );
+  });
 
-  const filteredOutward = materialOutwardLogs.filter(item => 
-    item.partyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.vehicleNo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.descriptionOfMaterial?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredOutward = materialOutwardLogs.filter(item => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      item.gatePassNo?.toLowerCase().includes(q) ||
+      item.partyName?.toLowerCase().includes(q) ||
+      item.vehicleNo?.toLowerCase().includes(q) ||
+      item.invoiceRef?.toLowerCase().includes(q) ||
+      item.descriptionOfMaterial?.toLowerCase().includes(q) ||
+      item.transporter?.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="space-y-4">

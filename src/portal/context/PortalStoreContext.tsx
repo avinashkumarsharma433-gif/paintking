@@ -312,20 +312,32 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem('pk_day_end_closures', JSON.stringify(dayEndClosures));
   }, [dayEndClosures]);
 
-  // Operational State Collections with localStorage
+  // Smart Cache Helper: Merges newly seeded records into existing localStorage state without overwriting user data
+  function mergeByUniqueKey<T>(savedRaw: string | null, initial: T[], key: keyof T): T[] {
+    if (!savedRaw) return initial;
+    try {
+      const saved = JSON.parse(savedRaw);
+      if (!Array.isArray(saved)) return initial;
+      const savedKeys = new Set(saved.map((item: any) => String(item[key])));
+      const missingFromInitial = initial.filter((item: any) => !savedKeys.has(String(item[key])));
+      if (missingFromInitial.length === 0) return saved;
+      return [...missingFromInitial, ...saved];
+    } catch (e) {
+      return initial;
+    }
+  }
+
+  // Operational State Collections with smart localStorage syncing
   const [universalJobs, setUniversalJobs] = useState<UniversalJobRecord[]>(() => {
-    const s = localStorage.getItem('pk_universal_jobs');
-    return s ? JSON.parse(s) : INITIAL_UNIVERSAL_JOBS;
+    return mergeByUniqueKey(localStorage.getItem('pk_universal_jobs'), INITIAL_UNIVERSAL_JOBS, 'jobId');
   });
 
   const [grnList, setGrnList] = useState<GoodsReceiptNote[]>(() => {
-    const s = localStorage.getItem('pk_grn_data');
-    return s ? JSON.parse(s) : INITIAL_GRN_DATA;
+    return mergeByUniqueKey(localStorage.getItem('pk_grn_data'), INITIAL_GRN_DATA, 'grnNo');
   });
 
   const [materialRequisitions, setMaterialRequisitions] = useState<MaterialRequisitionNote[]>(() => {
-    const s = localStorage.getItem('pk_material_requisitions');
-    return s ? JSON.parse(s) : INITIAL_REQUISITIONS;
+    return mergeByUniqueKey(localStorage.getItem('pk_material_requisitions'), INITIAL_REQUISITIONS, 'mrnNo');
   });
 
   useEffect(() => {
@@ -479,68 +491,55 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const [iqcRecords, setIqcRecords] = useState<IQCInspectionRecord[]>(() => {
-    const s = localStorage.getItem('pk_iqc_data');
-    return s ? JSON.parse(s) : INITIAL_IQC_RECORDS;
+    return mergeByUniqueKey(localStorage.getItem('pk_iqc_data'), INITIAL_IQC_RECORDS, 'reportNo');
   });
 
   const [handovers, setHandovers] = useState<CustodyHandover[]>(() => {
-    const s = localStorage.getItem('pk_handovers_data');
-    return s ? JSON.parse(s) : INITIAL_HANDOVERS;
+    return mergeByUniqueKey(localStorage.getItem('pk_handovers_data'), INITIAL_HANDOVERS, 'transferId');
   });
 
   const [jobCards, setJobCards] = useState<JobCard[]>(() => {
-    const s = localStorage.getItem('pk_jobcards_data');
-    return s ? JSON.parse(s) : INITIAL_JOB_CARDS;
+    return mergeByUniqueKey(localStorage.getItem('pk_jobcards_data'), INITIAL_JOB_CARDS, 'jobCardNo');
   });
 
   const [painters, setPainters] = useState<PainterProfile[]>(() => {
-    const s = localStorage.getItem('pk_painters');
-    return s ? JSON.parse(s) : INITIAL_PAINTERS;
+    return mergeByUniqueKey(localStorage.getItem('pk_painters'), INITIAL_PAINTERS, 'id');
   });
 
   const [fpaRecords, setFpaRecords] = useState<FPARecord[]>(() => {
-    const s = localStorage.getItem('pk_fpa_data');
-    return s ? JSON.parse(s) : INITIAL_FPA_RECORDS;
+    return mergeByUniqueKey(localStorage.getItem('pk_fpa_data'), INITIAL_FPA_RECORDS, 'reportNo');
   });
 
   const [paintMixing, setPaintMixing] = useState<PaintMixingRecord[]>(() => {
-    const s = localStorage.getItem('pk_pmx_data');
-    return s ? JSON.parse(s) : INITIAL_PAINT_MIXING;
+    return mergeByUniqueKey(localStorage.getItem('pk_pmx_data'), INITIAL_PAINT_MIXING, 'mixNo');
   });
 
   const [ipqcRecords, setIpqcRecords] = useState<IPQCRecord[]>(() => {
-    const s = localStorage.getItem('pk_ipqc_data');
-    return s ? JSON.parse(s) : INITIAL_IPQC_RECORDS;
+    return mergeByUniqueKey(localStorage.getItem('pk_ipqc_data'), INITIAL_IPQC_RECORDS, 'reportNo');
   });
 
   const [packingSlips, setPackingSlips] = useState<PackingSlipRecord[]>(() => {
-    const s = localStorage.getItem('pk_packing_data');
-    return s ? JSON.parse(s) : INITIAL_PACKING_SLIPS;
+    return mergeByUniqueKey(localStorage.getItem('pk_packing_data'), INITIAL_PACKING_SLIPS, 'slipNo');
   });
 
   const [qualityReleases, setQualityReleases] = useState<FinalQualityRelease[]>(() => {
-    const s = localStorage.getItem('pk_quality_releases');
-    return s ? JSON.parse(s) : INITIAL_QUALITY_RELEASES;
+    return mergeByUniqueKey(localStorage.getItem('pk_quality_releases'), INITIAL_QUALITY_RELEASES, 'releaseId');
   });
 
   const [billingInvoices, setBillingInvoices] = useState<BillingInvoice[]>(() => {
-    const s = localStorage.getItem('pk_billing_invoices');
-    return s ? JSON.parse(s) : INITIAL_BILLING_INVOICES;
+    return mergeByUniqueKey(localStorage.getItem('pk_billing_invoices'), INITIAL_BILLING_INVOICES, 'invoiceNo');
   });
 
   const [gatePasses, setGatePasses] = useState<GatePassRecord[]>(() => {
-    const s = localStorage.getItem('pk_gate_passes');
-    return s ? JSON.parse(s) : INITIAL_GATE_PASSES;
+    return mergeByUniqueKey(localStorage.getItem('pk_gate_passes'), INITIAL_GATE_PASSES, 'gatePassNo');
   });
 
   const [materialInwardLogs, setMaterialInwardLogs] = useState<MaterialInwardRecord[]>(() => {
-    const s = localStorage.getItem('pk_material_inward');
-    return s ? JSON.parse(s) : INITIAL_MATERIAL_INWARD;
+    return mergeByUniqueKey(localStorage.getItem('pk_material_inward'), INITIAL_MATERIAL_INWARD, 'srNo');
   });
 
   const [materialOutwardLogs, setMaterialOutwardLogs] = useState<MaterialOutwardRecord[]>(() => {
-    const s = localStorage.getItem('pk_material_outward');
-    return s ? JSON.parse(s) : INITIAL_MATERIAL_OUTWARD;
+    return mergeByUniqueKey(localStorage.getItem('pk_material_outward'), INITIAL_MATERIAL_OUTWARD, 'gatePassNo');
   });
 
   const [defects, setDefects] = useState<DefectItem[]>(MASTER_DEFECTS);
