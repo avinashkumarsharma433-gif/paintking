@@ -357,6 +357,7 @@ export interface JobCard {
   slaHours?: number;
   slaDeadline?: string;
   isSlaBreached?: boolean;
+  sourceGrnNo?: string;
   iqcApproved?: boolean;
   oqcApproved?: boolean;
   pdiApproved?: boolean;

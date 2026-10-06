@@ -296,8 +296,13 @@ export const JobCardsView: React.FC = () => {
   };
 
   const handleCreateNewJobCard = () => {
-    setSelectedJobCardForView(null);
-    setShowJobCardModal(true);
+    const firstAvailable = storeStockList.find(s => !s.isInternalConsumable && s.balanceAvailable > 0) || storeStockList.find(s => !s.isInternalConsumable) || storeStockList[0];
+    if (firstAvailable) {
+      handleRequestFromSpecificStock(firstAvailable);
+    } else {
+      setSelectedJobCardForView(null);
+      setShowJobCardModal(true);
+    }
   };
 
   const handleViewJobCard = (jc: JobCard) => {
@@ -466,6 +471,7 @@ export const JobCardsView: React.FC = () => {
       jobCardNo: `JC-2026-${nextJcIndex}`,
       woNo: stockItem.challanNo || `WO-2026-${nextJcIndex}`,
       wNo: stockItem.challanNo || `WO-2026-${nextJcIndex}`,
+      sourceGrnNo: stockItem.grnNo,
       customer: stockItem.customer,
       partCode: stockItem.partCode,
       partDescription: stockItem.partDesc,

@@ -21,7 +21,10 @@ import {
   Droplets,
   Palette,
   Check,
-  RotateCcw
+  RotateCcw,
+  Lock,
+  Truck,
+  FileText
 } from 'lucide-react';
 
 interface JobCardModalProps {
@@ -49,7 +52,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [issueTime, setIssueTime] = useState<string>(initialData?.issueTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   const [customer, setCustomer] = useState<string>(initialData?.customer || (grnList[0]?.supplierCustomer) || 'ROOP POLYMERS LTD');
   const [partCode, setPartCode] = useState<string>(initialData?.partCode || (grnList[0]?.items?.[0]?.partCode) || 'RP-8841');
-  const [selectedGrnNo, setSelectedGrnNo] = useState<string>(initialData?.woNo || grnList[0]?.grnNo || '');
+  const [selectedGrnNo, setSelectedGrnNo] = useState<string>(initialData?.sourceGrnNo || (initialData as any)?.sourceGrnNo || (initialData as any)?.grnNo || '');
   const [leadTime, setLeadTime] = useState<string>(initialData?.leadTime || '4 Hours');
   const [dept, setDept] = useState<string>(initialData?.dept || 'Booth #1 (Continuous Conveyor Line)');
   const [headerRemark, setHeaderRemark] = useState<string>(initialData?.headerRemark || 'Target cap enforced for shop floor.');
@@ -122,11 +125,18 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       if (initialData.targetQty) setTargetQty(initialData.targetQty);
       if (initialData.color) setBatchColor(initialData.color);
       if (initialData.woNo) setWNo(initialData.woNo);
+      if (initialData.sourceGrnNo) setSelectedGrnNo(initialData.sourceGrnNo);
+      else if ((initialData as any).sourceGrnNo) setSelectedGrnNo((initialData as any).sourceGrnNo);
+      else if ((initialData as any).grnNo) setSelectedGrnNo((initialData as any).grnNo);
+      else if (initialData.woNo) {
+        const match = grnList.find(g => g.invoiceChallanNo === initialData.woNo || g.grnNo === initialData.woNo);
+        if (match) setSelectedGrnNo(match.grnNo);
+      }
       if (initialData.issuedMaterials && initialData.issuedMaterials.length > 0) {
         setIssuedMaterials(initialData.issuedMaterials);
       }
     }
-  }, [initialData, isOpen]);
+  }, [initialData, isOpen, grnList]);
 
   // Available GRN Substrate Lots (Customer Party materials only)
   const availableGrnLots = useMemo(() => {
@@ -142,13 +152,53 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
 
   // Selected GRN Details & Dynamic Remaining Balance Computation
   const selectedGrn = useMemo(() => {
-    return grnList.find(g => g.grnNo === selectedGrnNo) || availableGrnLots.find(g => g.supplierCustomer === customer) || availableGrnLots[0];
-  }, [grnList, selectedGrnNo, availableGrnLots, customer]);
+    if (selectedGrnNo) {
+      const match = grnList.find(g => g.grnNo === selectedGrnNo);
+      if (match) return match;
+    }
+    if (initialData?.sourceGrnNo) {
+      const match = grnList.find(g => g.grnNo === initialData.sourceGrnNo);
+      if (match) return match;
+    }
+    if (initialData?.woNo) {
+      const match = grnList.find(g => g.invoiceChallanNo === initialData.woNo || g.grnNo === initialData.woNo);
+      if (match) return match;
+    }
+    if (customer && partCode) {
+      const match = grnList.find(g => 
+        g.supplierCustomer?.trim().toLowerCase() === customer.trim().toLowerCase() && 
+        (g.partCode === partCode || g.items?.some(i => i.partCode === partCode))
+      );
+      if (match) return match;
+    }
+    return availableGrnLots.find(g => g.supplierCustomer?.trim().toLowerCase() === customer?.trim().toLowerCase()) || availableGrnLots[0] || grnList[0];
+  }, [grnList, selectedGrnNo, initialData, customer, partCode, availableGrnLots]);
 
   const grnTotalQty = useMemo(() => {
     if (!selectedGrn) return initialData?.targetQty || 1000;
     return Number(selectedGrn.actualReceivedQty) || Number(selectedGrn.totalQty) || 1000;
   }, [selectedGrn, initialData]);
+
+  // Materials / Substrates inside this GRN
+  const grnItemsList = useMemo(() => {
+    if (selectedGrn?.items && selectedGrn.items.length > 0) {
+      return selectedGrn.items;
+    }
+    if (selectedGrn) {
+      return [{
+        id: '1',
+        partCode: selectedGrn.partCode || partCode || 'SUBSTRATE-01',
+        partDescription: selectedGrn.description || initialData?.partDescription || 'Raw Substrate Injection Molded Parts',
+        invoicedQty: selectedGrn.invoicedQty || selectedGrn.actualReceivedQty || grnTotalQty,
+        actualReceivedQty: selectedGrn.actualReceivedQty || selectedGrn.totalQty || grnTotalQty,
+        shortExcessQty: 0,
+        okByIqcQty: selectedGrn.actualReceivedQty || selectedGrn.totalQty || grnTotalQty,
+        rejectionQty: 0,
+        remark: 'IQC Passed Store Stock'
+      }];
+    }
+    return [];
+  }, [selectedGrn, partCode, initialData, grnTotalQty]);
 
   // Existing Master Job Cards created against this GRN
   const existingJobCardsForGrn = useMemo(() => {
@@ -159,7 +209,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       if (!isMaster) return false;
 
       return (
-        (selectedGrn && (jc.woNo === selectedGrn.invoiceChallanNo || jc.wNo === selectedGrn.invoiceChallanNo)) ||
+        (selectedGrn && (jc.sourceGrnNo === selectedGrn.grnNo || jc.woNo === selectedGrn.invoiceChallanNo || jc.wNo === selectedGrn.invoiceChallanNo)) ||
         (selectedGrn && jc.customer?.trim().toLowerCase() === selectedGrn.supplierCustomer?.trim().toLowerCase() && jc.partCode === selectedGrn.partCode)
       );
     });
@@ -255,6 +305,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       revDate,
       jobCardNo,
       woNo: wNo,
+      sourceGrnNo: selectedGrn?.grnNo || selectedGrnNo,
       customer,
       partCode: partCode || initialData?.partCode || 'SUBSTRATE',
       partDescription: issuedMaterials[0]?.itemDescription || 'Raw Part Substrate',
@@ -386,64 +437,150 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
             <div className="space-y-5 text-xs">
               
               {/* ========================================================================= */}
-              {/* SECTION 1: CUSTOMER SUBSTRATE & GRN ALLOCATION GUARDRAIL                  */}
+              {/* SECTION 1: LINKED CUSTOMER SUBSTRATE & STORE GRN LOT                      */}
               {/* ========================================================================= */}
-              <div className="bg-[#fafafb] p-4.5 sm:p-5 rounded-[20px] border border-[#ececec] space-y-3.5 shadow-2xs">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-[#ececec] pb-2.5">
+              <div className="bg-[#fafafb] p-4.5 sm:p-5 rounded-[20px] border border-[#ececec] space-y-4 shadow-2xs">
+                
+                {/* Header Strip with Customer Name & Job Card Badges */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-[#ececec] pb-3">
                   <div>
-                    <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono">
-                      1. Customer Part & GRN Allocation Guardrail
-                    </span>
-                    <h3 className="text-base sm:text-lg font-serif text-[#17191c] font-normal">
-                      {customer || 'Select Customer / OEM Client'}
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1">
+                        <Lock className="w-3 h-3 text-[#c09748]" />
+                        1. Linked Customer Substrate & Store GRN Lot
+                      </span>
+                    </div>
+                    <h3 className="text-base sm:text-xl font-serif text-[#17191c] font-normal flex items-center gap-2">
+                      <Building2 className="w-5 h-5 text-[#c09748]" />
+                      <span>{customer || 'SPARK MINDA AUTOMOTIVE LTD'}</span>
                     </h3>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[#8a6521] px-3 py-1 rounded-full bg-[#faf3e0] border border-[#f4e5be]">
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <span className="font-mono text-xs font-bold text-[#8a6521] px-3 py-1 rounded-full bg-[#faf3e0] border border-[#f4e5be] shadow-2xs">
                       {jobCardNo}
                     </span>
-                    <span className="font-mono text-xs text-[#777b86] font-semibold">
-                      W.No: {wNo}
+                    <span className="font-mono text-xs text-[#777b86] font-semibold px-2.5 py-1 rounded-full bg-white border border-[#ececec]">
+                      Challan: {wNo}
                     </span>
                   </div>
                 </div>
 
-                {/* GRN Lot Selector & 4-Tile Balance Display */}
-                <div className="p-3.5 bg-[#faf7ed] rounded-[18px] border border-[#f4e5be] space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Package className="w-4 h-4 text-[#8a6521]" />
-                      <span className="text-xs font-bold text-[#8a6521] uppercase tracking-wider font-mono">
-                        Source Store Inward GRN Lot:
+                {/* Linked GRN Info Card (Auto-Linked, No select dropdown) */}
+                <div className="p-3.5 sm:p-4 bg-[#faf7ed] rounded-[18px] border border-[#f4e5be] space-y-3.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-[#f4e5be]/70">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-[#c09748]/15 border border-[#c09748]/30 flex items-center justify-center text-[#8a6521]">
+                        <Package className="w-4 h-4 text-[#8a6521]" />
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold text-[#8a6521] uppercase tracking-wider font-mono">
+                          Source Store Inward GRN Lot (Auto-Linked):
+                        </div>
+                        <div className="font-mono font-bold text-sm text-[#17191c] flex items-center gap-2">
+                          <span>{selectedGrn?.grnNo || initialData?.sourceGrnNo || 'PK-GRN-2026-881'}</span>
+                          <span className="text-[10px] font-mono font-normal text-[#777b86] px-2 py-0.5 rounded-md bg-white border border-[#f4e5be]">
+                            Locked from Selected Item
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        <span>IQC Verified & Store Received</span>
+                      </span>
+                      <span className="text-[11px] font-mono text-[#777b86] bg-white px-2.5 py-1 rounded-full border border-[#f4e5be]">
+                        Plant: {selectedGrn?.plant || activePlant}
                       </span>
                     </div>
-                    <select
-                      value={selectedGrnNo}
-                      onChange={e => {
-                        const chosen = grnList.find(g => g.grnNo === e.target.value);
-                        if (chosen) {
-                          setSelectedGrnNo(chosen.grnNo);
-                          setCustomer(chosen.supplierCustomer || customer);
-                          setWNo(chosen.invoiceChallanNo || wNo);
-                          const firstItem = chosen.items?.[0];
-                          if (firstItem) {
-                            setPartCode(firstItem.partCode || partCode);
-                          }
-                        }
-                      }}
-                      className="px-3 py-1.5 rounded-[12px] border border-[#c09748] bg-white font-mono font-bold text-xs text-[#17191c] cursor-pointer focus:outline-none shadow-2xs"
-                    >
-                      <option value="">-- Pick Customer GRN Lot --</option>
-                      {availableGrnLots.map(g => (
-                        <option key={g.grnNo} value={g.grnNo}>
-                          {g.grnNo} • {g.supplierCustomer} ({g.actualReceivedQty || g.totalQty} pcs) • Ch: {g.invoiceChallanNo}
-                        </option>
-                      ))}
-                    </select>
+                  </div>
+
+                  {/* Metadata Chips */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                    <div className="bg-white/90 p-2.5 rounded-[12px] border border-[#f4e5be]">
+                      <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">Challan / W.No</span>
+                      <span className="font-mono font-bold text-[#17191c] truncate block" title={selectedGrn?.invoiceChallanNo || wNo}>
+                        {selectedGrn?.invoiceChallanNo || wNo}
+                      </span>
+                    </div>
+                    <div className="bg-white/90 p-2.5 rounded-[12px] border border-[#f4e5be]">
+                      <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">Inward Date</span>
+                      <span className="font-mono font-semibold text-[#17191c]">
+                        {selectedGrn?.date || selectedGrn?.receivedDate || issueDate}
+                      </span>
+                    </div>
+                    <div className="bg-white/90 p-2.5 rounded-[12px] border border-[#f4e5be]">
+                      <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">Vehicle No</span>
+                      <span className="font-mono font-semibold text-[#17191c]">
+                        {selectedGrn?.vehicleNo || 'MH-04-AZ-9912'}
+                      </span>
+                    </div>
+                    <div className="bg-white/90 p-2.5 rounded-[12px] border border-[#f4e5be]">
+                      <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">Transporter</span>
+                      <span className="font-semibold text-[#17191c] truncate block" title={selectedGrn?.transporter || 'Direct Delivery'}>
+                        {selectedGrn?.transporter || 'Direct Party Vehicle'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Material / Substrate Line Items Table from this GRN */}
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between text-[10.5px] font-bold text-[#8a6521] uppercase font-mono">
+                      <span className="flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-[#8a6521]" />
+                        Materials & Substrates in this GRN ({grnItemsList.length} Items):
+                      </span>
+                    </div>
+                    
+                    <div className="overflow-x-auto rounded-[14px] border border-[#f4e5be] bg-white">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-[#faf7ed] text-[#8a6521] font-mono text-[10px] uppercase tracking-wider border-b border-[#f4e5be]">
+                            <th className="py-2.5 px-3">Part Code</th>
+                            <th className="py-2.5 px-3">Substrate / Description</th>
+                            <th className="py-2.5 px-3 text-center">Challan Qty</th>
+                            <th className="py-2.5 px-3 text-center">Inward OK Qty</th>
+                            <th className="py-2.5 px-3 text-center">IQC Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#f4e5be]/50">
+                          {grnItemsList.map((item, iIdx) => {
+                            const isCurrentPart = item.partCode === partCode;
+                            return (
+                              <tr key={iIdx} className={isCurrentPart ? 'bg-[#faf3e0]/40 font-semibold' : 'hover:bg-[#fafafb]'}>
+                                <td className="py-2.5 px-3 font-mono font-bold text-[#8a6521]">
+                                  {item.partCode}
+                                  {isCurrentPart && (
+                                    <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] bg-[#c09748] text-white uppercase font-sans">
+                                      Active Job Target
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3 text-[#17191c]">
+                                  {item.partDescription}
+                                </td>
+                                <td className="py-2.5 px-3 text-center font-mono text-[#777b86]">
+                                  {(item.invoicedQty || item.actualReceivedQty || grnTotalQty).toLocaleString('en-IN')} Pcs
+                                </td>
+                                <td className="py-2.5 px-3 text-center font-mono font-bold text-[#17191c]">
+                                  {(item.actualReceivedQty || item.okByIqcQty || grnTotalQty).toLocaleString('en-IN')} Pcs
+                                </td>
+                                <td className="py-2.5 px-3 text-center">
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold">
+                                    Passed ✓
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
 
                   {/* Dynamic 4-Tile Guardrail Summary Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center pt-1">
                     <div className="p-2.5 rounded-[14px] bg-white border border-[#f4e5be]">
                       <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">Customer Account</span>
                       <span className="font-bold text-xs text-[#17191c] truncate block" title={customer}>{customer}</span>
@@ -512,7 +649,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         className="px-3 py-2 rounded-[12px] bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold transition cursor-pointer shadow-2xs active:scale-95"
                         title="Allocate full remaining GRN balance"
                       >
-                        Fill All ({maxAllowedTargetQty})
+                        ⚡ Fill All ({maxAllowedTargetQty})
                       </button>
                     )}
 
@@ -523,7 +660,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         className="px-3 py-2 rounded-[12px] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold transition cursor-pointer shadow-2xs active:scale-95"
                         title="Split into 50% batch"
                       >
-                        Split 50% ({Math.floor(maxAllowedTargetQty / 2)})
+                        ½ Split 50% ({Math.floor(maxAllowedTargetQty / 2)})
                       </button>
                     )}
                   </div>
