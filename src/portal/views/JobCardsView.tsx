@@ -62,11 +62,15 @@ export const JobCardsView: React.FC = () => {
     assignJobCardToPainter,
     verifyAndAcceptJob,
     rejectAndRequestRework,
+    getPainterPerformanceStats,
     pendingVerificationJobsCount
   } = usePortalStore();
 
   // Active filter tab: ALL, MASTER, PAINTERS, REWORK, REQUISITIONS, STORE_STOCK, BOOTH_FLEET
   const [activeTab, setActiveTab] = useState<'ALL' | 'MASTER' | 'PAINTERS' | 'REWORK' | 'REQUISITIONS' | 'STORE_STOCK' | 'BOOTH_FLEET'>('ALL');
+
+  // Painter SLA Performance Details Modal State
+  const [selectedPainterForSlaModal, setSelectedPainterForSlaModal] = useState<PainterProfile | null>(null);
 
   // Synchronize with sidebar sub-item clicks
   useEffect(() => {
@@ -883,6 +887,116 @@ export const JobCardsView: React.FC = () => {
         </div>
       )}
 
+      {/* 3-PAINTER LINE SLA PERFORMANCE & PROFILE MARKING STRIP */}
+      {(activeTab === 'ALL' || activeTab === 'PAINTERS') && (
+        <div className="bg-white rounded-[24px] p-4 sm:p-5 border border-[#ececec] shadow-2xs space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#ececec] pb-2.5">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-[#c09748]" />
+                  Floor Painters SLA & On-Time Performance Profile
+                </span>
+              </div>
+              <h3 className="font-serif font-normal text-base sm:text-lg text-[#17191c]">
+                Operator On-Time vs Delayed Job Tracking Desk
+              </h3>
+            </div>
+            <span className="text-xs text-[#777b86]">
+              Job Cards must close within assigned SLA duration or profile receives a <strong>Delayed Mark ⚠️</strong>.
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {painters.slice(0, 3).map(painter => {
+              const stats = getPainterPerformanceStats(painter.name);
+              const activeCount = getPainterActiveJobCount(painter.name);
+
+              return (
+                <div
+                  key={painter.id}
+                  className={`p-4 rounded-[18px] border transition flex flex-col justify-between gap-3 ${
+                    stats.hasDelayedJobs
+                      ? 'bg-rose-50/30 border-rose-200 hover:border-rose-400 shadow-2xs'
+                      : 'bg-[#fafafb] border-[#ececec] hover:border-[#c09748] shadow-2xs'
+                  }`}
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <img
+                          src={painter.avatar}
+                          alt={painter.name}
+                          className="w-8 h-8 rounded-full object-cover border border-[#ececec] shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-xs text-[#17191c] truncate">{painter.name}</h4>
+                          <span className="text-[10px] text-[#777b86] font-mono block truncate">{painter.code} • {painter.boothNo.split('(')[0]}</span>
+                        </div>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold shrink-0 ${
+                        activeCount === 0 
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                          : activeCount === 1 
+                            ? 'bg-blue-50 text-blue-800 border border-blue-200' 
+                            : 'bg-amber-100 text-amber-900 border border-amber-300'
+                      }`}>
+                        {activeCount}/2 Slots
+                      </span>
+                    </div>
+
+                    {/* Official Profile On-Time / Delayed Status Badge */}
+                    <div className="pt-1">
+                      {stats.hasDelayedJobs ? (
+                        <div className="p-2 rounded-[12px] bg-rose-50 border border-rose-300 text-rose-900 text-[11px] font-bold flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                            <span>⚠️ {stats.delayedJobs} Job Time Se Nahi Hua</span>
+                          </span>
+                          <span className="font-mono text-[10px] bg-white px-1.5 py-0.5 rounded border border-rose-200">
+                            Delayed
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="p-2 rounded-[12px] bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] font-bold flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>⭐ 100% On-Time Record</span>
+                          </span>
+                          <span className="font-mono text-[10px] bg-white px-1.5 py-0.5 rounded border border-emerald-200">
+                            {stats.onTimeJobs} Jobs OK
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Performance Progress & Metric Pills */}
+                    <div className="grid grid-cols-2 gap-1.5 text-[10.5px] font-mono pt-1">
+                      <div className="bg-white p-1.5 rounded-[10px] border border-[#ececec] text-emerald-800">
+                        <span className="text-[9px] text-[#777b86] uppercase block font-sans">Time Se Kiye</span>
+                        <strong>{stats.onTimeJobs} Jobs ✓</strong>
+                      </div>
+                      <div className={`p-1.5 rounded-[10px] border ${stats.delayedJobs > 0 ? 'bg-rose-100/60 border-rose-200 text-rose-800' : 'bg-white border-[#ececec] text-gray-500'}`}>
+                        <span className="text-[9px] text-[#777b86] uppercase block font-sans">Time Se Late</span>
+                        <strong>{stats.delayedJobs} Jobs ⚠️</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPainterForSlaModal(painter)}
+                    className="w-full py-1.5 rounded-full bg-white hover:bg-gray-50 text-[#17191c] border border-[#ececec] hover:border-[#c09748] text-[11px] font-semibold transition cursor-pointer flex items-center justify-center gap-1 shadow-2xs active:scale-95"
+                  >
+                    <span>View Painter SLA Performance Log</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* DEDICATED SEARCH ROW for Cards */}
       {(activeTab === 'ALL' || activeTab === 'MASTER' || activeTab === 'PAINTERS' || activeTab === 'REWORK') && (
         <div className="relative w-full">
@@ -1510,6 +1624,45 @@ export const JobCardsView: React.FC = () => {
                         <span className="px-2 py-0.5 rounded-full bg-gray-100 text-[10px] font-mono text-gray-700">
                           {jc.docNo || 'Doc No: 001'}
                         </span>
+
+                        {/* SLA / On-Time Marking Badge */}
+                        {(() => {
+                          const isClosed = jc.status === 'Completed' || jc.status === 'Verified & Accepted' || jc.status === 'Target Met';
+                          const isSlaBreachedNow = (jc.isSlaBreached) || (!isClosed && jc.slaDeadline && new Date() > new Date(jc.slaDeadline));
+                          
+                          if (isClosed) {
+                            if (jc.isOnTimeCompleted === false || jc.isSlaBreached) {
+                              return (
+                                <span className="px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-800 text-[10px] font-mono font-bold flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                  <span>Time Se Nahi Hua (Delayed)</span>
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Time Se Hua ✓</span>
+                              </span>
+                            );
+                          }
+                          
+                          if (isSlaBreachedNow) {
+                            return (
+                              <span className="px-2.5 py-0.5 rounded-full bg-rose-100 border border-rose-300 text-rose-900 text-[10px] font-mono font-bold flex items-center gap-1 animate-pulse">
+                                <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                <span>⚠️ SLA Overdue</span>
+                              </span>
+                            );
+                          }
+
+                          return (
+                            <span className="px-2.5 py-0.5 rounded-full bg-[#faf7ed] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-semibold flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-[#c09748]" />
+                              <span>SLA: {jc.slaHours || 4}h Limit</span>
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       <h3 className="font-serif text-lg text-[#17191c] font-normal">
@@ -1568,7 +1721,7 @@ export const JobCardsView: React.FC = () => {
                   </div>
 
                   {/* Floor Metadata Strip */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-xs">
                     <div>
                       <span className="text-[#777b86] block text-[10px] uppercase font-bold">Assigned Painter</span>
                       <strong className="text-[#17191c] font-semibold">
@@ -1582,6 +1735,13 @@ export const JobCardsView: React.FC = () => {
                     <div>
                       <span className="text-[#777b86] block text-[10px] uppercase font-bold">Target Allocation</span>
                       <strong className="font-mono text-[#17191c]">{jc.targetQty} Pcs</strong>
+                    </div>
+                    <div>
+                      <span className="text-[#777b86] block text-[10px] uppercase font-bold">Target SLA Limit</span>
+                      <span className="font-mono text-[#17191c] font-semibold flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-[#c09748]" />
+                        <span>{jc.slaHours || 4} Hours</span>
+                      </span>
                     </div>
                     <div>
                       <span className="text-[#777b86] block text-[10px] uppercase font-bold">Checking Person</span>
@@ -3070,6 +3230,166 @@ export const JobCardsView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ====================================================================== */}
+      {/* MODAL 10: PAINTER SLA & ON-TIME PERFORMANCE BREAKDOWN MODAL           */}
+      {/* ====================================================================== */}
+      {selectedPainterForSlaModal && (() => {
+        const painter = selectedPainterForSlaModal;
+        const stats = getPainterPerformanceStats(painter.name);
+        const painterJobCards = jobCards.filter(
+          j => (j.assignedPainterId === painter.id || j.assignedPainterName?.toLowerCase().includes(painter.name.toLowerCase().split(' ')[0]) || j.painterName?.toLowerCase().includes(painter.name.toLowerCase().split(' ')[0]))
+        );
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-[24px] max-w-3xl w-full p-5 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex justify-between items-start pb-3 border-b border-[#ececec]">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={painter.avatar}
+                    alt={painter.name}
+                    className="w-12 h-12 rounded-full object-cover border-2 border-[#c09748]"
+                  />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold uppercase">
+                        {painter.code} • {painter.boothNo}
+                      </span>
+                      {stats.hasDelayedJobs ? (
+                        <span className="px-2.5 py-0.5 rounded-full bg-rose-100 border border-rose-300 text-rose-900 text-[10px] font-bold">
+                          ⚠️ Profile Marked: Delayed Jobs
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-900 text-[10px] font-bold">
+                          ⭐ 100% On-Time Record
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-lg font-serif font-normal text-[#17191c] mt-0.5">
+                      {painter.name} — SLA Performance Desk
+                    </h3>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setSelectedPainterForSlaModal(null)}
+                  className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base font-bold p-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Performance Score Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec]">
+                  <span className="text-[10px] text-[#777b86] uppercase font-bold block">Total Assigned</span>
+                  <strong className="font-mono text-base text-[#17191c]">{stats.totalAssigned} Jobs</strong>
+                </div>
+                <div className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec]">
+                  <span className="text-[10px] text-[#777b86] uppercase font-bold block">Active on Floor</span>
+                  <strong className="font-mono text-base text-blue-700">{stats.activeJobs} Jobs ({stats.activeSlotsOccupied}/2 Slots)</strong>
+                </div>
+                <div className="p-3 rounded-[16px] bg-emerald-50/60 border border-emerald-200">
+                  <span className="text-[10px] text-emerald-800 uppercase font-bold block">Time Se Kiye (On-Time)</span>
+                  <strong className="font-mono text-base text-emerald-800">{stats.onTimeJobs} Jobs ✓</strong>
+                </div>
+                <div className={`p-3 rounded-[16px] border ${stats.delayedJobs > 0 ? 'bg-rose-50 border-rose-300' : 'bg-[#fafafb] border-[#ececec]'}`}>
+                  <span className={`text-[10px] uppercase font-bold block ${stats.delayedJobs > 0 ? 'text-rose-800' : 'text-[#777b86]'}`}>
+                    Time Se Nahi Hua (Delayed)
+                  </span>
+                  <strong className={`font-mono text-base ${stats.delayedJobs > 0 ? 'text-rose-700' : 'text-gray-400'}`}>
+                    {stats.delayedJobs} Jobs ⚠️
+                  </strong>
+                </div>
+              </div>
+
+              {/* Individual Assigned Jobs Audit List */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-[#17191c] uppercase tracking-wider font-mono">
+                  Assigned Job Cards & SLA Audit Trail ({painterJobCards.length})
+                </h4>
+
+                {painterJobCards.length === 0 ? (
+                  <div className="p-6 text-center text-[#777b86] bg-[#fafafb] rounded-[16px] border border-[#ececec]">
+                    No job cards assigned to this painter yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                    {painterJobCards.map(jc => {
+                      const isClosed = jc.status === 'Completed' || jc.status === 'Verified & Accepted' || jc.status === 'Target Met';
+                      const isBreached = jc.isSlaBreached || (!isClosed && jc.slaDeadline && new Date() > new Date(jc.slaDeadline));
+
+                      return (
+                        <div
+                          key={jc.jobCardNo}
+                          className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono font-bold text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-md text-[11px]">
+                                {jc.jobCardNo}
+                              </span>
+                              <span className="font-semibold text-[#17191c]">{jc.partDescription}</span>
+                              <span className="text-[11px] text-[#777b86]">({jc.customer})</span>
+                            </div>
+                            <div className="text-[11px] text-[#777b86] flex flex-wrap items-center gap-3 font-mono">
+                              <span>Target: <strong>{jc.targetQty} pcs</strong></span>
+                              <span>Target SLA: <strong>{jc.slaHours || 4}h</strong></span>
+                              {jc.slaDeadline && (
+                                <span>Deadline: <strong>{new Date(jc.slaDeadline).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</strong></span>
+                              )}
+                              {jc.closedAt && (
+                                <span>Closed At: <strong>{new Date(jc.closedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</strong></span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 flex items-center gap-2 self-end sm:self-auto">
+                            {isClosed ? (
+                              jc.isOnTimeCompleted === false || jc.isSlaBreached ? (
+                                <span className="px-2.5 py-1 rounded-full bg-rose-100 border border-rose-300 text-rose-900 font-bold text-[10px] flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                  <span>Time Se Nahi Hua (Delayed)</span>
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-1 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-900 font-bold text-[10px] flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>Time Se Hua ✓</span>
+                                </span>
+                              )
+                            ) : isBreached ? (
+                              <span className="px-2.5 py-1 rounded-full bg-rose-100 border border-rose-300 text-rose-900 font-bold text-[10px] flex items-center gap-1 animate-pulse">
+                                <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                <span>⚠️ SLA Breached (Late)</span>
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-800 font-semibold text-[10px] flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-blue-600" />
+                                <span>In Progress (On-Track)</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-[#ececec] flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPainterForSlaModal(null)}
+                  className="px-5 py-2 rounded-full bg-[#17191c] text-white hover:bg-black font-semibold text-xs transition cursor-pointer"
+                >
+                  Close SLA Desk
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Floating Feedback Toast */}
       {toastMessage && (

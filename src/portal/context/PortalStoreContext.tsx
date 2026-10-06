@@ -93,6 +93,17 @@ interface PortalContextType {
   markPainterJobFinished: (jobCardNo: string, painterNotes?: string) => void;
   verifyAndAcceptJob: (jobCardNo: string, okQty: number, rejQty: number, remarks?: string) => void;
   rejectAndRequestRework: (jobCardNo: string, reworkInstruction: string, defect: DefectCategory) => void;
+  getPainterPerformanceStats: (painterNameOrId: string) => {
+    totalJobs: number;
+    activeJobs: number;
+    completedJobs: number;
+    onTimeJobs: number;
+    delayedJobs: number;
+    onTimePercentage: number;
+    hasDelayedJobs: boolean;
+    breachedJobCards: JobCard[];
+    onTimeJobCards: JobCard[];
+  };
 
   fpaRecords: FPARecord[];
   paintMixing: PaintMixingRecord[];
@@ -1147,19 +1158,84 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setJobCards(prev => prev.map(jc => {
       if (jc.jobCardNo !== jobCardNo) return jc;
       const totalCount = okQty + rejQty;
+      const now = new Date();
+      const isLate = jc.slaDeadline ? now > new Date(jc.slaDeadline) : false;
+
       return {
         ...jc,
         painterJobStatus: 'Verified & Accepted',
         verifiedBy: currentUser.name,
-        verifiedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        verifiedAt: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         verificationRemarks: remarks || 'Floor inspected and accepted by Production Manager',
         status: 'Completed',
         goodQty: okQty,
         rejectQty: rejQty,
         sprayedQty: totalCount,
-        firstPassGoodQty: okQty
+        firstPassGoodQty: okQty,
+        closedAt: now.toISOString(),
+        isOnTimeCompleted: !isLate,
+        isSlaBreached: isLate
       };
     }));
+  };
+
+  const getPainterPerformanceStats = (painterNameOrId: string) => {
+    if (!painterNameOrId) {
+      return {
+        totalJobs: 0,
+        activeJobs: 0,
+        completedJobs: 0,
+        onTimeJobs: 0,
+        delayedJobs: 0,
+        onTimePercentage: 100,
+        hasDelayedJobs: false,
+        breachedJobCards: [] as JobCard[],
+        onTimeJobCards: [] as JobCard[]
+      };
+    }
+    const cleanTarget = painterNameOrId.trim().toLowerCase();
+    const assignedJobs = jobCards.filter(jc => {
+      const assignedName = (jc.assignedPainterName || jc.painterName || '').trim().toLowerCase();
+      const assignedId = (jc.assignedPainterId || '').trim().toLowerCase();
+      return assignedName.includes(cleanTarget) || cleanTarget.includes(assignedName) || assignedId === cleanTarget;
+    });
+
+    const active = assignedJobs.filter(j => j.status !== 'Completed' && j.status !== 'Closed' && j.painterJobStatus !== 'Verified & Accepted');
+    const completed = assignedJobs.filter(j => j.status === 'Completed' || j.status === 'Closed' || j.painterJobStatus === 'Verified & Accepted');
+
+    const breachedJobCards: JobCard[] = [];
+    const onTimeJobCards: JobCard[] = [];
+
+    assignedJobs.forEach(jc => {
+      const isFinished = jc.status === 'Completed' || jc.status === 'Closed' || jc.painterJobStatus === 'Verified & Accepted';
+      if (isFinished) {
+        if (jc.isOnTimeCompleted === false || jc.isSlaBreached === true) {
+          breachedJobCards.push(jc);
+        } else {
+          onTimeJobCards.push(jc);
+        }
+      } else {
+        // If still active, check if deadline has already passed
+        if (jc.slaDeadline && new Date() > new Date(jc.slaDeadline)) {
+          breachedJobCards.push(jc);
+        }
+      }
+    });
+
+    const evaluatedCount = onTimeJobCards.length + breachedJobCards.length;
+    const onTimePercentage = evaluatedCount > 0 ? Math.round((onTimeJobCards.length / evaluatedCount) * 100) : 100;
+
+    return {
+      totalJobs: assignedJobs.length,
+      activeJobs: active.length,
+      completedJobs: completed.length,
+      onTimeJobs: onTimeJobCards.length,
+      delayedJobs: breachedJobCards.length,
+      onTimePercentage,
+      hasDelayedJobs: breachedJobCards.length > 0,
+      breachedJobCards,
+      onTimeJobCards
+    };
   };
 
   const rejectAndRequestRework = (jobCardNo: string, reworkInstruction: string, defect: DefectCategory) => {
@@ -1616,6 +1692,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         markPainterJobFinished,
         verifyAndAcceptJob,
         rejectAndRequestRework,
+        getPainterPerformanceStats,
         fpaRecords,
         paintMixing,
         ipqcRecords,

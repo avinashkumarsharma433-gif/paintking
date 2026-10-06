@@ -54,12 +54,43 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [partCode, setPartCode] = useState<string>(initialData?.partCode || (grnList[0]?.items?.[0]?.partCode) || 'RP-8841');
   const [selectedGrnNo, setSelectedGrnNo] = useState<string>(initialData?.sourceGrnNo || (initialData as any)?.sourceGrnNo || (initialData as any)?.grnNo || '');
   const [leadTime, setLeadTime] = useState<string>(initialData?.leadTime || '4 Hours');
+  const [slaHours, setSlaHours] = useState<number>(initialData?.slaHours || 4);
   const [dept, setDept] = useState<string>(initialData?.dept || 'Booth #1 (Continuous Conveyor Line)');
   const [headerRemark, setHeaderRemark] = useState<string>(initialData?.headerRemark || 'Target cap enforced for shop floor.');
 
   // Target Quantity for this Job Card batch
   const [targetQty, setTargetQty] = useState<number>(initialData?.targetQty || 250);
   const [batchColor, setBatchColor] = useState<string>(initialData?.color || 'Monza Red Gloss');
+
+  // Calculated SLA Target Deadline
+  const calculatedDeadline = useMemo(() => {
+    try {
+      const d = issueDate ? new Date(issueDate) : new Date();
+      if (issueTime) {
+        const timeParts = issueTime.replace(/[^\d:]/g, '').split(':');
+        if (timeParts.length >= 2) {
+          let h = parseInt(timeParts[0], 10);
+          const m = parseInt(timeParts[1], 10);
+          if (issueTime.toLowerCase().includes('pm') && h < 12) h += 12;
+          if (issueTime.toLowerCase().includes('am') && h === 12) h = 0;
+          d.setHours(h, m, 0, 0);
+        }
+      }
+      const deadline = new Date(d.getTime() + (slaHours * 60 * 60 * 1000));
+      return deadline.toISOString();
+    } catch {
+      return new Date(Date.now() + slaHours * 3600000).toISOString();
+    }
+  }, [issueDate, issueTime, slaHours]);
+
+  const formattedDeadlinePreview = useMemo(() => {
+    try {
+      const d = new Date(calculatedDeadline);
+      return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ' (' + d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) + ')';
+    } catch {
+      return `${slaHours} Hours from start`;
+    }
+  }, [calculatedDeadline, slaHours]);
 
   // FINAL PROCESS
   const [returnMaterialDesc, setReturnMaterialDesc] = useState<string>(initialData?.returnMaterialDesc || 'Unused Basecoat Monza Red');
@@ -125,6 +156,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       if (initialData.targetQty) setTargetQty(initialData.targetQty);
       if (initialData.color) setBatchColor(initialData.color);
       if (initialData.woNo) setWNo(initialData.woNo);
+      if (initialData.slaHours) setSlaHours(initialData.slaHours);
       if (initialData.sourceGrnNo) setSelectedGrnNo(initialData.sourceGrnNo);
       else if ((initialData as any).sourceGrnNo) setSelectedGrnNo((initialData as any).sourceGrnNo);
       else if ((initialData as any).grnNo) setSelectedGrnNo((initialData as any).grnNo);
@@ -326,7 +358,10 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       wNo,
       issueDate,
       issueTime,
-      leadTime,
+      leadTime: `${slaHours} Hours`,
+      slaHours: slaHours,
+      slaDeadline: calculatedDeadline,
+      isSlaBreached: false,
       dept,
 
       returnMaterialDesc,
@@ -804,6 +839,65 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         onChange={e => setIssueTime(e.target.value)}
                         className="w-24 h-9 px-2.5 rounded-[12px] border border-[#dcdfe4] bg-white text-xs text-center font-mono"
                       />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Third Row: Target SLA Completion Time & Profile On-Time Guardrail */}
+                <div className="p-3.5 bg-white rounded-[16px] border border-[#f4e5be] space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <label className="block text-[10.5px] font-bold text-[#8a6521] uppercase font-mono flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-[#8a6521]" />
+                        <span>Target SLA Completion Duration (Time Limit to Close Job) *</span>
+                      </label>
+                      <p className="text-[11px] text-[#777b86]">
+                        Agar job card is time me close nahi hua, toh Painter Profile me <strong>"Delayed Job (Time se nahi hua)"</strong> mark lag jayega.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="72"
+                        required
+                        value={slaHours}
+                        onChange={e => setSlaHours(Math.max(1, Number(e.target.value)))}
+                        className="w-20 h-9 px-2.5 rounded-[12px] border border-[#c09748] bg-[#faf7ed] font-mono font-bold text-xs text-[#17191c] text-center focus:outline-none"
+                      />
+                      <span className="font-mono text-xs text-[#8a6521] font-bold">Hours</span>
+                    </div>
+                  </div>
+
+                  {/* Preset Duration Pills */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#ececec]">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {[
+                        { hours: 2, label: '⏱️ 2h (Rush Batch)' },
+                        { hours: 4, label: '⏱️ 4h (Standard)' },
+                        { hours: 6, label: '⏱️ 6h (Multi-Coat)' },
+                        { hours: 8, label: '⏱️ 8h (1 Full Shift)' },
+                        { hours: 24, label: '⏱️ 24h (Next Day)' }
+                      ].map(preset => (
+                        <button
+                          key={preset.hours}
+                          type="button"
+                          onClick={() => setSlaHours(preset.hours)}
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition cursor-pointer ${
+                            slaHours === preset.hours
+                              ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold shadow-2xs'
+                              : 'bg-[#fafafb] text-[#777b86] border border-[#ececec] hover:bg-gray-100'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-900 text-[10.5px] font-mono font-bold">
+                      <span>🎯 Target Deadline:</span>
+                      <strong className="text-emerald-800">{formattedDeadlinePreview}</strong>
                     </div>
                   </div>
                 </div>

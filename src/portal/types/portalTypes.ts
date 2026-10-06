@@ -308,8 +308,11 @@ export interface PainterProfile {
   code: string; // e.g. "P1", "P2"
   avatar: string;
   boothNo: string;
+  boothNumber?: string;
   shift: ShiftType;
   specialization: string; // e.g. "PU Metallic Spray", "Clear Coat & Dipping"
+  onTimeJobsCount?: number;
+  delayedJobsCount?: number;
 }
 
 export interface JobCard {
@@ -338,6 +341,8 @@ export interface JobCard {
   verifiedBy?: string;
   verifiedAt?: string;
   verificationRemarks?: string;
+  closedAt?: string;
+  isOnTimeCompleted?: boolean;
 
   // 3-Painters & Rework Architecture
   jobCardType?: JobCardType;
