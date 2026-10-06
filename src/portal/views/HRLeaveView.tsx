@@ -13,7 +13,8 @@ import {
   Building2, 
   Check, 
   AlertCircle,
-  Sparkles
+  Sparkles,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -282,23 +283,32 @@ export const HRLeaveView: React.FC = () => {
       {/* MODAL: Apply for Leave */}
       <AnimatePresence>
         {showApplyModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-[24px] max-w-lg w-full p-6 space-y-4 border border-slate-200 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar"
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                <h3 className="text-lg font-serif text-slate-900">Leave Application Form (PK-HR-LV-01)</h3>
-                <button
-                  onClick={() => setShowApplyModal(false)}
-                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer"
-                >
-                  ✕
-                </button>
+          <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
+            <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+                    HUMAN RESOURCES
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
+                    PK-HR-LV-01
+                  </span>
+                </div>
+                <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
+                  Leave Application Form (अवकाश आवेदन पत्र)
+                </h3>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowApplyModal(false)}
+                className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
+                title="Close"
+              >
+                <X className="w-5 h-5 text-[#17191c]" />
+              </button>
+            </div>
 
+            <div className="max-w-2xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -329,82 +339,82 @@ export const HRLeaveView: React.FC = () => {
                   setSelectedLeaveId(newLv.id);
                   setShowApplyModal(false);
                 }}
-                className="space-y-3 text-xs"
+                className="space-y-4 text-xs"
               >
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-medium text-slate-700 block mb-1">Employee Name:</label>
-                    <input name="empName" defaultValue={currentUser.name} required className="w-full p-2.5 rounded-[12px] border border-slate-300" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Employee Name:</label>
+                    <input name="empName" defaultValue={currentUser.name} required className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]" />
                   </div>
-                  <div>
-                    <label className="font-medium text-slate-700 block mb-1">Employee / Worker ID:</label>
-                    <input name="empId" defaultValue="PK-EMP-042" required className="w-full p-2.5 rounded-[12px] border border-slate-300 font-mono" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-medium text-slate-700 block mb-1">Father's Name:</label>
-                    <input name="fatherName" required placeholder="Father's full name" className="w-full p-2.5 rounded-[12px] border border-slate-300" />
-                  </div>
-                  <div>
-                    <label className="font-medium text-slate-700 block mb-1">Department:</label>
-                    <input name="dept" defaultValue="Production / Booth" required className="w-full p-2.5 rounded-[12px] border border-slate-300" />
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Employee / Worker ID:</label>
+                    <input name="empId" defaultValue="PK-EMP-042" required className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white font-mono text-[#17191c] focus:outline-none focus:border-[#17191c]" />
                   </div>
                 </div>
 
-                <div>
-                  <label className="font-medium text-slate-700 block mb-1">Designation:</label>
-                  <input name="designation" defaultValue={currentUser.roleTitle} required className="w-full p-2.5 rounded-[12px] border border-slate-300" />
-                </div>
-
-                <div>
-                  <label className="font-medium text-slate-700 block mb-1">Current Residential Address:</label>
-                  <input name="currAddr" required placeholder="Current local room/house address" className="w-full p-2.5 rounded-[12px] border border-slate-300" />
-                </div>
-
-                <div>
-                  <label className="font-medium text-slate-700 block mb-1">Permanent Native Address:</label>
-                  <input name="permAddr" required placeholder="Permanent village / town address" className="w-full p-2.5 rounded-[12px] border border-slate-300" />
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="font-medium text-slate-700 block mb-1">From Date:</label>
-                    <input type="date" name="fromDate" required className="w-full p-2 rounded-[12px] border border-slate-300" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Father's Name:</label>
+                    <input name="fatherName" required placeholder="Father's full name" className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]" />
                   </div>
-                  <div>
-                    <label className="font-medium text-slate-700 block mb-1">To Date:</label>
-                    <input type="date" name="toDate" required className="w-full p-2 rounded-[12px] border border-slate-300" />
-                  </div>
-                  <div>
-                    <label className="font-medium text-slate-700 block mb-1">Total Days:</label>
-                    <input type="number" name="totalDays" min="1" defaultValue="3" required className="w-full p-2 rounded-[12px] border border-slate-300 font-mono" />
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Department:</label>
+                    <input name="dept" defaultValue="Production / Booth" required className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]" />
                   </div>
                 </div>
 
-                <div>
-                  <label className="font-medium text-slate-700 block mb-1">Reason for Leave (छुट्टी का कारण):</label>
-                  <textarea name="reason" rows={2} required placeholder="Detailed reason for leave request..." className="w-full p-2.5 rounded-[12px] border border-slate-300" />
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Designation:</label>
+                  <input name="designation" defaultValue={currentUser.roleTitle} required className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]" />
                 </div>
 
-                <div className="pt-3 flex justify-end gap-2">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Current Residential Address:</label>
+                  <input name="currAddr" required placeholder="Current local room/house address" className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Permanent Native Address:</label>
+                  <input name="permAddr" required placeholder="Permanent village / town address" className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]" />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">From Date:</label>
+                    <input type="date" name="fromDate" required className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">To Date:</label>
+                    <input type="date" name="toDate" required className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Total Days:</label>
+                    <input type="number" name="totalDays" min="1" defaultValue="3" required className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white font-mono text-[#17191c] focus:outline-none focus:border-[#17191c]" />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Reason for Leave (छुट्टी का कारण):</label>
+                  <textarea name="reason" rows={3} required placeholder="Detailed reason for leave request..." className="w-full p-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]" />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#ececec]">
                   <button
                     type="button"
                     onClick={() => setShowApplyModal(false)}
-                    className="px-4 py-2 rounded-full border border-slate-300 text-slate-600 hover:bg-slate-50 cursor-pointer"
+                    className="px-5 py-2.5 rounded-full border border-[#ececec] text-xs font-semibold text-[#777b86] hover:bg-gray-100 transition cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-semibold cursor-pointer"
+                    className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-semibold shadow-xs transition cursor-pointer"
                   >
                     Submit Application
                   </button>
                 </div>
               </form>
-            </motion.div>
+            </div>
           </div>
         )}
       </AnimatePresence>
@@ -412,78 +422,86 @@ export const HRLeaveView: React.FC = () => {
       {/* MODAL: Printable Leave Format */}
       <AnimatePresence>
         {showPrintModal && selectedLeave && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-[24px] max-w-2xl w-full p-8 space-y-6 border border-slate-200 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar print:p-0 print:border-none print:shadow-none"
-            >
-              <div className="flex items-center justify-between pb-4 border-b border-slate-200 print:hidden">
-                <span className="font-serif font-medium text-slate-800 text-lg">
-                  Leave Application Format (PK-HR-LV-01)
-                </span>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => window.print()}
-                    className="px-4 py-2 rounded-full bg-[#c09748] text-[#17191c] font-semibold text-xs transition flex items-center gap-2 cursor-pointer shadow-md"
-                  >
-                    <Printer className="w-4 h-4" />
-                    Print
-                  </button>
-                  <button
-                    onClick={() => setShowPrintModal(false)}
-                    className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer"
-                  >
-                    ✕
-                  </button>
+          <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150 print:bg-white print:static print:inset-auto print:overflow-visible">
+            <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs print:hidden">
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+                    LEAVE APPLICATION
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
+                    {selectedLeave.id}
+                  </span>
                 </div>
+                <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
+                  Leave Application Format (PK-HR-LV-01)
+                </h3>
               </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
+                >
+                  <Printer className="w-4 h-4 text-[#c09748]" />
+                  <span>Print</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPrintModal(false)}
+                  className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
+                  title="Close"
+                >
+                  <X className="w-5 h-5 text-[#17191c]" />
+                </button>
+              </div>
+            </div>
 
+            <div className="max-w-2xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs print:p-0 print:border-none print:shadow-none">
               {/* Printable Format */}
-              <div className="border-2 border-slate-800 p-6 space-y-5 text-xs text-slate-900 font-sans">
-                <div className="text-center border-b-2 border-slate-800 pb-3">
-                  <div className="text-2xl font-serif font-bold">PAINTKING SURFACE SOLUTIONS</div>
-                  <div className="font-semibold text-xs mt-0.5 uppercase tracking-wider">
+              <div className="border border-[#dcdfe4] bg-white rounded-[20px] p-6 sm:p-8 space-y-5 text-xs text-[#17191c] font-sans shadow-2xs print:border-none print:shadow-none">
+                <div className="text-center border-b border-[#ececec] pb-3">
+                  <div className="text-2xl font-serif font-normal text-[#17191c]">PAINTKING SURFACE SOLUTIONS</div>
+                  <div className="font-semibold text-xs mt-0.5 uppercase tracking-wider text-[#8a6521]">
                     LEAVE APPLICATION FORM / अवकाश आवेदन पत्र (PK-HR-LV-01)
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div><strong>Application No:</strong> {selectedLeave.id}</div>
+                  <div><strong>Application No:</strong> <span className="font-mono text-[#8a6521] font-bold">{selectedLeave.id}</span></div>
                   <div className="text-right"><strong>Date:</strong> {selectedLeave.employeeSignatureDate}</div>
                 </div>
 
-                <div className="space-y-2 border border-slate-300 p-4 rounded-lg bg-slate-50">
-                  <div><strong>1. Employee Name:</strong> {selectedLeave.employeeName} ({selectedLeave.employeeId})</div>
-                  <div><strong>2. Father's Name:</strong> {selectedLeave.fatherName}</div>
-                  <div><strong>3. Department / Designation:</strong> {selectedLeave.department} / {selectedLeave.designation}</div>
-                  <div><strong>4. Current Address:</strong> {selectedLeave.currentAddress}</div>
-                  <div><strong>5. Permanent Address:</strong> {selectedLeave.permanentAddress}</div>
-                  <div><strong>6. Reason:</strong> {selectedLeave.reasonForLeave}</div>
-                  <div><strong>7. Leave Period:</strong> {selectedLeave.leaveFromDate} to {selectedLeave.leaveToDate} ({selectedLeave.totalDays} Days)</div>
+                <div className="space-y-2 border border-[#ececec] p-4 rounded-[16px] bg-[#fafafb]">
+                  <div><strong className="text-[#777b86]">1. Employee Name:</strong> {selectedLeave.employeeName} ({selectedLeave.employeeId})</div>
+                  <div><strong className="text-[#777b86]">2. Father's Name:</strong> {selectedLeave.fatherName}</div>
+                  <div><strong className="text-[#777b86]">3. Department / Designation:</strong> {selectedLeave.department} / {selectedLeave.designation}</div>
+                  <div><strong className="text-[#777b86]">4. Current Address:</strong> {selectedLeave.currentAddress}</div>
+                  <div><strong className="text-[#777b86]">5. Permanent Address:</strong> {selectedLeave.permanentAddress}</div>
+                  <div><strong className="text-[#777b86]">6. Reason:</strong> {selectedLeave.reasonForLeave}</div>
+                  <div><strong className="text-[#777b86]">7. Leave Period:</strong> {selectedLeave.leaveFromDate} to {selectedLeave.leaveToDate} ({selectedLeave.totalDays} Days)</div>
                 </div>
 
                 {/* Approvals */}
-                <div className="grid grid-cols-3 gap-4 pt-6 border-t-2 border-slate-800 text-center">
-                  <div className="border border-slate-300 p-3 rounded-lg">
-                    <div className="text-slate-400 mb-6">Dept Incharge</div>
-                    <div className="font-bold">{selectedLeave.deptInchargeName || 'Pending'}</div>
-                    <div className="text-[10px] text-emerald-700 font-semibold">{selectedLeave.deptInchargeStatus}</div>
+                <div className="grid grid-cols-3 gap-3 pt-6 border-t border-[#ececec] text-center">
+                  <div className="border border-[#ececec] p-3 rounded-[14px] bg-[#fafafb]">
+                    <div className="text-[#777b86] mb-4 text-[10px] uppercase font-semibold">Dept Incharge</div>
+                    <div className="font-bold text-[#17191c] text-xs">{selectedLeave.deptInchargeName || 'Pending'}</div>
+                    <div className="text-[10px] text-emerald-700 font-semibold mt-1">{selectedLeave.deptInchargeStatus}</div>
                   </div>
-                  <div className="border border-slate-300 p-3 rounded-lg">
-                    <div className="text-slate-400 mb-6">HR Admin</div>
-                    <div className="font-bold">{selectedLeave.hrName || 'Pending'}</div>
-                    <div className="text-[10px] text-emerald-700 font-semibold">{selectedLeave.hrStatus}</div>
+                  <div className="border border-[#ececec] p-3 rounded-[14px] bg-[#fafafb]">
+                    <div className="text-[#777b86] mb-4 text-[10px] uppercase font-semibold">HR Admin</div>
+                    <div className="font-bold text-[#17191c] text-xs">{selectedLeave.hrName || 'Pending'}</div>
+                    <div className="text-[10px] text-emerald-700 font-semibold mt-1">{selectedLeave.hrStatus}</div>
                   </div>
-                  <div className="border border-slate-300 p-3 rounded-lg bg-[#faf3e0]/50">
-                    <div className="text-[#8a6521] mb-6">Director / MD</div>
-                    <div className="font-bold text-[#17191c]">{selectedLeave.mdName || 'Pending'}</div>
-                    <div className="text-[10px] text-[#8a6521] font-semibold">{selectedLeave.mdStatus}</div>
+                  <div className="border border-[#f4e5be] p-3 rounded-[14px] bg-[#faf3e0]/60">
+                    <div className="text-[#8a6521] mb-4 text-[10px] uppercase font-semibold">Director / MD</div>
+                    <div className="font-bold text-[#17191c] text-xs">{selectedLeave.mdName || 'Pending'}</div>
+                    <div className="text-[10px] text-[#8a6521] font-semibold mt-1">{selectedLeave.mdStatus}</div>
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
         )}
       </AnimatePresence>

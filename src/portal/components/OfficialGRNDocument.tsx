@@ -347,77 +347,81 @@ export const OfficialGRNDocument: React.FC<OfficialGRNDocumentProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-      <div className="bg-white rounded-[24px] max-w-5xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 max-h-[95vh] overflow-y-auto no-scrollbar">
-        
-        {/* Modal Controls Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec] print:hidden">
-          <div className="flex items-center gap-2.5">
-            <span className="p-2 rounded-full bg-[#faf7ed] border border-[#f4e5be] text-[#8a6521]">
-              <FileText className="w-5 h-5 text-[#c09748]" />
-            </span>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-serif font-normal text-lg text-[#17191c]">
-                  Official Goods Received Note (DOC NO: 00)
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold">
-                  STORE RECEIVED
-                </span>
-              </div>
-              <p className="text-xs text-[#777b86]">
-                Official Plant Record • Valid for Inward Quality & Inventory Ingestion
-              </p>
+    <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
+      {/* Sticky Top Header Bar */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex flex-wrap items-center justify-between shadow-2xs gap-3 print:hidden">
+        <div className="flex items-center gap-2.5">
+          <div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+                Goods Receipt Note
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
+                {grn.grnNo}
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold">
+                STORE RECEIVED
+              </span>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2 justify-end">
-            <button
-              onClick={handlePrint}
-              className="px-4 py-2 rounded-full border border-[#ececec] bg-white hover:bg-gray-50 text-[#17191c] text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-            >
-              <Printer className="w-3.5 h-3.5 text-[#17191c]" />
-              <span>Print GRN</span>
-            </button>
-            <button
-              onClick={handleDownload}
-              className="px-4 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
-            >
-              <Download className="w-3.5 h-3.5 text-[#17191c]" />
-              <span>Download PDF</span>
-            </button>
-            {onClose && (
-              <button
-                onClick={onClose}
-                className="w-8 h-8 rounded-full bg-[#fafafb] hover:bg-gray-100 text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition ml-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+            <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
+              Official Goods Received Note Specification & Verification
+            </h3>
           </div>
         </div>
 
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDownload}
+            className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+          >
+            <Download className="w-3.5 h-3.5 text-[#c09748]" />
+            <span className="hidden sm:inline">Download PDF</span>
+          </button>
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="px-3.5 py-2 rounded-full border border-[#dcdfe4] bg-white hover:bg-gray-50 text-[#17191c] text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+          >
+            <Printer className="w-3.5 h-3.5 text-[#777b86]" />
+            <span className="hidden sm:inline">Print</span>
+          </button>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs shrink-0 ml-1"
+              title="Close"
+            >
+              <X className="w-5 h-5 text-[#17191c]" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Body Container */}
+      <div className="max-w-5xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
         {/* Printable/Viewable Document */}
-        <div className="p-1 sm:p-2 bg-[#fafafb] rounded-[20px] border border-[#ececec] overflow-x-auto print:bg-white print:p-0 print:border-none">
+        <div className="p-1 sm:p-2 bg-white rounded-[20px] border border-[#ececec] overflow-x-auto print:bg-white print:p-0 print:border-none shadow-2xs">
           {documentContent}
         </div>
 
         {/* Footer info */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-[#777b86] pt-2 border-t border-[#ececec] print:hidden">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-[#777b86] pt-4 border-t border-[#ececec] print:hidden">
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
             <span>Material is officially catalogued into Plant Store Inventory.</span>
           </div>
           {onClose && (
             <button
+              type="button"
               onClick={onClose}
-              className="px-6 py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] text-xs font-bold transition cursor-pointer shadow-xs"
+              className="px-6 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition cursor-pointer shadow-2xs"
             >
               Close Document
             </button>
           )}
         </div>
-
       </div>
     </div>
   );

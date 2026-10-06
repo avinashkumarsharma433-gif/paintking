@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { Printer, Plus, QrCode, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { Printer, Plus, QrCode, CheckCircle2, ShieldAlert, X, Check, Box } from 'lucide-react';
 import { PackingSlipRecord } from '../types/portalTypes';
 
 export const PackingView: React.FC = () => {
@@ -128,25 +128,36 @@ export const PackingView: React.FC = () => {
 
       {/* Modal: Box Thermal Sticker Preview */}
       {showPrintModal && selectedSlip && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[24px] max-w-sm sm:max-w-md w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[90vh] overflow-y-auto no-scrollbar">
-            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
-              <div>
-                <span className="font-mono font-bold text-[#c09748] text-xs">
-                  PK-STR-PKG-001 • THERMAL LABEL (4"x6")
+        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
+          {/* Sticky Top Header Bar */}
+          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+                  Packing Slip
                 </span>
-                <div className="text-[11px] text-[#777b86]">Standard Automotive OEM Box Specimen</div>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
+                  {selectedSlip.slipNo}
+                </span>
               </div>
-              <button 
-                onClick={() => setShowPrintModal(false)} 
-                className="font-bold text-[#979799] hover:text-[#17191c] text-base cursor-pointer transition"
-              >
-                ✕
-              </button>
+              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
+                Thermal Label (4"x6") Specification Preview
+              </h3>
             </div>
+            <button 
+              type="button"
+              onClick={() => setShowPrintModal(false)}
+              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
+              title="Close"
+            >
+              <X className="w-5 h-5 text-[#17191c]" />
+            </button>
+          </div>
 
+          {/* Body Container */}
+          <div className="max-w-lg mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
             {/* Industrial 4" x 6" Thermal Sticker Mockup */}
-            <div className="border-2 border-black p-4 space-y-3 font-mono bg-white text-[#17191c] select-none">
+            <div className="border-2 border-black p-5 space-y-4 font-mono bg-white text-[#17191c] select-none rounded-[12px] shadow-sm">
               <div className="text-center border-b-2 border-black pb-2">
                 <div className="font-serif font-bold text-base tracking-wide">
                   PAINTKING SOLUTIONS PVT. LTD.
@@ -154,7 +165,7 @@ export const PackingView: React.FC = () => {
                 <div className="text-[9px] font-sans text-gray-700">
                   {activePlant} Unit • ISO 9001:2015 & IATF-16949 Certified
                 </div>
-                <div className="text-[10px] font-bold uppercase tracking-wider mt-0.5 bg-black text-white px-2 py-0.5 inline-block rounded-xs">
+                <div className="text-[10px] font-bold uppercase tracking-wider mt-1 bg-black text-white px-2 py-0.5 inline-block rounded-xs">
                   AUTOMOTIVE FINISHED GOODS BOX LABEL
                 </div>
               </div>
@@ -185,7 +196,7 @@ export const PackingView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="p-2.5 bg-gray-100 border border-black rounded-sm flex items-center justify-between">
+              <div className="p-3 bg-gray-100 border border-black rounded-sm flex items-center justify-between">
                 <div>
                   <span className="text-[9px] uppercase font-bold text-gray-700 block">BOX COUNT:</span>
                   <span className="font-serif font-bold text-2xl tracking-tight">{selectedSlip.packedQty} PCS</span>
@@ -212,9 +223,8 @@ export const PackingView: React.FC = () => {
               </div>
 
               {/* Barcode / QR Simulation */}
-              <div className="pt-1 flex flex-col items-center justify-center space-y-1">
+              <div className="pt-2 flex flex-col items-center justify-center space-y-1">
                 <div className="w-full flex items-center justify-center gap-0.5 h-10 px-4 bg-white">
-                  {/* Stylized Barcode Bars */}
                   {[4, 2, 6, 1, 3, 5, 2, 7, 3, 1, 4, 6, 2, 5, 3, 2, 6, 1, 4, 3, 5, 2, 6, 4, 2, 5, 1, 7, 3, 2, 4, 5, 2, 6, 1, 4].map((h, i) => (
                     <div 
                       key={i} 
@@ -228,14 +238,16 @@ export const PackingView: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2.5 pt-2">
+            <div className="flex justify-end gap-2.5 pt-4 border-t border-[#ececec]">
               <button
+                type="button"
                 onClick={() => setShowPrintModal(false)}
                 className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium text-xs cursor-pointer hover:bg-[#fafafb] transition"
               >
                 Close
               </button>
               <button
+                type="button"
                 onClick={() => {
                   const gate = canPrintPackingSlip(selectedSlip.woNo);
                   if (!gate.allowed) {
@@ -244,9 +256,9 @@ export const PackingView: React.FC = () => {
                   }
                   window.print();
                 }}
-                className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-semibold text-xs shadow-sm cursor-pointer transition flex items-center gap-2"
+                className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer transition active:scale-95 flex items-center gap-2"
               >
-                <Printer className="w-3.5 h-3.5" />
+                <Printer className="w-3.5 h-3.5 text-[#c09748]" />
                 <span>Print Thermal Sticker</span>
               </button>
             </div>
@@ -256,26 +268,35 @@ export const PackingView: React.FC = () => {
 
       {/* Modal: Create New Packing Slip from QA/PDI Cleared Order */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[24px] max-w-md w-full p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs">
-            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
-              <div>
-                <h3 className="text-base font-serif font-normal text-[#17191c]">
-                  Create Box Packing Slip from Cleared PDI
-                </h3>
-                <p className="text-[11px] text-[#777b86]">
-                  Select QA/OQC approved batch to generate 4"x6" barcode label
-                </p>
+        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
+          {/* Sticky Top Header Bar */}
+          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+                  Box Packaging
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
+                  PDI Cleared Batch
+                </span>
               </div>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base"
-              >
-                ✕
-              </button>
+              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
+                Create Box Packing Slip from Cleared PDI
+              </h3>
             </div>
+            <button 
+              type="button"
+              onClick={() => setShowCreateModal(false)}
+              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
+              title="Close"
+            >
+              <X className="w-5 h-5 text-[#17191c]" />
+            </button>
+          </div>
 
-            <form onSubmit={handleCreatePackingSlip} className="space-y-3.5">
+          {/* Body Container */}
+          <div className="max-w-xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
+            <form onSubmit={handleCreatePackingSlip} className="space-y-4">
               <div>
                 <label className="block text-[#17191c] font-semibold mb-1">
                   PDI Cleared Work Order / Batch *
@@ -283,7 +304,7 @@ export const PackingView: React.FC = () => {
                 <select
                   value={selectedPdiWo}
                   onChange={e => setSelectedPdiWo(e.target.value)}
-                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer"
+                  className="w-full p-3 rounded-[14px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer focus:border-[#c09748] focus:outline-none"
                   required
                 >
                   {clearedPdiReleases.map(rel => (
@@ -303,7 +324,7 @@ export const PackingView: React.FC = () => {
                   value={boxLabel}
                   onChange={e => setBoxLabel(e.target.value)}
                   placeholder="e.g. BOX-01/06"
-                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono text-xs"
+                  className="w-full p-3 rounded-[14px] border border-[#ececec] bg-white font-mono text-xs focus:border-[#c09748] focus:outline-none"
                   required
                 />
               </div>
@@ -316,25 +337,26 @@ export const PackingView: React.FC = () => {
                   type="number"
                   value={boxCount}
                   onChange={e => setBoxCount(Math.max(1, Number(e.target.value)))}
-                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c]"
+                  className="w-full p-3 rounded-[14px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c] focus:border-[#c09748] focus:outline-none"
                   min={1}
                   required
                 />
               </div>
 
-              <div className="pt-2 flex justify-end gap-2.5">
+              <div className="pt-4 border-t border-[#ececec] flex justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer"
+                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer hover:bg-[#fafafb]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-bold shadow-xs cursor-pointer transition"
+                  className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer transition active:scale-95 flex items-center gap-1.5"
                 >
-                  Generate Box Label
+                  <Check className="w-4 h-4 text-[#c09748]" />
+                  <span>Generate Box Label</span>
                 </button>
               </div>
             </form>

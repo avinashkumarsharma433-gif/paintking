@@ -2065,179 +2065,189 @@ export const StoresView: React.FC = () => {
 
       {/* Email Trigger Configuration & History Modal */}
       {showEmailConfigModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white rounded-[24px] max-w-2xl w-full border border-[#ececec] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="p-6 border-b border-[#ececec] flex items-center justify-between bg-[#fafafb]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#faf7ed] border border-[#f4e5be] flex items-center justify-center">
-                  <Mail className="w-5 h-5 text-[#8a6521]" />
-                </div>
-                <div>
-                  <h3 className="font-serif font-normal text-xl text-[#17191c]">
-                    Automated Material Aging Email Trigger
-                  </h3>
-                  <p className="text-xs text-[#777b86]">
-                    Set automated threshold rules to notify Purchase, Stores, & Production when material is aging.
-                  </p>
-                </div>
+        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
+          {/* Sticky Top Header Bar */}
+          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+                  AUTOMATION & ALERTS
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
+                  Stores Aging Desk
+                </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowEmailConfigModal(false)}
-                className="w-8 h-8 rounded-full bg-white border border-[#ececec] text-[#777b86] hover:text-[#17191c] flex items-center justify-center font-bold text-sm cursor-pointer"
-              >
-                ✕
-              </button>
+              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
+                Automated Material Aging Email Trigger
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowEmailConfigModal(false)}
+              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
+              title="Close"
+            >
+              <X className="w-5 h-5 text-[#17191c]" />
+            </button>
+          </div>
+
+          <div className="max-w-4xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs text-[#17191c]">
+            <p className="text-[#777b86] leading-relaxed">
+              Set automated threshold rules to notify Purchase, Stores, & Production when material is aging in the warehouse beyond safe limits.
+            </p>
+
+            {/* Trigger Switch & Days Setting */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5 rounded-[20px] bg-[#fafafb] border border-[#ececec]">
+              <div>
+                <label className="font-bold text-[#17191c] block mb-1">
+                  Email Notification Threshold (Days in Store)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={90}
+                    value={emailThresholdDays}
+                    onChange={e => setEmailThresholdDays(Number(e.target.value) || 1)}
+                    className="w-28 px-3.5 py-2.5 rounded-[14px] bg-white border border-[#ececec] font-mono font-bold text-center text-sm focus:outline-none focus:border-[#c09748]"
+                  />
+                  <span className="text-xs text-[#777b86]">Days (Default: 10 Days)</span>
+                </div>
+                <span className="text-[10px] text-[#777b86] mt-1 block">
+                  Material ko company me inward huye itne din hote hi alert trigger hoga.
+                </span>
+              </div>
+
+              <div>
+                <label className="font-bold text-[#17191c] block mb-1">
+                  Automated Service Status
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setEmailTriggersEnabled(!emailTriggersEnabled)}
+                  className={`w-full py-2.5 px-3.5 rounded-[14px] font-bold text-xs flex items-center justify-between border cursor-pointer transition ${
+                    emailTriggersEnabled
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                      : 'bg-gray-100 border-gray-300 text-gray-700'
+                  }`}
+                >
+                  <span>{emailTriggersEnabled ? '✓ Automated Dispatch ACTIVE' : '✕ Automation PAUSED'}</span>
+                  <span className={`w-3 h-3 rounded-full ${emailTriggersEnabled ? 'bg-emerald-500 animate-ping' : 'bg-gray-400'}`} />
+                </button>
+                <span className="text-[10px] text-[#777b86] mt-1 block">
+                  Daily 09:00 AM auto-cron trigger scan enabled.
+                </span>
+              </div>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-6 space-y-5 text-xs text-[#17191c]">
-              {/* Trigger Switch & Days Setting */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec]">
-                <div>
-                  <label className="font-bold text-[#17191c] block mb-1">
-                    Email Notification Threshold (Days in Store)
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={1}
-                      max={90}
-                      value={emailThresholdDays}
-                      onChange={e => setEmailThresholdDays(Number(e.target.value) || 1)}
-                      className="w-24 px-3 py-2 rounded-[14px] bg-white border border-[#ececec] font-mono font-bold text-center text-sm focus:outline-none focus:border-[#c09748]"
-                    />
-                    <span className="text-xs text-[#777b86]">Days (Default: 10 Days)</span>
-                  </div>
-                  <span className="text-[10px] text-[#777b86] mt-1 block">
-                    Material ko company me inward huye itne din hote hi alert trigger hoga.
-                  </span>
-                </div>
-
-                <div>
-                  <label className="font-bold text-[#17191c] block mb-1">
-                    Automated Service Status
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setEmailTriggersEnabled(!emailTriggersEnabled)}
-                    className={`w-full py-2 px-3 rounded-[14px] font-bold text-xs flex items-center justify-between border cursor-pointer transition ${
-                      emailTriggersEnabled
-                        ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                        : 'bg-gray-100 border-gray-300 text-gray-700'
-                    }`}
-                  >
-                    <span>{emailTriggersEnabled ? '✓ Automated Dispatch ACTIVE' : '✕ Automation PAUSED'}</span>
-                    <span className={`w-3 h-3 rounded-full ${emailTriggersEnabled ? 'bg-emerald-500 animate-ping' : 'bg-gray-400'}`} />
-                  </button>
-                  <span className="text-[10px] text-[#777b86] mt-1 block">
-                    Daily 09:00 AM auto-cron trigger scan enabled.
-                  </span>
-                </div>
+            {/* Recipient Mailing List */}
+            <div className="space-y-1.5">
+              <label className="font-bold text-[#17191c] block">
+                Alert Recipients (Comma Separated Emails)
+              </label>
+              <input
+                type="text"
+                value={alertRecipients}
+                onChange={e => setAlertRecipients(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-[14px] bg-white border border-[#ececec] text-xs font-mono focus:outline-none focus:border-[#c09748]"
+                placeholder="stores@paintking.in, purchase@paintking.in, production@paintking.in"
+              />
+              <div className="flex items-center gap-2 text-[10px] text-[#777b86]">
+                <span>Roles notified:</span>
+                <span className="px-2 py-0.5 rounded-full bg-gray-100 font-mono">Store Manager</span>
+                <span className="px-2 py-0.5 rounded-full bg-gray-100 font-mono">Production Head</span>
+                <span className="px-2 py-0.5 rounded-full bg-gray-100 font-mono">Purchase Lead</span>
               </div>
+            </div>
 
-              {/* Recipient Mailing List */}
-              <div className="space-y-1.5">
-                <label className="font-bold text-[#17191c] block">
-                  Alert Recipients (Comma Separated Emails)
-                </label>
-                <input
-                  type="text"
-                  value={alertRecipients}
-                  onChange={e => setAlertRecipients(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-[14px] bg-white border border-[#ececec] text-xs font-mono focus:outline-none focus:border-[#c09748]"
-                  placeholder="stores@paintking.in, purchase@paintking.in, production@paintking.in"
-                />
-                <div className="flex items-center gap-2 text-[10px] text-[#777b86]">
-                  <span>Roles notified:</span>
-                  <span className="px-2 py-0.5 rounded-full bg-gray-100 font-mono">Store Manager</span>
-                  <span className="px-2 py-0.5 rounded-full bg-gray-100 font-mono">Production Head</span>
-                  <span className="px-2 py-0.5 rounded-full bg-gray-100 font-mono">Purchase Lead</span>
-                </div>
-              </div>
-
-              {/* Live Preview of Qualifying Lots */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-[#17191c] uppercase text-[10px] tracking-wider font-mono">
-                    Currently Qualifying Materials (&ge; {emailThresholdDays} Days In Store):
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-mono font-bold text-[10px]">
-                    {itemsTriggeringEmail.length} Lots
-                  </span>
-                </div>
-
-                <div className="max-h-36 overflow-y-auto border border-[#ececec] rounded-[16px] p-2 space-y-1.5 bg-[#fafafb]">
-                  {itemsTriggeringEmail.map((it, idx) => (
-                    <div key={idx} className="p-2 bg-white rounded-[10px] border border-[#ececec] flex items-center justify-between">
-                      <div>
-                        <span className="font-mono font-bold text-[#c09748]">{it.partCode}</span>
-                        <span className="text-[#777b86] ml-2">({it.customer})</span>
-                        <div className="text-[10px] text-[#777b86]">{it.partDesc}</div>
-                      </div>
-                      <div className="text-right font-mono">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900">
-                          {it.daysInStore} Days in Store
-                        </span>
-                        <div className="text-[10px] text-[#8a6521] font-semibold mt-0.5">
-                          Bal: {it.balanceAvailable} {it.uom}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {itemsTriggeringEmail.length === 0 && (
-                    <div className="p-4 text-center text-[#777b86]">
-                      Koi bhi material {emailThresholdDays} din se zyada store me nahi pada hai. All fresh!
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Email Trigger History Log */}
-              <div className="space-y-1.5">
+            {/* Live Preview of Qualifying Lots */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
                 <span className="font-bold text-[#17191c] uppercase text-[10px] tracking-wider font-mono">
-                  Recent Email Dispatch Logs:
+                  Currently Qualifying Materials (&ge; {emailThresholdDays} Days In Store):
                 </span>
-                <div className="border border-[#ececec] rounded-[14px] overflow-hidden">
-                  <table className="w-full text-left text-[11px]">
-                    <thead className="bg-[#fafafb] text-[#777b86] border-b border-[#ececec]">
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 font-mono font-bold text-[10px]">
+                  {itemsTriggeringEmail.length} Lots
+                </span>
+              </div>
+
+              <div className="max-h-48 overflow-y-auto border border-[#ececec] rounded-[18px] p-2 space-y-1.5 bg-[#fafafb]">
+                {itemsTriggeringEmail.map((it, idx) => (
+                  <div key={idx} className="p-3 bg-white rounded-[14px] border border-[#ececec] flex items-center justify-between">
+                    <div>
+                      <span className="font-mono font-bold text-[#c09748]">{it.partCode}</span>
+                      <span className="text-[#777b86] ml-2">({it.customer})</span>
+                      <div className="text-[10px] text-[#777b86]">{it.partDesc}</div>
+                    </div>
+                    <div className="text-right font-mono">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900">
+                        {it.daysInStore} Days in Store
+                      </span>
+                      <div className="text-[10px] text-[#8a6521] font-semibold mt-0.5">
+                        Bal: {it.balanceAvailable} {it.uom}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {itemsTriggeringEmail.length === 0 && (
+                  <div className="p-6 text-center text-[#777b86]">
+                    Koi bhi material {emailThresholdDays} din se zyada store me nahi pada hai. All fresh!
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Recent Logs Table */}
+            <div className="space-y-3">
+              <span className="font-bold text-xs uppercase tracking-wider text-[#17191c] block">
+                Recent Email Dispatch Logs ({sentAlertHistory.length})
+              </span>
+              <div className="border border-[#ececec] rounded-[18px] overflow-hidden bg-white">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#f2f2f3] text-[#17191c] font-semibold border-b border-[#ececec]">
+                    <tr>
+                      <th className="p-3">Log ID</th>
+                      <th className="p-3">Dispatched Time</th>
+                      <th className="p-3">Items Flagged</th>
+                      <th className="p-3 text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#ececec]">
+                    {sentAlertHistory.length === 0 ? (
                       <tr>
-                        <th className="p-2">Log ID</th>
-                        <th className="p-2">Dispatched Time</th>
-                        <th className="p-2">Items Flagged</th>
-                        <th className="p-2 text-right">Status</th>
+                        <td colSpan={4} className="p-6 text-center text-[#777b86]">
+                          No email alerts dispatched yet.
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#ececec]">
-                      {sentAlertHistory.map((h, i) => (
-                        <tr key={i}>
-                          <td className="p-2 font-mono font-bold text-[#c09748]">{h.id}</td>
-                          <td className="p-2 font-mono text-[#777b86]">{h.timestamp}</td>
-                          <td className="p-2 truncate max-w-xs">{h.partCodes}</td>
-                          <td className="p-2 text-right">
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    ) : (
+                      sentAlertHistory.map((h, i) => (
+                        <tr key={i} className="hover:bg-[#fafafb] transition">
+                          <td className="p-3 font-mono font-bold text-[#c09748]">{h.id}</td>
+                          <td className="p-3 font-mono text-[#777b86]">{h.timestamp}</td>
+                          <td className="p-3 truncate max-w-xs">{h.partCodes}</td>
+                          <td className="p-3 text-right">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                               ✓ Delivered
                             </span>
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            {/* Modal Footer */}
-            <div className="p-4 border-t border-[#ececec] bg-[#fafafb] flex items-center justify-between">
-              <span className="text-[11px] text-[#777b86]">
+            {/* Action Bar */}
+            <div className="pt-4 border-t border-[#ececec] flex flex-col sm:flex-row items-center justify-between gap-3">
+              <span className="text-xs text-[#777b86]">
                 Rule: Auto-sends alert when Days In Company &ge; {emailThresholdDays}
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
                 <button
                   type="button"
                   onClick={() => setShowEmailConfigModal(false)}
-                  className="px-4 py-2 rounded-full border border-[#ececec] bg-white text-[#17191c] text-xs font-semibold hover:bg-gray-50 cursor-pointer"
+                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] hover:bg-gray-50 text-xs font-semibold cursor-pointer transition"
                 >
                   Close
                 </button>
@@ -2247,7 +2257,7 @@ export const StoresView: React.FC = () => {
                     handleSendEmailAlertNow();
                     setShowEmailConfigModal(false);
                   }}
-                  className="px-5 py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="px-6 py-2.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition"
                 >
                   <Send className="w-3.5 h-3.5 text-[#c09748]" />
                   <span>Send Immediate Test Alert</span>
@@ -2262,52 +2272,53 @@ export const StoresView: React.FC = () => {
       {/* MODAL 1: MATERIAL ISSUE SLIP (MIN - ISSUE TO SHOP FLOOR)               */}
       {/* ====================================================================== */}
       {showIssueModal && selectedItemForIssue && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-[24px] border border-[#ececec] shadow-2xl max-w-lg w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="p-5 border-b border-[#ececec] bg-[#fafafb] flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-[#17191c] flex items-center justify-center text-[#c09748]">
-                  <ArrowRightLeft className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-serif font-bold text-base text-[#17191c]">
-                    Issue Material to Shop Floor (MIN Slip)
-                  </h3>
-                  <p className="text-[11px] text-[#777b86]">
-                    Generate official Material Issue Note for production line
-                  </p>
-                </div>
+        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
+          {/* Sticky Top Header Bar */}
+          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+                  MIN ISSUE REQUISITION
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
+                  GRN: {selectedItemForIssue.grnNo}
+                </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowIssueModal(false)}
-                className="w-8 h-8 rounded-full bg-white border border-[#ececec] flex items-center justify-center text-[#777b86] hover:text-[#17191c] cursor-pointer"
-              >
-                ✕
-              </button>
+              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
+                Issue Material to Shop Floor (MIN Slip)
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowIssueModal(false)}
+              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
+              title="Close"
+            >
+              <X className="w-5 h-5 text-[#17191c]" />
+            </button>
+          </div>
+
+          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
+            {/* Part Details Box */}
+            <div className="p-4 bg-[#faf7ed] border border-[#f4e5be] rounded-[20px] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-[#8a6521] uppercase text-[10px] tracking-wider font-mono">
+                  Part & Lot Overview
+                </span>
+                <span className="font-mono font-bold text-[#8a6521]">
+                  GRN: {selectedItemForIssue.grnNo}
+                </span>
+              </div>
+              <div className="text-sm font-bold text-[#17191c]">{selectedItemForIssue.customer}</div>
+              <div className="font-mono font-bold text-[#c09748]">{selectedItemForIssue.partCode} — {selectedItemForIssue.partDesc}</div>
+              <div className="flex items-center justify-between text-xs pt-2 border-t border-[#f4e5be]/70 text-[#8a6521]">
+                <span>Available Store Balance:</span>
+                <span className="font-bold font-mono text-base">{selectedItemForIssue.balanceAvailable} {selectedItemForIssue.uom}</span>
+              </div>
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleConfirmIssue} className="p-5 space-y-4 text-xs">
-              {/* Part Details Box */}
-              <div className="p-3 bg-[#faf7ed] border border-[#f4e5be] rounded-[16px] space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-[#8a6521] uppercase text-[10px] tracking-wider font-mono">
-                    Part & Lot Overview
-                  </span>
-                  <span className="font-mono font-bold text-[#8a6521]">
-                    GRN: {selectedItemForIssue.grnNo}
-                  </span>
-                </div>
-                <div className="text-sm font-bold text-[#17191c]">{selectedItemForIssue.customer}</div>
-                <div className="font-mono font-bold text-[#c09748]">{selectedItemForIssue.partCode} — {selectedItemForIssue.partDesc}</div>
-                <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#f4e5be]/70 text-[#8a6521]">
-                  <span>Available Store Balance:</span>
-                  <span className="font-bold font-mono text-sm">{selectedItemForIssue.balanceAvailable} {selectedItemForIssue.uom}</span>
-                </div>
-              </div>
-
+            <form onSubmit={handleConfirmIssue} className="space-y-4">
               {/* Quantity Input */}
               <div className="space-y-1">
                 <label className="font-bold text-[#17191c] flex items-center justify-between">
@@ -2315,7 +2326,7 @@ export const StoresView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setIssueQtyInput(selectedItemForIssue.balanceAvailable)}
-                    className="text-[10px] text-[#c09748] hover:underline font-semibold cursor-pointer"
+                    className="text-xs text-[#c09748] hover:underline font-semibold cursor-pointer"
                   >
                     Issue All ({selectedItemForIssue.balanceAvailable})
                   </button>
@@ -2327,7 +2338,7 @@ export const StoresView: React.FC = () => {
                   value={issueQtyInput}
                   onChange={e => setIssueQtyInput(Number(e.target.value))}
                   required
-                  className="w-full px-3.5 py-2.5 rounded-[14px] bg-white border border-[#ececec] text-sm font-mono font-bold text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                  className="w-full p-3 rounded-[16px] bg-white border border-[#ececec] text-base font-mono font-bold text-[#17191c] focus:outline-none focus:border-[#c09748]"
                 />
               </div>
 
@@ -2339,7 +2350,7 @@ export const StoresView: React.FC = () => {
                 <select
                   value={issueTargetJobCard}
                   onChange={e => setIssueTargetJobCard(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-[14px] bg-white border border-[#ececec] text-xs font-mono focus:outline-none focus:border-[#c09748]"
+                  className="w-full p-3 rounded-[16px] bg-white border border-[#ececec] text-xs font-mono focus:outline-none focus:border-[#c09748]"
                 >
                   {jobCards.map(jc => (
                     <option key={jc.jobCardId} value={jc.jobCardId}>
@@ -2360,7 +2371,7 @@ export const StoresView: React.FC = () => {
                   value={issuedToPerson}
                   onChange={e => setIssuedToPerson(e.target.value)}
                   required
-                  className="w-full px-3.5 py-2 rounded-[14px] bg-white border border-[#ececec] text-xs focus:outline-none focus:border-[#c09748]"
+                  className="w-full p-3 rounded-[16px] bg-white border border-[#ececec] text-xs focus:outline-none focus:border-[#c09748]"
                   placeholder="e.g. Ramesh Kumar (Line 1 Supervisor)"
                 />
               </div>
@@ -2374,25 +2385,25 @@ export const StoresView: React.FC = () => {
                   type="text"
                   value={issueRemarks}
                   onChange={e => setIssueRemarks(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-[14px] bg-white border border-[#ececec] text-xs focus:outline-none focus:border-[#c09748]"
+                  className="w-full p-3 rounded-[16px] bg-white border border-[#ececec] text-xs focus:outline-none focus:border-[#c09748]"
                   placeholder="e.g. Issued for Primer & Basecoat Application"
                 />
               </div>
 
               {/* Actions */}
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#ececec]">
+              <div className="pt-4 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowIssueModal(false)}
-                  className="px-4 py-2 rounded-full border border-[#ececec] text-[#777b86] font-semibold hover:bg-gray-50 cursor-pointer"
+                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-semibold hover:bg-[#f2f2f3] cursor-pointer transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  className="px-6 py-2.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold flex items-center gap-1.5 shadow-sm cursor-pointer transition"
                 >
-                  <CheckSquare className="w-3.5 h-3.5 text-[#c09748]" />
+                  <CheckSquare className="w-4 h-4 text-[#c09748]" />
                   <span>Confirm Issue & Generate MIN</span>
                 </button>
               </div>
@@ -2402,167 +2413,155 @@ export const StoresView: React.FC = () => {
       )}
 
       {/* ====================================================================== */}
-      {/* MODAL 2: RETURN TO STORE (LEFTOVER / UNUSED STOCK RESTOCK)              */}
-
-
-      {/* ====================================================================== */}
       {/* MODAL 3: OFFICIAL PRINTABLE MATERIAL ISSUE NOTE (MIN SLIP)              */}
       {/* ====================================================================== */}
       {selectedIssueSlipForPrint && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-[24px] border border-[#ececec] shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="p-4 border-b border-[#ececec] bg-[#fafafb] flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#c09748]" />
-                <span className="font-bold text-sm text-[#17191c]">
-                  Official Material Issue Note (MIN Slip)
+        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
+          {/* Sticky Top Header Bar */}
+          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+                  OFFICIAL MIN SLIP
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
+                  {selectedIssueSlipForPrint.slipNo}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-3 py-1 rounded-full bg-[#17191c] text-[#c09748] text-xs font-bold flex items-center gap-1 cursor-pointer"
-                >
-                  <Printer className="w-3 h-3 text-[#c09748]" />
-                  <span>Print Slip</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedIssueSlipForPrint(null)}
-                  className="text-gray-400 hover:text-black font-bold text-sm px-2 cursor-pointer"
-                >
-                  ✕
-                </button>
+              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
+                Official Material Issue Note
+              </h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-4 py-2 rounded-full bg-[#17191c] text-[#c09748] text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition"
+              >
+                <Printer className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>Print Slip</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedIssueSlipForPrint(null)}
+                className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
+                title="Close"
+              >
+                <X className="w-5 h-5 text-[#17191c]" />
+              </button>
+            </div>
+          </div>
+
+          {/* Printable Document Sheet */}
+          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-[#17191c] text-xs">
+            {/* Plant Header */}
+            <div className="border-b-2 border-[#17191c] pb-4 text-center">
+              <div className="font-serif font-bold text-2xl tracking-tight text-[#17191c]">PAINTKING SURFACE SOLUTIONS</div>
+              <div className="text-xs text-[#777b86] mt-0.5">Specialized Liquid Coating, Hydrographic Dipping & UV Printing</div>
+              <div className="text-[11px] font-mono font-bold text-[#c09748] mt-1.5 uppercase tracking-widest">
+                INTERNAL STORE MATERIAL ISSUE NOTE (MIN)
               </div>
             </div>
 
-            {/* Printable Document Sheet */}
-            <div className="p-6 space-y-5 text-[#17191c] text-xs bg-white">
-              {/* Plant Header */}
-              <div className="border-b-2 border-[#17191c] pb-3 text-center">
-                <div className="font-serif font-bold text-xl tracking-tight text-[#17191c]">PAINTKING SURFACE SOLUTIONS</div>
-                <div className="text-[11px] text-[#777b86]">Specialized Liquid Coating, Hydrographic Dipping & UV Printing</div>
-                <div className="text-[10px] font-mono font-bold text-[#c09748] mt-1 uppercase tracking-widest">
-                  INTERNAL STORE MATERIAL ISSUE NOTE (MIN)
-                </div>
+            {/* Slip Meta */}
+            <div className="grid grid-cols-2 gap-4 p-4 bg-[#fafafb] border border-[#ececec] rounded-[18px]">
+              <div>
+                <div className="text-[10px] text-[#777b86]">MIN Slip Number:</div>
+                <div className="font-mono font-bold text-sm text-[#c09748]">{selectedIssueSlipForPrint.slipNo}</div>
+                <div className="text-[10px] text-[#777b86] mt-2">Issue Date & Time:</div>
+                <div className="font-mono text-xs">{selectedIssueSlipForPrint.date}</div>
               </div>
-
-              {/* Slip Meta */}
-              <div className="grid grid-cols-2 gap-4 p-3 bg-[#fafafb] border border-[#ececec] rounded-[14px]">
-                <div>
-                  <div className="text-[10px] text-[#777b86]">MIN Slip Number:</div>
-                  <div className="font-mono font-bold text-sm text-[#c09748]">{selectedIssueSlipForPrint.slipNo}</div>
-                  <div className="text-[10px] text-[#777b86] mt-1">Issue Date & Time:</div>
-                  <div className="font-mono">{selectedIssueSlipForPrint.date}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[10px] text-[#777b86]">Job Card Reference:</div>
-                  <div className="font-mono font-bold text-[#17191c]">{selectedIssueSlipForPrint.jobCardId}</div>
-                  <div className="text-[10px] text-[#777b86] mt-1">Source GRN:</div>
-                  <div className="font-mono">{selectedIssueSlipForPrint.grnNo}</div>
-                </div>
+              <div className="text-right">
+                <div className="text-[10px] text-[#777b86]">Job Card Reference:</div>
+                <div className="font-mono font-bold text-xs text-[#17191c]">{selectedIssueSlipForPrint.jobCardId}</div>
+                <div className="text-[10px] text-[#777b86] mt-2">Source GRN:</div>
+                <div className="font-mono text-xs">{selectedIssueSlipForPrint.grnNo}</div>
               </div>
+            </div>
 
-              {/* Table of Issued Materials */}
-              <div className="border border-[#ececec] rounded-[14px] overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#fafafb] text-[#777b86] border-b border-[#ececec] font-mono text-[10px]">
-                    <tr>
-                      <th className="p-2.5">Part Code</th>
-                      <th className="p-2.5">Customer / Account</th>
-                      <th className="p-2.5 text-center">Quantity Issued</th>
-                      <th className="p-2.5">Purpose / Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="p-2.5 font-mono font-bold text-[#c09748]">{selectedIssueSlipForPrint.partCode}</td>
-                      <td className="p-2.5 font-semibold text-[#17191c]">{selectedIssueSlipForPrint.customer}</td>
-                      <td className="p-2.5 text-center font-mono font-bold text-sm text-[#17191c] bg-[#faf7ed]">
-                        {selectedIssueSlipForPrint.qty} {selectedIssueSlipForPrint.uom}
-                      </td>
-                      <td className="p-2.5 text-[#777b86]">{selectedIssueSlipForPrint.remarks || 'Issued for coating line'}</td>
-                    </tr>
-                  </tbody>
-                </table>
+            {/* Table of Issued Materials */}
+            <div className="border border-[#ececec] rounded-[18px] overflow-hidden bg-white">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-[#f2f2f3] text-[#17191c] border-b border-[#ececec] font-semibold text-xs">
+                  <tr>
+                    <th className="p-3">Part Code</th>
+                    <th className="p-3">Customer / Account</th>
+                    <th className="p-3 text-center">Quantity Issued</th>
+                    <th className="p-3">Purpose / Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="p-3 font-mono font-bold text-[#c09748]">{selectedIssueSlipForPrint.partCode}</td>
+                    <td className="p-3 font-semibold text-[#17191c]">{selectedIssueSlipForPrint.customer}</td>
+                    <td className="p-3 text-center font-mono font-bold text-sm text-[#17191c] bg-[#faf7ed]">
+                      {selectedIssueSlipForPrint.qty} {selectedIssueSlipForPrint.uom}
+                    </td>
+                    <td className="p-3 text-[#777b86]">{selectedIssueSlipForPrint.remarks || 'Issued for coating line'}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Custody Signature Signoffs */}
+            <div className="pt-8 grid grid-cols-2 gap-8 text-center text-xs">
+              <div className="border-t border-[#ececec] pt-3">
+                <div className="font-bold text-[#17191c]">Store Incharge Sign</div>
+                <div className="text-[11px] text-[#777b86] mt-0.5">PK Stores Team</div>
               </div>
-
-              {/* Custody Signature Signoffs */}
-              <div className="pt-6 grid grid-cols-2 gap-8 text-center text-xs">
-                <div className="border-t border-[#ececec] pt-2">
-                  <div className="font-bold text-[#17191c]">Store Incharge Sign</div>
-                  <div className="text-[10px] text-[#777b86]">PK Stores Team</div>
-                </div>
-                <div className="border-t border-[#ececec] pt-2">
-                  <div className="font-bold text-[#17191c]">Received By (Floor Incharge)</div>
-                  <div className="text-[10px] text-[#777b86]">{selectedIssueSlipForPrint.issuedTo}</div>
-                </div>
+              <div className="border-t border-[#ececec] pt-3">
+                <div className="font-bold text-[#17191c]">Received By (Floor Incharge)</div>
+                <div className="text-[11px] text-[#777b86] mt-0.5">{selectedIssueSlipForPrint.issuedTo}</div>
               </div>
             </div>
           </div>
         </div>
       )}
+
       {/* PENDING IQC LOT VIEW DETAILS MODAL */}
       {selectedPendingJobForView && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-[24px] max-w-4xl w-full border border-[#ececec] shadow-2xl p-4 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="space-y-2 border-b border-[#f2f2f3] pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="w-4 h-4 text-[#8a6521]" />
-                  </div>
-                  <div>
-                    <h3 className="font-serif font-normal text-base sm:text-xl text-[#17191c] leading-tight">
-                      IQC Cleared Inward Lot Inspection Details
-                    </h3>
-                    <p className="text-[11px] text-[#777b86]">
-                      Physical Verification, 20% Sampling, & Store Intake Clearance
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedPendingJobForView(null)}
-                  className="w-8 h-8 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] hover:text-[#17191c] hover:bg-gray-100 flex items-center justify-center font-bold text-sm cursor-pointer shrink-0 transition"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Metadata Badges Strip */}
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[10.5px] sm:text-[11px]">
-                <span className="font-mono font-bold text-[#c09748] bg-[#faf7ed] px-2.5 py-0.5 rounded-full border border-[#f4e5be]">
+        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
+          {/* Sticky Top Header Bar */}
+          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
+            <div>
+              <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                <span className="font-mono font-bold text-[#c09748] bg-[#faf7ed] px-2.5 py-0.5 rounded-full border border-[#f4e5be] text-[10px]">
                   {selectedPendingJobForView.inwardSrNo}
                 </span>
-                <span className="font-mono font-bold text-[#17191c] bg-[#fafafb] px-2.5 py-0.5 rounded-full border border-[#ececec]">
+                <span className="font-mono font-bold text-[#17191c] bg-[#fafafb] px-2.5 py-0.5 rounded-full border border-[#ececec] text-[10px]">
                   IQC: {selectedPendingJobForView.reportNo}
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                <span className="px-2.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  <span>IQC Approved (Passed)</span>
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full font-mono bg-gray-100 text-[#777b86] border border-gray-200 flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-[#777b86]" />
-                  <span>{selectedPendingJobForView.generatedTimestamp || formatDateDDMMYYYY(selectedPendingJobForView.receivedDate)}</span>
+                  <span>IQC Approved</span>
                 </span>
               </div>
+              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
+                IQC Cleared Inward Lot Inspection Details
+              </h3>
             </div>
+            <button
+              type="button"
+              onClick={() => setSelectedPendingJobForView(null)}
+              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
+              title="Close"
+            >
+              <X className="w-5 h-5 text-[#17191c]" />
+            </button>
+          </div>
 
+          <div className="max-w-5xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
             {/* 8 Structured Summary Cards Matrix */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {/* Card 1 */}
-              <div className="p-3.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] space-y-1">
+              <div className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] space-y-1">
                 <span className="text-[10px] font-semibold text-[#777b86] uppercase tracking-wider block">Inward & IQC Ref</span>
-                <div className="font-mono font-bold text-xs sm:text-sm text-[#c09748]">{selectedPendingJobForView.inwardSrNo}</div>
+                <div className="font-mono font-bold text-sm text-[#c09748]">{selectedPendingJobForView.inwardSrNo}</div>
                 <div className="text-[11px] text-[#777b86] font-mono">IQC: {selectedPendingJobForView.reportNo}</div>
               </div>
 
               {/* Card 2 */}
-              <div className="p-3.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] space-y-1">
+              <div className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] space-y-1">
                 <span className="text-[10px] font-semibold text-[#777b86] uppercase tracking-wider block">Supplier / Customer</span>
                 <div className="font-semibold text-xs text-[#17191c] truncate" title={selectedPendingJobForView.vendorCustomer}>
                   {selectedPendingJobForView.vendorCustomer}
@@ -2573,23 +2572,23 @@ export const StoresView: React.FC = () => {
               </div>
 
               {/* Card 3 */}
-              <div className="p-3.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] space-y-1">
+              <div className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] space-y-1">
                 <span className="text-[10px] font-semibold text-[#777b86] uppercase tracking-wider block">Vehicle & Transport</span>
                 <div className="font-mono font-bold text-xs text-[#17191c]">{selectedPendingJobForView.vehicleNo}</div>
                 <div className="text-[11px] text-[#777b86]">Gate Security Verified</div>
               </div>
 
               {/* Card 4 */}
-              <div className="p-3.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] space-y-1">
+              <div className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] space-y-1">
                 <span className="text-[10px] font-semibold text-[#777b86] uppercase tracking-wider block">Verified Total Qty</span>
-                <div className="font-mono font-bold text-sm text-emerald-800">
+                <div className="font-mono font-bold text-base text-emerald-800">
                   {Number(selectedPendingJobForView.totalQty).toLocaleString('en-IN')} {selectedPendingJobForView.uom}
                 </div>
                 <div className="text-[11px] text-emerald-700 font-medium">100% Cleared for Store Intake</div>
               </div>
 
               {/* Card 5 */}
-              <div className="p-3.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] space-y-1">
+              <div className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] space-y-1">
                 <span className="text-[10px] font-semibold text-[#777b86] uppercase tracking-wider block">Material Description</span>
                 <div className="font-medium text-xs text-[#17191c] truncate" title={selectedPendingJobForView.partDescription}>
                   {selectedPendingJobForView.partDescription}
@@ -2598,7 +2597,7 @@ export const StoresView: React.FC = () => {
               </div>
 
               {/* Card 6 */}
-              <div className="p-3.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] space-y-1">
+              <div className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] space-y-1">
                 <span className="text-[10px] font-semibold text-[#777b86] uppercase tracking-wider block">20% AQL Sampling</span>
                 <div className="font-mono font-bold text-xs text-emerald-800">
                   {selectedPendingJobForView.aqlSampleChecked || 50} Sampled • 0 Defect
@@ -2607,14 +2606,14 @@ export const StoresView: React.FC = () => {
               </div>
 
               {/* Card 7 */}
-              <div className="p-3.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] space-y-1">
+              <div className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] space-y-1">
                 <span className="text-[10px] font-semibold text-[#777b86] uppercase tracking-wider block">IQC Inspector</span>
                 <div className="font-semibold text-xs text-[#17191c] truncate">{selectedPendingJobForView.preparedBy}</div>
                 <div className="text-[11px] text-emerald-700 font-medium">Quality Clearance Signed</div>
               </div>
 
               {/* Card 8 */}
-              <div className="p-3.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] space-y-1">
+              <div className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] space-y-1">
                 <span className="text-[10px] font-semibold text-[#777b86] uppercase tracking-wider block">Production Approval</span>
                 <div className="font-semibold text-xs text-emerald-800 truncate">{selectedPendingJobForView.verifiedBy}</div>
                 <div className="text-[11px] text-[#777b86]">Sign-off Verified</div>
@@ -2623,7 +2622,7 @@ export const StoresView: React.FC = () => {
 
             {/* Line Items Breakdown Table */}
             {selectedPendingJobForView.items && selectedPendingJobForView.items.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-[#17191c] uppercase tracking-wider">
                     Material Line Items Physical Verification ({selectedPendingJobForView.items.length} Items)
@@ -2633,7 +2632,7 @@ export const StoresView: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="border border-[#ececec] rounded-[16px] overflow-hidden bg-white">
+                <div className="border border-[#ececec] rounded-[18px] overflow-hidden bg-white">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead className="bg-[#f2f2f3] text-[#17191c] font-semibold border-b border-[#ececec]">
@@ -2680,12 +2679,12 @@ export const StoresView: React.FC = () => {
             )}
 
             {/* Modal Actions Bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-[#ececec]">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-[#ececec]">
               <div className="text-[11px] text-[#777b86] font-mono text-center sm:text-left hidden lg:block">
                 ISO 9001:2015 & IATF 16949 Verified Quality Clearance Record
               </div>
 
-              <div className="grid grid-cols-2 sm:flex sm:items-center sm:justify-end gap-2 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center justify-end gap-2.5 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => {
@@ -2693,7 +2692,7 @@ export const StoresView: React.FC = () => {
                     setSelectedPendingJobForView(null);
                     handleOpenGrnForPending(job);
                   }}
-                  className="flex items-center justify-center gap-1.5 px-5 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold shadow-xs transition cursor-pointer active:scale-95 whitespace-nowrap"
+                  className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold shadow-xs transition cursor-pointer active:scale-95 whitespace-nowrap"
                 >
                   <Plus className="w-3.5 h-3.5 text-[#8a6521]" />
                   <span>Accept & Create GRN</span>
@@ -2703,7 +2702,7 @@ export const StoresView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => downloadStandardIQCPdf(selectedPendingJobForView.iqcRecord)}
-                    className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-xs transition cursor-pointer active:scale-95 whitespace-nowrap"
+                    className="flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-xs transition cursor-pointer active:scale-95 whitespace-nowrap"
                   >
                     <Download className="w-3.5 h-3.5 text-[#c09748]" />
                     <span>Download IQC PDF</span>
@@ -2713,7 +2712,7 @@ export const StoresView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSelectedPendingJobForView(null)}
-                  className="flex items-center justify-center px-4 py-2 rounded-full border border-[#e5e7eb] bg-white text-[#777b86] hover:bg-gray-50 text-xs font-semibold transition cursor-pointer shadow-2xs whitespace-nowrap"
+                  className="flex items-center justify-center px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] hover:bg-gray-50 text-xs font-semibold transition cursor-pointer shadow-2xs whitespace-nowrap"
                 >
                   Close
                 </button>

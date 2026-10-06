@@ -10,7 +10,8 @@ import {
   Plus, 
   User, 
   ArrowRight,
-  Check
+  Check,
+  X
 } from 'lucide-react';
 
 const STAGES: ProductionStage[] = [
@@ -344,125 +345,137 @@ export const CustodyHandoverView: React.FC = () => {
 
       {/* Modal: Send Batch */}
       {showSendModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[24px] max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
-            <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
-              <h3 className="text-base font-serif font-normal text-[#17191c]">
+        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
+          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+                  INTER-STAGE CUSTODY
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
+                  BATCH DISPATCH
+                </span>
+              </div>
+              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
                 Initiate Inter-Stage Batch Handover
               </h3>
-              <button 
-                onClick={() => setShowSendModal(false)}
-                className="text-[#979799] hover:text-[#17191c] text-base font-bold cursor-pointer transition"
-              >
-                ✕
-              </button>
             </div>
+            <button 
+              type="button"
+              onClick={() => setShowSendModal(false)}
+              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
+              title="Close"
+            >
+              <X className="w-5 h-5 text-[#17191c]" />
+            </button>
+          </div>
 
-            <form onSubmit={handleSendSubmit} className="space-y-3 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Work Order</label>
+          <div className="max-w-2xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
+            <form onSubmit={handleSendSubmit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Work Order</label>
                   <input
                     type="text"
                     value={sendForm.woNo}
                     onChange={e => setSendForm({ ...sendForm, woNo: e.target.value })}
-                    className="w-full p-2.5 rounded-[16px] border border-[#ececec] font-mono text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                    className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] font-mono text-[#17191c] bg-white focus:outline-none focus:border-[#17191c]"
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Job Card</label>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Job Card</label>
                   <input
                     type="text"
                     value={sendForm.jobCardNo}
                     onChange={e => setSendForm({ ...sendForm, jobCardNo: e.target.value })}
-                    className="w-full p-2.5 rounded-[16px] border border-[#ececec] font-mono text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                    className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] font-mono text-[#17191c] bg-white focus:outline-none focus:border-[#17191c]"
                     required
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Part Description</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Part Description</label>
                   <input
                     type="text"
                     value={sendForm.partCode}
                     onChange={e => setSendForm({ ...sendForm, partCode: e.target.value })}
-                    className="w-full p-2.5 rounded-[16px] border border-[#ececec] text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                    className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] text-[#17191c] bg-white focus:outline-none focus:border-[#17191c]"
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Color Shade</label>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Color Shade</label>
                   <input
                     type="text"
                     value={sendForm.color}
                     onChange={e => setSendForm({ ...sendForm, color: e.target.value })}
-                    className="w-full p-2.5 rounded-[16px] border border-[#ececec] text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                    className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] text-[#17191c] bg-white focus:outline-none focus:border-[#17191c]"
                     required
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">From Station (Sender)</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">From Station (Sender)</label>
                   <select
                     value={sendForm.fromStage}
                     onChange={e => setSendForm({ ...sendForm, fromStage: e.target.value as ProductionStage })}
-                    className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
+                    className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c] cursor-pointer"
                   >
                     {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">To Station (Receiver)</label>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">To Station (Receiver)</label>
                   <select
                     value={sendForm.toStage}
                     onChange={e => setSendForm({ ...sendForm, toStage: e.target.value as ProductionStage })}
-                    className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
+                    className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c] cursor-pointer"
                   >
                     {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Sender Name</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Sender Name</label>
                   <input
                     type="text"
                     value={sendForm.senderName}
                     onChange={e => setSendForm({ ...sendForm, senderName: e.target.value })}
-                    className="w-full p-2.5 rounded-[16px] border border-[#ececec] text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                    className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] text-[#17191c] bg-white focus:outline-none focus:border-[#17191c]"
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Dispatched Quantity (Pcs)</label>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Dispatched Quantity (Pcs)</label>
                   <input
                     type="number"
                     value={sendForm.senderQty}
                     onChange={e => setSendForm({ ...sendForm, senderQty: Math.max(1, Number(e.target.value)) })}
-                    className="w-full p-2.5 rounded-[16px] border border-[#ececec] font-serif font-normal text-base text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                    className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] font-serif font-normal text-base text-[#17191c] bg-white focus:outline-none focus:border-[#17191c]"
                     min={1}
                     required
                   />
                 </div>
               </div>
 
-              <div className="pt-3 flex justify-end gap-2.5">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#ececec]">
                 <button
                   type="button"
                   onClick={() => setShowSendModal(false)}
-                  className="px-5 py-2 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer hover:bg-[#fafafb] transition"
+                  className="px-5 py-2.5 rounded-full border border-[#ececec] text-xs font-semibold text-[#777b86] hover:bg-gray-100 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-full bg-[#c09748] text-[#17191c] font-semibold shadow-sm hover:bg-[#a97e35] cursor-pointer transition"
+                  className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold transition cursor-pointer shadow-xs"
                 >
                   Confirm & Dispatch Batch
                 </button>
@@ -474,59 +487,66 @@ export const CustodyHandoverView: React.FC = () => {
 
       {/* Modal: Receive & Verify Count */}
       {selectedHandoverForReceive && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[24px] max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
-            <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
-              <div>
-                <h3 className="text-base font-serif font-normal text-[#17191c]">
-                  Physical Count Verification Handshake
-                </h3>
-                <p className="text-xs text-[#777b86]">
+        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
+          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+                  COUNT VERIFICATION
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
                   {selectedHandoverForReceive.fromStage} ➔ {selectedHandoverForReceive.toStage}
-                </p>
+                </span>
               </div>
-              <button 
-                onClick={() => setSelectedHandoverForReceive(null)}
-                className="text-[#979799] hover:text-[#17191c] text-base font-bold cursor-pointer transition"
-              >
-                ✕
-              </button>
+              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
+                Physical Count Verification Handshake
+              </h3>
             </div>
+            <button 
+              type="button"
+              onClick={() => setSelectedHandoverForReceive(null)}
+              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
+              title="Close"
+            >
+              <X className="w-5 h-5 text-[#17191c]" />
+            </button>
+          </div>
 
-            <div className="p-3.5 bg-[#fafafb] border border-[#ececec] rounded-[16px] text-xs flex justify-between items-center">
+          <div className="max-w-2xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
+            <div className="p-4 bg-white border border-[#ececec] rounded-[18px] text-xs flex justify-between items-center shadow-2xs">
               <div>
                 <span className="text-[#777b86] font-medium">Dispatched by Sender:</span>
-                <div className="font-semibold text-[#17191c]">{selectedHandoverForReceive.senderName}</div>
+                <div className="font-semibold text-[#17191c] text-sm mt-0.5">{selectedHandoverForReceive.senderName}</div>
               </div>
               <div className="text-right">
                 <span className="text-[#777b86] font-medium">Sender Claimed:</span>
-                <div className="text-xl font-serif font-normal text-[#17191c]">
+                <div className="text-2xl font-serif font-normal text-[#17191c] mt-0.5">
                   {selectedHandoverForReceive.senderQty} Pcs
                 </div>
               </div>
             </div>
 
-            <form onSubmit={handleConfirmReceive} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-[#777b86] font-medium mb-1">Receiver Name</label>
+            <form onSubmit={handleConfirmReceive} className="space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Receiver Name</label>
                 <input
                   type="text"
                   value={receiveForm.receiverName}
                   onChange={e => setReceiveForm({ ...receiveForm, receiverName: e.target.value })}
-                  className="w-full p-2.5 rounded-[16px] border border-[#ececec] text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                  className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] text-[#17191c] bg-white focus:outline-none focus:border-[#17191c]"
                   required
                 />
               </div>
 
-              <div>
-                <label className="block text-[#777b86] font-medium mb-1">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">
                   Physically Counted Quantity in Tray / Trolley
                 </label>
                 <input
                   type="number"
                   value={receiveForm.receiverQty}
                   onChange={e => setReceiveForm({ ...receiveForm, receiverQty: Math.max(0, Number(e.target.value)) })}
-                  className="w-full p-3 rounded-[16px] border-2 border-[#c09748] font-serif text-xl font-normal text-[#17191c] focus:outline-none"
+                  className="w-full h-12 px-4 rounded-[16px] border-2 border-[#c09748] font-serif text-xl font-normal text-[#17191c] bg-white focus:outline-none"
                   min={0}
                   required
                 />
@@ -534,7 +554,7 @@ export const CustodyHandoverView: React.FC = () => {
 
               {/* Show Discrepancy Warning if count does not match */}
               {Number(receiveForm.receiverQty) !== selectedHandoverForReceive.senderQty && (
-                <div className="p-4 bg-red-50/70 border border-red-300 rounded-[16px] space-y-2.5">
+                <div className="p-4 bg-red-50/70 border border-red-300 rounded-[18px] space-y-3">
                   <div className="flex items-center gap-1.5 text-red-700 font-bold">
                     <AlertTriangle className="w-4 h-4 text-red-600" />
                     <span>
@@ -543,14 +563,14 @@ export const CustodyHandoverView: React.FC = () => {
                         : `${Number(receiveForm.receiverQty) - selectedHandoverForReceive.senderQty} Pieces Excess`}!
                     </span>
                   </div>
-                  <div>
-                    <label className="block text-red-900 font-medium mb-1">
+                  <div className="space-y-1.5">
+                    <label className="block text-red-900 font-semibold text-[11px] uppercase tracking-wider">
                       Mandatory Discrepancy Categorization:
                     </label>
                     <select
                       value={receiveForm.discrepancyReason}
                       onChange={e => setReceiveForm({ ...receiveForm, discrepancyReason: e.target.value as CustodyHandover['discrepancyReason'] })}
-                      className="w-full p-2.5 rounded-[12px] border border-red-300 bg-white text-xs font-medium cursor-pointer"
+                      className="w-full h-10 px-3 rounded-[12px] border border-red-300 bg-white text-xs font-medium cursor-pointer"
                     >
                       <option value="Left in Drying/Oven Rack">Left in Drying/Oven Rack</option>
                       <option value="Dropped / In-Transit Damage">Dropped / In-Transit Breakage</option>
@@ -558,31 +578,31 @@ export const CustodyHandoverView: React.FC = () => {
                       <option value="Unaccounted Loss">Unaccounted Floor Loss</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-red-900 font-medium mb-1">Floor Investigation Note</label>
+                  <div className="space-y-1.5">
+                    <label className="block text-red-900 font-semibold text-[11px] uppercase tracking-wider">Floor Investigation Note</label>
                     <textarea
                       value={receiveForm.discrepancyNote}
                       onChange={e => setReceiveForm({ ...receiveForm, discrepancyNote: e.target.value })}
                       placeholder="e.g. 15 found stuck on upper rack, 10 dropped, 5 missing..."
-                      className="w-full p-2.5 rounded-[12px] border border-red-300 bg-white text-xs focus:outline-none"
-                      rows={2}
+                      className="w-full p-3 rounded-[12px] border border-red-300 bg-white text-xs focus:outline-none"
+                      rows={3}
                       required
                     />
                   </div>
                 </div>
               )}
 
-              <div className="pt-3 flex justify-end gap-2.5">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#ececec]">
                 <button
                   type="button"
                   onClick={() => setSelectedHandoverForReceive(null)}
-                  className="px-5 py-2 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer hover:bg-[#fafafb] transition"
+                  className="px-5 py-2.5 rounded-full border border-[#ececec] text-xs font-semibold text-[#777b86] hover:bg-gray-100 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className={`px-6 py-2 rounded-full font-semibold text-white transition cursor-pointer ${
+                  className={`px-6 py-2.5 rounded-full font-semibold text-white text-xs transition cursor-pointer shadow-xs ${
                     Number(receiveForm.receiverQty) !== selectedHandoverForReceive.senderQty
                       ? 'bg-red-600 hover:bg-red-700'
                       : 'bg-emerald-700 hover:bg-emerald-800'
@@ -600,51 +620,63 @@ export const CustodyHandoverView: React.FC = () => {
 
       {/* Modal: Supervisor Resolve */}
       {selectedHandoverForResolve && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[24px] max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
-            <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
-              <h3 className="text-base font-serif font-normal text-[#17191c]">
+        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
+          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+                  SUPERVISOR SIGN-OFF
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
+                  {selectedHandoverForResolve.transferId}
+                </span>
+              </div>
+              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
                 Supervisor Floor Loss Sign-Off
               </h3>
-              <button 
-                onClick={() => setSelectedHandoverForResolve(null)}
-                className="text-[#979799] hover:text-[#17191c] text-base font-bold cursor-pointer transition"
-              >
-                ✕
-              </button>
+            </div>
+            <button 
+              type="button"
+              onClick={() => setSelectedHandoverForResolve(null)}
+              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
+              title="Close"
+            >
+              <X className="w-5 h-5 text-[#17191c]" />
+            </button>
+          </div>
+
+          <div className="max-w-2xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
+            <div className="p-4 bg-white rounded-[18px] border border-[#ececec] text-xs text-[#777b86] space-y-1 shadow-2xs">
+              <div>Transfer ID: <strong className="text-[#17191c] font-mono">{selectedHandoverForResolve.transferId}</strong></div>
+              <div>Discrepancy: <strong className="text-red-600 font-bold">{Math.abs(selectedHandoverForResolve.discrepancyQty || 0)} Pcs {(selectedHandoverForResolve.discrepancyQty || 0) < 0 ? 'Excess' : 'Missing'}</strong></div>
             </div>
 
-            <div className="text-xs text-[#777b86]">
-              Transfer ID: <strong className="text-[#17191c] font-mono">{selectedHandoverForResolve.transferId}</strong> • 
-              Discrepancy: <strong className="text-red-600 font-bold">{Math.abs(selectedHandoverForResolve.discrepancyQty || 0)} Pcs {(selectedHandoverForResolve.discrepancyQty || 0) < 0 ? 'Excess' : 'Missing'}</strong>
-            </div>
-
-            <form onSubmit={handleResolveSubmit} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-[#777b86] font-medium mb-1">
+            <form onSubmit={handleResolveSubmit} className="space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">
                   Supervisor Corrective Action & Penalty Allocation
                 </label>
                 <textarea
                   value={resolveAction}
                   onChange={e => setResolveAction(e.target.value)}
                   placeholder="e.g. 15 pieces retrieved from oven rack. 10 scrap logged to Booth #2. 5 pieces shrinkage penalty assigned."
-                  className="w-full p-3 rounded-[16px] border border-[#ececec] text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                  rows={3}
+                  className="w-full p-3.5 rounded-[16px] border border-[#dcdfe4] text-[#17191c] bg-white focus:outline-none focus:border-[#17191c]"
+                  rows={4}
                   required
                 />
               </div>
 
-              <div className="pt-3 flex justify-end gap-2.5">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#ececec]">
                 <button
                   type="button"
                   onClick={() => setSelectedHandoverForResolve(null)}
-                  className="px-5 py-2 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer hover:bg-[#fafafb] transition"
+                  className="px-5 py-2.5 rounded-full border border-[#ececec] text-xs font-semibold text-[#777b86] hover:bg-gray-100 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-full bg-[#c09748] text-[#17191c] font-semibold shadow-sm hover:bg-[#a97e35] cursor-pointer transition"
+                  className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-semibold shadow-xs transition cursor-pointer"
                 >
                   Authorize Resolution
                 </button>

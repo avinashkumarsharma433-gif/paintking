@@ -397,13 +397,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-      <div className="bg-white rounded-[24px] max-w-4xl w-full p-4 sm:p-7 shadow-2xl border border-[#ececec] space-y-5 max-h-[94vh] overflow-y-auto no-scrollbar print:max-w-none print:w-full print:p-0 print:shadow-none animate-in zoom-in-95 duration-150 relative">
-        
-        {/* Top Header & View Toggle (Hidden on print) */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3.5 border-b border-[#ececec] print:hidden">
+    <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150 print:p-0">
+      {/* Sticky Top Header Bar */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs print:hidden">
+        <div className="flex items-center gap-3">
           <div>
-            <div className="flex flex-wrap items-center gap-2 mb-1">
+            <div className="flex flex-wrap items-center gap-2 mb-0.5">
               <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold uppercase tracking-wider">
                 MASTER JOB CARD (FORMAT C.01)
               </span>
@@ -414,56 +413,59 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 Plant: {activePlant}
               </span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-serif text-[#17191c] font-normal tracking-tight">
+            <h2 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal tracking-tight">
               Create Production Master Job Card
             </h2>
-            <p className="text-[11px] sm:text-xs text-[#777b86]">
-              Allocate customer raw substrates, enforce GRN target cap & demand required internal paints and chemicals
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            {/* View Switcher Toggle */}
-            <div className="flex items-center p-1 rounded-full bg-[#fafafb] border border-[#ececec] text-xs">
-              <button
-                type="button"
-                onClick={() => setViewMode('PORTAL')}
-                className={`px-3 py-1 rounded-full font-bold transition cursor-pointer ${
-                  viewMode === 'PORTAL' ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]' : 'text-[#777b86]'
-                }`}
-              >
-                Form View
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('PRINT')}
-                className={`px-3 py-1 rounded-full font-bold transition cursor-pointer ${
-                  viewMode === 'PRINT' ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]' : 'text-[#777b86]'
-                }`}
-              >
-                Print Sheet
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="p-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Print Job Sheet"
-            >
-              <Printer className="w-4 h-4" />
-            </button>
-
-            <button 
-              onClick={onClose}
-              className="w-8 h-8 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition active:scale-95"
-            >
-              <X className="w-4 h-4" />
-            </button>
           </div>
         </div>
 
-        <form onSubmit={handleSave} className="space-y-5">
+        <div className="flex items-center gap-2.5">
+          {/* View Switcher Toggle */}
+          <div className="flex items-center p-1 rounded-full bg-[#fafafb] border border-[#ececec] text-xs">
+            <button
+              type="button"
+              onClick={() => setViewMode('PORTAL')}
+              className={`px-3 py-1 rounded-full font-bold transition cursor-pointer ${
+                viewMode === 'PORTAL' ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]' : 'text-[#777b86]'
+              }`}
+            >
+              Form View
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('PRINT')}
+              className={`px-3 py-1 rounded-full font-bold transition cursor-pointer ${
+                viewMode === 'PRINT' ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]' : 'text-[#777b86]'
+              }`}
+            >
+              Print Sheet
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="p-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] cursor-pointer transition active:scale-95 shadow-2xs"
+            title="Print Job Sheet"
+          >
+            <Printer className="w-4 h-4" />
+          </button>
+
+          {/* Prominent Cross / Close Button */}
+          <button 
+            type="button"
+            onClick={onClose}
+            className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs ml-1"
+            title="Close Job Card Form"
+          >
+            <X className="w-5 h-5 text-[#17191c]" />
+          </button>
+        </div>
+      </div>
+
+      {/* Main Full-Screen Form Container */}
+      <div className="max-w-5xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 print:max-w-none print:w-full print:p-0">
+        <form onSubmit={handleSave} className="space-y-6">
           
           {/* ========================================================================= */}
           {/* MODE 1: MODERN EDITORIAL INDUSTRIAL PORTAL VIEW */}
