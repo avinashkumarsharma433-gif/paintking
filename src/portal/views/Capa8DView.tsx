@@ -18,8 +18,7 @@ import {
   TrendingDown,
   Layers,
   Wrench,
-  Sparkles,
-  X
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -558,32 +557,23 @@ export const Capa8DView: React.FC = () => {
       {/* MODAL: Log 4M Change */}
       <AnimatePresence>
         {showNew4MModal && (
-          <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-            <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-              <div>
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                    QUALITY SYSTEM
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                    4M CHANGE REQUEST
-                  </span>
-                </div>
-                <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                  Record 4M Change Request
-                </h3>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-[24px] max-w-lg w-full p-6 space-y-4 border border-slate-200 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <h3 className="text-lg font-serif text-slate-900">Record 4M Change Request</h3>
+                <button
+                  onClick={() => setShowNew4MModal(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowNew4MModal(false)}
-                className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-                title="Close"
-              >
-                <X className="w-5 h-5 text-[#17191c]" />
-              </button>
-            </div>
 
-            <div className="max-w-2xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -607,11 +597,11 @@ export const Capa8DView: React.FC = () => {
                   addFourMChange(newRec);
                   setShowNew4MModal(false);
                 }}
-                className="space-y-4 text-xs"
+                className="space-y-3 text-xs"
               >
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">4M Category:</label>
-                  <select name="changeType" className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]">
+                <div>
+                  <label className="font-medium text-slate-700 block mb-1">4M Category:</label>
+                  <select name="changeType" className="w-full p-2.5 rounded-[12px] border border-slate-300 bg-white">
                     <option value="Man (Operator/Painter)">Man (Operator / Painter switch)</option>
                     <option value="Machine (Gun/Booth/Oven)">Machine (Gun / Booth / Oven parameter)</option>
                     <option value="Material (Paint/Thinner/Substrate)">Material (Paint batch / Thinner formula)</option>
@@ -619,48 +609,48 @@ export const Capa8DView: React.FC = () => {
                   </select>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Description of Change:</label>
-                  <input name="description" required placeholder="e.g. New spray nozzle or thinner adjustment" className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]" />
+                <div>
+                  <label className="font-medium text-slate-700 block mb-1">Description of Change:</label>
+                  <input name="description" required placeholder="e.g. New spray nozzle or thinner adjustment" className="w-full p-2.5 rounded-[12px] border border-slate-300" />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Reason for Change:</label>
-                  <input name="reason" required placeholder="e.g. Routine maintenance or temperature shift" className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]" />
+                <div>
+                  <label className="font-medium text-slate-700 block mb-1">Reason for Change:</label>
+                  <input name="reason" required placeholder="e.g. Routine maintenance or temperature shift" className="w-full p-2.5 rounded-[12px] border border-slate-300" />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Impact Assessment:</label>
-                  <textarea name="impact" rows={3} placeholder="Zero shade deviation, verified tape adhesion..." className="w-full p-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]" />
+                <div>
+                  <label className="font-medium text-slate-700 block mb-1">Impact Assessment:</label>
+                  <textarea name="impact" rows={2} placeholder="Zero shade deviation, verified tape adhesion..." className="w-full p-2.5 rounded-[12px] border border-slate-300" />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Trial FPA Report Reference:</label>
-                  <input name="fpaNo" placeholder="PK-FPA-2026-043" className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white font-mono text-[#17191c] focus:outline-none focus:border-[#17191c]" />
+                <div>
+                  <label className="font-medium text-slate-700 block mb-1">Trial FPA Report Reference:</label>
+                  <input name="fpaNo" placeholder="PK-FPA-2026-043" className="w-full p-2.5 rounded-[12px] border border-slate-300 font-mono" />
                 </div>
 
                 <div className="flex items-center gap-2 pt-1">
-                  <input type="checkbox" id="custRequired" name="custRequired" className="rounded text-[#c09748]" />
-                  <label htmlFor="custRequired" className="text-xs text-[#17191c] cursor-pointer">Customer formal approval required</label>
+                  <input type="checkbox" id="custRequired" name="custRequired" className="rounded" />
+                  <label htmlFor="custRequired" className="text-slate-700 cursor-pointer">Customer formal approval required</label>
                 </div>
 
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#ececec]">
+                <div className="pt-3 flex justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => setShowNew4MModal(false)}
-                    className="px-5 py-2.5 rounded-full border border-[#ececec] text-xs font-semibold text-[#777b86] hover:bg-gray-100 transition cursor-pointer"
+                    className="px-4 py-2 rounded-full border border-slate-300 text-slate-600 hover:bg-slate-50 cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-semibold shadow-xs transition cursor-pointer"
+                    className="px-5 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-semibold cursor-pointer"
                   >
                     Save 4M Change
                   </button>
                 </div>
               </form>
-            </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>
@@ -668,111 +658,103 @@ export const Capa8DView: React.FC = () => {
       {/* MODAL: Printable 8D Report */}
       <AnimatePresence>
         {showPrintModal && selectedCapa && (
-          <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150 print:bg-white print:static print:inset-auto print:overflow-visible">
-            <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs print:hidden">
-              <div>
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                    CAPA 8D REPORT
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                    {selectedCapa.id}
-                  </span>
-                </div>
-                <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-[24px] max-w-4xl w-full p-8 space-y-6 border border-slate-200 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar print:p-0 print:border-none print:shadow-none"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-slate-200 print:hidden">
+                <span className="font-serif font-medium text-slate-800 text-lg">
                   8D Problem Solving Customer Report
-                </h3>
+                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => window.print()}
+                    className="px-4 py-2 rounded-full bg-[#c09748] text-[#17191c] font-semibold text-xs transition flex items-center gap-2 cursor-pointer shadow-md"
+                  >
+                    <Printer className="w-4 h-4" />
+                    Print / PDF
+                  </button>
+                  <button
+                    onClick={() => setShowPrintModal(false)}
+                    className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
-                >
-                  <Printer className="w-4 h-4 text-[#c09748]" />
-                  <span>Print / PDF</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowPrintModal(false)}
-                  className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-                  title="Close"
-                >
-                  <X className="w-5 h-5 text-[#17191c]" />
-                </button>
-              </div>
-            </div>
 
-            <div className="max-w-4xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs print:p-0 print:border-none print:shadow-none">
               {/* Formal 8D Document Layout */}
-              <div className="border border-[#dcdfe4] bg-white rounded-[20px] p-6 sm:p-8 space-y-6 text-xs text-[#17191c] font-sans shadow-2xs print:border-none print:shadow-none">
-                <div className="flex items-start justify-between border-b border-[#ececec] pb-4">
+              <div className="border-2 border-slate-800 p-6 space-y-6 text-xs text-slate-900 font-sans">
+                <div className="flex items-start justify-between border-b-2 border-slate-800 pb-4">
                   <div>
-                    <div className="text-2xl font-serif font-normal tracking-tight text-[#17191c]">PAINTKING SURFACE SOLUTIONS</div>
-                    <div className="text-[#777b86] text-xs mt-0.5">8D PROBLEM SOLVING CAPA REPORT (Doc No: PK-QA-8D-001)</div>
+                    <div className="text-2xl font-serif font-bold tracking-tight">PAINTKING SURFACE SOLUTIONS</div>
+                    <div className="text-slate-600 text-xs mt-0.5">8D PROBLEM SOLVING CAPA REPORT (Doc No: PK-QA-8D-001)</div>
                   </div>
                   <div className="text-right font-mono">
                     <div className="font-bold text-sm text-[#8a6521]">{selectedCapa.id}</div>
-                    <div className="text-[#777b86]">Date: {selectedCapa.actualClosureDate || selectedCapa.dateOpened}</div>
+                    <div className="text-slate-500">Date: {selectedCapa.actualClosureDate || selectedCapa.dateOpened}</div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-[#fafafb] p-4 rounded-[16px] border border-[#ececec]">
-                  <div><span className="text-[#777b86]">Customer:</span> <strong>{selectedCapa.customerName}</strong></div>
-                  <div><span className="text-[#777b86]">Complaint Ref:</span> <strong>{selectedCapa.complaintNo}</strong></div>
-                  <div><span className="text-[#777b86]">Part Description:</span> <strong>{selectedCapa.partName}</strong></div>
-                  <div><span className="text-[#777b86]">Part Code:</span> <strong>{selectedCapa.partCode}</strong></div>
+                <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 border border-slate-300">
+                  <div><strong>Customer:</strong> {selectedCapa.customerName}</div>
+                  <div><strong>Complaint Ref:</strong> {selectedCapa.complaintNo}</div>
+                  <div><strong>Part Description:</strong> {selectedCapa.partName}</div>
+                  <div><strong>Part Code:</strong> {selectedCapa.partCode}</div>
                 </div>
 
                 {/* Steps summary */}
                 <div className="space-y-4">
-                  <div className="p-3.5 bg-[#fafafb] rounded-[14px] border border-[#ececec]">
-                    <h4 className="font-bold text-[#8a6521] border-b border-[#ececec] pb-1">D1: Cross-Functional Team</h4>
-                    <p className="mt-1.5 text-[#17191c]">Champion: <strong>{selectedCapa.d1Champion}</strong> | Leader: <strong>{selectedCapa.d1Leader}</strong> | Members: {selectedCapa.d1Members.join(', ')}</p>
+                  <div>
+                    <h4 className="font-bold border-b border-slate-300 pb-1">D1: Cross-Functional Team</h4>
+                    <p className="mt-1">Champion: {selectedCapa.d1Champion} | Leader: {selectedCapa.d1Leader} | Members: {selectedCapa.d1Members.join(', ')}</p>
                   </div>
-                  <div className="p-3.5 bg-[#fafafb] rounded-[14px] border border-[#ececec]">
-                    <h4 className="font-bold text-[#8a6521] border-b border-[#ececec] pb-1">D2: Problem Description</h4>
-                    <p className="mt-1.5 text-[#17191c]">{selectedCapa.d2ProblemStatement}</p>
+                  <div>
+                    <h4 className="font-bold border-b border-slate-300 pb-1">D2: Problem Description</h4>
+                    <p className="mt-1">{selectedCapa.d2ProblemStatement}</p>
                   </div>
-                  <div className="p-3.5 bg-[#fafafb] rounded-[14px] border border-[#ececec]">
-                    <h4 className="font-bold text-[#8a6521] border-b border-[#ececec] pb-1">D3: Interim Containment Action</h4>
-                    <p className="mt-1.5 text-[#17191c]">{selectedCapa.d3ContainmentAction} (Sorted: <strong>{selectedCapa.d3ContainmentQtyChecked} pcs</strong>, Quarantined: <strong>{selectedCapa.d3ContainmentQtyRejected} pcs</strong>)</p>
+                  <div>
+                    <h4 className="font-bold border-b border-slate-300 pb-1">D3: Interim Containment Action</h4>
+                    <p className="mt-1">{selectedCapa.d3ContainmentAction} (Sorted: {selectedCapa.d3ContainmentQtyChecked} pcs, Quarantined: {selectedCapa.d3ContainmentQtyRejected} pcs)</p>
                   </div>
-                  <div className="p-3.5 bg-[#fafafb] rounded-[14px] border border-[#ececec]">
-                    <h4 className="font-bold text-[#8a6521] border-b border-[#ececec] pb-1">D4: Root Cause (5-Why Conclusion)</h4>
-                    <p className="mt-1.5 text-[#17191c]">{selectedCapa.d4RootCauseSummary}</p>
+                  <div>
+                    <h4 className="font-bold border-b border-slate-300 pb-1">D4: Root Cause (5-Why Conclusion)</h4>
+                    <p className="mt-1">{selectedCapa.d4RootCauseSummary}</p>
                   </div>
-                  <div className="p-3.5 bg-[#fafafb] rounded-[14px] border border-[#ececec]">
-                    <h4 className="font-bold text-[#8a6521] border-b border-[#ececec] pb-1">D5: Permanent Corrective Action</h4>
-                    <ul className="list-disc pl-5 mt-1.5 space-y-1 text-[#17191c]">
+                  <div>
+                    <h4 className="font-bold border-b border-slate-300 pb-1">D5: Permanent Corrective Action</h4>
+                    <ul className="list-disc pl-5 mt-1 space-y-0.5">
                       {selectedCapa.d5CorrectiveActions.map((pca, idx) => (
                         <li key={idx}>{pca}</li>
                       ))}
                     </ul>
                   </div>
-                  <div className="p-3.5 bg-[#fafafb] rounded-[14px] border border-[#ececec]">
-                    <h4 className="font-bold text-[#8a6521] border-b border-[#ececec] pb-1">D6: Verification of Effectiveness</h4>
-                    <p className="mt-1.5 text-[#17191c]">{selectedCapa.d6ValidationMethod} (Trial: <strong>{selectedCapa.d6TrialQuantity} pcs</strong>, Defect Rate: <strong>{selectedCapa.d6TrialDefectRate}%</strong>)</p>
+                  <div>
+                    <h4 className="font-bold border-b border-slate-300 pb-1">D6: Verification of Effectiveness</h4>
+                    <p className="mt-1">{selectedCapa.d6ValidationMethod} (Trial: {selectedCapa.d6TrialQuantity} pcs, Defect: {selectedCapa.d6TrialDefectRate}%)</p>
                   </div>
-                  <div className="p-3.5 bg-[#fafafb] rounded-[14px] border border-[#ececec]">
-                    <h4 className="font-bold text-[#8a6521] border-b border-[#ececec] pb-1">D7: Preventive Action & Sister Lines</h4>
-                    <p className="mt-1.5 text-[#17191c]">SOP Updated: <strong>Yes</strong> | Control Plan: <strong>Yes</strong> | Deployed to: {selectedCapa.d7HorizontalDeploymentParts.join(', ')}</p>
+                  <div>
+                    <h4 className="font-bold border-b border-slate-300 pb-1">D7: Preventive Action & Sister Lines</h4>
+                    <p className="mt-1">SOP Updated: Yes | Control Plan: Yes | Deployed to: {selectedCapa.d7HorizontalDeploymentParts.join(', ')}</p>
                   </div>
                 </div>
 
                 {/* Signatures */}
-                <div className="grid grid-cols-2 gap-8 pt-8 border-t border-[#ececec] text-center">
+                <div className="grid grid-cols-2 gap-8 pt-8 border-t-2 border-slate-800 text-center">
                   <div>
-                    <div className="text-[#777b86] mb-4 text-[11px] uppercase tracking-wider font-semibold">QA Lead Signature</div>
-                    <div className="font-bold text-[#17191c]">{selectedCapa.d8ReviewedByQA}</div>
+                    <div className="text-slate-400 mb-6">QA Lead Signature</div>
+                    <div className="font-bold">{selectedCapa.d8ReviewedByQA}</div>
                   </div>
                   <div>
-                    <div className="text-[#777b86] mb-4 text-[11px] uppercase tracking-wider font-semibold">Director Approval</div>
-                    <div className="font-bold text-[#17191c]">{selectedCapa.d8ApprovedByDirector}</div>
+                    <div className="text-slate-400 mb-6">Director Approval</div>
+                    <div className="font-bold">{selectedCapa.d8ApprovedByDirector}</div>
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>

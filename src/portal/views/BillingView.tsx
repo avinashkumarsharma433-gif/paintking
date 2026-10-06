@@ -409,89 +409,73 @@ export const BillingView: React.FC = () => {
 
       {/* OFFICIAL GST DOCUMENT PRINT & PDF DOWNLOAD MODAL */}
       {showPrintModal && activeInv && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex flex-wrap items-center justify-between shadow-2xs gap-3">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                  {docType === 'TAX_INVOICE' ? 'Tax Invoice' : 'Delivery Challan'}
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  {activeInv.invoiceNo}
-                </span>
-              </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                {docType === 'TAX_INVOICE' ? 'Tax Invoice Specification & Preview' : 'Delivery Challan (Rule 55) Specification & Preview'}
-              </h3>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 bg-[#fafafb] p-1 rounded-full border border-[#ececec]">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-4xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] max-h-[95vh] overflow-y-auto no-scrollbar space-y-4">
+            
+            {/* Modal Control Header (Switch between Tax Invoice & Delivery Challan) */}
+            <div className="flex flex-wrap items-center justify-between pb-3 border-b border-[#ececec] gap-3">
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => setDocType('TAX_INVOICE')}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                     docType === 'TAX_INVOICE'
-                      ? 'bg-white text-[#17191c] border border-[#ececec] shadow-2xs font-bold'
-                      : 'text-[#777b86] hover:text-[#17191c]'
+                      ? 'bg-[#17191c] text-[#c09748] shadow-xs'
+                      : 'bg-[#fafafb] text-[#777b86] border border-[#ececec] hover:bg-gray-100'
                   }`}
                 >
-                  <FileText className="w-3.5 h-3.5 text-[#c09748]" />
-                  <span className="hidden sm:inline">Tax Invoice</span>
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Tax Invoice (Commercial Bill)</span>
                 </button>
                 <button
                   onClick={() => setDocType('DELIVERY_CHALLAN')}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                     docType === 'DELIVERY_CHALLAN'
-                      ? 'bg-white text-[#17191c] border border-[#ececec] shadow-2xs font-bold'
-                      : 'text-[#777b86] hover:text-[#17191c]'
+                      ? 'bg-[#17191c] text-[#c09748] shadow-xs'
+                      : 'bg-[#fafafb] text-[#777b86] border border-[#ececec] hover:bg-gray-100'
                   }`}
                 >
-                  <Truck className="w-3.5 h-3.5 text-[#c09748]" />
-                  <span className="hidden sm:inline">Delivery Challan</span>
+                  <Truck className="w-3.5 h-3.5" />
+                  <span>Delivery Challan (Rule 55 Transport)</span>
                 </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  if (activeInv) {
-                    if (docType === 'TAX_INVOICE') {
-                      downloadStandardTaxInvoicePdf(activeInv);
-                    } else {
-                      downloadStandardDeliveryChallanPdf(activeInv);
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeInv) {
+                      if (docType === 'TAX_INVOICE') {
+                        downloadStandardTaxInvoicePdf(activeInv);
+                      } else {
+                        downloadStandardDeliveryChallanPdf(activeInv);
+                      }
                     }
-                  }
-                }}
-                className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer transition flex items-center gap-1.5 active:scale-95"
-                title="Download standard official PDF with PaintKing company header"
-              >
-                <Download className="w-3.5 h-3.5 text-[#c09748]" />
-                <span className="hidden sm:inline">Download PDF</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="px-3.5 py-2 rounded-full border border-[#dcdfe4] bg-white hover:bg-[#fafafb] text-[#17191c] text-xs font-semibold shadow-2xs cursor-pointer transition flex items-center gap-1.5 active:scale-95"
-              >
-                <Printer className="w-3.5 h-3.5 text-[#777b86]" />
-                <span className="hidden sm:inline">Print</span>
-              </button>
-
-              <button 
-                type="button"
-                onClick={() => setShowPrintModal(false)}
-                className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs shrink-0"
-                title="Close"
-              >
-                <X className="w-5 h-5 text-[#17191c]" />
-              </button>
+                  }}
+                  className="px-4 py-1.5 rounded-full bg-[#17191c] hover:bg-black text-white font-medium text-xs shadow-xs cursor-pointer transition flex items-center gap-1.5"
+                  title="Download standard official PDF with PaintKing company header"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span>Download Official PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-1.5 rounded-full border border-[#e5e7eb] bg-white hover:bg-gray-50 text-[#17191c] font-medium text-xs shadow-2xs cursor-pointer transition flex items-center gap-1.5"
+                >
+                  <Printer className="w-3.5 h-3.5 text-[#777b86]" />
+                  <span>Print</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPrintModal(false)}
+                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-[#17191c] font-bold flex items-center justify-center cursor-pointer transition"
+                  title="Close Preview"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
-          </div>
 
-          {/* Body Container */}
-          <div className="max-w-4xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
             {/* ---------------------------------------------------- */}
             {/* DOCUMENT CANVAS WITH OFFICIAL PAINTKING WEBSITE LOGO */}
             {/* ---------------------------------------------------- */}

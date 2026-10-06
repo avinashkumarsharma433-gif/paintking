@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
 import { GoodsReceiptNote, OrderColorSplit } from '../types/portalTypes';
-import { Boxes, Plus, Trash2, CheckCircle2, ArrowRight, ShieldCheck, X, Check } from 'lucide-react';
+import { Boxes, Plus, Trash2, CheckCircle2, ArrowRight, ShieldCheck } from 'lucide-react';
 
 interface QuickInwardModalProps {
   isOpen: boolean;
@@ -111,38 +111,12 @@ export const QuickInwardModal: React.FC<QuickInwardModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-      {/* Sticky Top Header Bar */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-        <div>
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-              Material Inward
-            </span>
-            <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-              Job Work Receipt
-            </span>
-          </div>
-          <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-            New Material Inward (Job Work Receipt)
-          </h3>
-        </div>
-        <button 
-          type="button"
-          onClick={handleResetAndClose}
-          className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-          title="Close"
-        >
-          <X className="w-5 h-5 text-[#17191c]" />
-        </button>
-      </div>
-
-      {/* Body Container */}
-      <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-white rounded-[24px] max-w-xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 max-h-[90vh] overflow-y-auto no-scrollbar">
         {/* If submitted, show confirmation & next steps */}
         {submittedResult ? (
-          <div className="text-center py-8 space-y-5">
-            <div className="w-16 h-16 bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] rounded-full flex items-center justify-center mx-auto shadow-xs">
+          <div className="text-center py-6 space-y-4">
+            <div className="w-16 h-16 bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] rounded-full flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-8 h-8 text-[#c09748]" />
             </div>
             <div>
@@ -154,7 +128,7 @@ export const QuickInwardModal: React.FC<QuickInwardModalProps> = ({
               </p>
             </div>
 
-            <div className="p-5 bg-[#fafafb] border border-[#ececec] rounded-[20px] text-xs space-y-2 text-left max-w-md mx-auto shadow-2xs">
+            <div className="p-4 bg-[#fafafb] border border-[#ececec] rounded-[16px] text-xs space-y-1 text-left max-w-md mx-auto">
               <div className="flex justify-between">
                 <span className="text-[#777b86]">Customer:</span>
                 <span className="font-semibold text-[#17191c]">{submittedResult.customerName}</span>
@@ -167,15 +141,13 @@ export const QuickInwardModal: React.FC<QuickInwardModalProps> = ({
                 <span className="text-[#777b86]">Total Accepted:</span>
                 <span className="font-mono font-bold text-[#17191c]">{submittedResult.receivedQty} Pcs</span>
               </div>
-              <div className="pt-2.5 border-t border-[#ececec] text-[#8a6521] font-semibold flex items-center gap-1.5">
-                <Check className="w-4 h-4 text-[#c09748]" />
-                <span>Auto-Generated {submittedResult.jobCardsGenerated} Separate Color-Capped Job Cards for the shop floor!</span>
+              <div className="pt-2 border-t border-[#ececec] text-[#8a6521] font-medium">
+                ⚡ Auto-Generated {submittedResult.jobCardsGenerated} Separate Color-Capped Job Cards for the shop floor!
               </div>
             </div>
 
-            <div className="flex justify-center gap-2.5 pt-4">
+            <div className="flex justify-center gap-2.5 pt-2">
               <button
-                type="button"
                 onClick={handleResetAndClose}
                 className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white hover:bg-[#fafafb] text-[#777b86] text-xs font-semibold cursor-pointer transition"
               >
@@ -183,230 +155,254 @@ export const QuickInwardModal: React.FC<QuickInwardModalProps> = ({
               </button>
               {onSuccessNavigateToJobCards && (
                 <button
-                  type="button"
                   onClick={() => {
                     handleResetAndClose();
                     onSuccessNavigateToJobCards();
                   }}
-                  className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs flex items-center gap-2 cursor-pointer transition active:scale-95"
+                  className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold shadow-sm flex items-center gap-2 cursor-pointer transition"
                 >
                   <span>Open Job Cards</span>
-                  <ArrowRight className="w-4 h-4 text-[#c09748]" />
+                  <ArrowRight className="w-4 h-4 text-[#17191c]" />
                 </button>
               )}
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-5 text-xs">
-            {/* STEP 1: PARTY & CHALLAN DETAILS */}
-            <div className="p-4 sm:p-5 bg-[#fafafb] rounded-[20px] border border-[#ececec] space-y-3">
-              <div className="text-[11px] font-bold text-[#c09748] uppercase tracking-[0.16em]">
-                Step 1: Party & Delivery Details
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          <>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-full bg-[#faf3e0] text-[#8a6521]">
+                  <Boxes className="w-5 h-5 text-[#c09748]" />
+                </span>
                 <div>
-                  <label className="block text-[#777b86] font-medium mb-1">
-                    Customer / Party Name:
-                  </label>
-                  <input
-                    type="text"
-                    value={customer}
-                    onChange={e => setCustomer(e.target.value)}
-                    placeholder="e.g. ROOP POLYMERS LTD"
-                    className="w-full p-3 rounded-[14px] border border-[#ececec] bg-white text-[#17191c] font-medium focus:border-[#c09748] focus:outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">
-                    Party Challan / Delivery Note:
-                  </label>
-                  <input
-                    type="text"
-                    value={challanNo}
-                    onChange={e => setChallanNo(e.target.value)}
-                    placeholder="e.g. RP/CH/99824"
-                    className="w-full p-3 rounded-[14px] border border-[#ececec] bg-white font-mono text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                    required
-                  />
+                  <h3 className="text-lg font-serif font-normal text-[#17191c]">
+                    New Material Inward (Job Work Receipt)
+                  </h3>
+                  <p className="text-[11px] text-[#777b86]">
+                    Complete 3 simple steps to register incoming party substrates
+                  </p>
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Vehicle / Truck No:</label>
-                  <input
-                    type="text"
-                    value={vehicleNo}
-                    onChange={e => setVehicleNo(e.target.value)}
-                    placeholder="e.g. UK-08-AL-4412"
-                    className="w-full p-3 rounded-[14px] border border-[#ececec] bg-white text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Target Plant:</label>
-                  <div className="p-3 rounded-[14px] border border-[#ececec] bg-white font-medium text-[#17191c]">
-                    {activePlant} Plant
-                  </div>
-                </div>
-              </div>
+              <button 
+                onClick={onClose} 
+                className="text-[#979799] hover:text-[#17191c] text-base font-bold cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
 
-            {/* STEP 2: PART & TOTAL PIECES */}
-            <div className="p-4 sm:p-5 bg-[#fafafb] rounded-[20px] border border-[#ececec] space-y-3">
-              <div className="text-[11px] font-bold text-[#c09748] uppercase tracking-[0.16em]">
-                Step 2: Component & Total Quantity Received
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                <div className="md:col-span-2">
-                  <label className="block text-[#777b86] font-medium mb-1">Part / Substrate Description:</label>
-                  <input
-                    type="text"
-                    value={partName}
-                    onChange={e => setPartName(e.target.value)}
-                    placeholder="e.g. Car AC Center Vent Bezel Substrates"
-                    className="w-full p-3 rounded-[14px] border border-[#ececec] bg-white font-medium text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                    required
-                  />
+            <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+              {/* STEP 1: PARTY & CHALLAN DETAILS */}
+              <div className="p-4 bg-[#fafafb] rounded-[20px] border border-[#ececec] space-y-2.5">
+                <div className="text-[11px] font-bold text-[#c09748] uppercase tracking-[0.16em]">
+                  Step 1: Party & Delivery Details
                 </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Total Pieces:</label>
-                  <input
-                    type="number"
-                    value={totalQty}
-                    onChange={e => setTotalQty(Math.max(1, Number(e.target.value)))}
-                    className="w-full p-3 rounded-[14px] border-2 border-[#c09748] bg-white font-serif text-lg font-normal text-[#17191c] focus:outline-none"
-                    min={1}
-                    required
-                  />
-                </div>
-              </div>
-            </div>
 
-            {/* STEP 3: COLOR-WISE REQUIREMENT */}
-            <div className="p-4 sm:p-5 bg-[#faf3e0]/60 rounded-[20px] border border-[#f4e5be] space-y-3.5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-[11px] font-bold text-[#8a6521] uppercase tracking-[0.16em]">
-                    Step 3: Color-Wise Allocation (Contract Requirement)
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[#777b86] font-medium mb-1">
+                      Customer / Party Name:
+                    </label>
+                    <input
+                      type="text"
+                      value={customer}
+                      onChange={e => setCustomer(e.target.value)}
+                      placeholder="e.g. ROOP POLYMERS LTD"
+                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white text-[#17191c] font-medium focus:border-[#c09748] focus:outline-none"
+                      required
+                    />
                   </div>
-                  <div className="text-[11px] text-[#777b86]">
-                    Assign exact color quantities (e.g. 250 Red + 750 Black)
+                  <div>
+                    <label className="block text-[#777b86] font-medium mb-1">
+                      Party Challan / Delivery Note:
+                    </label>
+                    <input
+                      type="text"
+                      value={challanNo}
+                      onChange={e => setChallanNo(e.target.value)}
+                      placeholder="e.g. RP/CH/99824"
+                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-mono text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                      required
+                    />
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[#777b86] font-medium mb-1">Vehicle / Truck No:</label>
+                    <input
+                      type="text"
+                      value={vehicleNo}
+                      onChange={e => setVehicleNo(e.target.value)}
+                      placeholder="e.g. UK-08-AL-4412"
+                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[#777b86] font-medium mb-1">Target Plant:</label>
+                    <div className="p-2.5 rounded-[16px] border border-[#ececec] bg-white font-medium text-[#17191c]">
+                      {activePlant} Plant
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* STEP 2: PART & TOTAL PIECES */}
+              <div className="p-4 bg-[#fafafb] rounded-[20px] border border-[#ececec] space-y-2.5">
+                <div className="text-[11px] font-bold text-[#c09748] uppercase tracking-[0.16em]">
+                  Step 2: Component & Total Quantity Received
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="md:col-span-2">
+                    <label className="block text-[#777b86] font-medium mb-1">Part / Substrate Description:</label>
+                    <input
+                      type="text"
+                      value={partName}
+                      onChange={e => setPartName(e.target.value)}
+                      placeholder="e.g. Car AC Center Vent Bezel Substrates"
+                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-medium text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[#777b86] font-medium mb-1">Total Pieces:</label>
+                    <input
+                      type="number"
+                      value={totalQty}
+                      onChange={e => setTotalQty(Math.max(1, Number(e.target.value)))}
+                      className="w-full p-2.5 rounded-[16px] border border-[#c09748] bg-white font-serif text-lg font-normal text-[#17191c] focus:outline-none"
+                      min={1}
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* STEP 3: COLOR-WISE REQUIREMENT (PROBLEM 1 FIX) */}
+              <div className="p-4 bg-[#faf3e0]/60 rounded-[20px] border border-[#f4e5be] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] font-bold text-[#8a6521] uppercase tracking-[0.16em]">
+                      Step 3: Color-Wise Allocation (Contract Requirement)
+                    </div>
+                    <div className="text-[11px] text-[#777b86]">
+                      Assign exact color quantities (e.g. 250 Red + 750 Black)
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddColorRow}
+                    className="flex items-center gap-1 px-3 py-1 rounded-full bg-[#faf3e0] border border-[#f4e5be] hover:bg-[#f4e5be] text-[#8a6521] text-[11px] font-semibold cursor-pointer transition"
+                  >
+                    <Plus className="w-3 h-3 text-[#c09748]" />
+                    <span>+ Add Color</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {colorRows.map((row, idx) => (
+                    <div key={idx} className="flex flex-wrap sm:flex-nowrap items-center gap-2 p-2.5 bg-white rounded-[16px] border border-[#ececec]">
+                      <div className="flex-1 min-w-[130px]">
+                        <label className="block text-[10px] text-[#777b86] font-medium">Color Name</label>
+                        <input
+                          type="text"
+                          value={row.name}
+                          onChange={e => handleColorChange(idx, 'name', e.target.value)}
+                          placeholder="Color Name"
+                          className="w-full p-1.5 rounded-[12px] border border-[#ececec] text-xs font-medium text-[#17191c]"
+                          required
+                        />
+                      </div>
+                      <div className="w-20">
+                        <label className="block text-[10px] text-[#777b86] font-medium">Code</label>
+                        <input
+                          type="text"
+                          value={row.code}
+                          onChange={e => handleColorChange(idx, 'code', e.target.value)}
+                          placeholder="Code"
+                          className="w-full p-1.5 rounded-[12px] border border-[#ececec] text-xs font-mono text-[#17191c]"
+                          required
+                        />
+                      </div>
+                      <div className="w-28">
+                        <label className="block text-[10px] text-[#777b86] font-medium">Target Qty</label>
+                        <input
+                          type="number"
+                          value={row.qty}
+                          onChange={e => handleColorChange(idx, 'qty', Math.max(0, Number(e.target.value)))}
+                          placeholder="Qty"
+                          className="w-full p-1.5 rounded-[12px] border border-[#ececec] text-xs font-serif font-normal text-[#17191c]"
+                          min={0}
+                          required
+                        />
+                      </div>
+                      <div className="w-24">
+                        <label className="block text-[10px] text-[#777b86] font-medium">Rate (₹/pc)</label>
+                        <input
+                          type="number"
+                          value={row.rate}
+                          onChange={e => handleColorChange(idx, 'rate', Math.max(0, Number(e.target.value)))}
+                          placeholder="Rate"
+                          className="w-full p-1.5 rounded-[12px] border border-[#ececec] text-xs font-mono text-[#17191c]"
+                          min={0}
+                          required
+                        />
+                      </div>
+                      {colorRows.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveColorRow(idx)}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-full mt-3.5 cursor-pointer transition"
+                          title="Remove Color"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Calculation Validation Pill */}
+                <div className={`p-3 rounded-[16px] border flex items-center justify-between text-xs ${
+                  isMatch ? 'bg-[#fafafb] border-emerald-300 text-emerald-900' : 'bg-red-50 border-red-300 text-red-900'
+                }`}>
+                  <span>
+                    Allocated: <strong>{totalColorAllocated} pcs</strong> of <strong>{totalQty} pcs</strong>
+                  </span>
+                  <span className="font-semibold text-[11px]">
+                    {isMatch ? '✓ Quantities Perfectly Balanced' : `⚠️ Mismatch: ${totalQty - totalColorAllocated} pcs remaining`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 flex justify-end gap-2.5">
                 <button
                   type="button"
-                  onClick={handleAddColorRow}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] hover:bg-[#f4e5be] text-[#8a6521] text-xs font-semibold cursor-pointer transition active:scale-95 shadow-2xs"
+                  onClick={onClose}
+                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white hover:bg-[#fafafb] text-[#777b86] font-medium cursor-pointer transition"
                 >
-                  <Plus className="w-3.5 h-3.5 text-[#c09748]" />
-                  <span>Add Color</span>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!isMatch}
+                  className={`px-6 py-2.5 rounded-full text-xs font-semibold shadow-sm transition cursor-pointer flex items-center gap-2 ${
+                    isMatch
+                      ? 'bg-[#c09748] hover:bg-[#a97e35] text-[#17191c]'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  <CheckCircle2 className="w-4 h-4 text-[#17191c]" />
+                  <span>Save Inward & Generate Job Cards</span>
                 </button>
               </div>
-
-              <div className="space-y-2.5">
-                {colorRows.map((row, idx) => (
-                  <div key={idx} className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 p-3 bg-white rounded-[16px] border border-[#ececec]">
-                    <div className="flex-1 min-w-[130px]">
-                      <label className="block text-[10px] text-[#777b86] font-medium mb-0.5">Color Name</label>
-                      <input
-                        type="text"
-                        value={row.name}
-                        onChange={e => handleColorChange(idx, 'name', e.target.value)}
-                        placeholder="Color Name"
-                        className="w-full p-2 rounded-[10px] border border-[#ececec] text-xs font-medium text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                        required
-                      />
-                    </div>
-                    <div className="w-24">
-                      <label className="block text-[10px] text-[#777b86] font-medium mb-0.5">Code</label>
-                      <input
-                        type="text"
-                        value={row.code}
-                        onChange={e => handleColorChange(idx, 'code', e.target.value)}
-                        placeholder="Code"
-                        className="w-full p-2 rounded-[10px] border border-[#ececec] text-xs font-mono text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                        required
-                      />
-                    </div>
-                    <div className="w-28">
-                      <label className="block text-[10px] text-[#777b86] font-medium mb-0.5">Target Qty</label>
-                      <input
-                        type="number"
-                        value={row.qty}
-                        onChange={e => handleColorChange(idx, 'qty', Math.max(0, Number(e.target.value)))}
-                        placeholder="Qty"
-                        className="w-full p-2 rounded-[10px] border border-[#ececec] text-xs font-serif font-normal text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                        min={0}
-                        required
-                      />
-                    </div>
-                    <div className="w-24">
-                      <label className="block text-[10px] text-[#777b86] font-medium mb-0.5">Rate (₹/pc)</label>
-                      <input
-                        type="number"
-                        value={row.rate}
-                        onChange={e => handleColorChange(idx, 'rate', Math.max(0, Number(e.target.value)))}
-                        placeholder="Rate"
-                        className="w-full p-2 rounded-[10px] border border-[#ececec] text-xs font-mono text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                        min={0}
-                        required
-                      />
-                    </div>
-                    {colorRows.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveColorRow(idx)}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-full mt-4 cursor-pointer transition active:scale-95"
-                        title="Remove Color"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Calculation Validation Pill */}
-              <div className={`p-3.5 rounded-[16px] border flex items-center justify-between text-xs ${
-                isMatch ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-red-50 border-red-300 text-red-900'
-              }`}>
-                <span>
-                  Allocated: <strong>{totalColorAllocated} pcs</strong> of <strong>{totalQty} pcs</strong>
-                </span>
-                <span className="font-semibold text-[11px]">
-                  {isMatch ? '✓ Quantities Perfectly Balanced' : `⚠️ Mismatch: ${totalQty - totalColorAllocated} pcs remaining`}
-                </span>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="pt-4 border-t border-[#ececec] flex justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={handleResetAndClose}
-                className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white hover:bg-[#fafafb] text-[#777b86] font-medium cursor-pointer transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!isMatch}
-                className={`px-6 py-2.5 rounded-full text-xs font-semibold shadow-2xs transition cursor-pointer flex items-center gap-2 active:scale-95 ${
-                  isMatch
-                    ? 'bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4]'
-                    : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'
-                }`}
-              >
-                <Check className="w-4 h-4 text-[#c09748]" />
-                <span>Save Inward & Generate Job Cards</span>
-              </button>
-            </div>
-          </form>
+            </form>
+          </>
         )}
       </div>
     </div>

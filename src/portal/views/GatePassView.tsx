@@ -954,44 +954,56 @@ export const GatePassView: React.FC = () => {
       )}
 
       {/* -------------------------------------------------------------------------- */}
-      {/* FULL-SCREEN CANVAS: INWARD VIEW DETAILS SLIP & PRINT/PDF                   */}
+      {/* POPUP MODAL: PROFESSIONAL VIEW DETAILS SLIP & PRINT/PDF                    */}
       {/* -------------------------------------------------------------------------- */}
       {selectedInward && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-[24px] max-w-4xl w-full p-5 sm:p-8 shadow-2xl border border-[#ececec] space-y-6 max-h-[92vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150">
+            
+            {/* Modal Header */}
+            <div className="pb-4 border-b border-[#ececec] space-y-2.5">
+              {/* Row 1: Title & Close Button */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-0.5">
+                  <h3 className="text-lg sm:text-2xl font-serif text-[#17191c] font-normal tracking-tight">
+                    Gate Inward Verification Slip
+                  </h3>
+                  <p className="text-[11px] font-mono text-[#777b86]">
+                    Security Gate Material Intake Record • PaintKing Surface Solutions
+                  </p>
+                </div>
+
+                <button 
+                  onClick={() => setSelectedInward(null)}
+                  className="w-8 h-8 rounded-full bg-[#fafafb] hover:bg-gray-100 text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition shrink-0"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Row 2: Clean Badge Metadata Strip */}
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap text-[10px] sm:text-[11px]">
+                <span className="px-2.5 py-0.5 rounded-full font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
                   PK-SEC-INW-001 (Rev 00)
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#17191c] text-[10px] font-mono font-bold">
-                  {selectedInward.srNo}
+                <span className="font-mono font-bold text-[#17191c] bg-[#fafafb] px-2.5 py-0.5 rounded-full border border-[#ececec]">
+                  Gate Pass: {selectedInward.srNo}
                 </span>
-                <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] border ${
+                <span className={`px-2.5 py-0.5 rounded-full font-bold border ${
                   selectedInward.grnNo
                     ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                     : 'bg-amber-50 text-amber-800 border-amber-200'
                 }`}>
                   {selectedInward.grnNo ? `✓ GRN: ${selectedInward.grnNo}` : 'Pending Store GRN'}
                 </span>
+                <span className="px-2.5 py-0.5 rounded-full font-mono bg-gray-100 text-[#777b86] border border-gray-200 flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-[#777b86]" />
+                  <span>{formatDateDDMMYYYY(selectedInward.receivingDate || selectedInward.date)} at {selectedInward.inTime || '10:30 AM'}</span>
+                </span>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Gate Inward Verification Slip
-              </h3>
             </div>
-            <button 
-              type="button"
-              onClick={() => setSelectedInward(null)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          {/* Details Body */}
-          <div className="max-w-4xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
             {/* 8 Structured Summary Cards (2-4 Responsive Grid) */}
             {(() => {
               const breakdown = formatUnitBreakdown(
@@ -1288,40 +1300,52 @@ export const GatePassView: React.FC = () => {
       )}
 
       {/* -------------------------------------------------------------------------- */}
-      {/* FULL-SCREEN CANVAS: OUTWARD VIEW DETAILS SLIP & PRINT/PDF                  */}
+      {/* POPUP MODAL: OUTWARD VIEW DETAILS SLIP & PRINT/PDF                         */}
       {/* -------------------------------------------------------------------------- */}
       {selectedOutward && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-[24px] max-w-3xl w-full p-6 sm:p-8 shadow-2xl border border-[#ececec] space-y-6 max-h-[92vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
+            
+            {/* Modal Header */}
+            <div className="pb-4 border-b border-[#ececec] space-y-2.5">
+              {/* Row 1: Title & Close Button */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-0.5">
+                  <h3 className="text-lg sm:text-2xl font-serif text-[#17191c] font-normal tracking-tight">
+                    Gate Outward Verification Slip
+                  </h3>
+                  <p className="text-[11px] font-mono text-[#777b86]">
+                    Finished Goods Dispatch & Exit Record • PaintKing Surface Solutions
+                  </p>
+                </div>
+
+                <button 
+                  onClick={() => setSelectedOutward(null)}
+                  className="w-8 h-8 rounded-full bg-[#fafafb] hover:bg-gray-100 text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition shrink-0"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Row 2: Clean Badge Metadata Strip */}
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap text-[10px] sm:text-[11px]">
+                <span className="px-2.5 py-0.5 rounded-full font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
                   PK-SEC-OUT-001 (Rev 00)
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#17191c] text-[10px] font-mono font-bold">
+                <span className="font-mono font-bold text-[#17191c] bg-[#fafafb] px-2.5 py-0.5 rounded-full border border-[#ececec]">
                   Gate Pass: {selectedOutward.gatePassNo || selectedOutward.srNo}
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full font-bold text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span className="px-2.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
                   ✓ Dispatched & Passed
                 </span>
+                <span className="px-2.5 py-0.5 rounded-full font-mono bg-gray-100 text-[#777b86] border border-gray-200 flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-[#777b86]" />
+                  <span>{formatDateDDMMYYYY(selectedOutward.date)} at {selectedOutward.outTime || '04:30 PM'}</span>
+                </span>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Gate Outward Verification Slip
-              </h3>
             </div>
-            <button 
-              type="button"
-              onClick={() => setSelectedOutward(null)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          {/* Details Body */}
-          <div className="max-w-4xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
             {/* 9 Structured Summary Cards (3 Rows x 3 Columns) */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Row 1 */}
@@ -1497,39 +1521,33 @@ export const GatePassView: React.FC = () => {
       )}
 
       {/* -------------------------------------------------------------------------- */}
-      {/* FULL-SCREEN CANVAS: GUIDED MATERIAL INWARD FORM                             */}
+      {/* MODAL 1: CLEAN & PLAIN GUIDED MATERIAL INWARD FORM (Reference Inspired)    */}
       {/* -------------------------------------------------------------------------- */}
       {showInwardModal && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                  Gate Security
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  Guided Inward Intake
-                </span>
-              </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Material Inward Entry
-              </h3>
-            </div>
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-5 overflow-y-auto">
+          <div className="bg-white rounded-[18px] sm:rounded-[20px] max-w-2xl w-full p-4 sm:p-7 md:p-8 shadow-2xl border border-[#ececec] flex flex-col justify-between max-h-[92vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150 relative">
+            
+            {/* Top Close Button */}
             <button 
-              type="button"
               onClick={() => setShowInwardModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
+              className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition z-10"
+              title="Close Form"
             >
-              <X className="w-5 h-5 text-[#17191c]" />
+              <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
-          </div>
 
-          {/* Form Body Container */}
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
+            {/* Form Title & Guided Subtitle */}
+            <div className="text-center space-y-1 pb-3 sm:pb-4 pr-6 sm:pr-0">
+              <h2 className="text-lg sm:text-2xl font-bold text-[#17191c] tracking-tight">
+                Material Inward Entry
+              </h2>
+              <p className="text-[11px] sm:text-xs text-[#777b86]">
+                Create inward entry for arriving supplier challans with this guided process
+              </p>
+            </div>
+
             {/* Step Stepper Indicator (Plain & Simple Connected Pills - Fully Mobile Responsive) */}
-            <div className="flex items-center justify-center gap-1.5 sm:gap-3 py-2 border-b border-[#f0f0f2]">
+            <div className="flex items-center justify-center gap-1.5 sm:gap-3 py-2 border-b border-[#f0f0f2] mb-4 sm:mb-5">
               {/* Step 1 Pill */}
               <button
                 type="button"
@@ -1571,22 +1589,25 @@ export const GatePassView: React.FC = () => {
 
             {/* Validation Error Banner */}
             {formError && (
-              <div className="p-2.5 sm:p-3 rounded-[10px] bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+              <div className="p-2.5 sm:p-3 rounded-[10px] bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 mb-3 sm:mb-4">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{formError}</span>
               </div>
             )}
 
-            <form onSubmit={handleInwardSubmit} className="space-y-5">
-              {/* STEP 1: GENERAL INFO */}
+            <form onSubmit={handleInwardSubmit} className="space-y-4 sm:space-y-5">
+              {/* ================================================================ */}
+              {/* STEP 1: GENERAL INFO (Clean, Plain, Spacious Form)              */}
+              {/* ================================================================ */}
               {inwardStep === 1 && (
-                <div className="space-y-4 animate-in fade-in duration-100">
+                <div className="space-y-3.5 sm:space-y-4 animate-in fade-in duration-100">
+                  {/* Step Title Header */}
                   <div>
                     <span className="text-[10px] sm:text-[11px] font-medium text-[#777b86] block">Step 1</span>
                     <h3 className="text-xs sm:text-sm font-bold text-[#17191c]">General & Logistics Info</h3>
                   </div>
 
-                  {/* 1. Material Category */}
+                  {/* 1. Material Category (Clean Radio Option Tiles - Responsive Grid) */}
                   <div className="space-y-1.5">
                     <label className="block text-xs font-semibold text-[#17191c]">
                       Material Type
@@ -1763,11 +1784,11 @@ export const GatePassView: React.FC = () => {
                   </div>
 
                   {/* Step 1 Footer Navigation */}
-                  <div className="flex items-center justify-between pt-4 border-t border-[#ececec]">
+                  <div className="flex items-center justify-between pt-3 sm:pt-4 border-t border-[#ececec]">
                     <button
                       type="button"
                       onClick={() => setShowInwardModal(false)}
-                      className="px-4 py-2 rounded-full border border-[#dcdfe4] text-xs font-medium text-[#777b86] hover:bg-gray-50 cursor-pointer transition"
+                      className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#dcdfe4] text-xs font-medium text-[#777b86] hover:bg-gray-50 cursor-pointer transition"
                     >
                       Cancel
                     </button>
@@ -1775,7 +1796,7 @@ export const GatePassView: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleStep1Next}
-                      className="px-5 sm:px-6 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-1.5 sm:gap-2"
+                      className="px-4 sm:px-6 py-1.5 sm:py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-1.5 sm:gap-2"
                     >
                       <span>Continue to Materials (Step 2)</span>
                       <ChevronRight className="w-3.5 h-3.5 text-[#c09748]" />
@@ -1784,9 +1805,11 @@ export const GatePassView: React.FC = () => {
                 </div>
               )}
 
-              {/* STEP 2: MATERIAL LINE ITEMS & RECEIVING CONFIRMATION */}
+              {/* ================================================================ */}
+              {/* STEP 2: MATERIAL LINE ITEMS & RECEIVING CONFIRMATION             */}
+              {/* ================================================================ */}
               {inwardStep === 2 && (
-                <div className="space-y-4 animate-in fade-in duration-100">
+                <div className="space-y-3.5 sm:space-y-4 animate-in fade-in duration-100">
                   {/* Step Header */}
                   <div className="flex items-center justify-between">
                     <div>
@@ -1796,7 +1819,7 @@ export const GatePassView: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleAddItemRow}
-                      className="px-3 sm:px-3.5 py-1.5 rounded-full border border-[#dcdfe4] bg-white hover:bg-gray-50 text-xs font-semibold text-[#17191c] transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                      className="px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-full border border-[#dcdfe4] bg-white hover:bg-gray-50 text-xs font-semibold text-[#17191c] transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
                     >
                       <Plus className="w-3.5 h-3.5 text-[#c09748]" />
                       <span>Add Row</span>
@@ -1816,7 +1839,7 @@ export const GatePassView: React.FC = () => {
                   <div className="relative">
                     <div 
                       ref={materialListRef}
-                      className="space-y-2.5 sm:space-y-2 max-h-[220px] overflow-y-auto no-scrollbar p-1"
+                      className="space-y-2.5 sm:space-y-2 max-h-[195px] sm:max-h-[165px] overflow-y-auto no-scrollbar p-1"
                     >
                       {inwardItems.map((item, idx) => (
                         <div
@@ -1963,11 +1986,11 @@ export const GatePassView: React.FC = () => {
                   </div>
 
                   {/* Step 2 Action Footer */}
-                  <div className="flex items-center justify-between pt-4 border-t border-[#ececec]">
+                  <div className="flex items-center justify-between pt-3 sm:pt-4 border-t border-[#ececec]">
                     <button
                       type="button"
                       onClick={() => setInwardStep(1)}
-                      className="px-4 py-2 rounded-full border border-[#dcdfe4] text-xs font-medium text-[#777b86] hover:bg-gray-50 cursor-pointer transition flex items-center gap-1.5"
+                      className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#dcdfe4] text-xs font-medium text-[#777b86] hover:bg-gray-50 cursor-pointer transition flex items-center gap-1.5"
                     >
                       <ArrowLeft className="w-3.5 h-3.5" />
                       <span>Back</span>
@@ -1977,13 +2000,13 @@ export const GatePassView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setShowInwardModal(false)}
-                        className="px-4 py-2 rounded-full border border-[#dcdfe4] text-xs font-medium text-[#777b86] hover:bg-gray-50 cursor-pointer transition"
+                        className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#dcdfe4] text-xs font-medium text-[#777b86] hover:bg-gray-50 cursor-pointer transition"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
-                        className="px-5 sm:px-6 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                        className="px-4 sm:px-6 py-1.5 sm:py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
                       >
                         <Check className="w-3.5 h-3.5 text-[#c09748]" />
                         <span>Submit Inward</span>
@@ -1998,38 +2021,29 @@ export const GatePassView: React.FC = () => {
       )}
 
       {/* -------------------------------------------------------------------------- */}
-      {/* FULL-SCREEN CANVAS: MATERIAL OUTWARD FORM                                  */}
+      {/* MODAL 2: MATERIAL OUTWARD FORM                                             */}
       {/* -------------------------------------------------------------------------- */}
       {showOutwardModal && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-[24px] max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-[#ececec] space-y-5 max-h-[92vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between pb-3 border-b border-[#ececec]">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono uppercase font-semibold tracking-wider">
                   Security Outward Desk
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  Dispatch Exit Pass
-                </span>
+                <h3 className="text-2xl font-serif text-[#17191c] font-normal tracking-tight mt-1">
+                  New Outward Gate Pass
+                </h3>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                New Outward Gate Pass
-              </h3>
+              <button 
+                onClick={() => setShowOutwardModal(false)}
+                className="w-8 h-8 rounded-full bg-[#fafafb] hover:bg-gray-100 text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <button 
-              type="button"
-              onClick={() => setShowOutwardModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          {/* Form Body Container */}
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
-            <form onSubmit={handleOutwardSubmit} className="space-y-4">
+            <form onSubmit={handleOutwardSubmit} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <label className="block text-[11px] font-semibold text-[#777b86] uppercase tracking-wider mb-1.5">
@@ -2166,17 +2180,17 @@ export const GatePassView: React.FC = () => {
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-[#ececec]">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#ececec]">
                 <button
                   type="button"
                   onClick={() => setShowOutwardModal(false)}
-                  className="px-5 py-2 rounded-full border border-[#e5e7eb] bg-white text-[#777b86] hover:bg-gray-50 text-xs font-medium transition cursor-pointer"
+                  className="px-5 py-2.5 rounded-full border border-[#e5e7eb] bg-white text-[#777b86] hover:bg-gray-50 text-xs font-medium transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-medium shadow-xs transition cursor-pointer flex items-center gap-2"
+                  className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-medium shadow-xs transition cursor-pointer flex items-center gap-2"
                 >
                   <Save className="w-4 h-4 text-[#c09748]" />
                   <span>Log Outward Entry</span>

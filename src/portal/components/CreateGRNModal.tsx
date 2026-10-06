@@ -224,39 +224,18 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150 print:p-0">
-      {/* Sticky Top Header Bar */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs print:hidden">
-        <div className="flex items-center gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 mb-0.5">
-              <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold uppercase tracking-wider">
-                STORES INWARD DESK
-              </span>
-              <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                Plant: {activePlant}
-              </span>
-            </div>
-            <h2 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal tracking-tight">
-              Goods Receipt Note (GRN) Generation
-            </h2>
-          </div>
-        </div>
-
-        {/* Top Right Prominent Close Button */}
-        <button 
-          type="button"
-          onClick={onClose}
-          className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-          title="Close GRN Form"
-        >
-          <X className="w-5 h-5 text-[#17191c]" />
-        </button>
-      </div>
-
-      {/* Main Full-Screen Form Container */}
-      <div className="max-w-5xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 print:max-w-none print:w-full print:p-0">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+      <div className="bg-white rounded-[24px] max-w-4xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 max-h-[94vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150 relative">
         
+        {/* Top Close Button */}
+        <button 
+          onClick={onClose}
+          className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition z-10 active:scale-95"
+          title="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
         {/* ========================================================================= */}
         {/* VIEW 1: SUCCESS STATE (OFFICIAL GRN GENERATED & PDF READY)                 */}
         {/* ========================================================================= */}

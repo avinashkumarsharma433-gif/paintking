@@ -522,82 +522,74 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
 
       {/* MODAL: Daily Day-End (EOD) Shutdown Modal */}
       {showEodModal && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                  PLANT OPERATIONS
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-[24px] max-w-lg w-full p-6 space-y-5 border border-[#ececec] shadow-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-full bg-[#17191c] text-[#c09748]">
+                  <Moon className="w-5 h-5" />
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  EOD-SHUTDOWN
-                </span>
+                <div>
+                  <h3 className="font-serif font-medium text-lg text-[#17191c]">
+                    Execute Evening Plant Shutdown (EOD)
+                  </h3>
+                  <p className="text-xs text-[#777b86]">
+                    Single General Day Shift • Vasai Unit
+                  </p>
+                </div>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Execute Evening Plant Shutdown (EOD)
-              </h3>
+              <button
+                onClick={() => setShowEodModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-sm font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowEodModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          <div className="max-w-2xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
-            <div className="p-4 bg-white rounded-[18px] border border-[#ececec] space-y-3 shadow-2xs">
-              <div className="flex items-center gap-2 pb-2 border-b border-[#ececec]">
-                <Moon className="w-4 h-4 text-[#c09748]" />
-                <span className="font-semibold text-xs text-[#17191c]">Shift Summary • Vasai Plant Unit</span>
+            <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec] space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-[#777b86]">Total Sprayed Today:</span>
+                <span className="font-bold text-[#17191c]">{totalSprayed} pcs</span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3 bg-[#fafafb] rounded-[14px] border border-[#ececec]">
-                  <div className="text-[10px] text-[#777b86] uppercase tracking-wider font-semibold">Total Sprayed</div>
-                  <div className="text-base font-bold text-[#17191c] mt-0.5">{totalSprayed} pcs</div>
-                </div>
-                <div className="p-3 bg-[#fafafb] rounded-[14px] border border-[#ececec]">
-                  <div className="text-[10px] text-[#777b86] uppercase tracking-wider font-semibold">First-Pass Good</div>
-                  <div className="text-base font-bold text-emerald-700 mt-0.5">{totalGood} pcs</div>
-                </div>
-                <div className="p-3 bg-[#fafafb] rounded-[14px] border border-[#ececec]">
-                  <div className="text-[10px] text-[#777b86] uppercase tracking-wider font-semibold">Pending Rework</div>
-                  <div className="text-base font-bold text-amber-700 mt-0.5">{totalReworkQueue} pcs</div>
-                </div>
-                <div className="p-3 bg-[#fafafb] rounded-[14px] border border-[#ececec]">
-                  <div className="text-[10px] text-[#777b86] uppercase tracking-wider font-semibold">Total Scrap</div>
-                  <div className="text-base font-bold text-rose-700 mt-0.5">{totalScrap} pcs</div>
-                </div>
+              <div className="flex justify-between">
+                <span className="text-[#777b86]">First-Pass Accepted:</span>
+                <span className="font-bold text-emerald-700">{totalGood} pcs</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#777b86]">Pending in Rework Racks:</span>
+                <span className="font-bold text-amber-700">{totalReworkQueue} pcs</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#777b86]">Total Non-Salvageable Scrap:</span>
+                <span className="font-bold text-rose-700">{totalScrap} pcs</span>
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">
                 Supervisor Evening Handover & Cleaning Notes
               </label>
               <textarea
                 value={eodRemarks}
                 onChange={(e) => setEodRemarks(e.target.value)}
-                rows={4}
+                rows={3}
                 placeholder="Spray booths flushed with thinner, exhaust filters purged, overnight WIP locked in designated holding bays..."
-                className="w-full p-3.5 rounded-[16px] border border-[#dcdfe4] text-xs text-[#17191c] bg-white focus:outline-none focus:border-[#17191c]"
+                className="w-full p-3 rounded-[14px] border border-[#e5e7eb] text-xs text-[#17191c] focus:outline-none focus:border-[#17191c]"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#ececec]">
+            <div className="flex gap-2.5">
               <button
                 type="button"
                 onClick={() => setShowEodModal(false)}
-                className="px-5 py-2.5 rounded-full border border-[#ececec] text-xs font-semibold text-[#777b86] hover:bg-gray-100 transition cursor-pointer"
+                className="flex-1 py-2.5 rounded-full border border-[#ececec] text-xs font-semibold text-[#777b86] hover:bg-gray-100 transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmEod}
-                className="px-6 py-2.5 rounded-full bg-[#17191c] hover:bg-gray-800 text-white text-xs font-semibold transition cursor-pointer shadow-xs"
+                className="flex-1 py-2.5 rounded-full bg-[#17191c] hover:bg-gray-800 text-white text-xs font-semibold transition cursor-pointer"
               >
                 Lock & Close Plant for Night
               </button>
@@ -608,32 +600,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
 
       {/* MODAL: Route Defective Batch to Rework */}
       {showReworkModal && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                  QUALITY REWORK
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-[24px] max-w-lg w-full p-6 space-y-5 border border-[#ececec] shadow-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-full bg-[#faf3e0] text-[#8a6521]">
+                  <Hammer className="w-5 h-5 text-[#c09748]" />
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  SALVAGE ROUTE
-                </span>
+                <div>
+                  <h3 className="font-serif font-medium text-lg text-[#17191c]">
+                    Route Defective Parts to Rework
+                  </h3>
+                  <p className="text-xs text-[#777b86]">
+                    Avoid unnecessary scrap — salvage parts through controlled touch-up
+                  </p>
+                </div>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Route Defective Parts to Rework
-              </h3>
+              <button
+                onClick={() => setShowReworkModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-sm font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowReworkModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          <div className="max-w-2xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
             <form onSubmit={handleRouteReworkSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">
@@ -642,7 +632,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                 <select
                   value={selectedParentJc}
                   onChange={(e) => setSelectedParentJc(e.target.value)}
-                  className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] text-xs text-[#17191c] bg-white"
+                  className="w-full h-10 px-3 rounded-[12px] border border-[#e5e7eb] text-xs text-[#17191c] bg-white"
                 >
                   {jobCards.filter(j => j.jobCardType !== 'rework_child').map(jc => (
                     <option key={jc.jobCardNo} value={jc.jobCardNo}>
@@ -652,7 +642,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">
                     Defective Pieces Qty
@@ -662,7 +652,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                     min={1}
                     value={reworkQtyInput}
                     onChange={(e) => setReworkQtyInput(Number(e.target.value))}
-                    className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] text-xs text-[#17191c] bg-white"
+                    className="w-full h-10 px-3 rounded-[12px] border border-[#e5e7eb] text-xs text-[#17191c]"
                     required
                   />
                 </div>
@@ -674,7 +664,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                   <select
                     value={defectCatInput}
                     onChange={(e) => setDefectCatInput(e.target.value as DefectCategory)}
-                    className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] text-xs text-[#17191c] bg-white"
+                    className="w-full h-10 px-3 rounded-[12px] border border-[#e5e7eb] text-xs text-[#17191c] bg-white"
                   >
                     <option value="dust_nibs">Dust Nibs / Air Lint</option>
                     <option value="paint_run">Paint Run / Sagging</option>
@@ -693,23 +683,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                 <textarea
                   value={reworkInstructionsInput}
                   onChange={(e) => setReworkInstructionsInput(e.target.value)}
-                  rows={3}
-                  className="w-full p-3.5 rounded-[16px] border border-[#dcdfe4] text-xs text-[#17191c] bg-white"
+                  rows={2}
+                  className="w-full p-2.5 rounded-[12px] border border-[#e5e7eb] text-xs text-[#17191c]"
                   required
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#ececec]">
+              <div className="flex gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowReworkModal(false)}
-                  className="px-5 py-2.5 rounded-full border border-[#ececec] text-xs font-semibold text-[#777b86] hover:bg-gray-100 transition cursor-pointer"
+                  className="flex-1 py-2.5 rounded-full border border-[#ececec] text-xs font-semibold text-[#777b86] hover:bg-gray-100 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold transition cursor-pointer shadow-xs"
+                  className="flex-1 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold transition cursor-pointer shadow-xs"
                 >
                   Spawn Rework Child Card
                 </button>

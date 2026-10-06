@@ -2219,50 +2219,41 @@ export const QAView: React.FC = () => {
         </div>
       )}
 
-      {/* FULL-SCREEN CANVAS: QA ROUTE TO REWORK ACTION */}
+      {/* MODAL: QA ROUTE TO REWORK ACTION */}
       {showReworkActionModal && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-mono uppercase tracking-widest font-bold">
-                  QA Disposition
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  {selectedJcForRework}
-                </span>
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] max-w-md w-full p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
+                <h3 className="text-base font-serif font-normal text-[#17191c]">
+                  QA Disposition: Route to Rework
+                </h3>
+                <p className="text-[11px] text-[#777b86]">
+                  Salvage defective parts via dedicated Rework Child Job Card
+                </p>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Route to Rework Child Card
-              </h3>
+              <button 
+                onClick={() => setShowReworkActionModal(false)}
+                className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base"
+              >
+                ✕
+              </button>
             </div>
-            <button 
-              type="button"
-              onClick={() => setShowReworkActionModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          {/* Form Body */}
-          <div className="max-w-2xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 routeToRework(selectedJcForRework, reworkActionQty, reworkActionDefect, reworkActionNotes);
                 setShowReworkActionModal(false);
               }}
-              className="space-y-4"
+              className="space-y-3.5"
             >
               <div>
                 <label className="block text-[#17191c] font-semibold mb-1">Target Job Card</label>
                 <select
                   value={selectedJcForRework}
                   onChange={(e) => setSelectedJcForRework(e.target.value)}
-                  className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer"
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer"
                 >
                   {jobCards.filter(j => j.jobCardType !== 'rework_child').map(jc => (
                     <option key={jc.jobCardNo} value={jc.jobCardNo}>
@@ -2278,7 +2269,7 @@ export const QAView: React.FC = () => {
                   type="number"
                   value={reworkActionQty}
                   onChange={(e) => setReworkActionQty(Math.max(1, Number(e.target.value)))}
-                  className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c]"
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c]"
                   min={1}
                   required
                 />
@@ -2289,7 +2280,7 @@ export const QAView: React.FC = () => {
                 <select
                   value={reworkActionDefect}
                   onChange={(e) => setReworkActionDefect(e.target.value as DefectCategory)}
-                  className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer"
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer"
                 >
                   <option value="dust_nibs">Dust Nibs (Surface Dust / Particles)</option>
                   <option value="paint_run">Paint Run / Sagging</option>
@@ -2307,12 +2298,12 @@ export const QAView: React.FC = () => {
                   value={reworkActionNotes}
                   onChange={(e) => setReworkActionNotes(e.target.value)}
                   rows={3}
-                  className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white text-xs leading-relaxed"
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs leading-relaxed"
                   required
                 />
               </div>
 
-              <div className="pt-4 border-t border-[#ececec] flex justify-end gap-2.5">
+              <div className="pt-2 flex justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowReworkActionModal(false)}
@@ -2322,10 +2313,9 @@ export const QAView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-xs cursor-pointer transition active:scale-95 flex items-center gap-1.5"
+                  className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white font-bold shadow-xs cursor-pointer transition"
                 >
-                  <Check className="w-4 h-4 text-[#c09748]" />
-                  <span>Create Rework Child Card</span>
+                  Create Rework Child Card
                 </button>
               </div>
             </form>
@@ -2333,39 +2323,23 @@ export const QAView: React.FC = () => {
         </div>
       )}
 
-      {/* FULL-SCREEN CANVAS: IQC INCOMING SUBSTRATE FORM */}
+      {/* MODAL 1: NEW IQC INCOMING SUBSTRATE FORM (WITH SMART PARTY SEARCH & 1-TAP ALL PASS) */}
       {showIqcModal && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                  PK-STR-IQC-001
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  Substrate Check
-                </span>
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-2xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
+                <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">New IQC Substrate Inspection (PK-STR-IQC-001)</h3>
+                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Select Party Name / WO to auto-fill all substrate details below</p>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                New IQC Substrate Inspection
-              </h3>
+              <button onClick={() => setShowIqcModal(false)} className="text-[#979799] hover:text-[#17191c] cursor-pointer p-1">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <button 
-              type="button"
-              onClick={() => setShowIqcModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          {/* Form Body */}
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
-            <form onSubmit={handleIqcSubmit} className="space-y-4">
+            <form onSubmit={handleIqcSubmit} className="space-y-3 sm:space-y-4">
               {/* SMART PARTY / WORK ORDER DROPDOWN AUTO-FILL */}
-              <div className="p-3.5 bg-[#faf3e0]/50 rounded-[16px] border border-[#f4e5be] space-y-1.5">
+              <div className="p-3 bg-[#faf3e0]/50 rounded-[14px] border border-[#f4e5be] space-y-1.5">
                 <label className="block text-[#8a6521] font-bold text-xs flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
                   Select Party Name / Active Work Order (Auto-Fill Details):
@@ -2383,14 +2357,14 @@ export const QAView: React.FC = () => {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block text-[#777b86] font-medium mb-1">Supplier / Customer</label>
                   <input
                     type="text"
                     value={iqcForm.supplierCustomer}
                     onChange={e => setIqcForm({ ...iqcForm, supplierCustomer: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] focus:border-[#c09748] focus:outline-none bg-white"
+                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none"
                     required
                   />
                 </div>
@@ -2400,7 +2374,7 @@ export const QAView: React.FC = () => {
                     type="text"
                     value={iqcForm.partCode}
                     onChange={e => setIqcForm({ ...iqcForm, partCode: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono bg-white"
+                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
                     required
                   />
                 </div>
@@ -2410,14 +2384,14 @@ export const QAView: React.FC = () => {
                     type="text"
                     value={iqcForm.batchNo}
                     onChange={e => setIqcForm({ ...iqcForm, batchNo: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono bg-white"
+                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
                     required
                   />
                 </div>
               </div>
 
               {/* IQC Selection Grid with 1-Tap "Set All Pass" Button */}
-              <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec] space-y-3">
+              <div className="p-3.5 sm:p-4 bg-[#fafafb] rounded-[16px] sm:rounded-[20px] border border-[#ececec] space-y-2.5 sm:space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-[#17191c] text-xs">Substrate Defect Checklist Options:</span>
                   <button
@@ -2430,7 +2404,7 @@ export const QAView: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                   {[
                     { label: 'Damage', key: 'damage' },
                     { label: 'Scratch', key: 'scratch' },
@@ -2444,7 +2418,7 @@ export const QAView: React.FC = () => {
                     { label: 'Colour', key: 'colour' },
                     { label: 'Overall Finishing', key: 'overallFinishing' }
                   ].map(item => (
-                    <div key={item.key} className="flex items-center justify-between p-2.5 bg-white rounded-[12px] border border-[#ececec]">
+                    <div key={item.key} className="flex items-center justify-between p-2 sm:p-2.5 bg-white rounded-[12px] border border-[#ececec]">
                       <span className="font-medium text-[#17191c] text-xs">{item.label}</span>
                       <select
                         value={(iqcForm as any)[item.key]}
@@ -2461,51 +2435,32 @@ export const QAView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-[#ececec] flex justify-end gap-2">
-                <button type="button" onClick={() => setShowIqcModal(false)} className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer">Cancel</button>
-                <button type="submit" className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-xs cursor-pointer transition active:scale-95 flex items-center gap-1.5">
-                  <Check className="w-4 h-4 text-[#c09748]" />
-                  <span>Save IQC Inspection</span>
-                </button>
+              <div className="pt-2 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowIqcModal(false)} className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86]">Cancel</button>
+                <button type="submit" className="px-5 sm:px-6 py-2 sm:py-2.5 rounded-full bg-[#c09748] text-[#17191c] font-semibold">Save IQC Inspection</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* FULL-SCREEN CANVAS: IPQC 3-HOURLY AUDIT FORM */}
+      {/* MODAL 2: NEW IPQC 3-HOURLY AUDIT FORM (WITH SMART PARTY SEARCH & 1-TAP ALL PASS) */}
       {showIpqcModal && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                  PK-QA-IPQ-001
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  3-Hourly Line Audit
-                </span>
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-2xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
+                <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">New 3-Hourly IPQC Line Inspection (PK-QA-IPQ-001)</h3>
+                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Select Party / Work Order to auto-fill line details below</p>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                New 3-Hourly IPQC Line Inspection
-              </h3>
+              <button onClick={() => setShowIpqcModal(false)} className="text-[#979799] hover:text-[#17191c] cursor-pointer p-1">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <button 
-              type="button"
-              onClick={() => setShowIpqcModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          {/* Form Body */}
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
-            <form onSubmit={handleIpqcSubmit} className="space-y-4">
+            <form onSubmit={handleIpqcSubmit} className="space-y-3 sm:space-y-4">
               {/* SMART PARTY / WORK ORDER DROPDOWN AUTO-FILL */}
-              <div className="p-3.5 bg-[#faf3e0]/50 rounded-[16px] border border-[#f4e5be] space-y-1.5">
+              <div className="p-3 bg-[#faf3e0]/50 rounded-[14px] border border-[#f4e5be] space-y-1.5">
                 <label className="block text-[#8a6521] font-bold text-xs flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
                   Select Party Name / Active Job Card (Auto-Fill Details):
@@ -2523,14 +2478,14 @@ export const QAView: React.FC = () => {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block text-[#777b86] font-medium mb-1">Work Order No</label>
                   <input
                     type="text"
                     value={ipqcForm.woNo}
                     onChange={e => setIpqcForm({ ...ipqcForm, woNo: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono bg-white"
+                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
                     required
                   />
                 </div>
@@ -2540,7 +2495,7 @@ export const QAView: React.FC = () => {
                     type="text"
                     value={ipqcForm.partCode}
                     onChange={e => setIpqcForm({ ...ipqcForm, partCode: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono bg-white"
+                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
                     required
                   />
                 </div>
@@ -2550,14 +2505,14 @@ export const QAView: React.FC = () => {
                     type="text"
                     value={ipqcForm.color}
                     onChange={e => setIpqcForm({ ...ipqcForm, color: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] focus:border-[#c09748] focus:outline-none bg-white"
+                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none"
                     required
                   />
                 </div>
               </div>
 
               {/* IPQC Selection Grid with 1-Tap "Set All Pass" Button */}
-              <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec] space-y-3">
+              <div className="p-3.5 sm:p-4 bg-[#fafafb] rounded-[16px] sm:rounded-[20px] border border-[#ececec] space-y-2.5 sm:space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-[#17191c] text-xs">IPQC Parameter Options:</span>
                   <button
@@ -2570,7 +2525,7 @@ export const QAView: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                   {[
                     { label: 'Bubble', key: 'bubble' },
                     { label: 'Dust Spot', key: 'dustSpot' },
@@ -2579,7 +2534,7 @@ export const QAView: React.FC = () => {
                     { label: 'Overall Finishing', key: 'overallFinishing' },
                     { label: 'Adhesion Test', key: 'adhesionTest' }
                   ].map(item => (
-                    <div key={item.key} className="flex items-center justify-between p-2.5 bg-white rounded-[12px] border border-[#ececec]">
+                    <div key={item.key} className="flex items-center justify-between p-2 sm:p-2.5 bg-white rounded-[12px] border border-[#ececec]">
                       <span className="font-medium text-[#17191c] text-xs">{item.label}</span>
                       <select
                         value={(ipqcForm as any)[item.key]}
@@ -2597,78 +2552,59 @@ export const QAView: React.FC = () => {
               </div>
 
               {/* Spectrophotometer LAB & Delta-E Entry */}
-              <div className="p-4 bg-[#faf3e0]/40 rounded-[18px] border border-[#f4e5be] space-y-2.5">
+              <div className="p-3.5 sm:p-4 bg-[#faf3e0]/40 rounded-[16px] sm:rounded-[20px] border border-[#f4e5be] space-y-2">
                 <div className="font-semibold text-[#17191c] flex items-center justify-between text-xs">
                   <span>Spectrophotometer Colorimetry (L, A, B, ΔE)</span>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${ipqcForm.deltaE <= 0.70 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ipqcForm.deltaE <= 0.70 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
                     {ipqcForm.deltaE <= 0.70 ? '✓ PASS' : '🚨 REJECT'}
                   </span>
                 </div>
-                <div className="grid grid-cols-4 gap-2.5">
+                <div className="grid grid-cols-4 gap-2">
                   <div>
                     <label className="block text-[10px] text-[#777b86]">L*</label>
-                    <input type="number" step="0.01" value={ipqcForm.L} onChange={e => setIpqcForm({ ...ipqcForm, L: Number(e.target.value) })} className="w-full p-2 rounded-[8px] border border-[#ececec] bg-white font-mono text-xs" />
+                    <input type="number" step="0.01" value={ipqcForm.L} onChange={e => setIpqcForm({ ...ipqcForm, L: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] border border-[#ececec] bg-white font-mono text-xs" />
                   </div>
                   <div>
                     <label className="block text-[10px] text-[#777b86]">a*</label>
-                    <input type="number" step="0.01" value={ipqcForm.a} onChange={e => setIpqcForm({ ...ipqcForm, a: Number(e.target.value) })} className="w-full p-2 rounded-[8px] border border-[#ececec] bg-white font-mono text-xs" />
+                    <input type="number" step="0.01" value={ipqcForm.a} onChange={e => setIpqcForm({ ...ipqcForm, a: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] border border-[#ececec] bg-white font-mono text-xs" />
                   </div>
                   <div>
                     <label className="block text-[10px] text-[#777b86]">b*</label>
-                    <input type="number" step="0.01" value={ipqcForm.b} onChange={e => setIpqcForm({ ...ipqcForm, b: Number(e.target.value) })} className="w-full p-2 rounded-[8px] border border-[#ececec] bg-white font-mono text-xs" />
+                    <input type="number" step="0.01" value={ipqcForm.b} onChange={e => setIpqcForm({ ...ipqcForm, b: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] border border-[#ececec] bg-white font-mono text-xs" />
                   </div>
                   <div>
                     <label className="block text-[10px] text-[#777b86] font-bold">ΔE (Delta)</label>
-                    <input type="number" step="0.01" min={0} value={ipqcForm.deltaE} onChange={e => setIpqcForm({ ...ipqcForm, deltaE: Number(e.target.value) })} className="w-full p-2 rounded-[8px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs" />
+                    <input type="number" step="0.01" min={0} value={ipqcForm.deltaE} onChange={e => setIpqcForm({ ...ipqcForm, deltaE: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs" />
                   </div>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-[#ececec] flex justify-end gap-2">
-                <button type="button" onClick={() => setShowIpqcModal(false)} className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer">Cancel</button>
-                <button type="submit" className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-xs cursor-pointer transition active:scale-95 flex items-center gap-1.5">
-                  <Check className="w-4 h-4 text-[#c09748]" />
-                  <span>Save IPQC Inspection</span>
-                </button>
+              <div className="pt-2 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowIpqcModal(false)} className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86]">Cancel</button>
+                <button type="submit" className="px-5 sm:px-6 py-2 sm:py-2.5 rounded-full bg-[#c09748] text-[#17191c] font-semibold">Save IPQC Inspection</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* FULL-SCREEN CANVAS: OQC / PDI RELEASE FORM */}
+      {/* MODAL 3: NEW OQC / PDI RELEASE FORM (WITH SMART PARTY SEARCH & 1-TAP ALL PASS) */}
       {showOqcModal && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                  PK-QA-OQC-001
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  Outgoing Release
-                </span>
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-2xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
+                <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">New OQC / PDI Quality Release (PK-QA-OQC-001)</h3>
+                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Select Party / Work Order to auto-fill release details below</p>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                New OQC / PDI Quality Release
-              </h3>
+              <button onClick={() => setShowOqcModal(false)} className="text-[#979799] hover:text-[#17191c] cursor-pointer p-1">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <button 
-              type="button"
-              onClick={() => setShowOqcModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          {/* Form Body */}
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
-            <form onSubmit={handleOqcSubmit} className="space-y-4">
+            <form onSubmit={handleOqcSubmit} className="space-y-3 sm:space-y-4">
               {/* SMART PARTY / WORK ORDER DROPDOWN AUTO-FILL */}
-              <div className="p-3.5 bg-[#faf3e0]/50 rounded-[16px] border border-[#f4e5be] space-y-1.5">
+              <div className="p-3 bg-[#faf3e0]/50 rounded-[14px] border border-[#f4e5be] space-y-1.5">
                 <label className="block text-[#8a6521] font-bold text-xs flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
                   Select Party Name / Work Order (Auto-Fill Details):
@@ -2686,14 +2622,14 @@ export const QAView: React.FC = () => {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block text-[#777b86] font-medium mb-1">Customer Name</label>
                   <input
                     type="text"
                     value={oqcForm.customer}
                     onChange={e => setOqcForm({ ...oqcForm, customer: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] focus:border-[#c09748] focus:outline-none bg-white"
+                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none"
                     required
                   />
                 </div>
@@ -2703,7 +2639,7 @@ export const QAView: React.FC = () => {
                     type="text"
                     value={oqcForm.woNo}
                     onChange={e => setOqcForm({ ...oqcForm, woNo: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono bg-white"
+                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
                     required
                   />
                 </div>
@@ -2713,14 +2649,14 @@ export const QAView: React.FC = () => {
                     type="text"
                     value={oqcForm.partCode}
                     onChange={e => setOqcForm({ ...oqcForm, partCode: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] focus:border-[#c09748] focus:outline-none bg-white"
+                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none"
                     required
                   />
                 </div>
               </div>
 
               {/* OQC Selection Grid with 1-Tap "Set All Pass" Button */}
-              <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec] space-y-3">
+              <div className="p-3.5 sm:p-4 bg-[#fafafb] rounded-[16px] sm:rounded-[20px] border border-[#ececec] space-y-2.5 sm:space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-[#17191c] text-xs">OQC Outgoing Checklist Options:</span>
                   <button
@@ -2733,7 +2669,7 @@ export const QAView: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                   {[
                     { label: 'Packing (Box Condition)', key: 'packingBoxCondition' },
                     { label: 'Traceability (Batch No)', key: 'traceabilityBatchNo' },
@@ -2742,7 +2678,7 @@ export const QAView: React.FC = () => {
                     { label: 'Conductivity', key: 'conductivity', extraOpt: 'N/A' },
                     { label: 'Adhesion Test', key: 'adhesion' }
                   ].map(item => (
-                    <div key={item.key} className="flex items-center justify-between p-2.5 bg-white rounded-[12px] border border-[#ececec]">
+                    <div key={item.key} className="flex items-center justify-between p-2 sm:p-2.5 bg-white rounded-[12px] border border-[#ececec]">
                       <span className="font-medium text-[#17191c] text-xs">{item.label}</span>
                       <select
                         value={(oqcForm as any)[item.key]}
@@ -2760,7 +2696,7 @@ export const QAView: React.FC = () => {
                 </div>
 
                 {/* Spectrophotometer Delta-E Input for OQC Clearance */}
-                <div className="pt-3 border-t border-[#ececec] flex items-center justify-between">
+                <div className="pt-2 border-t border-[#ececec] flex items-center justify-between">
                   <div>
                     <label className="block text-[11px] font-bold text-[#17191c]">
                       Spectrophotometer ΔE (Colorimetry Verification) *
@@ -2774,9 +2710,9 @@ export const QAView: React.FC = () => {
                       min={0}
                       value={oqcForm.deltaE}
                       onChange={e => setOqcForm({ ...oqcForm, deltaE: Number(e.target.value) })}
-                      className="w-24 p-2 rounded-[8px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs text-center"
+                      className="w-24 p-1.5 rounded-[8px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs text-center"
                     />
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                       oqcForm.deltaE <= 0.70 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
                     }`}>
                       {oqcForm.deltaE <= 0.70 ? '✓ PASS' : '🚨 HOLD'}
@@ -2785,12 +2721,9 @@ export const QAView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-[#ececec] flex justify-end gap-2">
-                <button type="button" onClick={() => setShowOqcModal(false)} className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer">Cancel</button>
-                <button type="submit" className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-xs cursor-pointer transition active:scale-95 flex items-center gap-1.5">
-                  <Check className="w-4 h-4 text-[#c09748]" />
-                  <span>Grant OQC & PDI Clearance</span>
-                </button>
+              <div className="pt-2 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowOqcModal(false)} className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86]">Cancel</button>
+                <button type="submit" className="px-5 sm:px-6 py-2 sm:py-2.5 rounded-full bg-[#c09748] text-[#17191c] font-semibold">Grant OQC & PDI Clearance</button>
               </div>
             </form>
           </div>
@@ -2799,44 +2732,31 @@ export const QAView: React.FC = () => {
 
       {/* MODAL 4: FPA GOLDEN GATE FORM (WITH SMART AUTO-FILL) */}
       {showFpaModal && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                  QA / FPA Gate
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  First Part Approval
-                </span>
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
+                <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">New First Part Approval (FPA) Test</h3>
+                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Select Party / Work Order to auto-fill FPA details below</p>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                New First Part Approval (FPA) Test
-              </h3>
+              <button 
+                onClick={() => setShowFpaModal(false)} 
+                className="font-bold text-[#979799] hover:text-[#17191c] text-base cursor-pointer transition p-1"
+              >
+                ✕
+              </button>
             </div>
-            <button 
-              type="button"
-              onClick={() => setShowFpaModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close Form"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          {/* Body Container */}
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
-            <form onSubmit={handleFpaSubmit} className="space-y-5">
+            <form onSubmit={handleFpaSubmit} className="space-y-3">
               {/* SMART PARTY / WORK ORDER DROPDOWN AUTO-FILL */}
-              <div className="p-4 bg-[#faf3e0]/50 rounded-[18px] border border-[#f4e5be] space-y-2">
+              <div className="p-3 bg-[#faf3e0]/50 rounded-[14px] border border-[#f4e5be] space-y-1.5">
                 <label className="block text-[#8a6521] font-bold text-xs flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-[#c09748]" />
+                  <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
                   Select Party Name / Job Card (Auto-Fill Details):
                 </label>
                 <select
                   onChange={e => selectOrderForFpa(e.target.value)}
-                  className="w-full p-3 rounded-[14px] border border-[#f4e5be] bg-white font-medium text-xs text-[#17191c] cursor-pointer focus:outline-none"
+                  className="w-full p-2.5 rounded-[12px] border border-[#f4e5be] bg-white font-medium text-xs text-[#17191c] cursor-pointer focus:outline-none"
                 >
                   <option value="">-- Choose Party / Job Card to Auto-Populate --</option>
                   {availableOrders.map(o => (
@@ -2847,14 +2767,14 @@ export const QAView: React.FC = () => {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block text-[#777b86] font-medium mb-1">Work Order</label>
                   <input
                     type="text"
                     value={fpaForm.woNo}
                     onChange={e => setFpaForm({ ...fpaForm, woNo: e.target.value })}
-                    className="w-full p-3 rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
+                    className="w-full p-2.5 rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
                     required
                   />
                 </div>
@@ -2864,20 +2784,20 @@ export const QAView: React.FC = () => {
                     type="text"
                     value={fpaForm.jobCardNo}
                     onChange={e => setFpaForm({ ...fpaForm, jobCardNo: e.target.value })}
-                    className="w-full p-3 rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
+                    className="w-full p-2.5 rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
                     required
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                 <div>
                   <label className="block text-[#777b86] font-medium mb-1">Color / Finish</label>
                   <input
                     type="text"
                     value={fpaForm.color}
                     onChange={e => setFpaForm({ ...fpaForm, color: e.target.value })}
-                    className="w-full p-3 rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none"
+                    className="w-full p-2.5 rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none"
                     required
                   />
                 </div>
@@ -2887,7 +2807,7 @@ export const QAView: React.FC = () => {
                     type="number"
                     value={fpaForm.viscositySec}
                     onChange={e => setFpaForm({ ...fpaForm, viscositySec: Math.max(0, Number(e.target.value)) })}
-                    className="w-full p-3 rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none"
+                    className="w-full p-2.5 rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none"
                     min={0}
                     required
                   />
@@ -2895,7 +2815,7 @@ export const QAView: React.FC = () => {
               </div>
 
               {/* Delta-E Spectrophotometer Calculator Card */}
-              <div className={`p-4 sm:p-5 rounded-[20px] border space-y-3 ${
+              <div className={`p-3.5 sm:p-4 rounded-[16px] sm:rounded-[20px] border space-y-2.5 ${
                 isDeltaEPass ? 'bg-[#faf3e0]/40 border-[#f4e5be]' : 'bg-red-50 border-red-300'
               }`}>
                 <div className="flex justify-between items-center text-xs">
@@ -2903,63 +2823,63 @@ export const QAView: React.FC = () => {
                     <Gauge className="w-4 h-4 text-[#c09748]" />
                     Spectrophotometer ΔE
                   </div>
-                  <span className={`px-3 py-1 rounded-full font-bold text-[10px] ${
+                  <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
                     isDeltaEPass ? 'bg-emerald-100 text-emerald-800' : 'bg-red-600 text-white'
                   }`}>
                     {isDeltaEPass ? '✓ PASS' : '🚨 REJECT'}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-4 gap-2">
                   <div>
-                    <label className="block text-[10px] text-[#777b86] font-medium mb-1">L*</label>
+                    <label className="block text-[10px] text-[#777b86] font-medium">L*</label>
                     <input
                       type="number"
                       step="0.01"
                       value={fpaForm.L}
                       onChange={e => setFpaForm({ ...fpaForm, L: Number(e.target.value) })}
-                      className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono focus:border-[#c09748] text-xs focus:outline-none"
+                      className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[12px] border border-[#ececec] bg-white font-mono focus:border-[#c09748] text-xs focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-[#777b86] font-medium mb-1">a*</label>
+                    <label className="block text-[10px] text-[#777b86] font-medium">a*</label>
                     <input
                       type="number"
                       step="0.01"
                       value={fpaForm.a}
                       onChange={e => setFpaForm({ ...fpaForm, a: Number(e.target.value) })}
-                      className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono focus:border-[#c09748] text-xs focus:outline-none"
+                      className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[12px] border border-[#ececec] bg-white font-mono focus:border-[#c09748] text-xs focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-[#777b86] font-medium mb-1">b*</label>
+                    <label className="block text-[10px] text-[#777b86] font-medium">b*</label>
                     <input
                       type="number"
                       step="0.01"
                       value={fpaForm.b}
                       onChange={e => setFpaForm({ ...fpaForm, b: Number(e.target.value) })}
-                      className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono focus:border-[#c09748] text-xs focus:outline-none"
+                      className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[12px] border border-[#ececec] bg-white font-mono focus:border-[#c09748] text-xs focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-[#777b86] font-medium mb-1">ΔE</label>
+                    <label className="block text-[10px] text-[#777b86] font-medium">ΔE</label>
                     <input
                       type="number"
                       step="0.01"
                       min={0}
                       value={fpaForm.deltaE}
                       onChange={e => setFpaForm({ ...fpaForm, deltaE: Math.max(0, Number(e.target.value)) })}
-                      className="w-full p-2.5 rounded-[12px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs text-[#17191c] focus:outline-none"
+                      className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[12px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs text-[#17191c] focus:outline-none"
                     />
                   </div>
                 </div>
               </div>
 
               {/* Adhesion Test Checkbox */}
-              <div className="p-4 sm:p-5 bg-[#fafafb] border border-[#ececec] rounded-[20px] space-y-3">
+              <div className="p-3.5 sm:p-4 bg-[#fafafb] border border-[#ececec] rounded-[16px] sm:rounded-[20px] space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <div className="font-semibold text-[#17191c]">Adhesion & Physical Testing:</div>
-                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                     fpaForm.adhesionPercent === 100 
                       ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
                       : 'bg-red-50 text-red-700 border border-red-200'
@@ -2967,7 +2887,7 @@ export const QAView: React.FC = () => {
                     {fpaForm.adhesionPercent}%
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="block text-[#777b86] font-medium mb-1">Cross-Cut Grid (ASTM 5B)</label>
                     <select
@@ -2977,7 +2897,7 @@ export const QAView: React.FC = () => {
                         const newAdhesion = (val === 'Pass' && fpaForm.tapeTest === 'Pass') ? 100 : 0;
                         setFpaForm({ ...fpaForm, crossCutTest: val, adhesionPercent: newAdhesion });
                       }}
-                      className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white cursor-pointer text-xs focus:border-[#c09748] focus:outline-none"
+                      className="w-full p-2 rounded-[10px] border border-[#ececec] bg-white cursor-pointer text-xs focus:border-[#c09748] focus:outline-none"
                     >
                       <option value="Pass">Pass (100% Adhesion)</option>
                       <option value="Fail">Fail (Flaking / Peeling)</option>
@@ -2992,7 +2912,7 @@ export const QAView: React.FC = () => {
                         const newAdhesion = (fpaForm.crossCutTest === 'Pass' && val === 'Pass') ? 100 : 0;
                         setFpaForm({ ...fpaForm, tapeTest: val, adhesionPercent: newAdhesion });
                       }}
-                      className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white cursor-pointer text-xs focus:border-[#c09748] focus:outline-none"
+                      className="w-full p-2 rounded-[10px] border border-[#ececec] bg-white cursor-pointer text-xs focus:border-[#c09748] focus:outline-none"
                     >
                       <option value="Pass">Pass (Zero Paint Transfer)</option>
                       <option value="Fail">Fail (Paint Lifted)</option>
@@ -3001,20 +2921,19 @@ export const QAView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-[#ececec] flex justify-end gap-2">
+              <div className="pt-2 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowFpaModal(false)}
-                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer hover:bg-[#fafafb] transition"
+                  className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer hover:bg-[#fafafb] transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer transition active:scale-95 flex items-center gap-1.5"
+                  className="px-5 sm:px-6 py-2 sm:py-2.5 rounded-full bg-[#c09748] text-[#17191c] font-semibold shadow-xs hover:bg-[#a97e35] cursor-pointer transition active:scale-95"
                 >
-                  <Check className="w-4 h-4 text-[#c09748]" />
-                  <span>Submit FPA Sign-Off</span>
+                  Submit FPA Sign-Off
                 </button>
               </div>
             </form>
@@ -3023,38 +2942,22 @@ export const QAView: React.FC = () => {
       )}
       {/* MODAL 5: UNIVERSAL PRE-SPRAY SUBSTRATE IQC MODAL */}
       {showUniversalIqcModal && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                  Pre-Spray IQC Gate
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  Substrate Gatekeeper
-                </span>
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
+                <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">Pre-Spray Substrate IQC Inspection</h3>
+                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Inspect raw substrate before releasing to spray booth</p>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Pre-Spray Substrate IQC Inspection
-              </h3>
+              <button onClick={() => setShowUniversalIqcModal(false)} className="text-[#979799] hover:text-[#17191c] cursor-pointer p-1">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <button 
-              type="button"
-              onClick={() => setShowUniversalIqcModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close Form"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          {/* Body Container */}
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
-            <form onSubmit={handleUniIqcSubmit} className="space-y-5">
+            <form onSubmit={handleUniIqcSubmit} className="space-y-4">
               <div>
                 <label className="block text-[#8a6521] font-bold text-xs mb-1.5 flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-[#c09748]" />
+                  <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
                   Select Universal Job ID:
                 </label>
                 <CustomSelect
@@ -3077,7 +2980,7 @@ export const QAView: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[#777b86] font-medium mb-1">Substrate Approved Pcs (Allowed for Spray)</label>
                   <input
@@ -3085,7 +2988,7 @@ export const QAView: React.FC = () => {
                     min={0}
                     value={uniIqcForm.approvedPcs}
                     onChange={e => setUniIqcForm({ ...uniIqcForm, approvedPcs: Number(e.target.value) })}
-                    className="w-full p-3 rounded-[14px] border border-[#ececec] font-mono text-sm font-bold text-emerald-800 focus:border-[#c09748] focus:outline-none"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] font-mono text-sm font-bold text-emerald-800 focus:border-[#c09748] focus:outline-none"
                     required
                   />
                 </div>
@@ -3096,7 +2999,7 @@ export const QAView: React.FC = () => {
                     min={0}
                     value={uniIqcForm.rejectedPcs}
                     onChange={e => setUniIqcForm({ ...uniIqcForm, rejectedPcs: Number(e.target.value) })}
-                    className="w-full p-3 rounded-[14px] border border-[#ececec] font-mono text-sm font-bold text-red-600 focus:border-red-400 focus:outline-none"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] font-mono text-sm font-bold text-red-600 focus:border-red-400 focus:outline-none"
                   />
                 </div>
               </div>
@@ -3106,17 +3009,15 @@ export const QAView: React.FC = () => {
                 <textarea
                   value={uniIqcForm.notes}
                   onChange={e => setUniIqcForm({ ...uniIqcForm, notes: e.target.value })}
-                  rows={3}
-                  className="w-full p-3 rounded-[14px] border border-[#ececec] text-xs focus:border-[#c09748] focus:outline-none"
-                  placeholder="Note down substrate raw defects, surface cleanliness, transit damages, etc."
+                  rows={2}
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] text-xs focus:border-[#c09748] focus:outline-none"
                 />
               </div>
 
-              <div className="pt-4 border-t border-[#ececec] flex justify-end gap-2">
-                <button type="button" onClick={() => setShowUniversalIqcModal(false)} className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer hover:bg-[#fafafb]">Cancel</button>
-                <button type="submit" className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer transition active:scale-95 flex items-center gap-1.5">
-                  <Check className="w-4 h-4 text-[#c09748]" />
-                  <span>Pass Pre-Spray IQC Gate</span>
+              <div className="pt-2 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowUniversalIqcModal(false)} className="px-4 py-2 rounded-full border border-[#ececec] bg-white text-[#777b86]">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-full bg-[#c09748] text-[#17191c] font-bold shadow-xs hover:bg-[#a97e35]">
+                  Pass Pre-Spray IQC Gate
                 </button>
               </div>
             </form>
@@ -3126,38 +3027,22 @@ export const QAView: React.FC = () => {
 
       {/* MODAL 6: UNIVERSAL FINAL QA GATEKEEPER MODAL */}
       {showUniversalQaModal && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                  Final QA Gate
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  Stage Gatekeeper
-                </span>
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
+                <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">Final QA Gatekeeper Sign-Off</h3>
+                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Mandatory stage gate before releasing job for Invoicing & Dispatch</p>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Final QA Gatekeeper Sign-Off
-              </h3>
+              <button onClick={() => setShowUniversalQaModal(false)} className="text-[#979799] hover:text-[#17191c] cursor-pointer p-1">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <button 
-              type="button"
-              onClick={() => setShowUniversalQaModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close Form"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          {/* Body Container */}
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
-            <form onSubmit={handleUniQaSubmit} className="space-y-5">
+            <form onSubmit={handleUniQaSubmit} className="space-y-4">
               <div>
                 <label className="block text-[#8a6521] font-bold text-xs mb-1.5 flex items-center gap-1.5">
-                  <Gauge className="w-4 h-4 text-[#c09748]" />
+                  <Gauge className="w-3.5 h-3.5 text-[#c09748]" />
                   Select Universal Job ID:
                 </label>
                 <CustomSelect
@@ -3181,7 +3066,7 @@ export const QAView: React.FC = () => {
               </div>
 
               {/* Colorimetry & Adhesion parameters */}
-              <div className="p-4 sm:p-5 bg-[#faf3e0]/40 border border-[#f4e5be] rounded-[20px] space-y-3">
+              <div className="p-3.5 bg-[#faf3e0]/40 border border-[#f4e5be] rounded-[16px] space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-[#17191c]">QA Gate Criteria Verification:</span>
                   <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
@@ -3193,7 +3078,7 @@ export const QAView: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] text-[#777b86] font-medium mb-1">Spectrophotometer ΔE (Target ≤ 0.70)</label>
                     <input
@@ -3202,7 +3087,7 @@ export const QAView: React.FC = () => {
                       min={0}
                       value={uniQaForm.deltaE}
                       onChange={e => setUniQaForm({ ...uniQaForm, deltaE: Number(e.target.value) })}
-                      className="w-full p-2.5 rounded-[12px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs"
+                      className="w-full p-2 rounded-[10px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs"
                       required
                     />
                   </div>
@@ -3212,7 +3097,7 @@ export const QAView: React.FC = () => {
                     <select
                       value={uniQaForm.adhesionPass ? 'Pass' : 'Fail'}
                       onChange={e => setUniQaForm({ ...uniQaForm, adhesionPass: e.target.value === 'Pass' })}
-                      className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-bold cursor-pointer"
+                      className="w-full p-2 rounded-[10px] border border-[#ececec] bg-white text-xs font-bold cursor-pointer"
                     >
                       <option value="Pass">Pass (100% Cross-Cut Grid)</option>
                       <option value="Fail">Fail (Paint Flaking / Lift)</option>
@@ -3228,7 +3113,7 @@ export const QAView: React.FC = () => {
                   min={0}
                   value={uniQaForm.finalPassedQty}
                   onChange={e => setUniQaForm({ ...uniQaForm, finalPassedQty: Number(e.target.value) })}
-                  className="w-full p-3 rounded-[14px] border border-[#ececec] font-mono text-sm font-bold text-emerald-800 focus:border-[#c09748] focus:outline-none"
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] font-mono text-sm font-bold text-emerald-800 focus:border-[#c09748] focus:outline-none"
                   required
                 />
               </div>
@@ -3238,17 +3123,15 @@ export const QAView: React.FC = () => {
                 <textarea
                   value={uniQaForm.notes}
                   onChange={e => setUniQaForm({ ...uniQaForm, notes: e.target.value })}
-                  rows={3}
-                  className="w-full p-3 rounded-[14px] border border-[#ececec] text-xs focus:border-[#c09748] focus:outline-none"
-                  placeholder="Enter QA inspection verification remarks..."
+                  rows={2}
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] text-xs focus:border-[#c09748] focus:outline-none"
                 />
               </div>
 
-              <div className="pt-4 border-t border-[#ececec] flex justify-end gap-2">
-                <button type="button" onClick={() => setShowUniversalQaModal(false)} className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer hover:bg-[#fafafb]">Cancel</button>
-                <button type="submit" className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer transition active:scale-95 flex items-center gap-1.5">
-                  <Check className="w-4 h-4 text-[#c09748]" />
-                  <span>Authorize QA Gate Release</span>
+              <div className="pt-2 flex justify-end gap-2">
+                <button type="button" onClick={() => setShowUniversalQaModal(false)} className="px-4 py-2 rounded-full border border-[#ececec] bg-white text-[#777b86]">Cancel</button>
+                <button type="submit" className="px-5 py-2 rounded-full bg-[#17191c] text-[#c09748] font-bold shadow-xs hover:bg-black">
+                  Authorize QA Gate Release
                 </button>
               </div>
             </form>
@@ -3258,36 +3141,24 @@ export const QAView: React.FC = () => {
 
       {/* MODAL 7: MASTER IQC INSPECTION & VERIFICATION MODAL (MULTI-STEP WIZARD) */}
       {showMasterIqcModal && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                  IQC Inspection
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  PK-QA-IQC-001
-                </span>
-              </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Incoming Quality Control (IQC) Inspection
-              </h3>
-            </div>
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-5 overflow-y-auto">
+          <div className="bg-white rounded-[18px] sm:rounded-[20px] max-w-3xl w-full p-4 sm:p-7 md:p-8 shadow-2xl border border-[#ececec] flex flex-col justify-between max-h-[92vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150 relative">
+            
+            {/* Top Close Button */}
             <button 
-              type="button"
               onClick={() => setShowMasterIqcModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
+              className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition z-10"
               title="Close Form"
             >
-              <X className="w-5 h-5 text-[#17191c]" />
+              <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
-          </div>
 
-          {/* Body Container */}
-          <div className="max-w-4xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
-            <div className="text-center space-y-1 pb-1">
-              <p className="text-xs text-[#777b86]">
+            {/* Form Title & Guided Subtitle */}
+            <div className="text-center space-y-1 pb-3 sm:pb-4 pr-6 sm:pr-0">
+              <h2 className="text-lg sm:text-2xl font-bold text-[#17191c] tracking-tight">
+                Incoming Quality Control (IQC) Inspection
+              </h2>
+              <p className="text-[11px] sm:text-xs text-[#777b86]">
                 Verify incoming materials from <span className="font-semibold text-[#17191c]">{masterIqcForm.vendorCustomer}</span> against Challan #{masterIqcForm.invoiceChallanNo}
               </p>
             </div>
@@ -4266,18 +4137,40 @@ export const QAView: React.FC = () => {
 
       {/* MODAL 8: VIEW OFFICIAL MASTER IQC REPORT (RESPONSIVE LUXURY EDITORIAL LAYOUT) */}
       {selectedIqcReportForView && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                  IQC Report
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-[24px] max-w-4xl w-full p-5 sm:p-8 shadow-2xl border border-[#ececec] space-y-6 max-h-[92vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150">
+            
+            {/* Modal Header */}
+            <div className="pb-4 border-b border-[#ececec] space-y-2.5">
+              {/* Row 1: Title & Close Button */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-0.5">
+                  <h3 className="text-lg sm:text-2xl font-serif text-[#17191c] font-normal tracking-tight">
+                    Incoming Quality Inspection Report
+                  </h3>
+                  <p className="text-[11px] font-mono text-[#777b86]">
+                    Official Inward QA Verification Record • PaintKing Surface Solutions
+                  </p>
+                </div>
+
+                <button 
+                  onClick={() => setSelectedIqcReportForView(null)}
+                  className="w-8 h-8 rounded-full bg-[#fafafb] hover:bg-gray-100 text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition shrink-0"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Row 2: Clean Badge Metadata Strip */}
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap text-[10px] sm:text-[11px]">
+                <span className="px-2.5 py-0.5 rounded-full font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                  PK-QA-IQC-001 (Rev 00)
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  {selectedIqcReportForView.reportNo}
+                <span className="font-mono font-bold text-[#17191c] bg-[#fafafb] px-2.5 py-0.5 rounded-full border border-[#ececec]">
+                  Report: {selectedIqcReportForView.reportNo}
                 </span>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                <span className={`px-2.5 py-0.5 rounded-full font-bold border ${
                   selectedIqcReportForView.status === 'Accepted'
                     ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                     : selectedIqcReportForView.status === 'Hold'
@@ -4286,23 +4179,13 @@ export const QAView: React.FC = () => {
                 }`}>
                   {selectedIqcReportForView.status === 'Accepted' ? '✓ Accepted' : selectedIqcReportForView.status}
                 </span>
+                <span className="px-2.5 py-0.5 rounded-full font-mono bg-gray-100 text-[#777b86] border border-gray-200 flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-[#777b86]" />
+                  <span>{selectedIqcReportForView.generatedTimestamp || `${formatDateDDMMYYYY(selectedIqcReportForView.inspectionDate || selectedIqcReportForView.date)} at ${selectedIqcReportForView.inspectionTime || '08:30 AM'}`}</span>
+                </span>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Incoming Quality Inspection Report
-              </h3>
             </div>
-            <button 
-              type="button"
-              onClick={() => setSelectedIqcReportForView(null)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close Report"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          {/* Body Container */}
-          <div className="max-w-5xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
             {/* 8 Structured Summary Cards (2-4 Responsive Grid) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {/* Card 1 */}

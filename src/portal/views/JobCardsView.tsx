@@ -1951,87 +1951,77 @@ export const JobCardsView: React.FC = () => {
 
       {/* Modal 1: Log Shift Progress */}
       {showBatchModal && selectedJobCardForProgress && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold uppercase tracking-wider">
-                  FLOOR BATCH LOG
-                </span>
-                <span className="font-mono text-xs font-bold text-[#c09748]">
-                  {selectedJobCardForProgress.jobCardNo}
-                </span>
-              </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Log Floor Shift Batch Progress
-              </h3>
-            </div>
-            <button 
-              type="button"
-              onClick={handleCloseBatchModal}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
-
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-5 flex-1 text-xs">
-            <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] max-w-md w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[90vh] overflow-y-auto no-scrollbar">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
               <div>
-                <span className="text-[#777b86] block text-[10px] uppercase font-bold">Operator / Painter</span>
+                <h3 className="text-base font-serif font-normal text-[#17191c]">
+                  Log Floor Shift Batch Progress
+                </h3>
+                <p className="text-[11px] text-[#777b86]">
+                  Job Card: <strong className="font-mono text-[#c09748]">{selectedJobCardForProgress.jobCardNo}</strong>
+                </p>
+              </div>
+              <button 
+                onClick={handleCloseBatchModal} 
+                className="font-bold text-[#979799] hover:text-[#17191c] cursor-pointer text-base"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-[#fafafb] rounded-[16px] border border-[#ececec] space-y-1">
+              <div className="flex justify-between">
+                <span className="text-[#777b86]">Operator / Painter:</span>
                 <strong className="text-[#17191c]">{selectedJobCardForProgress.assignedPainterName || selectedJobCardForProgress.painterName}</strong>
               </div>
-              <div>
-                <span className="text-[#777b86] block text-[10px] uppercase font-bold">Color Shade</span>
+              <div className="flex justify-between">
+                <span className="text-[#777b86]">Color Shade:</span>
                 <strong className="text-[#17191c]">{selectedJobCardForProgress.color}</strong>
               </div>
-              <div>
-                <span className="text-[#777b86] block text-[10px] uppercase font-bold">Target Cap</span>
+              <div className="flex justify-between">
+                <span className="text-[#777b86]">Target Cap:</span>
                 <strong className="text-[#17191c] font-mono">{selectedJobCardForProgress.targetQty} pcs</strong>
               </div>
-              <div>
-                <span className="text-[#777b86] block text-[10px] uppercase font-bold">Currently Sprayed</span>
-                <strong className="text-emerald-700 font-mono">{selectedJobCardForProgress.sprayedQty} pcs</strong>
+              <div className="flex justify-between">
+                <span className="text-[#777b86]">Currently Sprayed:</span>
+                <strong className="text-[#17191c] font-mono">{selectedJobCardForProgress.sprayedQty} pcs</strong>
               </div>
             </div>
 
-            <form onSubmit={handleProgressSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[#17191c] font-semibold mb-1">Additional Sprayed Pcs</label>
-                  <input
-                    type="number"
-                    value={addedSprayed}
-                    onChange={e => setAddedSprayed(Math.max(0, Number(e.target.value)))}
-                    className="w-full p-3 rounded-[14px] border border-[#ececec] font-serif text-lg font-normal text-[#17191c] focus:border-[#c09748] focus:outline-none bg-white"
-                    min={0}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[#17191c] font-semibold mb-1">Shift Rejection Pcs</label>
-                  <input
-                    type="number"
-                    value={addedReject}
-                    onChange={e => setAddedReject(Math.max(0, Number(e.target.value)))}
-                    className="w-full p-3 rounded-[14px] border border-[#ececec] font-serif text-lg font-normal text-red-600 focus:border-red-400 focus:outline-none bg-white"
-                    min={0}
-                    required
-                  />
-                </div>
+            <form onSubmit={handleProgressSubmit} className="space-y-3">
+              <div>
+                <label className="block text-[#777b86] font-medium mb-1">Additional Sprayed Pcs</label>
+                <input
+                  type="number"
+                  value={addedSprayed}
+                  onChange={e => setAddedSprayed(Math.max(0, Number(e.target.value)))}
+                  className="w-full p-2.5 rounded-[16px] border border-[#ececec] font-serif text-lg font-normal text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                  min={0}
+                  required
+                />
               </div>
 
               <div>
-                <label className="block text-[#17191c] font-semibold mb-1">
+                <label className="block text-[#777b86] font-medium mb-1">Shift Rejection Pcs</label>
+                <input
+                  type="number"
+                  value={addedReject}
+                  onChange={e => setAddedReject(Math.max(0, Number(e.target.value)))}
+                  className="w-full p-2.5 rounded-[16px] border border-[#ececec] font-serif text-lg font-normal text-red-600 focus:border-red-400 focus:outline-none"
+                  min={0}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[#777b86] font-medium mb-1">
                   Defect Category (PK_Master Defect Library)
                 </label>
                 <select
                   value={selectedDefectCategory}
                   onChange={e => setSelectedDefectCategory(e.target.value)}
-                  className="w-full p-3 rounded-[14px] border border-[#ececec] bg-white text-[#17191c] text-xs font-medium focus:border-[#c09748] focus:outline-none cursor-pointer"
+                  className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white text-[#17191c] text-xs font-medium focus:border-[#c09748] focus:outline-none cursor-pointer"
                 >
                   {defects.map(d => (
                     <option key={d.code} value={d.code}>
@@ -2041,7 +2031,7 @@ export const JobCardsView: React.FC = () => {
                 </select>
               </div>
 
-              <div className="pt-4 border-t border-[#ececec] flex justify-end gap-2.5">
+              <div className="pt-2 flex justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={handleCloseBatchModal}
@@ -2063,39 +2053,31 @@ export const JobCardsView: React.FC = () => {
 
       {/* Modal 2: Split Master Card Across 3 Dedicated Painters */}
       {showSplitModal && selectedMasterForSplit && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold uppercase tracking-wider">
-                  MASTER BATCH SPLIT
-                </span>
-                <span className="font-mono text-xs font-bold text-[#c09748]">
-                  {selectedMasterForSplit.jobCardNo} ({selectedMasterForSplit.targetQty} Pcs)
-                </span>
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] max-w-lg w-full p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
+                <h3 className="text-base font-serif font-normal text-[#17191c]">
+                  Split Master Batch Across 3 Line Painters
+                </h3>
+                <p className="text-[11px] text-[#777b86]">
+                  Master: <strong className="font-mono text-[#c09748]">{selectedMasterForSplit.jobCardNo}</strong> ({selectedMasterForSplit.targetQty} Pcs)
+                </p>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Split Master Batch Across 3 Line Painters
-              </h3>
+              <button 
+                onClick={() => setShowSplitModal(false)}
+                className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base"
+              >
+                ✕
+              </button>
             </div>
-            <button 
-              type="button"
-              onClick={() => setShowSplitModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-5 flex-1 text-xs">
             <p className="text-[#777b86] leading-relaxed">
               In accordance with PaintKing floor policy, every batch is split across 3 line painters for piece accountability, individual yield calculation, and rework traceability.
             </p>
 
-            <form onSubmit={handleSplitSubmit} className="space-y-4">
-              <div className="space-y-3.5 p-4 bg-[#fafafb] rounded-[20px] border border-[#ececec]">
+            <form onSubmit={handleSplitSubmit} className="space-y-3.5">
+              <div className="space-y-3 p-3.5 bg-[#fafafb] rounded-[18px] border border-[#ececec]">
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-[#17191c] font-semibold">
@@ -2104,7 +2086,7 @@ export const JobCardsView: React.FC = () => {
                     <select
                       value={p1Painter}
                       onChange={e => setP1Painter(e.target.value)}
-                      className="text-xs p-1.5 rounded-[10px] border border-[#ececec] bg-white font-medium text-[#17191c]"
+                      className="text-xs p-1 rounded-[8px] border border-[#ececec] bg-white font-medium text-[#17191c]"
                     >
                       {availablePainters.map(p => (
                         <option key={p} value={p}>{p}</option>
@@ -2116,7 +2098,7 @@ export const JobCardsView: React.FC = () => {
                     value={p1Qty}
                     onChange={e => setP1Qty(Number(e.target.value))}
                     min={0}
-                    className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c]"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c]"
                     required
                   />
                 </div>
@@ -2129,7 +2111,7 @@ export const JobCardsView: React.FC = () => {
                     <select
                       value={p2Painter}
                       onChange={e => setP2Painter(e.target.value)}
-                      className="text-xs p-1.5 rounded-[10px] border border-[#ececec] bg-white font-medium text-[#17191c]"
+                      className="text-xs p-1 rounded-[8px] border border-[#ececec] bg-white font-medium text-[#17191c]"
                     >
                       {availablePainters.map(p => (
                         <option key={p} value={p}>{p}</option>
@@ -2141,7 +2123,7 @@ export const JobCardsView: React.FC = () => {
                     value={p2Qty}
                     onChange={e => setP2Qty(Number(e.target.value))}
                     min={0}
-                    className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c]"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c]"
                     required
                   />
                 </div>
@@ -2154,7 +2136,7 @@ export const JobCardsView: React.FC = () => {
                     <select
                       value={p3Painter}
                       onChange={e => setP3Painter(e.target.value)}
-                      className="text-xs p-1.5 rounded-[10px] border border-[#ececec] bg-white font-medium text-[#17191c]"
+                      className="text-xs p-1 rounded-[8px] border border-[#ececec] bg-white font-medium text-[#17191c]"
                     >
                       {availablePainters.map(p => (
                         <option key={p} value={p}>{p}</option>
@@ -2166,15 +2148,15 @@ export const JobCardsView: React.FC = () => {
                     value={p3Qty}
                     onChange={e => setP3Qty(Number(e.target.value))}
                     min={0}
-                    className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c]"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c]"
                     required
                   />
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-[14px] bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-between text-xs">
+              <div className="p-3 rounded-[12px] bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-between text-xs">
                 <span className="text-[#8a6521] font-semibold">Total Split vs Target Cap:</span>
-                <span className={`font-mono font-bold text-sm ${
+                <span className={`font-mono font-bold ${
                   (Number(p1Qty) + Number(p2Qty) + Number(p3Qty)) === selectedMasterForSplit.targetQty
                     ? 'text-emerald-800'
                     : 'text-red-700'
@@ -2183,7 +2165,7 @@ export const JobCardsView: React.FC = () => {
                 </span>
               </div>
 
-              <div className="pt-3 flex justify-end gap-2.5">
+              <div className="pt-2 flex justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowSplitModal(false)}
@@ -2205,45 +2187,37 @@ export const JobCardsView: React.FC = () => {
 
       {/* Modal 3: Route Rejection to Dedicated Rework Child Card */}
       {showReworkModal && selectedCardForRework && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-900 text-[10px] font-mono font-bold uppercase tracking-wider">
-                  REWORK & SALVAGE DESK
-                </span>
-                <span className="font-mono text-xs font-bold text-[#c09748]">
-                  Source: {selectedCardForRework.jobCardNo}
-                </span>
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] max-w-md w-full p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
+                <h3 className="text-base font-serif font-normal text-[#17191c]">
+                  Route Parts to Rework & Salvage Hub
+                </h3>
+                <p className="text-[11px] text-[#777b86]">
+                  Source: <strong className="font-mono text-[#c09748]">{selectedCardForRework.jobCardNo}</strong>
+                </p>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Route Parts to Rework & Salvage Hub
-              </h3>
+              <button 
+                onClick={() => setShowReworkModal(false)}
+                className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base"
+              >
+                ✕
+              </button>
             </div>
-            <button 
-              type="button"
-              onClick={() => setShowReworkModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-5 flex-1 text-xs">
             <p className="text-[#777b86] leading-relaxed">
               At PaintKing, rejected parts are not scrapped prematurely. Flagged pieces enter a dedicated Rework Child Card for de-nibbing, touch-up sanding, re-spraying, and re-baking to salvage yield.
             </p>
 
-            <form onSubmit={handleReworkSubmit} className="space-y-4">
+            <form onSubmit={handleReworkSubmit} className="space-y-3.5">
               <div>
                 <label className="block text-[#17191c] font-semibold mb-1">Rework Quantity (Pcs)</label>
                 <input
                   type="number"
                   value={reworkQty}
                   onChange={e => setReworkQty(Math.max(1, Number(e.target.value)))}
-                  className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c]"
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c]"
                   min={1}
                   required
                 />
@@ -2254,7 +2228,7 @@ export const JobCardsView: React.FC = () => {
                 <select
                   value={reworkDefect}
                   onChange={e => setReworkDefect(e.target.value as DefectCategory)}
-                  className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer"
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer"
                 >
                   <option value="dust_nibs">Dust Nibs (Surface Dust / Particles)</option>
                   <option value="paint_run">Paint Run / Sagging</option>
@@ -2271,13 +2245,13 @@ export const JobCardsView: React.FC = () => {
                 <textarea
                   value={reworkInstruction}
                   onChange={e => setReworkInstruction(e.target.value)}
-                  rows={4}
-                  className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white text-xs leading-relaxed"
+                  rows={3}
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs leading-relaxed"
                   required
                 />
               </div>
 
-              <div className="pt-3 border-t border-[#ececec] flex justify-end gap-2.5">
+              <div className="pt-2 flex justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowReworkModal(false)}
@@ -2311,45 +2285,37 @@ export const JobCardsView: React.FC = () => {
 
       {/* Modal 5: Raise Material Requisition (MRN) to Store */}
       {showRequisitionModal && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[90vh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
                 <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
                   PK-PRD-MRN-001 • DEMAND NOTE
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  Plant: {activePlant}
-                </span>
+                <h3 className="text-base sm:text-lg font-serif font-normal text-[#17191c] mt-1">
+                  Demand Raw Material from Stores (MRN)
+                </h3>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Demand Raw Material from Stores (MRN)
-              </h3>
+              <button 
+                onClick={() => setShowRequisitionModal(false)}
+                className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base font-bold"
+              >
+                ✕
+              </button>
             </div>
-            <button 
-              type="button"
-              onClick={() => setShowRequisitionModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-5 flex-1 text-xs">
             <p className="text-[#777b86] leading-relaxed">
               Shop floor production ke liye raw substrate components ya paint batches demand karein. Store Manager is request ke against official MIN slip issue karega. Material physical receive hone ke baad floor par Job Card generate hoga.
             </p>
 
-            <form onSubmit={handleRequisitionSubmit} className="space-y-4">
+            <form onSubmit={handleRequisitionSubmit} className="space-y-3.5">
               {/* Target Line / Booth Selection */}
               <div>
                 <label className="block text-[#17191c] font-semibold mb-1">Target Painting Line / Spray Booth</label>
                 <select
                   value={targetLineForReq}
                   onChange={e => setTargetLineForReq(e.target.value)}
-                  className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white text-xs font-semibold text-[#17191c] cursor-pointer"
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-semibold text-[#17191c] cursor-pointer"
                 >
                   {paintingLines.map(line => (
                     <option key={line.id} value={line.name}>
@@ -2362,14 +2328,14 @@ export const JobCardsView: React.FC = () => {
               {/* Allocation Mode: New Batch vs Existing Job Card */}
               <div>
                 <label className="block text-[#17191c] font-semibold mb-1">Demand Purpose / Allocation Mode</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => {
                       setReqAllocationMode('new_batch');
                       setReqJobCardNo('Pending Job Card Creation');
                     }}
-                    className={`p-3 rounded-[14px] text-xs font-semibold border text-left cursor-pointer transition ${
+                    className={`p-2.5 rounded-[12px] text-xs font-semibold border text-left cursor-pointer transition ${
                       reqAllocationMode === 'new_batch'
                         ? 'border-[#c09748] bg-[#faf7ed] text-[#8a6521]'
                         : 'border-[#ececec] bg-white text-[#777b86]'
@@ -2387,7 +2353,7 @@ export const JobCardsView: React.FC = () => {
                       setReqAllocationMode('existing_jc');
                       if (jobCards.length > 0) handleSelectJobCardInModal(jobCards[0].jobCardNo);
                     }}
-                    className={`p-3 rounded-[14px] text-xs font-semibold border text-left cursor-pointer transition ${
+                    className={`p-2.5 rounded-[12px] text-xs font-semibold border text-left cursor-pointer transition ${
                       reqAllocationMode === 'existing_jc'
                         ? 'border-[#c09748] bg-[#faf7ed] text-[#8a6521]'
                         : 'border-[#ececec] bg-white text-[#777b86]'
@@ -2407,7 +2373,7 @@ export const JobCardsView: React.FC = () => {
                   <select
                     value={reqJobCardNo}
                     onChange={e => handleSelectJobCardInModal(e.target.value)}
-                    className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer"
                     required
                   >
                     {jobCards.map(j => (
@@ -2433,7 +2399,7 @@ export const JobCardsView: React.FC = () => {
                         setReqUom(selected.uom);
                       }
                     }}
-                    className="w-full p-3 rounded-[12px] border border-[#ececec] bg-[#fafafb] text-xs font-medium cursor-pointer text-[#17191c]"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-[#fafafb] text-xs font-medium cursor-pointer text-[#17191c]"
                   >
                     <option value="">-- Choose from available store inward stock --</option>
                     {storeStockList.filter(s => s.balanceAvailable > 0).map(s => (
@@ -2445,7 +2411,7 @@ export const JobCardsView: React.FC = () => {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[#17191c] font-semibold mb-1">Customer / Party</label>
                   <input
@@ -2453,7 +2419,7 @@ export const JobCardsView: React.FC = () => {
                     value={reqCustomer}
                     onChange={e => setReqCustomer(e.target.value)}
                     readOnly={reqAllocationMode === 'existing_jc'}
-                    className={`w-full p-3 rounded-[12px] border border-[#ececec] text-xs font-semibold text-[#17191c] ${
+                    className={`w-full p-2.5 rounded-[12px] border border-[#ececec] text-xs font-semibold text-[#17191c] ${
                       reqAllocationMode === 'existing_jc' ? 'bg-gray-50' : 'bg-white'
                     }`}
                     required
@@ -2466,14 +2432,14 @@ export const JobCardsView: React.FC = () => {
                     value={reqWoNo}
                     onChange={e => setReqWoNo(e.target.value)}
                     readOnly={reqAllocationMode === 'existing_jc'}
-                    className={`w-full p-3 rounded-[12px] border border-[#ececec] font-mono text-xs text-[#17191c] ${
+                    className={`w-full p-2.5 rounded-[12px] border border-[#ececec] font-mono text-xs text-[#17191c] ${
                       reqAllocationMode === 'existing_jc' ? 'bg-gray-50' : 'bg-white'
                     }`}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[#17191c] font-semibold mb-1">Part Code</label>
                   <input
@@ -2481,7 +2447,7 @@ export const JobCardsView: React.FC = () => {
                     value={reqPartCode}
                     onChange={e => setReqPartCode(e.target.value)}
                     readOnly={reqAllocationMode === 'existing_jc'}
-                    className={`w-full p-3 rounded-[12px] border border-[#ececec] font-mono font-bold text-xs text-[#8a6521] ${
+                    className={`w-full p-2.5 rounded-[12px] border border-[#ececec] font-mono font-bold text-xs text-[#8a6521] ${
                       reqAllocationMode === 'existing_jc' ? 'bg-gray-50' : 'bg-white'
                     }`}
                     required
@@ -2493,7 +2459,7 @@ export const JobCardsView: React.FC = () => {
                     type="text"
                     value={reqColor}
                     onChange={e => setReqColor(e.target.value)}
-                    className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white text-xs text-[#17191c]"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs text-[#17191c]"
                   />
                 </div>
               </div>
@@ -2505,21 +2471,21 @@ export const JobCardsView: React.FC = () => {
                   value={reqPartDesc}
                   onChange={e => setReqPartDesc(e.target.value)}
                   readOnly={reqAllocationMode === 'existing_jc'}
-                  className={`w-full p-3 rounded-[12px] border border-[#ececec] text-xs font-medium text-[#17191c] ${
+                  className={`w-full p-2.5 rounded-[12px] border border-[#ececec] text-xs font-medium text-[#17191c] ${
                     reqAllocationMode === 'existing_jc' ? 'bg-gray-50' : 'bg-white'
                   }`}
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[#17191c] font-semibold mb-1">Requested Quantity</label>
                   <input
                     type="number"
                     value={reqQty}
                     onChange={e => setReqQty(Math.max(1, Number(e.target.value)))}
-                    className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c]"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c]"
                     min={1}
                     required
                   />
@@ -2529,7 +2495,7 @@ export const JobCardsView: React.FC = () => {
                   <select
                     value={reqUom}
                     onChange={e => setReqUom(e.target.value)}
-                    className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer"
                   >
                     <option value="Pcs">Pcs (Molded Substrates)</option>
                     <option value="Litres">Litres (Basecoat/Clear)</option>
@@ -2539,13 +2505,13 @@ export const JobCardsView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[#17191c] font-semibold mb-1">Urgency Level</label>
                   <select
                     value={reqUrgency}
                     onChange={e => setReqUrgency(e.target.value as any)}
-                    className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer"
                   >
                     <option value="Normal">Normal Production Run</option>
                     <option value="High (Line Stoppage Risk)">High (Line Stoppage Risk)</option>
@@ -2558,17 +2524,17 @@ export const JobCardsView: React.FC = () => {
                     type="text"
                     value={reqRequestedBy}
                     onChange={e => setReqRequestedBy(e.target.value)}
-                    className="w-full p-3 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium text-[#17191c]"
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium text-[#17191c]"
                     required
                   />
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-[#ececec] flex justify-end gap-2.5">
+              <div className="pt-2 flex justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowRequisitionModal(false)}
-                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer hover:bg-gray-50 transition"
+                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -2587,39 +2553,31 @@ export const JobCardsView: React.FC = () => {
 
       {/* Modal 6: Floor Custody Verification & Acceptance Handshake */}
       {showAcceptModal && selectedReqForAccept && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[90vh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
                 <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono uppercase tracking-widest font-bold">
                   PK-CUSTODY-VERIFY • FLOOR INWARD
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  {selectedReqForAccept.mrnNo}
-                </span>
+                <h3 className="text-base sm:text-lg font-serif font-normal text-[#17191c] mt-1">
+                  Floor Custody Acceptance & Handshake
+                </h3>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Floor Custody Acceptance & Handshake
-              </h3>
+              <button 
+                onClick={() => setShowAcceptModal(false)}
+                className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base font-bold"
+              >
+                ✕
+              </button>
             </div>
-            <button 
-              type="button"
-              onClick={() => setShowAcceptModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
             <p className="text-[#777b86] leading-relaxed">
               Store se aane wale material trolley ko physically count karein. Agar physical count aur Store MIN slip count me farak hai toh discrepancy record karein.
             </p>
 
             {/* Store Issue Metadata Card */}
-            <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-2.5">
+            <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[#777b86]">Demanded Requisition:</span>
                 <strong className="font-mono text-[#c09748]">{selectedReqForAccept.mrnNo}</strong>
@@ -2632,7 +2590,7 @@ export const JobCardsView: React.FC = () => {
                 <span className="text-[#777b86]">Target Job Card:</span>
                 <strong className="font-mono text-[#17191c]">{selectedReqForAccept.jobCardNo} ({selectedReqForAccept.customer})</strong>
               </div>
-              <div className="flex items-center justify-between text-xs pt-2 border-t border-[#ececec]">
+              <div className="flex items-center justify-between text-xs">
                 <span className="text-[#777b86]">Store Dispatched Qty:</span>
                 <strong className="font-mono text-sm text-[#8a6521]">
                   {selectedReqForAccept.issuedQty || selectedReqForAccept.requestedQty} {selectedReqForAccept.uom}
@@ -2640,7 +2598,7 @@ export const JobCardsView: React.FC = () => {
               </div>
             </div>
 
-            <form onSubmit={handleAcceptSubmit} className="space-y-4">
+            <form onSubmit={handleAcceptSubmit} className="space-y-3.5">
               <div>
                 <label className="block text-[#17191c] font-semibold mb-1">
                   Physical Count Verified on Floor ({selectedReqForAccept.uom})
@@ -2649,13 +2607,13 @@ export const JobCardsView: React.FC = () => {
                   type="number"
                   value={actualReceivedCount}
                   onChange={e => setActualReceivedCount(Math.max(0, Number(e.target.value)))}
-                  className="w-full p-3 rounded-[16px] border border-[#ececec] bg-white font-mono font-bold text-base text-[#17191c]"
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-base text-[#17191c]"
                   min={0}
                   required
                 />
                 {(selectedReqForAccept.issuedQty || selectedReqForAccept.requestedQty) !== actualReceivedCount && (
-                  <div className="mt-2 p-3 rounded-[14px] bg-rose-50 border border-rose-200 text-rose-800 text-[11px] flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <div className="mt-1.5 p-2 rounded-[10px] bg-rose-50 border border-rose-200 text-rose-800 text-[11px] flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
                     <span>
                       Count Discrepancy Detected: {(selectedReqForAccept.issuedQty || selectedReqForAccept.requestedQty) - actualReceivedCount > 0
                         ? `${(selectedReqForAccept.issuedQty || selectedReqForAccept.requestedQty) - actualReceivedCount} Pieces Shortage from Store`
@@ -2671,7 +2629,7 @@ export const JobCardsView: React.FC = () => {
                   <select
                     value={discrepancyReasonChoice}
                     onChange={e => setDiscrepancyReasonChoice(e.target.value as any)}
-                    className="w-full p-3 rounded-[16px] border border-rose-300 bg-rose-50/50 text-xs font-medium cursor-pointer"
+                    className="w-full p-2.5 rounded-[12px] border border-rose-300 bg-rose-50/50 text-xs font-medium cursor-pointer"
                   >
                     <option value="Count Shortage from Store">Count Shortage from Store</option>
                     <option value="Damaged in Trolley Transit">Damaged in Trolley Transit</option>
@@ -2687,7 +2645,7 @@ export const JobCardsView: React.FC = () => {
                   type="text"
                   value={acceptingPerson}
                   onChange={e => setAcceptingPerson(e.target.value)}
-                  className="w-full p-3 rounded-[16px] border border-[#ececec] bg-white text-xs font-medium text-[#17191c]"
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium text-[#17191c]"
                   required
                 />
               </div>
@@ -2697,16 +2655,16 @@ export const JobCardsView: React.FC = () => {
                 <textarea
                   value={acceptRemarks}
                   onChange={e => setAcceptRemarks(e.target.value)}
-                  rows={3}
-                  className="w-full p-3 rounded-[16px] border border-[#ececec] bg-white text-xs leading-relaxed"
+                  rows={2}
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs leading-relaxed"
                 />
               </div>
 
-              <div className="pt-4 flex justify-end gap-2.5">
+              <div className="pt-2 flex justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowAcceptModal(false)}
-                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white hover:bg-[#f2f2f3] text-[#777b86] font-medium cursor-pointer transition"
+                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -2725,34 +2683,26 @@ export const JobCardsView: React.FC = () => {
 
       {/* Modal 8: Inter-Stage Floor Verification & Handshake */}
       {showStageReceiptModal && selectedJcForStageReceipt && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] max-w-md w-full p-5 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
                 <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
                   STAGE HANDSHAKE & VERIFICATION
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  {selectedJcForStageReceipt.jobCardNo}
-                </span>
+                <h3 className="text-base font-serif font-normal text-[#17191c] mt-1">
+                  {targetStageKey === 'first' ? 'Stage 1: Base Coat Inward' : targetStageKey === 'second' ? 'Stage 2: Dipping / UV Inward' : 'Stage 3: Clear Lacquer / Top Coat'}
+                </h3>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                {targetStageKey === 'first' ? 'Stage 1: Base Coat Inward' : targetStageKey === 'second' ? 'Stage 2: Dipping / UV Inward' : 'Stage 3: Clear Lacquer / Top Coat'}
-              </h3>
+              <button 
+                onClick={() => setShowStageReceiptModal(false)}
+                className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base font-bold"
+              >
+                ✕
+              </button>
             </div>
-            <button 
-              type="button"
-              onClick={() => setShowStageReceiptModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
-            <div className="p-4 bg-[#fafafb] rounded-[20px] border border-[#ececec] space-y-2">
+            <div className="p-3 bg-[#fafafb] rounded-[16px] border border-[#ececec] space-y-1.5">
               <div className="flex justify-between text-xs">
                 <span className="text-[#777b86]">Job Card:</span>
                 <span className="font-mono font-bold text-[#c09748]">{selectedJcForStageReceipt.jobCardNo}</span>
@@ -2761,13 +2711,13 @@ export const JobCardsView: React.FC = () => {
                 <span className="text-[#777b86]">Part & Client:</span>
                 <span className="font-semibold text-[#17191c]">{selectedJcForStageReceipt.partDescription} ({selectedJcForStageReceipt.customer})</span>
               </div>
-              <div className="flex justify-between text-xs pt-2 border-t border-[#ececec]">
+              <div className="flex justify-between text-xs pt-1 border-t border-[#ececec]">
                 <span className="text-[#777b86]">Prior Stage Expected Pieces:</span>
                 <span className="font-mono font-bold text-sm text-[#17191c]">{stageExpectedCount} Pcs</span>
               </div>
             </div>
 
-            <form onSubmit={handleStageReceiptSubmit} className="space-y-4">
+            <form onSubmit={handleStageReceiptSubmit} className="space-y-3.5">
               <div>
                 <label className="block text-[#17191c] font-semibold mb-1">
                   Physical Verified Count (Pcs)
@@ -2777,12 +2727,12 @@ export const JobCardsView: React.FC = () => {
                   value={stageVerifiedCount}
                   onChange={e => setStageVerifiedCount(Number(e.target.value))}
                   min={0}
-                  className="w-full p-3 rounded-[16px] border border-[#ececec] bg-white text-base font-mono font-bold text-[#17191c]"
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-base font-mono font-bold text-[#17191c]"
                   required
                 />
                 {stageVerifiedCount !== stageExpectedCount && (
-                  <div className="mt-2 p-3 rounded-[14px] bg-rose-50 border border-rose-200 text-rose-800 text-[11px] flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <div className="mt-1.5 p-2 rounded-[10px] bg-rose-50 border border-rose-200 text-rose-800 text-[11px] flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
                     <span>
                       Count Variance: {stageExpectedCount - stageVerifiedCount > 0 
                         ? `-${stageExpectedCount - stageVerifiedCount} Pcs Shortage from previous stage` 
@@ -2798,7 +2748,7 @@ export const JobCardsView: React.FC = () => {
                   type="text"
                   value={stageReceiptOperator}
                   onChange={e => setStageReceiptOperator(e.target.value)}
-                  className="w-full p-3 rounded-[16px] border border-[#ececec] bg-white text-xs font-medium text-[#17191c]"
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium text-[#17191c]"
                   required
                 />
               </div>
@@ -2808,16 +2758,16 @@ export const JobCardsView: React.FC = () => {
                 <textarea
                   value={stageHandshakeNotes}
                   onChange={e => setStageHandshakeNotes(e.target.value)}
-                  rows={3}
-                  className="w-full p-3 rounded-[16px] border border-[#ececec] bg-white text-xs leading-relaxed"
+                  rows={2}
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs leading-relaxed"
                 />
               </div>
 
-              <div className="pt-4 flex justify-end gap-2.5">
+              <div className="pt-2 flex justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowStageReceiptModal(false)}
-                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white hover:bg-[#f2f2f3] text-[#777b86] font-medium cursor-pointer transition"
+                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -2836,59 +2786,51 @@ export const JobCardsView: React.FC = () => {
 
       {/* Modal 7: Painting Lines & Spray Booth Fleet Management */}
       {showLineFleetModal && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[90vh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
                 <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
                   PLANT CONFIGURATION • BOOTH FLEET
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  {paintingLines.length} Units Active
-                </span>
+                <h3 className="text-base sm:text-lg font-serif font-normal text-[#17191c] mt-1">
+                  Manage Painting Lines & Spray Booth Fleet
+                </h3>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Manage Painting Lines & Spray Booth Fleet
-              </h3>
+              <button
+                onClick={() => setShowLineFleetModal(false)}
+                className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base font-bold"
+              >
+                ✕
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowLineFleetModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          <div className="max-w-4xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
             <p className="text-[#777b86] leading-relaxed">
               Production Manager apne plant ke active spray booths, conveyor lines aur UV/hydrographic lines yahan configure kar sakte hain. Daily planning offline hoti hai aur line ke anusaar material demand kiya jata hai.
             </p>
 
             {/* List of current lines */}
-            <div className="space-y-3">
-              <label className="block text-[#17191c] font-semibold text-sm">Active Plant Booths ({paintingLines.length})</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <label className="block text-[#17191c] font-semibold">Active Plant Booths ({paintingLines.length})</label>
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                 {paintingLines.map(line => (
                   <div
                     key={line.id}
-                    className="p-4 rounded-[20px] border border-[#ececec] bg-[#fafafb] flex items-center justify-between gap-3 shadow-2xs"
+                    className="p-3 rounded-[16px] border border-[#ececec] bg-[#fafafb] flex items-center justify-between gap-3"
                   >
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold text-xs text-[#8a6521]">{line.id}</span>
                         <span className="font-semibold text-xs text-[#17191c]">{line.name}</span>
                       </div>
-                      <div className="text-[10px] text-[#777b86] mt-1">{line.type}</div>
+                      <div className="text-[10px] text-[#777b86] mt-0.5">{line.type}</div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => handleToggleLineStatus(line.id)}
-                        className={`px-3 py-1 rounded-full text-[10px] font-bold cursor-pointer transition border ${
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition border ${
                           line.status === 'Active'
                             ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                             : 'bg-amber-50 text-amber-800 border-amber-300'
@@ -2901,10 +2843,10 @@ export const JobCardsView: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleDeleteLine(line.id)}
-                          className="p-1.5 rounded-full text-[#979799] hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                          className="p-1 rounded-full text-[#979799] hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
                           title="Remove Line"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
@@ -2914,57 +2856,55 @@ export const JobCardsView: React.FC = () => {
             </div>
 
             {/* Form to add a new line */}
-            <form onSubmit={handleAddLine} className="p-5 rounded-[20px] border border-[#f4e5be] bg-[#faf7ed]/60 space-y-4">
+            <form onSubmit={handleAddLine} className="p-3.5 rounded-[16px] border border-[#f4e5be] bg-[#faf7ed]/60 space-y-3">
               <div className="font-bold text-xs text-[#8a6521] flex items-center gap-1.5">
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
                 <span>Add New Painting Booth / Line</span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-semibold text-[#17191c] mb-1">Booth / Line Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Booth #5 (High Gloss Robotic PU Spray)"
-                    value={newLineName}
-                    onChange={e => setNewLineName(e.target.value)}
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs text-[#17191c]"
-                    required
-                  />
-                </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17191c] mb-1">Booth / Line Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Booth #5 (High Gloss Robotic PU Spray)"
+                  value={newLineName}
+                  onChange={e => setNewLineName(e.target.value)}
+                  className="w-full p-2 rounded-[10px] border border-[#ececec] bg-white text-xs text-[#17191c]"
+                  required
+                />
+              </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-[#17191c] mb-1">Process Technology / Type</label>
-                  <select
-                    value={newLineType}
-                    onChange={e => setNewLineType(e.target.value)}
-                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs cursor-pointer text-[#17191c]"
-                  >
-                    <option value="Conveyor Liquid PU">Conveyor Liquid PU</option>
-                    <option value="Dust-Free Cleanroom 2K">Dust-Free Cleanroom 2K</option>
-                    <option value="Water Transfer Hydrographic">Water Transfer Hydrographic (Dipping)</option>
-                    <option value="Direct Flatbed UV Plotter">Direct Flatbed UV Plotter</option>
-                    <option value="Manual Spray Booth">Manual Spray Booth</option>
-                    <option value="Thermoplastic Injection Molding">Thermoplastic Injection Molding</option>
-                    <option value="Thermal Curing Oven">Thermal Curing Oven</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17191c] mb-1">Process Technology / Type</label>
+                <select
+                  value={newLineType}
+                  onChange={e => setNewLineType(e.target.value)}
+                  className="w-full p-2 rounded-[10px] border border-[#ececec] bg-white text-xs cursor-pointer text-[#17191c]"
+                >
+                  <option value="Conveyor Liquid PU">Conveyor Liquid PU</option>
+                  <option value="Dust-Free Cleanroom 2K">Dust-Free Cleanroom 2K</option>
+                  <option value="Water Transfer Hydrographic">Water Transfer Hydrographic (Dipping)</option>
+                  <option value="Direct Flatbed UV Plotter">Direct Flatbed UV Plotter</option>
+                  <option value="Manual Spray Booth">Manual Spray Booth</option>
+                  <option value="Thermoplastic Injection Molding">Thermoplastic Injection Molding</option>
+                  <option value="Thermal Curing Oven">Thermal Curing Oven</option>
+                </select>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-2.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition"
+                className="w-full py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition"
               >
                 <Plus className="w-3.5 h-3.5 text-[#c09748]" />
                 <span>+ Register New Line into Fleet</span>
               </button>
             </form>
 
-            <div className="pt-4 flex justify-end">
+            <div className="pt-2 flex justify-end">
               <button
                 type="button"
                 onClick={() => setShowLineFleetModal(false)}
-                className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] font-semibold cursor-pointer text-xs transition"
+                className="px-5 py-2 rounded-full bg-[#17191c] text-white font-medium cursor-pointer text-xs"
               >
                 Close Fleet Settings
               </button>
@@ -2977,35 +2917,27 @@ export const JobCardsView: React.FC = () => {
       {/* MODAL 8: PAINTER FLOOR ASSIGNMENT WITH MAX-2 GUARDRAIL                 */}
       {/* ====================================================================== */}
       {showAssignPainterModal && selectedJcForAssign && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
                 <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
                   FLOOR WORKLOAD GOVERNANCE • MAX 2 JOBS
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  {selectedJcForAssign.jobCardNo}
-                </span>
+                <h3 className="text-base sm:text-lg font-serif font-normal text-[#17191c] mt-1">
+                  Assign Job Card to Floor Painter
+                </h3>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Assign Job Card to Floor Painter
-              </h3>
+              <button
+                onClick={() => setShowAssignPainterModal(false)}
+                className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base font-bold"
+              >
+                ✕
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowAssignPainterModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
             {/* Selected Job Card details */}
-            <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-2 font-mono">
+            <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-1.5 font-mono">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-sm text-[#17191c]">{selectedJcForAssign.jobCardNo}</span>
                 <span className="text-[#8a6521] font-bold">{selectedJcForAssign.targetQty} Pcs Target</span>
@@ -3016,18 +2948,18 @@ export const JobCardsView: React.FC = () => {
             </div>
 
             {assignPainterError && (
-              <div className="p-3.5 rounded-[16px] bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
+              <div className="p-3 rounded-[14px] bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
                 <span>{assignPainterError}</span>
               </div>
             )}
 
-            <form onSubmit={handleAssignPainterSubmit} className="space-y-4">
+            <form onSubmit={handleAssignPainterSubmit} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-[#17191c] mb-2">
+                <label className="block text-xs font-semibold text-[#17191c] mb-1.5">
                   Select Target Floor Painter (Showing Live Workload):
                 </label>
-                <div className="space-y-2.5">
+                <div className="space-y-2">
                   {painters.map(painter => {
                     const activeCount = getPainterActiveJobCount(painter.name);
                     const isAvailable = canAssignPainter(painter.name);
@@ -3042,7 +2974,7 @@ export const JobCardsView: React.FC = () => {
                             setAssignPainterError(null);
                           }
                         }}
-                        className={`p-4 rounded-[20px] border transition flex items-center justify-between gap-3 ${
+                        className={`p-3 rounded-[16px] border transition flex items-center justify-between gap-3 ${
                           isSelected
                             ? 'border-[#c09748] bg-[#faf7ed] ring-2 ring-[#c09748]/30 cursor-pointer'
                             : isAvailable
@@ -3050,7 +2982,7 @@ export const JobCardsView: React.FC = () => {
                               : 'border-dashed border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
                         }`}
                       >
-                        <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <input
                             type="radio"
                             name="painter_selection"
@@ -3069,7 +3001,7 @@ export const JobCardsView: React.FC = () => {
                         </div>
 
                         <div className="text-right shrink-0">
-                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
                             activeCount === 0
                               ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                               : activeCount === 1
@@ -3088,11 +3020,11 @@ export const JobCardsView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="pt-4 flex justify-end gap-2.5">
+              <div className="pt-2 flex justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowAssignPainterModal(false)}
-                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white hover:bg-[#f2f2f3] text-[#777b86] font-medium cursor-pointer transition"
+                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -3118,34 +3050,26 @@ export const JobCardsView: React.FC = () => {
       {/* MODAL 9: PM FLOOR VERIFICATION & REWORK DESK MODAL                    */}
       {/* ====================================================================== */}
       {showVerificationModal && selectedJcForVerification && (
-        <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-          {/* Sticky Top Header Bar */}
-          <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
+              <div>
                 <span className="px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-900 text-[10px] font-mono uppercase tracking-widest font-bold">
                   PM VERIFICATION GATEWAY
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                  {selectedJcForVerification.jobCardNo}
-                </span>
+                <h3 className="text-base sm:text-lg font-serif font-normal text-[#17191c] mt-1">
+                  Verify & Accept Finished Job Card
+                </h3>
               </div>
-              <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                Verify & Accept Finished Job Card
-              </h3>
+              <button
+                onClick={() => setShowVerificationModal(false)}
+                className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base font-bold"
+              >
+                ✕
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowVerificationModal(false)}
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-              title="Close"
-            >
-              <X className="w-5 h-5 text-[#17191c]" />
-            </button>
-          </div>
 
-          <div className="max-w-3xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
-            <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-2.5">
+            <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2">
               <div className="flex items-center justify-between font-mono">
                 <span className="font-bold text-sm text-[#17191c]">{selectedJcForVerification.jobCardNo}</span>
                 <span className="text-emerald-700 font-bold">Sprayed: {selectedJcForVerification.sprayedQty || selectedJcForVerification.targetQty} Pcs</span>
@@ -3158,35 +3082,35 @@ export const JobCardsView: React.FC = () => {
                 <span>Finished by: {selectedJcForVerification.assignedPainterName || selectedJcForVerification.painterName}</span>
               </div>
               {selectedJcForVerification.painterNotes && (
-                <div className="text-[11px] text-[#777b86] italic bg-white p-2.5 rounded-xl border border-[#ececec]">
+                <div className="text-[11px] text-[#777b86] italic bg-white p-2 rounded-lg border border-[#ececec]">
                   "{selectedJcForVerification.painterNotes}"
                 </div>
               )}
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-[#17191c] mb-1">PM Inspection Verification Remarks</label>
                 <input
                   type="text"
                   value={verificationRemarksInput}
                   onChange={e => setVerificationRemarksInput(e.target.value)}
-                  className="w-full p-3 rounded-[16px] border border-[#ececec] bg-white text-xs text-[#17191c]"
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs text-[#17191c]"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-3">
+              <div className="grid grid-cols-2 gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => handleDirectRequestRework(selectedJcForVerification)}
-                  className="py-3 px-4 rounded-full border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs cursor-pointer transition text-center"
+                  className="py-2.5 px-4 rounded-full border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs cursor-pointer transition text-center"
                 >
                   🔄 Request Floor Rework
                 </button>
                 <button
                   type="button"
                   onClick={() => handleDirectVerifyAccept(selectedJcForVerification)}
-                  className="py-3 px-4 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs cursor-pointer transition shadow-xs flex items-center justify-center gap-1.5"
+                  className="py-2.5 px-4 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs cursor-pointer transition shadow-xs flex items-center justify-center gap-1.5"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>✓ Accept & Complete</span>
@@ -3208,83 +3132,80 @@ export const JobCardsView: React.FC = () => {
         );
 
         return (
-          <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-            {/* Sticky Top Header Bar */}
-            <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-              <div className="flex items-center gap-3">
-                <img
-                  src={painter.avatar}
-                  alt={painter.name}
-                  className="w-10 h-10 rounded-full object-cover border-2 border-[#c09748]"
-                />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold uppercase">
-                      {painter.code} • {painter.boothNo}
-                    </span>
-                    {stats.hasDelayedJobs ? (
-                      <span className="px-2.5 py-0.5 rounded-full bg-rose-100 border border-rose-300 text-rose-900 text-[10px] font-bold">
-                        ⚠️ Profile Marked: Delayed Jobs
+          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-[24px] max-w-3xl w-full p-5 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex justify-between items-start pb-3 border-b border-[#ececec]">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={painter.avatar}
+                    alt={painter.name}
+                    className="w-12 h-12 rounded-full object-cover border-2 border-[#c09748]"
+                  />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold uppercase">
+                        {painter.code} • {painter.boothNo}
                       </span>
-                    ) : (
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-900 text-[10px] font-bold">
-                        ⭐ 100% On-Time Record
-                      </span>
-                    )}
+                      {stats.hasDelayedJobs ? (
+                        <span className="px-2.5 py-0.5 rounded-full bg-rose-100 border border-rose-300 text-rose-900 text-[10px] font-bold">
+                          ⚠️ Profile Marked: Delayed Jobs
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-900 text-[10px] font-bold">
+                          ⭐ 100% On-Time Record
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-lg font-serif font-normal text-[#17191c] mt-0.5">
+                      {painter.name} — SLA Performance Desk
+                    </h3>
                   </div>
-                  <h3 className="text-lg font-serif font-normal text-[#17191c] mt-0.5">
-                    {painter.name} — SLA Performance Desk
-                  </h3>
                 </div>
+
+                <button
+                  onClick={() => setSelectedPainterForSlaModal(null)}
+                  className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base font-bold p-1"
+                >
+                  ✕
+                </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setSelectedPainterForSlaModal(null)}
-                className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-                title="Close"
-              >
-                <X className="w-5 h-5 text-[#17191c]" />
-              </button>
-            </div>
-
-            <div className="max-w-4xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
               {/* Performance Score Summary Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec]">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec]">
                   <span className="text-[10px] text-[#777b86] uppercase font-bold block">Total Assigned</span>
-                  <strong className="font-mono text-lg text-[#17191c]">{stats.totalAssigned} Jobs</strong>
+                  <strong className="font-mono text-base text-[#17191c]">{stats.totalAssigned} Jobs</strong>
                 </div>
-                <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec]">
+                <div className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec]">
                   <span className="text-[10px] text-[#777b86] uppercase font-bold block">Active on Floor</span>
-                  <strong className="font-mono text-lg text-blue-700">{stats.activeJobs} Jobs ({stats.activeSlotsOccupied}/2 Slots)</strong>
+                  <strong className="font-mono text-base text-blue-700">{stats.activeJobs} Jobs ({stats.activeSlotsOccupied}/2 Slots)</strong>
                 </div>
-                <div className="p-4 rounded-[20px] bg-emerald-50/60 border border-emerald-200">
+                <div className="p-3 rounded-[16px] bg-emerald-50/60 border border-emerald-200">
                   <span className="text-[10px] text-emerald-800 uppercase font-bold block">Time Se Kiye (On-Time)</span>
-                  <strong className="font-mono text-lg text-emerald-800">{stats.onTimeJobs} Jobs ✓</strong>
+                  <strong className="font-mono text-base text-emerald-800">{stats.onTimeJobs} Jobs ✓</strong>
                 </div>
-                <div className={`p-4 rounded-[20px] border ${stats.delayedJobs > 0 ? 'bg-rose-50 border-rose-300' : 'bg-[#fafafb] border-[#ececec]'}`}>
+                <div className={`p-3 rounded-[16px] border ${stats.delayedJobs > 0 ? 'bg-rose-50 border-rose-300' : 'bg-[#fafafb] border-[#ececec]'}`}>
                   <span className={`text-[10px] uppercase font-bold block ${stats.delayedJobs > 0 ? 'text-rose-800' : 'text-[#777b86]'}`}>
                     Time Se Nahi Hua (Delayed)
                   </span>
-                  <strong className={`font-mono text-lg ${stats.delayedJobs > 0 ? 'text-rose-700' : 'text-gray-400'}`}>
+                  <strong className={`font-mono text-base ${stats.delayedJobs > 0 ? 'text-rose-700' : 'text-gray-400'}`}>
                     {stats.delayedJobs} Jobs ⚠️
                   </strong>
                 </div>
               </div>
 
               {/* Individual Assigned Jobs Audit List */}
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <h4 className="text-xs font-bold text-[#17191c] uppercase tracking-wider font-mono">
                   Assigned Job Cards & SLA Audit Trail ({painterJobCards.length})
                 </h4>
 
                 {painterJobCards.length === 0 ? (
-                  <div className="p-8 text-center text-[#777b86] bg-[#fafafb] rounded-[20px] border border-[#ececec]">
+                  <div className="p-6 text-center text-[#777b86] bg-[#fafafb] rounded-[16px] border border-[#ececec]">
                     No job cards assigned to this painter yet.
                   </div>
                 ) : (
-                  <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+                  <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
                     {painterJobCards.map(jc => {
                       const isClosed = jc.status === 'Completed' || jc.status === 'Verified & Accepted' || jc.status === 'Target Met';
                       const isBreached = jc.isSlaBreached || (!isClosed && jc.slaDeadline && new Date() > new Date(jc.slaDeadline));
@@ -3292,7 +3213,7 @@ export const JobCardsView: React.FC = () => {
                       return (
                         <div
                           key={jc.jobCardNo}
-                          className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                          className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs"
                         >
                           <div className="space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
@@ -3317,24 +3238,24 @@ export const JobCardsView: React.FC = () => {
                           <div className="shrink-0 flex items-center gap-2 self-end sm:self-auto">
                             {isClosed ? (
                               jc.isOnTimeCompleted === false || jc.isSlaBreached ? (
-                                <span className="px-3 py-1 rounded-full bg-rose-100 border border-rose-300 text-rose-900 font-bold text-[10px] flex items-center gap-1">
-                                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                                <span className="px-2.5 py-1 rounded-full bg-rose-100 border border-rose-300 text-rose-900 font-bold text-[10px] flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3 text-rose-600" />
                                   <span>Time Se Nahi Hua (Delayed)</span>
                                 </span>
                               ) : (
-                                <span className="px-3 py-1 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-900 font-bold text-[10px] flex items-center gap-1">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span className="px-2.5 py-1 rounded-full bg-emerald-100 border border-emerald-300 text-emerald-900 font-bold text-[10px] flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                   <span>Time Se Hua ✓</span>
                                 </span>
                               )
                             ) : isBreached ? (
-                              <span className="px-3 py-1 rounded-full bg-rose-100 border border-rose-300 text-rose-900 font-bold text-[10px] flex items-center gap-1 animate-pulse">
-                                <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                              <span className="px-2.5 py-1 rounded-full bg-rose-100 border border-rose-300 text-rose-900 font-bold text-[10px] flex items-center gap-1 animate-pulse">
+                                <AlertTriangle className="w-3 h-3 text-rose-600" />
                                 <span>⚠️ SLA Breached (Late)</span>
                               </span>
                             ) : (
-                              <span className="px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-800 font-semibold text-[10px] flex items-center gap-1">
-                                <Clock className="w-3.5 h-3.5 text-blue-600" />
+                              <span className="px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-800 font-semibold text-[10px] flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-blue-600" />
                                 <span>In Progress (On-Track)</span>
                               </span>
                             )}
@@ -3346,11 +3267,11 @@ export const JobCardsView: React.FC = () => {
                 )}
               </div>
 
-              <div className="pt-4 border-t border-[#ececec] flex justify-end">
+              <div className="pt-2 border-t border-[#ececec] flex justify-end">
                 <button
                   type="button"
                   onClick={() => setSelectedPainterForSlaModal(null)}
-                  className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] font-semibold text-xs transition cursor-pointer"
+                  className="px-5 py-2 rounded-full bg-[#17191c] text-white hover:bg-black font-semibold text-xs transition cursor-pointer"
                 >
                   Close SLA Desk
                 </button>

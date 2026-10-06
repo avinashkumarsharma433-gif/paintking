@@ -20,8 +20,7 @@ import {
   Building2,
   Calendar,
   User,
-  Info,
-  X
+  Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -376,46 +375,40 @@ export const MncAuditView: React.FC = () => {
       {/* MODAL: Evidence Attacher */}
       <AnimatePresence>
         {evidenceModalQuestion && (
-          <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-            <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-              <div>
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                    MNC AUDIT EVIDENCE
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                    QUESTION #{evidenceModalQuestion.qNo}
-                  </span>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-[24px] max-w-xl w-full p-6 space-y-5 border border-slate-200 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-[#c09748]">
+                    Live Shopfloor Evidence Linker
+                  </div>
+                  <h3 className="text-lg font-serif text-[#17191c]">
+                    Link ERP Record to Question #{evidenceModalQuestion.qNo}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {evidenceModalQuestion.questionEn}
+                  </p>
                 </div>
-                <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                  Link Shopfloor Evidence to Question #{evidenceModalQuestion.qNo}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEvidenceModalQuestion(null)}
-                className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-                title="Close"
-              >
-                <X className="w-5 h-5 text-[#17191c]" />
-              </button>
-            </div>
-
-            <div className="max-w-2xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
-              <div className="p-4 bg-white rounded-[18px] border border-[#ececec] shadow-2xs">
-                <div className="text-[11px] font-semibold text-[#8a6521] uppercase tracking-wider mb-1">Audit Checkpoint:</div>
-                <p className="text-xs text-[#17191c] leading-relaxed font-medium">
-                  {evidenceModalQuestion.questionEn}
-                </p>
+                <button
+                  onClick={() => setEvidenceModalQuestion(null)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer"
+                >
+                  ✕
+                </button>
               </div>
 
               {/* Quick Select Available Real Records */}
               <div className="space-y-3">
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">
-                  Select Matching Live ERP Record:
+                <label className="text-xs font-semibold text-slate-700 block">
+                  Select Matching Live Record:
                 </label>
                 
-                <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                   {/* GRN list */}
                   {grnList.slice(0, 2).map(g => (
                     <button
@@ -427,13 +420,13 @@ export const MncAuditView: React.FC = () => {
                         });
                         setEvidenceModalQuestion(null);
                       }}
-                      className="w-full text-left p-3.5 rounded-[16px] bg-white hover:bg-[#faf3e0] border border-[#ececec] hover:border-[#f4e5be] transition cursor-pointer flex items-center justify-between text-xs shadow-2xs"
+                      className="w-full text-left p-2.5 rounded-[14px] bg-[#fafafb] hover:bg-[#faf3e0] border border-slate-200 hover:border-[#f4e5be] transition cursor-pointer flex items-center justify-between text-xs"
                     >
                       <div>
-                        <strong className="font-mono text-[#17191c]">{g.grnNo}</strong>
-                        <span className="text-[#777b86] ml-2">GRN • {g.supplierCustomer}</span>
+                        <strong className="font-mono text-slate-900">{g.grnNo}</strong>
+                        <span className="text-slate-500 ml-2">GRN • {g.supplierCustomer}</span>
                       </div>
-                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">IQC: {g.iqcStatus}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">IQC: {g.iqcStatus}</span>
                     </button>
                   ))}
 
@@ -448,13 +441,13 @@ export const MncAuditView: React.FC = () => {
                         });
                         setEvidenceModalQuestion(null);
                       }}
-                      className="w-full text-left p-3.5 rounded-[16px] bg-white hover:bg-[#faf3e0] border border-[#ececec] hover:border-[#f4e5be] transition cursor-pointer flex items-center justify-between text-xs shadow-2xs"
+                      className="w-full text-left p-2.5 rounded-[14px] bg-[#fafafb] hover:bg-[#faf3e0] border border-slate-200 hover:border-[#f4e5be] transition cursor-pointer flex items-center justify-between text-xs"
                     >
                       <div>
-                        <strong className="font-mono text-[#17191c]">{f.reportNo}</strong>
-                        <span className="text-[#777b86] ml-2">FPA Golden Gate • {f.partCode}</span>
+                        <strong className="font-mono text-slate-900">{f.reportNo}</strong>
+                        <span className="text-slate-500 ml-2">FPA Golden Gate • {f.partCode}</span>
                       </div>
-                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">ΔE: {f.deltaE}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">ΔE: {f.deltaE}</span>
                     </button>
                   ))}
 
@@ -469,13 +462,13 @@ export const MncAuditView: React.FC = () => {
                         });
                         setEvidenceModalQuestion(null);
                       }}
-                      className="w-full text-left p-3.5 rounded-[16px] bg-white hover:bg-[#faf3e0] border border-[#ececec] hover:border-[#f4e5be] transition cursor-pointer flex items-center justify-between text-xs shadow-2xs"
+                      className="w-full text-left p-2.5 rounded-[14px] bg-[#fafafb] hover:bg-[#faf3e0] border border-slate-200 hover:border-[#f4e5be] transition cursor-pointer flex items-center justify-between text-xs"
                     >
                       <div>
-                        <strong className="font-mono text-[#17191c]">{c.equipmentCode}</strong>
-                        <span className="text-[#777b86] ml-2">{c.equipmentName}</span>
+                        <strong className="font-mono text-slate-900">{c.equipmentCode}</strong>
+                        <span className="text-slate-500 ml-2">{c.equipmentName}</span>
                       </div>
-                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-medium">{c.status}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-medium">{c.status}</span>
                     </button>
                   ))}
 
@@ -490,63 +483,53 @@ export const MncAuditView: React.FC = () => {
                         });
                         setEvidenceModalQuestion(null);
                       }}
-                      className="w-full text-left p-3.5 rounded-[16px] bg-white hover:bg-[#faf3e0] border border-[#ececec] hover:border-[#f4e5be] transition cursor-pointer flex items-center justify-between text-xs shadow-2xs"
+                      className="w-full text-left p-2.5 rounded-[14px] bg-[#fafafb] hover:bg-[#faf3e0] border border-slate-200 hover:border-[#f4e5be] transition cursor-pointer flex items-center justify-between text-xs"
                     >
                       <div>
-                        <strong className="font-mono text-[#17191c]">{c.id}</strong>
-                        <span className="text-[#777b86] ml-2">8D CAPA • {c.customerName}</span>
+                        <strong className="font-mono text-slate-900">{c.id}</strong>
+                        <span className="text-slate-500 ml-2">8D CAPA • {c.customerName}</span>
                       </div>
-                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">{c.status}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">{c.status}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Custom Evidence Reference Input */}
-              <div className="space-y-3 pt-4 border-t border-[#ececec]">
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">
-                  Or Enter Custom Document Reference & Auditor Notes:
+              <div className="space-y-2 pt-3 border-t border-slate-200">
+                <label className="text-xs font-semibold text-slate-700 block">
+                  Or Type Custom Record / Format Document No:
                 </label>
                 <input
                   type="text"
                   defaultValue={evidenceModalQuestion.evidenceRefDoc}
                   id="customDocInput"
                   placeholder="e.g. PK-SOP-PNT-02, PK-MIX-2026-089, CAL-2026-001..."
-                  className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-xs font-mono text-[#17191c] focus:outline-none focus:border-[#17191c]"
+                  className="w-full px-3 py-2 rounded-[14px] border border-slate-300 text-xs font-mono focus:outline-none focus:border-[#c09748]"
                 />
                 <textarea
                   id="customNotesInput"
                   defaultValue={evidenceModalQuestion.evidenceNotes}
                   placeholder="Auditor observation / finding notes..."
-                  rows={3}
-                  className="w-full p-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-xs text-[#17191c] focus:outline-none focus:border-[#17191c]"
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-[14px] border border-slate-300 text-xs focus:outline-none focus:border-[#c09748]"
                 />
-                <div className="flex items-center justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setEvidenceModalQuestion(null)}
-                    className="px-5 py-2.5 rounded-full border border-[#ececec] text-xs font-semibold text-[#777b86] hover:bg-gray-100 transition cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const docEl = document.getElementById('customDocInput') as HTMLInputElement;
-                      const notesEl = document.getElementById('customNotesInput') as HTMLTextAreaElement;
-                      updateAuditAnswer(evidenceModalQuestion.id, {
-                        evidenceRefDoc: docEl?.value || evidenceModalQuestion.evidenceRefDoc,
-                        evidenceNotes: notesEl?.value || ''
-                      });
-                      setEvidenceModalQuestion(null);
-                    }}
-                    className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-semibold shadow-xs transition cursor-pointer"
-                  >
-                    Save Evidence Link
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    const docEl = document.getElementById('customDocInput') as HTMLInputElement;
+                    const notesEl = document.getElementById('customNotesInput') as HTMLTextAreaElement;
+                    updateAuditAnswer(evidenceModalQuestion.id, {
+                      evidenceRefDoc: docEl?.value || evidenceModalQuestion.evidenceRefDoc,
+                      evidenceNotes: notesEl?.value || ''
+                    });
+                    setEvidenceModalQuestion(null);
+                  }}
+                  className="w-full py-2.5 rounded-full bg-[#17191c] hover:bg-[#25282d] text-white font-medium text-xs transition cursor-pointer"
+                >
+                  Save Evidence Link
+                </button>
               </div>
-            </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>
@@ -554,77 +537,72 @@ export const MncAuditView: React.FC = () => {
       {/* MODAL: Export Dossier & Print View */}
       <AnimatePresence>
         {showExportModal && (
-          <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150 print:bg-white print:static print:inset-auto print:overflow-visible">
-            {/* Top Print Actions */}
-            <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs print:hidden">
-              <div>
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                    MNC VENDOR AUDIT
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                    PK-MNC-AUD-2026-V2
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-[24px] max-w-4xl w-full p-8 space-y-6 border border-slate-200 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar print:p-0 print:border-none print:shadow-none"
+            >
+              {/* Top Print Actions */}
+              <div className="flex items-center justify-between pb-4 border-b border-slate-200 print:hidden">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-[#c09748]" />
+                  <span className="font-serif font-medium text-slate-800 text-lg">
+                    PaintKing MNC Vendor Audit Compliance Dossier
                   </span>
                 </div>
-                <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                  Vendor Audit Compliance Dossier
-                </h3>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => window.print()}
+                    className="px-4 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-semibold text-xs transition flex items-center gap-2 cursor-pointer shadow-md"
+                  >
+                    <Printer className="w-4 h-4" />
+                    Print / Save as PDF
+                  </button>
+                  <button
+                    onClick={() => setShowExportModal(false)}
+                    className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
-                >
-                  <Printer className="w-4 h-4 text-[#c09748]" />
-                  <span>Print / PDF</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowExportModal(false)}
-                  className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-                  title="Close"
-                >
-                  <X className="w-5 h-5 text-[#17191c]" />
-                </button>
-              </div>
-            </div>
 
-            <div className="max-w-4xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs print:p-0 print:border-none print:shadow-none">
               {/* Formal Audit Report Printable Layout */}
-              <div className="border border-[#dcdfe4] bg-white rounded-[20px] p-6 sm:p-8 space-y-6 text-[#17191c] font-sans shadow-2xs print:border-none print:shadow-none">
+              <div className="space-y-6 text-slate-900 font-sans">
                 {/* Formal Header */}
-                <div className="border-b border-[#ececec] pb-6 flex items-start justify-between gap-6">
+                <div className="border-b-2 border-[#17191c] pb-6 flex items-start justify-between gap-6">
                   <div>
-                    <div className="text-2xl font-serif tracking-tight font-normal text-[#17191c]">
+                    <div className="text-2xl font-serif tracking-tight font-bold text-[#17191c]">
                       PAINTKING SURFACE SOLUTIONS
                     </div>
-                    <div className="text-xs text-[#777b86] mt-1">
+                    <div className="text-xs text-slate-600 mt-1">
                       ISO 9001:2015 & IATF 16949 Audited Surface Coating Facility
                     </div>
-                    <div className="text-xs text-[#777b86] mt-0.5">
+                    <div className="text-xs text-slate-500 mt-0.5">
                       Plant: {activePlant} Unit • Reg: Mumbai HO
                     </div>
                   </div>
 
                   <div className="text-right">
-                    <div className="text-xs font-mono font-bold text-[#8a6521] bg-[#faf3e0] px-3 py-1 rounded-full inline-block border border-[#f4e5be]">
+                    <div className="text-xs font-mono font-bold text-[#c09748] bg-[#faf3e0] px-3 py-1 rounded-full inline-block border border-[#f4e5be]">
                       DOC NO: PK-MNC-AUD-2026-V2
                     </div>
-                    <div className="text-xs text-[#777b86] mt-2">
+                    <div className="text-xs text-slate-500 mt-2">
                       Date of Audit: <strong>{new Date().toLocaleDateString('en-GB')}</strong>
                     </div>
-                    <div className="text-xs text-[#777b86]">
+                    <div className="text-xs text-slate-500">
                       Overall Compliance: <strong className="text-emerald-700 text-sm font-serif">{stats.scorePct}% PASS</strong>
                     </div>
                   </div>
                 </div>
 
                 {/* Executive Summary Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-xs text-center">
+                <div className="grid grid-cols-4 gap-4 p-4 rounded-[16px] bg-slate-50 border border-slate-200 text-xs text-center">
                   <div>
-                    <div className="text-[#777b86] font-medium">Total Questions</div>
-                    <div className="text-lg font-bold font-serif text-[#17191c] mt-1">{stats.total}</div>
+                    <div className="text-slate-500 font-medium">Total Questions</div>
+                    <div className="text-lg font-bold font-serif text-slate-900 mt-1">{stats.total}</div>
                   </div>
                   <div>
                     <div className="text-emerald-700 font-medium">Compliant</div>
@@ -642,20 +620,20 @@ export const MncAuditView: React.FC = () => {
 
                 {/* 13 Domain Breakdown Summary Table */}
                 <div className="space-y-2">
-                  <div className="text-xs font-bold uppercase tracking-wider text-[#777b86]">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-700">
                     Domain-wise Compliance Score Summary:
                   </div>
-                  <table className="w-full text-left text-xs border border-[#ececec] rounded-lg overflow-hidden">
-                    <thead className="bg-[#f2f2f3] text-[#17191c]">
+                  <table className="w-full text-left text-xs border border-slate-200 rounded-lg overflow-hidden">
+                    <thead className="bg-[#17191c] text-white">
                       <tr>
-                        <th className="p-2.5 font-bold">Sec</th>
-                        <th className="p-2.5 font-bold">Audit Domain (English & Hindi)</th>
-                        <th className="p-2.5 text-center font-bold">Questions</th>
-                        <th className="p-2.5 text-center font-bold">Compliant</th>
-                        <th className="p-2.5 text-right font-bold">Domain Score</th>
+                        <th className="p-2.5">Sec</th>
+                        <th className="p-2.5">Audit Domain (English & Hindi)</th>
+                        <th className="p-2.5 text-center">Questions</th>
+                        <th className="p-2.5 text-center">Compliant</th>
+                        <th className="p-2.5 text-right">Domain Score</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#ececec]">
+                    <tbody className="divide-y divide-slate-200">
                       {MNC_AUDIT_SECTIONS.map((sec) => {
                         const sq = auditQuestions.filter(q => q.sectionId === sec.id);
                         const sc = sq.filter(q => q.status === 'Compliant').length;
@@ -663,15 +641,15 @@ export const MncAuditView: React.FC = () => {
                         const pct = sq.length > 0 ? Math.round(((sc * 1.0 + sp * 0.5) / sq.length) * 100) : 100;
 
                         return (
-                          <tr key={sec.id} className="hover:bg-[#fafafb]">
-                            <td className="p-2.5 font-bold font-mono text-[#8a6521]">{sec.id}</td>
+                          <tr key={sec.id} className="hover:bg-slate-50">
+                            <td className="p-2.5 font-bold font-mono text-[#c09748]">{sec.id}</td>
                             <td className="p-2.5">
-                              <span className="font-semibold text-[#17191c]">{sec.title}</span>
-                              <span className="text-[#777b86] ml-2">({sec.titleHi})</span>
+                              <span className="font-semibold text-slate-900">{sec.title}</span>
+                              <span className="text-slate-500 ml-2">({sec.titleHi})</span>
                             </td>
                             <td className="p-2.5 text-center font-mono">{sq.length}</td>
                             <td className="p-2.5 text-center font-mono text-emerald-700 font-semibold">{sc}</td>
-                            <td className="p-2.5 text-right font-mono font-bold text-[#17191c]">{pct}%</td>
+                            <td className="p-2.5 text-right font-mono font-bold text-slate-900">{pct}%</td>
                           </tr>
                         );
                       })}
@@ -680,25 +658,25 @@ export const MncAuditView: React.FC = () => {
                 </div>
 
                 {/* Sign-off Stamps */}
-                <div className="pt-8 border-t border-[#ececec] grid grid-cols-1 sm:grid-cols-3 gap-4 text-center text-xs">
-                  <div className="border border-[#ececec] rounded-[16px] p-4 bg-[#fafafb]">
-                    <div className="text-[#777b86] mb-4 text-[10px] uppercase font-semibold">Prepared by QA Lead</div>
-                    <div className="font-bold text-[#17191c]">{currentUser.name}</div>
-                    <div className="text-[11px] text-[#777b86] mt-0.5">Lead QA Auditor</div>
+                <div className="pt-8 border-t border-slate-200 grid grid-cols-3 gap-6 text-center text-xs">
+                  <div className="border border-slate-200 rounded-[16px] p-4">
+                    <div className="text-slate-400 mb-6 font-medium">Prepared by QA Lead</div>
+                    <div className="font-bold text-slate-900">{currentUser.name}</div>
+                    <div className="text-[11px] text-slate-500">Lead QA Auditor</div>
                   </div>
-                  <div className="border border-[#ececec] rounded-[16px] p-4 bg-[#fafafb]">
-                    <div className="text-[#777b86] mb-4 text-[10px] uppercase font-semibold">Verified by Plant Head</div>
-                    <div className="font-bold text-[#17191c]">Satish Sharma</div>
-                    <div className="text-[11px] text-[#777b86] mt-0.5">Plant Head ({activePlant})</div>
+                  <div className="border border-slate-200 rounded-[16px] p-4">
+                    <div className="text-slate-400 mb-6 font-medium">Verified by Plant Head</div>
+                    <div className="font-bold text-slate-900">Satish Sharma</div>
+                    <div className="text-[11px] text-slate-500">Plant Head ({activePlant})</div>
                   </div>
-                  <div className="border border-[#f4e5be] rounded-[16px] p-4 bg-[#faf3e0]/60">
-                    <div className="text-[#8a6521] mb-4 text-[10px] uppercase font-semibold">Approved by Executive Director</div>
+                  <div className="border border-slate-200 rounded-[16px] p-4 bg-[#faf3e0]/50 border-[#f4e5be]">
+                    <div className="text-[#8a6521] mb-6 font-medium">Approved by Executive Director</div>
                     <div className="font-bold text-[#17191c]">Gurprit Singh</div>
-                    <div className="text-[11px] text-[#8a6521] mt-0.5">Executive Director (Operations)</div>
+                    <div className="text-[11px] text-[#8a6521]">Executive Director (Operations)</div>
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>

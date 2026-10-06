@@ -13,8 +13,7 @@ import {
   ShieldCheck, 
   ExternalLink,
   Award,
-  Sparkles,
-  X
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -150,66 +149,55 @@ export const CalibrationView: React.FC = () => {
       {/* MODAL: Update Calibration Record */}
       <AnimatePresence>
         {editingRecord && (
-          <div className="fixed inset-0 z-50 bg-[#fafafb] sm:bg-white overflow-y-auto flex flex-col animate-in fade-in duration-150">
-            <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-2xs">
-              <div>
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                    INSTRUMENT CALIBRATION
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono">
-                    {editingRecord.equipmentCode}
-                  </span>
-                </div>
-                <h3 className="text-lg sm:text-xl font-serif font-normal text-[#17191c]">
-                  Update Calibration Certificate
-                </h3>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-[24px] max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl max-h-[90vh] overflow-y-auto no-scrollbar"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <h3 className="text-lg font-serif text-slate-900">Update Calibration Certificate</h3>
+                <button
+                  onClick={() => setEditingRecord(null)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center cursor-pointer"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setEditingRecord(null)}
-                className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition active:scale-95 shadow-2xs"
-                title="Close"
-              >
-                <X className="w-5 h-5 text-[#17191c]" />
-              </button>
-            </div>
 
-            <div className="max-w-2xl mx-auto w-full p-4 sm:p-8 space-y-6 flex-1 text-xs">
-              <div className="space-y-4 text-xs">
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Instrument Details:</label>
-                  <input readOnly value={`${editingRecord.equipmentCode} - ${editingRecord.equipmentName}`} className="w-full h-11 px-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-[#17191c] font-medium" />
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">Instrument:</label>
+                  <input readOnly value={`${editingRecord.equipmentCode} - ${editingRecord.equipmentName}`} className="w-full p-2.5 rounded-[12px] bg-slate-50 border border-slate-200" />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">New Certificate Number:</label>
-                  <input id="newCertNo" defaultValue={editingRecord.certificateNo} className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white font-mono text-[#17191c] focus:outline-none focus:border-[#17191c]" />
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">New Certificate Number:</label>
+                  <input id="newCertNo" defaultValue={editingRecord.certificateNo} className="w-full p-2.5 rounded-[12px] border border-slate-300 font-mono" />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">NABL Accredited Agency:</label>
-                  <input id="newAgency" defaultValue={editingRecord.calibrationAgency} className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]" />
+                <div>
+                  <label className="font-semibold text-slate-700 block mb-1">NABL Accredited Agency:</label>
+                  <input id="newAgency" defaultValue={editingRecord.calibrationAgency} className="w-full p-2.5 rounded-[12px] border border-slate-300" />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Calibrated Date:</label>
-                    <input type="date" id="newCalDate" defaultValue={editingRecord.lastCalibrationDate} className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Calibrated Date:</label>
+                    <input type="date" id="newCalDate" defaultValue={editingRecord.lastCalibrationDate} className="w-full p-2 rounded-[12px] border border-slate-300" />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">Next Due Date:</label>
-                    <input type="date" id="newDueDate" defaultValue={editingRecord.nextCalibrationDue} className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white text-[#17191c] focus:outline-none focus:border-[#17191c]" />
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Next Due Date:</label>
+                    <input type="date" id="newDueDate" defaultValue={editingRecord.nextCalibrationDue} className="w-full p-2 rounded-[12px] border border-slate-300" />
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#ececec]">
+                <div className="pt-3 flex justify-end gap-2">
                   <button
-                    type="button"
                     onClick={() => setEditingRecord(null)}
-                    className="px-5 py-2.5 rounded-full border border-[#ececec] text-xs font-semibold text-[#777b86] hover:bg-gray-100 transition cursor-pointer"
+                    className="px-4 py-2 rounded-full border border-slate-300 text-slate-600 hover:bg-slate-50 cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
-                    type="button"
                     onClick={() => {
                       const cert = (document.getElementById('newCertNo') as HTMLInputElement)?.value;
                       const agency = (document.getElementById('newAgency') as HTMLInputElement)?.value;
@@ -224,13 +212,13 @@ export const CalibrationView: React.FC = () => {
                       });
                       setEditingRecord(null);
                     }}
-                    className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-semibold shadow-xs transition cursor-pointer"
+                    className="px-5 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-semibold cursor-pointer"
                   >
                     Save Certificate
                   </button>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
         )}
       </AnimatePresence>
