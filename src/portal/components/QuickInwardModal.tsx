@@ -201,28 +201,28 @@ export const QuickInwardModal: React.FC<QuickInwardModalProps> = ({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[#777b86] font-medium mb-1">
-                      Customer / Party Name:
+                    <label className="block text-[11px] font-semibold text-[#777b86] mb-1">
+                      Customer / Party Name <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={customer}
                       onChange={e => setCustomer(e.target.value)}
                       placeholder="e.g. ROOP POLYMERS LTD"
-                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white text-[#17191c] font-medium focus:border-[#c09748] focus:outline-none"
+                      className="w-full px-3.5 py-2.5 rounded-[16px] bg-[#f4f4f6] hover:bg-[#ececee] focus:bg-white text-[#17191c] font-medium border border-transparent focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/20 text-xs transition-all outline-none"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-[#777b86] font-medium mb-1">
-                      Party Challan / Delivery Note:
+                    <label className="block text-[11px] font-semibold text-[#777b86] mb-1">
+                      Party Challan / Delivery Note <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={challanNo}
                       onChange={e => setChallanNo(e.target.value)}
                       placeholder="e.g. RP/CH/99824"
-                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-mono text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                      className="w-full px-3.5 py-2.5 rounded-[16px] bg-[#f4f4f6] hover:bg-[#ececee] focus:bg-white font-mono text-[#17191c] border border-transparent focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/20 text-xs transition-all outline-none"
                       required
                     />
                   </div>
@@ -230,19 +230,21 @@ export const QuickInwardModal: React.FC<QuickInwardModalProps> = ({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[#777b86] font-medium mb-1">Vehicle / Truck No:</label>
+                    <label className="block text-[11px] font-semibold text-[#777b86] mb-1">
+                      Vehicle / Truck No <span className="text-rose-500">*</span>
+                    </label>
                     <input
                       type="text"
                       value={vehicleNo}
                       onChange={e => setVehicleNo(e.target.value)}
                       placeholder="e.g. UK-08-AL-4412"
-                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                      className="w-full px-3.5 py-2.5 rounded-[16px] bg-[#f4f4f6] hover:bg-[#ececee] focus:bg-white text-[#17191c] border border-transparent focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/20 text-xs transition-all outline-none font-mono"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-[#777b86] font-medium mb-1">Target Plant:</label>
-                    <div className="p-2.5 rounded-[16px] border border-[#ececec] bg-white font-medium text-[#17191c]">
+                    <label className="block text-[11px] font-semibold text-[#777b86] mb-1">Target Plant</label>
+                    <div className="px-3.5 py-2.5 rounded-[16px] bg-[#f4f4f6] font-medium text-[#17191c] text-xs">
                       {activePlant} Plant
                     </div>
                   </div>
@@ -257,23 +259,27 @@ export const QuickInwardModal: React.FC<QuickInwardModalProps> = ({
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="md:col-span-2">
-                    <label className="block text-[#777b86] font-medium mb-1">Part / Substrate Description:</label>
+                    <label className="block text-[11px] font-semibold text-[#777b86] mb-1">
+                      Part / Substrate Description <span className="text-rose-500">*</span>
+                    </label>
                     <input
                       type="text"
                       value={partName}
                       onChange={e => setPartName(e.target.value)}
                       placeholder="e.g. Car AC Center Vent Bezel Substrates"
-                      className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white font-medium text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                      className="w-full px-3.5 py-2.5 rounded-[16px] bg-[#f4f4f6] hover:bg-[#ececee] focus:bg-white font-medium text-[#17191c] border border-transparent focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/20 text-xs transition-all outline-none"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-[#777b86] font-medium mb-1">Total Pieces:</label>
+                    <label className="block text-[11px] font-semibold text-[#777b86] mb-1">
+                      Total Pieces <span className="text-rose-500">*</span>
+                    </label>
                     <input
                       type="number"
                       value={totalQty}
                       onChange={e => setTotalQty(Math.max(1, Number(e.target.value)))}
-                      className="w-full p-2.5 rounded-[16px] border border-[#c09748] bg-white font-serif text-lg font-normal text-[#17191c] focus:outline-none"
+                      className="w-full px-3.5 py-2 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be] focus:bg-white font-serif text-base font-bold text-[#8a6521] focus:outline-none focus:ring-2 focus:ring-[#c09748]/20 transition-all"
                       min={1}
                       required
                     />
@@ -296,59 +302,58 @@ export const QuickInwardModal: React.FC<QuickInwardModalProps> = ({
                   <button
                     type="button"
                     onClick={handleAddColorRow}
-                    className="flex items-center gap-1 px-3 py-1 rounded-full bg-[#faf3e0] border border-[#f4e5be] hover:bg-[#f4e5be] text-[#8a6521] text-[11px] font-semibold cursor-pointer transition"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white border border-[#f4e5be] hover:bg-[#faf7ed] text-[#8a6521] text-[11px] font-semibold cursor-pointer transition shadow-2xs active:scale-95"
                   >
-                    <Plus className="w-3 h-3 text-[#c09748]" />
+                    <Plus className="w-3.5 h-3.5 text-[#c09748]" />
                     <span>+ Add Color</span>
                   </button>
                 </div>
 
                 <div className="space-y-2">
                   {colorRows.map((row, idx) => (
-                    <div key={idx} className="flex flex-wrap sm:flex-nowrap items-center gap-2 p-2.5 bg-white rounded-[16px] border border-[#ececec]">
+                    <div key={idx} className="flex flex-wrap sm:flex-nowrap items-center gap-2 p-3 bg-white rounded-[18px] border border-[#ececec] shadow-2xs">
                       <div className="flex-1 min-w-[130px]">
-                        <label className="block text-[10px] text-[#777b86] font-medium">Color Name</label>
+                        <label className="block text-[10px] text-[#777b86] font-semibold mb-0.5">Color Name</label>
                         <input
                           type="text"
                           value={row.name}
                           onChange={e => handleColorChange(idx, 'name', e.target.value)}
                           placeholder="Color Name"
-                          className="w-full p-1.5 rounded-[12px] border border-[#ececec] text-xs font-medium text-[#17191c]"
+                          className="w-full px-3 py-1.5 rounded-[12px] bg-[#f4f4f6] text-xs font-medium text-[#17191c] outline-none focus:bg-white focus:ring-1 focus:ring-[#c09748]"
                           required
                         />
                       </div>
                       <div className="w-20">
-                        <label className="block text-[10px] text-[#777b86] font-medium">Code</label>
+                        <label className="block text-[10px] text-[#777b86] font-semibold mb-0.5">Code</label>
                         <input
                           type="text"
                           value={row.code}
                           onChange={e => handleColorChange(idx, 'code', e.target.value)}
                           placeholder="Code"
-                          className="w-full p-1.5 rounded-[12px] border border-[#ececec] text-xs font-mono text-[#17191c]"
+                          className="w-full px-3 py-1.5 rounded-[12px] bg-[#f4f4f6] text-xs font-mono text-[#17191c] outline-none focus:bg-white focus:ring-1 focus:ring-[#c09748]"
                           required
                         />
                       </div>
                       <div className="w-28">
-                        <label className="block text-[10px] text-[#777b86] font-medium">Target Qty</label>
+                        <label className="block text-[10px] text-[#777b86] font-semibold mb-0.5">Target Qty</label>
                         <input
                           type="number"
                           value={row.qty}
                           onChange={e => handleColorChange(idx, 'qty', Math.max(0, Number(e.target.value)))}
                           placeholder="Qty"
-                          className="w-full p-1.5 rounded-[12px] border border-[#ececec] text-xs font-serif font-normal text-[#17191c]"
+                          className="w-full px-3 py-1.5 rounded-[12px] bg-[#faf7ed] border border-[#f4e5be] text-xs font-bold text-[#8a6521] outline-none"
                           min={0}
                           required
                         />
                       </div>
                       <div className="w-24">
-                        <label className="block text-[10px] text-[#777b86] font-medium">Rate (₹/pc)</label>
+                        <label className="block text-[10px] text-[#777b86] font-semibold mb-0.5">Rate (₹/pc)</label>
                         <input
                           type="number"
                           value={row.rate}
                           onChange={e => handleColorChange(idx, 'rate', Math.max(0, Number(e.target.value)))}
                           placeholder="Rate"
-                          className="w-full p-1.5 rounded-[12px] border border-[#ececec] text-xs font-mono text-[#17191c]"
-                          min={0}
+                          className="w-full px-3 py-1.5 rounded-[12px] bg-[#f4f4f6] text-xs font-mono text-[#17191c] outline-none focus:bg-white focus:ring-1 focus:ring-[#c09748]"
                           required
                         />
                       </div>
@@ -356,7 +361,7 @@ export const QuickInwardModal: React.FC<QuickInwardModalProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRemoveColorRow(idx)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-full mt-3.5 cursor-pointer transition"
+                          className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-full mt-3.5 cursor-pointer transition active:scale-95"
                           title="Remove Color"
                         >
                           <Trash2 className="w-4 h-4" />
