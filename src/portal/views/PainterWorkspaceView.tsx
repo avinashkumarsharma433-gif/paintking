@@ -20,8 +20,13 @@ import {
   CheckCircle,
   FileText,
   Users,
-  Settings
+  Settings,
+  FlaskConical,
+  Download
 } from 'lucide-react';
+import { FPAModal } from '../components/FPAModal';
+import { IPQCModal } from '../components/IPQCModal';
+import { downloadStandardFPAPdf, downloadStandardIPQCPdf } from '../utils/pdfStandardHeader';
 
 export const PainterWorkspaceView: React.FC = () => {
   const { 
@@ -37,10 +42,18 @@ export const PainterWorkspaceView: React.FC = () => {
     updateJobCardSprayed,
     getPainterActiveJobCount,
     getPainterPerformanceStats,
-    pendingVerificationJobsCount 
+    pendingVerificationJobsCount,
+    fpaRecords,
+    ipqcRecords
   } = usePortalStore();
 
   const isManager = currentUser.role !== 'OPERATOR';
+
+  // FPA & IPQC Modals State
+  const [showFpaModal, setShowFpaModal] = useState<boolean>(false);
+  const [selectedJcForFpa, setSelectedJcForFpa] = useState<JobCard | null>(null);
+  const [showIpqcModal, setShowIpqcModal] = useState<boolean>(false);
+  const [selectedJcForIpqc, setSelectedJcForIpqc] = useState<JobCard | null>(null);
 
   // For individual painter login (OPERATOR role)
   const loggedInPainter = painters.find(p => 
@@ -572,6 +585,107 @@ export const PainterWorkspaceView: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* ====================================================================== */}
+                    {/* QUALITY GATES: FPA (FIRST PART APPROVAL) & 3-HOURLY IPQC SHIFT AUDITS */}
+                    {/* ====================================================================== */}
+                    <div className="p-3.5 rounded-[18px] bg-[#fafafb] border border-[#e5e7eb] space-y-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <FlaskConical className="w-4 h-4 text-[#c09748]" />
+                          <span className="text-[11px] font-bold text-[#17191c] uppercase tracking-wide">
+                            Quality Gates (FPA & IPQC)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedJcForFpa(jc);
+                              setShowFpaModal(true);
+                            }}
+                            className="px-2.5 py-1 rounded-full bg-white hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10.5px] font-semibold transition cursor-pointer shadow-2xs flex items-center gap-1 active:scale-95"
+                          >
+                            <FlaskConical className="w-3 h-3 text-[#c09748]" />
+                            <span>{jc.fpaStatus === 'Approved' ? '⭐ FPA Approved' : '+ Perform FPA'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedJcForIpqc(jc);
+                              setShowIpqcModal(true);
+                            }}
+                            className="px-2.5 py-1 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] text-[10.5px] font-semibold transition cursor-pointer shadow-2xs flex items-center gap-1 active:scale-95"
+                          >
+                            <ShieldCheck className="w-3 h-3 text-[#c09748]" />
+                            <span>+ Log 3h IPQC</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Linked FPA & IPQC Records Summary */}
+                      {(() => {
+                        const linkedFpa = fpaRecords.find(f => f.jobCardNo === jc.jobCardNo || f.woNo === jc.woNo);
+                        const linkedIpqc = ipqcRecords.filter(i => i.jobCardNo === jc.jobCardNo || i.woNo === jc.woNo);
+
+                        return (
+                          <div className="space-y-1.5 pt-1 border-t border-[#ececec] text-[10.5px]">
+                            {/* FPA Line */}
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[#777b86] flex items-center gap-1">
+                                <strong>FPA (Gate 2):</strong>
+                                {linkedFpa ? (
+                                  <span className="text-emerald-700 font-semibold font-mono">
+                                    {linkedFpa.reportNo} (ΔE {linkedFpa.deltaE} • 100% Adhesion)
+                                  </span>
+                                ) : (
+                                  <span className="text-amber-700 font-semibold">
+                                    {jc.fpaStatus === 'Approved' ? 'Approved by QA Master' : 'Pending QA First Part Check'}
+                                  </span>
+                                )}
+                              </span>
+                              {linkedFpa && (
+                                <button
+                                  type="button"
+                                  onClick={() => downloadStandardFPAPdf(linkedFpa)}
+                                  className="text-[10px] text-[#c09748] hover:text-[#8a6521] underline font-semibold flex items-center gap-0.5 cursor-pointer"
+                                >
+                                  <Download className="w-2.5 h-2.5" />
+                                  <span>PDF</span>
+                                </button>
+                              )}
+                            </div>
+
+                            {/* IPQC 3-Hourly Audits Chips */}
+                            <div className="flex flex-wrap items-center justify-between gap-1.5">
+                              <span className="text-[#777b86]">
+                                <strong>IPQC Shift Audits:</strong> {linkedIpqc.length} recorded
+                              </span>
+                              {linkedIpqc.length > 0 ? (
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {linkedIpqc.map((ipq, idx) => (
+                                    <span
+                                      key={idx}
+                                      onClick={() => downloadStandardIPQCPdf(ipq)}
+                                      title={`Click to download IPQC PDF (${ipq.reportNo})`}
+                                      className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 font-mono text-[9.5px] font-bold cursor-pointer hover:bg-emerald-100 flex items-center gap-1"
+                                    >
+                                      <span>{ipq.checkTime || `Shift ${idx + 1}`}</span>
+                                      <Download className="w-2.5 h-2.5 text-emerald-700" />
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-[#979799] italic">
+                                  No shift audits logged yet. Click '+ Log 3h IPQC'
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
                     {/* INTERACTIVE ACTIONS */}
                     <div className="pt-2 border-t border-[#ececec] space-y-3">
                       {isAssignedNotStarted && (
@@ -889,6 +1003,30 @@ export const PainterWorkspaceView: React.FC = () => {
           </div>
         );
       })()}
+
+      {/* ====================================================================== */}
+      {/* MODAL: FPA (FIRST PART APPROVAL) GOLDEN SAMPLE TEST MODAL              */}
+      {/* ====================================================================== */}
+      <FPAModal
+        isOpen={showFpaModal}
+        onClose={() => {
+          setShowFpaModal(false);
+          setSelectedJcForFpa(null);
+        }}
+        jobCard={selectedJcForFpa}
+      />
+
+      {/* ====================================================================== */}
+      {/* MODAL: 3-HOURLY IPQC (IN-PROCESS QUALITY CONTROL) AUDIT MODAL          */}
+      {/* ====================================================================== */}
+      <IPQCModal
+        isOpen={showIpqcModal}
+        onClose={() => {
+          setShowIpqcModal(false);
+          setSelectedJcForIpqc(null);
+        }}
+        jobCard={selectedJcForIpqc}
+      />
     </div>
   );
 };
