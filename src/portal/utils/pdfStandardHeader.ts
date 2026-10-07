@@ -2230,6 +2230,7 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
  * Revamped into an editorial, spacious 2-page layout with generous whitespace,
  * clean table borders (0.45pt), #f2f2f3 headers, dedicated physical 3M tape frame,
  * CIELAB colorimetry analysis with Master Benchmark banner, and 4-party sign-offs.
+ * Zero combined '&' fields - all metadata points separated into clean individual cells.
  * Doc: PK-QA-FPA-001 | Issue Date: 01.01.2021 | Rev: 02 | Rev Date: 13.02.2021
  * =========================================================================
  */
@@ -2261,12 +2262,12 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
     maxWidth: number = 54
   ) => {
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.0);
+    doc.setFontSize(6.8);
     doc.setTextColor(23, 25, 28);
     doc.text(label, x, labelY);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.0);
+    doc.setFontSize(7.8);
     doc.setTextColor(100, 105, 115);
 
     const cleanVal = (value || '-').trim();
@@ -2288,11 +2289,11 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   };
 
   // =========================================================================
-  // PAGE 1: EXECUTIVE CLEARANCE, METADATA, VISUAL & ADHESION INSPECTION
+  // PAGE 1: EXECUTIVE CLEARANCE, METADATA, VISUAL AND ADHESION INSPECTION
   // =========================================================================
   const startY = drawStandardPdfHeader(doc);
 
-  // Title Banner & Control Bar
+  // Title Banner and Control Bar
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11.5);
   doc.setTextColor(23, 25, 28);
@@ -2308,9 +2309,9 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   doc.setTextColor(119, 123, 134);
   doc.text('Doc: PK-QA-FPA-001  |  Rev: 02  |  Date: 13.02.2021', 196, startY + 6.5, { align: 'right' });
 
-  // 3-Row Structured Metadata Card
+  // 4-Row Structured Metadata Card (12 Dedicated Individual Fields, ZERO combined '&')
   const metaY = startY + 9.5;
-  const metaBoxHeight = 42;
+  const metaBoxHeight = 52;
   doc.setDrawColor(220, 222, 228);
   doc.setFillColor(250, 250, 251);
   doc.roundedRect(14, metaY, 182, metaBoxHeight, 3, 3, 'FD');
@@ -2319,26 +2320,27 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   const metaCol2X = 80;
   const metaCol3X = 140;
 
-  // Row 1: REPORT NO. | JOB CARD / WO NO. | INSPECTION DATE & TIME
-  drawMetaField('REPORT NO.', fpa.reportNo, metaCol1X, metaY + 5.0, metaY + 10.5, 54);
-  drawMetaField('JOB CARD / WO NO.', `${fpa.jobCardNo || '-'}  /  ${fpa.woNo || '-'}`, metaCol2X, metaY + 5.0, metaY + 10.5, 54);
-  drawMetaField('INSPECTION DATE & TIME', `${formatDateDDMMYYYY(fpa.date)} (${fpa.approvalTime || fpa.startupTime || '09:15 AM'})`, metaCol3X, metaY + 5.0, metaY + 10.5, 50);
+  // Row 1: REPORT NUMBER | JOB CARD NUMBER | WORK ORDER NUMBER
+  drawMetaField('REPORT NUMBER', fpa.reportNo, metaCol1X, metaY + 4.8, metaY + 9.8, 54);
+  drawMetaField('JOB CARD NUMBER', fpa.jobCardNo || '-', metaCol2X, metaY + 4.8, metaY + 9.8, 54);
+  drawMetaField('WORK ORDER NUMBER', fpa.woNo || '-', metaCol3X, metaY + 4.8, metaY + 9.8, 50);
 
-  // Row 2: CUSTOMER / OEM | PART COMPONENT & CODE | FAMILY / MOULD GROUP
-  const partFull = `${fpa.partDescription || fpa.partCode || 'Bezel Frame'} (${fpa.partCode || '-'})`;
-  drawMetaField('CUSTOMER / OEM', fpa.customer || 'OEM Partner', metaCol1X, metaY + 17.5, metaY + 23.0, 54);
-  drawMetaField('PART COMPONENT & CODE', partFull, metaCol2X, metaY + 17.5, metaY + 23.0, 54);
-  drawMetaField('FAMILY / MOULD GROUP', fpa.family || 'Switch Bezel / Auto Fascia', metaCol3X, metaY + 17.5, metaY + 23.0, 50);
+  // Row 2: CUSTOMER NAME | PART COMPONENT | PART CODE
+  drawMetaField('CUSTOMER NAME', fpa.customer || 'OEM Partner', metaCol1X, metaY + 16.8, metaY + 21.8, 54);
+  drawMetaField('PART COMPONENT', fpa.partDescription || fpa.partCode || 'Bezel Frame', metaCol2X, metaY + 16.8, metaY + 21.8, 54);
+  drawMetaField('PART CODE', fpa.partCode || '-', metaCol3X, metaY + 16.8, metaY + 21.8, 50);
 
-  // Row 3: PAINT & THINNER BATCH | BOOTH & PAINTER | VISCOSITY & STATUS
-  const batchInfo = `P: ${fpa.paintBatch || '-'} | T: ${fpa.thinnerBatch || '-'}`;
-  const boothInfo = `${fpa.booth || 'Booth 01'} • ${fpa.painter || 'Painter'}`;
-  const statusInfo = `${fpa.viscositySec || 15}s (FC4) • ${fpa.managerQAApproval ? 'APPROVED' : 'PENDING'}`;
-  drawMetaField('PAINT & THINNER BATCH', batchInfo, metaCol1X, metaY + 30.0, metaY + 35.5, 54);
-  drawMetaField('SPRAY BOOTH & PAINTER', boothInfo, metaCol2X, metaY + 30.0, metaY + 35.5, 54);
-  drawMetaField('VISCOSITY & STATUS', statusInfo, metaCol3X, metaY + 30.0, metaY + 35.5, 50);
+  // Row 3: PAINT BATCH NUMBER | THINNER BATCH NUMBER | PAINT VISCOSITY
+  drawMetaField('PAINT BATCH NUMBER', fpa.paintBatch || '-', metaCol1X, metaY + 28.8, metaY + 33.8, 54);
+  drawMetaField('THINNER BATCH NUMBER', fpa.thinnerBatch || '-', metaCol2X, metaY + 28.8, metaY + 33.8, 54);
+  drawMetaField('PAINT VISCOSITY', `${fpa.viscositySec || 15} Sec (Ford Cup 4)`, metaCol3X, metaY + 28.8, metaY + 33.8, 50);
 
-  let currentY = metaY + metaBoxHeight + 11; // 11mm Generous Negative Spacing
+  // Row 4: SPRAY BOOTH | OPERATING PAINTER | AUDIT DATE AND TIME
+  drawMetaField('SPRAY BOOTH', fpa.booth || 'Booth 01', metaCol1X, metaY + 40.8, metaY + 45.8, 54);
+  drawMetaField('OPERATING PAINTER', fpa.painter || 'Ramesh Kumar', metaCol2X, metaY + 40.8, metaY + 45.8, 54);
+  drawMetaField('AUDIT DATE AND TIME', `${formatDateDDMMYYYY(fpa.date)} (${fpa.approvalTime || fpa.startupTime || '09:15 AM'})`, metaCol3X, metaY + 40.8, metaY + 45.8, 50);
+
+  let currentY = metaY + metaBoxHeight + 10; // 10mm Generous Negative Spacing
 
   // -------------------------------------------------------------------------
   // SECTION 1: VISUAL INSPECTION CHECKLIST (5 SAMPLES S1 - S5)
@@ -2386,7 +2388,7 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
     { code: 'B', name: 'Dust Spot / Particle Nibs', spec: 'Zero Allowed (Nil)', tech: 'Visual / Clean Room' },
     { code: 'C', name: 'Over Paint / Sagging / Runs', spec: 'Zero Allowed (Nil)', tech: 'Visual Inspection' },
     { code: 'D', name: 'Paint Missing / Dry Spray', spec: 'Zero Allowed (Nil)', tech: 'Visual Inspection' },
-    { code: 'E', name: 'Colour Uniformity & Shade', spec: 'As per Approved Sample', tech: 'Visual / D65 Light' },
+    { code: 'E', name: 'Colour Uniformity and Shade', spec: 'As per Approved Sample', tech: 'Visual / D65 Light' },
     { code: 'F', name: 'Overall Surface Finishing', spec: 'Defect-Free Class A', tech: 'Visual / Tactile' }
   ];
 
@@ -2428,18 +2430,18 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
     doc.line(x, visTableStartY + 4.2, x, currentY);
   });
 
-  currentY += 12; // 12mm Generous Negative Spacing
+  currentY += 10; // 10mm Generous Negative Spacing
 
   // -------------------------------------------------------------------------
-  // SECTION 2: ADHESION TEST & PHYSICAL TAPE IMPRESSION BOX (ASTM 5B)
+  // SECTION 2: ADHESION TEST - PHYSICAL TAPE IMPRESSION BOX (ASTM 5B)
   // -------------------------------------------------------------------------
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(23, 25, 28);
-  doc.text('2. COATING ADHESION TEST & PHYSICAL 3M TAPE SPECIMEN (ASTM D3359 / IS 101)', 14, currentY);
+  doc.text('2. COATING ADHESION TEST - PHYSICAL 3M TAPE SPECIMEN (ASTM D3359 / IS 101)', 14, currentY);
   currentY += 4.5;
 
-  const adhCardHeight = 44;
+  const adhCardHeight = 42;
   const isOk = fpa.adhesionPercent === 100 && fpa.crossCutTest === 'Pass';
 
   // Left Box: Technical Specifications (Width = 86mm)
@@ -2450,32 +2452,32 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(23, 25, 28);
-  doc.text('CROSS-CUT ADHESION EVALUATION:', 18, currentY + 7);
+  doc.text('CROSS-CUT ADHESION EVALUATION:', 18, currentY + 6.5);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.0);
   doc.setTextColor(100, 105, 115);
-  doc.text('Method / Tool:', 18, currentY + 14);
+  doc.text('Method / Tool:', 18, currentY + 13);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(23, 25, 28);
-  doc.text('1mm Lattice Cutter + 3M #600 Tape', 42, currentY + 14);
+  doc.text('1mm Lattice Cutter + 3M #600 Tape', 42, currentY + 13);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 105, 115);
-  doc.text('Standard Spec:', 18, currentY + 20);
+  doc.text('Standard Spec:', 18, currentY + 19);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(23, 25, 28);
-  doc.text('100% Lattice Retention (0% Flaking)', 42, currentY + 20);
+  doc.text('100% Lattice Retention (0% Flaking)', 42, currentY + 19);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 105, 115);
-  doc.text('ASTM Rating:', 18, currentY + 26);
+  doc.text('ASTM Rating:', 18, currentY + 25);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(16, 116, 55);
-  doc.text('Class 5B (Superior Substrate Bonding)', 42, currentY + 26);
+  doc.text('Class 5B (Superior Substrate Bonding)', 42, currentY + 25);
 
   // Status Badge inside Left Box
-  const badgeY = currentY + 31;
+  const badgeY = currentY + 30;
   doc.setFillColor(isOk ? 220 : 254, isOk ? 252 : 226, isOk ? 231 : 226);
   doc.setDrawColor(isOk ? 134 : 252, isOk ? 239 : 165, isOk ? 172 : 165);
   doc.roundedRect(18, badgeY, 78, 8, 2, 2, 'FD');
@@ -2504,35 +2506,35 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(70, 75, 85);
-  doc.text('PHYSICAL TAPE IMPRESSION SPECIMEN', tapeFrameX + tapeFrameW / 2, currentY + 16, { align: 'center' });
+  doc.text('PHYSICAL TAPE IMPRESSION SPECIMEN', tapeFrameX + tapeFrameW / 2, currentY + 15, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   doc.setTextColor(120, 125, 135);
-  doc.text('[ AFFIX PEELED 3M #600 TAPE HERE ]', tapeFrameX + tapeFrameW / 2, currentY + 23, { align: 'center' });
-  doc.text('Mandatory: Stick physical tape swatch after cross-cut pull test.', tapeFrameX + tapeFrameW / 2, currentY + 33, { align: 'center' });
+  doc.text('[ AFFIX PEELED 3M #600 TAPE HERE ]', tapeFrameX + tapeFrameW / 2, currentY + 22, { align: 'center' });
+  doc.text('Mandatory: Stick physical tape swatch after cross-cut pull test.', tapeFrameX + tapeFrameW / 2, currentY + 31, { align: 'center' });
 
   // Page 1 Footer
   drawStandardPdfFooter(
     doc,
     1,
     2,
-    'PAINTKING • First Part Approval (Doc: PK-QA-FPA-001 • Rev.02) • ISO 9001:2015 & IATF 16949 Certified',
+    'PAINTKING • First Part Approval (Doc: PK-QA-FPA-001 • Rev.02) • ISO 9001:2015 and IATF 16949 Certified',
     liveTimestamp,
     true
   );
 
   // =========================================================================
-  // PAGE 2: CIELAB COLORIMETRY, QA DISPOSITION & 4-PARTY SIGN-OFF BLOCK
+  // PAGE 2: CIELAB COLORIMETRY, QA DISPOSITION AND 4-PARTY SIGN-OFF BLOCK
   // =========================================================================
   doc.addPage();
   const page2StartY = drawStandardPdfHeader(doc);
 
-  // Page 2 Title Bar & Control Info
+  // Page 2 Title Bar and Control Info
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11.5);
   doc.setTextColor(23, 25, 28);
-  doc.text('CIELAB COLORIMETRIC ANALYSIS & PRODUCTION RELEASE', 14, page2StartY + 5.5);
+  doc.text('CIELAB COLORIMETRIC ANALYSIS - PRODUCTION RELEASE', 14, page2StartY + 5.5);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
@@ -2735,12 +2737,12 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   p2Y += 12; // 12mm Generous Negative Spacing
 
   // -------------------------------------------------------------------------
-  // SECTION 4: QUALITY ENGINEER REMARKS & MANDATORY BENCHMARK PROTOCOL
+  // SECTION 4: QUALITY ENGINEER REMARKS - MANDATORY BENCHMARK PROTOCOL
   // -------------------------------------------------------------------------
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(23, 25, 28);
-  doc.text('4. QUALITY ENGINEER REMARKS & MANDATORY FLOOR BENCHMARK PROTOCOL', 14, p2Y);
+  doc.text('4. QUALITY ENGINEER REMARKS - MANDATORY FLOOR BENCHMARK PROTOCOL', 14, p2Y);
   p2Y += 4.5;
 
   doc.setDrawColor(220, 222, 228);
@@ -2750,7 +2752,7 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.0);
   doc.setTextColor(23, 25, 28);
-  doc.text('QA DISPOSITION & LAB SUMMARY:', 18, p2Y + 6.0);
+  doc.text('QA DISPOSITION - LAB SUMMARY:', 18, p2Y + 6.0);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.2);
@@ -2783,7 +2785,7 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(23, 25, 28);
-  doc.text('5. MULTI-DEPARTMENT QUALITY CONCURRENCE & MASS PRODUCTION CLEARANCE', 14, p2Y);
+  doc.text('5. MULTI-DEPARTMENT QUALITY CONCURRENCE - MASS PRODUCTION CLEARANCE', 14, p2Y);
   p2Y += 4.5;
 
   const sigBoxW = 43.5;
@@ -2808,7 +2810,7 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
     {
       role: 'QA LEAD ENGINEER',
       name: fpa.qcEngineer || 'Amit Verma',
-      status: 'Lab Tested & Passed',
+      status: 'Lab Tested and Passed',
       isOk: true,
       sub: 'Quality Gate 2 Sign-off'
     },
@@ -2861,7 +2863,7 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
     doc,
     2,
     2,
-    'PAINTKING • First Part Approval (Doc: PK-QA-FPA-001 • Rev.02) • ISO 9001:2015 & IATF 16949 Certified',
+    'PAINTKING • First Part Approval (Doc: PK-QA-FPA-001 • Rev.02) • ISO 9001:2015 and IATF 16949 Certified',
     liveTimestamp,
     false
   );
