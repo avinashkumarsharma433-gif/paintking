@@ -422,6 +422,13 @@ export interface FPAVisualCheckRow {
   overallFinishing: ('Pass' | 'Fail')[];
 }
 
+export interface FPADeltaValueRow {
+  L: (number | string)[];      // 5 Samples S1 - S5
+  a: (number | string)[];      // 5 Samples S1 - S5
+  b: (number | string)[];      // 5 Samples S1 - S5
+  deltaE: (number | string)[]; // 5 Samples S1 - S5
+}
+
 export interface FPARecord {
   reportNo: string;
   date: string;
@@ -456,11 +463,12 @@ export interface FPARecord {
   tapeTest: 'Pass' | 'Fail';
   tapeImpressionBox?: boolean; // Physical box for sticking 3M adhesive cross-cut tape
   
-  // 3. Delta Value Test (Spectrometer)
+  // 3. Delta Value Test (Spectrometer across S1 - S5)
+  deltaSamples?: FPADeltaValueRow;
   L: number;
   a: number;
   b: number;
-  deltaE: number;              // Must be <= 0.70
+  deltaE: number;              // Overall / Avg or Master DeltaE
   
   conductivity?: 'Pass' | 'Fail' | 'N/A';
   overallResult: 'Approved' | 'Hold' | 'Rejected';

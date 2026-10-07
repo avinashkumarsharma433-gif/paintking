@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { JobCard, FPARecord, FPAVisualCheckRow } from '../types/portalTypes';
+import { JobCard, FPARecord, FPAVisualCheckRow, FPADeltaValueRow } from '../types/portalTypes';
 import { 
   Sparkles, 
   CheckCircle2, 
@@ -18,8 +18,7 @@ import {
   ClipboardList,
   ArrowRight,
   ArrowLeft,
-  Eye,
-  CheckSquare
+  RotateCcw
 } from 'lucide-react';
 import { downloadStandardFPAPdf } from '../utils/pdfStandardHeader';
 
@@ -81,18 +80,20 @@ export const FPAModal: React.FC<FPAModalProps> = ({
   const [tapeTest, setTapeTest] = useState<'Pass' | 'Fail'>('Pass');
   const [adhesionPercent, setAdhesionPercent] = useState<number>(100);
 
-  // 3. CIELAB Delta-E Spectrometer Test
-  const [L, setL] = useState<number>(42.15);
-  const [a, setA] = useState<number>(54.30);
-  const [b, setB] = useState<number>(28.10);
-  const [deltaE, setDeltaE] = useState<number>(0.38);
+  // 3. CIELAB Spectrometer Delta Values for 5 Samples (Manual Direct Inputs - No Auto Math)
+  const [deltaSamples, setDeltaSamples] = useState<FPADeltaValueRow>({
+    L: [42.15, 42.10, 42.20, 42.18, 42.12],
+    a: [54.30, 54.25, 54.35, 54.28, 54.32],
+    b: [28.10, 28.15, 28.08, 28.12, 28.14],
+    deltaE: [0.38, 0.42, 0.35, 0.40, 0.39]
+  });
 
   // 4. Signatures & Acceptance
   const [acceptancePainter, setAcceptancePainter] = useState<string>('Ramesh Kumar (P1)');
   const [acceptanceProductionIncharge, setAcceptanceProductionIncharge] = useState<string>('Sunil Verma (Prod. Incharge)');
   const [qcEngineer, setQcEngineer] = useState<string>(currentUser?.name || 'Amit Verma (QA Engineer)');
   const [managerQAApproval, setManagerQAApproval] = useState<boolean>(true);
-  const [remarks, setRemarks] = useState<string>('Visual 5/5 OK, Cross-Cut 100% adhesion verified, Spectrometer Delta-E <= 0.70. Approved for production.');
+  const [remarks, setRemarks] = useState<string>('Visual 5/5 OK, Cross-Cut 100% adhesion verified, Spectrometer Delta-E <= 0.70 across all 5 samples. Approved for production.');
 
   // Result state after creation
   const [createdFpa, setCreatedFpa] = useState<FPARecord | null>(null);
@@ -122,17 +123,21 @@ export const FPAModal: React.FC<FPAModalProps> = ({
     }
   }, [jobCard, isOpen]);
 
-  // Recalculate Delta E simulation
-  const handleColorChange = (newL: number, newA: number, newB: number) => {
-    setL(newL);
-    setA(newA);
-    setB(newB);
-    // Standard Master reference (L0: 42.00, a0: 54.00, b0: 28.00)
-    const dL = newL - 42.00;
-    const da = newA - 54.00;
-    const db = newB - 28.00;
-    const calc = Math.sqrt(dL * dL + da * da + db * db);
-    setDeltaE(parseFloat(calc.toFixed(2)));
+  const handleDeltaCellChange = (param: keyof FPADeltaValueRow, sampleIndex: number, val: string) => {
+    setDeltaSamples(prev => {
+      const arr = [...prev[param]];
+      arr[sampleIndex] = val;
+      return { ...prev, [param]: arr };
+    });
+  };
+
+  const handleResetDefaultDelta = () => {
+    setDeltaSamples({
+      L: [42.15, 42.10, 42.20, 42.18, 42.12],
+      a: [54.30, 54.25, 54.35, 54.28, 54.32],
+      b: [28.10, 28.15, 28.08, 28.12, 28.14],
+      deltaE: [0.38, 0.42, 0.35, 0.40, 0.39]
+    });
   };
 
   const setAllVisualChecks = (status: 'Pass' | 'Fail') => {
@@ -159,7 +164,9 @@ export const FPAModal: React.FC<FPAModalProps> = ({
     });
   };
 
-  const isDeltaEPass = deltaE <= 0.70;
+  // Average or max Delta-E for summary badge
+  const primaryDeltaE = Number(deltaSamples.deltaE[0]) || 0.38;
+  const isDeltaEPass = deltaSamples.deltaE.every(d => Number(d) <= 0.70);
   const isAdhesionPass = adhesionPercent === 100 && crossCutTest === 'Pass' && tapeTest === 'Pass';
   const isAllVisualPass = Object.values(visualChecks).every(row => row.every(val => val === 'Pass'));
   const isEligibleForApproval = isDeltaEPass && isAdhesionPass && isAllVisualPass;
@@ -203,10 +210,11 @@ export const FPAModal: React.FC<FPAModalProps> = ({
       sample3,
       sample4,
       sample5,
-      L: Number(L),
-      a: Number(a),
-      b: Number(b),
-      deltaE: Number(deltaE),
+      deltaSamples,
+      L: Number(deltaSamples.L[0]) || 42.15,
+      a: Number(deltaSamples.a[0]) || 54.30,
+      b: Number(deltaSamples.b[0]) || 28.10,
+      deltaE: Number(deltaSamples.deltaE[0]) || 0.38,
       adhesionPercent: Number(adhesionPercent),
       crossCutTest,
       tapeTest,
@@ -275,7 +283,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                     First Part Approval Report Generated & Signed!
                   </h3>
                   <p className="text-xs text-[#777b86]">
-                    Job Card <strong>{createdFpa.jobCardNo}</strong> is cleared for mass production. Standard Excel Format (Issue Date: 01.01.2021 | Rev: 02) with <strong>Physical Tape Impression Box</strong> is ready for physical printout.
+                    Job Card <strong>{createdFpa.jobCardNo}</strong> is cleared for mass production. Standard Excel Format (Issue Date: 01.01.2021 | Rev: 02) with <strong>Physical Tape Impression Box</strong> and <strong>5-Sample Spectrometer Delta-E Table</strong> is ready.
                   </p>
                 </div>
               </div>
@@ -316,8 +324,8 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                   <strong>{createdFpa.jobCardNo}</strong>
                 </div>
                 <div>
-                  <span className="text-[#777b86] block text-[9px] uppercase">Delta-E (ΔE)</span>
-                  <strong className="text-emerald-700">{createdFpa.deltaE} (Pass)</strong>
+                  <span className="text-[#777b86] block text-[9px] uppercase">Delta-E (ΔE S1..S5)</span>
+                  <strong className="text-emerald-700">≤ 0.70 (5/5 Pass)</strong>
                 </div>
                 <div>
                   <span className="text-[#777b86] block text-[9px] uppercase">Tape Adhesion</span>
@@ -598,25 +606,25 @@ export const FPAModal: React.FC<FPAModalProps> = ({
             )}
 
             {/* ========================================================================= */}
-            {/* STEP 3: ADHESION & SPECTROMETER DELTA-E TEST                              */}
+            {/* STEP 3: ADHESION & DIRECT 5-SAMPLE SPECTROMETER DELTA-E INPUTS            */}
             {/* ========================================================================= */}
             {currentStep === 3 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 animate-in fade-in duration-150">
-                {/* Adhesion Card */}
+              <div className="space-y-3.5 animate-in fade-in duration-150">
+                {/* 3A: Adhesion Card */}
                 <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1">
                       <ShieldCheck className="w-3.5 h-3.5 text-[#c09748]" />
-                      <span>Step 3A: Adhesion Test (ASTM 5B)</span>
+                      <span>3A. Adhesion Test (ASTM 5B Cross Cut)</span>
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
                       100% Cross-Cut Required
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-center">
                     <div>
-                      <label className="block text-[9px] text-[#777b86] font-semibold">Cross-Cut Status</label>
+                      <label className="block text-[9px] text-[#777b86] font-semibold mb-0.5">Cross-Cut Status</label>
                       <select
                         value={crossCutTest}
                         onChange={e => setCrossCutTest(e.target.value as any)}
@@ -627,7 +635,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[9px] text-[#777b86] font-semibold">3M Tape Pull Test</label>
+                      <label className="block text-[9px] text-[#777b86] font-semibold mb-0.5">3M Tape Pull Test</label>
                       <select
                         value={tapeTest}
                         onChange={e => setTapeTest(e.target.value as any)}
@@ -637,68 +645,139 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                         <option value="Fail">NOT OK (Peeled)</option>
                       </select>
                     </div>
-                  </div>
-
-                  {/* Simulated Physical Tape Box */}
-                  <div className="p-3 rounded-[14px] bg-white border-2 border-dashed border-[#c09748]/50 text-center space-y-1">
-                    <span className="text-[10px] font-mono font-bold text-[#8a6521] block">
-                      [ Tape Impression Box in PDF Printout ]
-                    </span>
-                    <p className="text-[9px] text-[#777b86]">
-                      Dedicated space reserved on official PDF for physically sticking the peeled 3M tape sample.
-                    </p>
+                    {/* Simulated Physical Tape Box */}
+                    <div className="p-2 rounded-[12px] bg-white border-2 border-dashed border-[#c09748]/50 text-center space-y-0.5">
+                      <span className="text-[10px] font-mono font-bold text-[#8a6521] block">
+                        [ Tape Impression Box ]
+                      </span>
+                      <p className="text-[9px] text-[#777b86]">
+                        Reserved space on PDF to stick physical 3M tape
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Colorimetry Card */}
-                <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-2.5">
+                {/* 3B: Delta Value Test (Spectrometer Direct 5-Samples Entry Table) */}
+                <div className="p-4 rounded-[20px] bg-white border border-[#ececec] space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1">
-                      <FlaskConical className="w-3.5 h-3.5 text-[#c09748]" />
-                      <span>Step 3B: Delta Value (Spectrometer)</span>
-                    </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                      isDeltaEPass ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-rose-100 text-rose-900 border border-rose-300'
-                    }`}>
-                      ΔE = {deltaE.toFixed(2)} ({isDeltaEPass ? 'Pass' : 'Exceeded'})
-                    </span>
+                    <div>
+                      <span className="text-[10.5px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1">
+                        <FlaskConical className="w-3.5 h-3.5 text-[#c09748]" />
+                        <span>3B. Delta Value Test (Spectrometer L, A, B & ΔE for 5 Samples)</span>
+                      </span>
+                      <p className="text-[10px] text-[#777b86] mt-0.5">
+                        Direct manual entry for all 5 samples (No automatic calculation). Standard Target: ΔE ≤ 0.70 vs Master.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleResetDefaultDelta}
+                      className="px-2.5 py-1 rounded-full bg-[#f4f4f6] hover:bg-[#ececee] text-[#777b86] hover:text-[#17191c] text-[10px] font-mono font-semibold transition flex items-center gap-1 cursor-pointer"
+                      title="Reset standard values"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Default Readings</span>
+                    </button>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-[9px] text-[#777b86] font-semibold">L* (Lightness)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={L}
-                        onChange={e => handleColorChange(Number(e.target.value), a, b)}
-                        className="w-full p-2 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[9px] text-[#777b86] font-semibold">a* (Red/Green)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={a}
-                        onChange={e => handleColorChange(L, Number(e.target.value), b)}
-                        className="w-full p-2 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[9px] text-[#777b86] font-semibold">b* (Yellow/Blue)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={b}
-                        onChange={e => handleColorChange(L, a, Number(e.target.value))}
-                        className="w-full p-2 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c]"
-                      />
-                    </div>
-                  </div>
+                  <div className="overflow-x-auto border border-[#ececec] rounded-[14px]">
+                    <table className="w-full text-[11px] text-left">
+                      <thead className="bg-[#f2f2f3] text-[#17191c] font-bold text-[10px] border-b border-[#ececec]">
+                        <tr>
+                          <th className="py-2.5 px-3 w-1/4">Parameter</th>
+                          <th className="py-2.5 px-2 text-center">Tech</th>
+                          {['S1', 'S2', 'S3', 'S4', 'S5'].map((s, idx) => (
+                            <th key={idx} className="py-2.5 px-2 text-center w-[13%]">{s}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#f2f2f3]">
+                        {/* Row A: L */}
+                        <tr className="hover:bg-[#fafafb]">
+                          <td className="py-2 px-3 font-semibold text-[#17191c]">A. L (Lightness)</td>
+                          <td className="py-2 px-2 text-center text-[#777b86] font-mono text-[10px]">Spectrometer</td>
+                          {[0, 1, 2, 3, 4].map(sIdx => (
+                            <td key={sIdx} className="py-1.5 px-1.5 text-center">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={deltaSamples.L[sIdx]}
+                                onChange={e => handleDeltaCellChange('L', sIdx, e.target.value)}
+                                className="w-full text-center px-1 py-1 rounded-[8px] bg-[#fafafb] border border-[#dcdfe4] text-xs font-mono font-bold text-[#17191c] outline-none focus:border-[#c09748]"
+                                placeholder="42.15"
+                                required
+                              />
+                            </td>
+                          ))}
+                        </tr>
 
-                  <div className="text-[10px] text-[#777b86]">
-                    Standard Delta-E Limit: ΔE ≤ 0.70 vs Master Reference Plaque
+                        {/* Row B: A */}
+                        <tr className="hover:bg-[#fafafb]">
+                          <td className="py-2 px-3 font-semibold text-[#17191c]">B. A (Red / Green)</td>
+                          <td className="py-2 px-2 text-center text-[#777b86] font-mono text-[10px]">Spectrometer</td>
+                          {[0, 1, 2, 3, 4].map(sIdx => (
+                            <td key={sIdx} className="py-1.5 px-1.5 text-center">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={deltaSamples.a[sIdx]}
+                                onChange={e => handleDeltaCellChange('a', sIdx, e.target.value)}
+                                className="w-full text-center px-1 py-1 rounded-[8px] bg-[#fafafb] border border-[#dcdfe4] text-xs font-mono font-bold text-[#17191c] outline-none focus:border-[#c09748]"
+                                placeholder="54.30"
+                                required
+                              />
+                            </td>
+                          ))}
+                        </tr>
+
+                        {/* Row C: B */}
+                        <tr className="hover:bg-[#fafafb]">
+                          <td className="py-2 px-3 font-semibold text-[#17191c]">C. B (Yellow / Blue)</td>
+                          <td className="py-2 px-2 text-center text-[#777b86] font-mono text-[10px]">Spectrometer</td>
+                          {[0, 1, 2, 3, 4].map(sIdx => (
+                            <td key={sIdx} className="py-1.5 px-1.5 text-center">
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={deltaSamples.b[sIdx]}
+                                onChange={e => handleDeltaCellChange('b', sIdx, e.target.value)}
+                                className="w-full text-center px-1 py-1 rounded-[8px] bg-[#fafafb] border border-[#dcdfe4] text-xs font-mono font-bold text-[#17191c] outline-none focus:border-[#c09748]"
+                                placeholder="28.10"
+                                required
+                              />
+                            </td>
+                          ))}
+                        </tr>
+
+                        {/* Row D: Delta E (Direct Input) */}
+                        <tr className="bg-[#faf7ed]/60">
+                          <td className="py-2 px-3 font-bold text-[#8a6521]">D. ΔE (Delta Value)</td>
+                          <td className="py-2 px-2 text-center text-[#8a6521] font-mono text-[10px] font-bold">Limit ≤ 0.70</td>
+                          {[0, 1, 2, 3, 4].map(sIdx => {
+                            const valNum = Number(deltaSamples.deltaE[sIdx]);
+                            const isCellPass = !isNaN(valNum) && valNum <= 0.70;
+                            return (
+                              <td key={sIdx} className="py-1.5 px-1.5 text-center">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={deltaSamples.deltaE[sIdx]}
+                                  onChange={e => handleDeltaCellChange('deltaE', sIdx, e.target.value)}
+                                  className={`w-full text-center px-1 py-1 rounded-[8px] border text-xs font-mono font-bold outline-none ${
+                                    isCellPass
+                                      ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                                      : 'bg-rose-50 border-rose-300 text-rose-900'
+                                  }`}
+                                  placeholder="0.38"
+                                  required
+                                />
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>

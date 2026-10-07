@@ -2515,7 +2515,7 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   currentY += adhesionBoxH;
 
   // =========================================================================
-  // 5. TABLE SECTION 3: DELTA VALUE TEST (Spectrometer CIELAB)
+  // 5. TABLE SECTION 3: DELTA VALUE TEST (Spectrometer CIELAB across S1 - S5)
   // =========================================================================
   // Section 3 Header Row
   doc.setLineWidth(TABLE_LINE_WIDTH);
@@ -2528,11 +2528,32 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   doc.text('Delta Value Test', 14 + colSr + 2, currentY + 3.2);
   currentY += 4.5;
 
+  const defaultL = (fpa.L !== undefined ? fpa.L : 42.15).toFixed(2);
+  const defaultA = (fpa.a !== undefined ? fpa.a : 54.30).toFixed(2);
+  const defaultB = (fpa.b !== undefined ? fpa.b : 28.10).toFixed(2);
+  const defaultDeltaE = (fpa.deltaE !== undefined ? fpa.deltaE : 0.38).toFixed(2);
+
   const deltaRows = [
-    { code: 'A', param: 'L', val: fpa.L?.toFixed(2) || '42.15' },
-    { code: 'B', param: 'A', val: fpa.a?.toFixed(2) || '54.30' },
-    { code: 'C', param: 'B', val: fpa.b?.toFixed(2) || '28.10' },
-    { code: 'D', param: '\u0394E (Delta Value)', val: `\u0394E = ${(fpa.deltaE || 0.38).toFixed(2)}` }
+    {
+      code: 'A',
+      param: 'L',
+      vals: fpa.deltaSamples?.L?.map(v => String(v)) || [defaultL, defaultL, defaultL, defaultL, defaultL]
+    },
+    {
+      code: 'B',
+      param: 'A',
+      vals: fpa.deltaSamples?.a?.map(v => String(v)) || [defaultA, defaultA, defaultA, defaultA, defaultA]
+    },
+    {
+      code: 'C',
+      param: 'B',
+      vals: fpa.deltaSamples?.b?.map(v => String(v)) || [defaultB, defaultB, defaultB, defaultB, defaultB]
+    },
+    {
+      code: 'D',
+      param: 'Delta E (Delta Value)',
+      vals: fpa.deltaSamples?.deltaE?.map(v => String(v)) || [defaultDeltaE, defaultDeltaE, defaultDeltaE, defaultDeltaE, defaultDeltaE]
+    }
   ];
 
   deltaRows.forEach((dr, drIdx) => {
@@ -2553,7 +2574,8 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(dr.code === 'D' ? 5 : 23, dr.code === 'D' ? 150 : 25, dr.code === 'D' ? 105 : 28);
     sampleHeaders.forEach((_, sIdx) => {
-      doc.text(dr.val, sampleStartX + sIdx * colSampleW + colSampleW / 2, currentY + 3.5, { align: 'center' });
+      const cellVal = dr.vals[sIdx] || '-';
+      doc.text(cellVal, sampleStartX + sIdx * colSampleW + colSampleW / 2, currentY + 3.5, { align: 'center' });
       doc.setDrawColor(...TABLE_BORDER_COLOR);
       doc.line(sampleStartX + sIdx * colSampleW, currentY, sampleStartX + sIdx * colSampleW, currentY + 5);
     });
