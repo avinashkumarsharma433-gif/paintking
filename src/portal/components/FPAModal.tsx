@@ -18,7 +18,6 @@ import {
   ClipboardList,
   ArrowRight,
   ArrowLeft,
-  RotateCcw,
   Target
 } from 'lucide-react';
 import { downloadStandardFPAPdf } from '../utils/pdfStandardHeader';
@@ -135,19 +134,6 @@ export const FPAModal: React.FC<FPAModalProps> = ({
       const arr = [...prev[param]];
       arr[sampleIndex] = val;
       return { ...prev, [param]: arr };
-    });
-  };
-
-  const handleResetDefaultDelta = () => {
-    setMasterL(42.00);
-    setMasterA(54.00);
-    setMasterB(28.00);
-    setMasterPlaqueRef('OEM Approved Master Plaque #01');
-    setDeltaSamples({
-      L: [42.15, 42.10, 42.20, 42.18, 42.12],
-      a: [54.30, 54.25, 54.35, 54.28, 54.32],
-      b: [28.10, 28.15, 28.08, 28.12, 28.14],
-      deltaE: [0.38, 0.42, 0.35, 0.40, 0.39]
     });
   };
 
@@ -680,26 +666,14 @@ export const FPAModal: React.FC<FPAModalProps> = ({
 
                 {/* 3B: Delta Value Test (Master LAB + Spectrometer 5-Samples Entry Table) */}
                 <div className="p-4 rounded-[20px] bg-white border border-[#ececec] space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-[10.5px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1">
-                        <FlaskConical className="w-3.5 h-3.5 text-[#c09748]" />
-                        <span>3B. Master Standard LAB & 5-Sample Spectrometer Delta-E Table</span>
-                      </span>
-                      <p className="text-[10px] text-[#777b86] mt-0.5">
-                        Feed Master Plaque Reference & direct readings for S1..S5. Standard Target: ΔE ≤ 0.70 vs Master.
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleResetDefaultDelta}
-                      className="px-2.5 py-1 rounded-full bg-[#f4f4f6] hover:bg-[#ececee] text-[#777b86] hover:text-[#17191c] text-[10px] font-mono font-semibold transition flex items-center gap-1 cursor-pointer"
-                      title="Reset standard values"
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                      <span>Default Master & Readings</span>
-                    </button>
+                  <div>
+                    <span className="text-[10.5px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1">
+                      <FlaskConical className="w-3.5 h-3.5 text-[#c09748]" />
+                      <span>3B. Master Standard LAB & 5-Sample Spectrometer Delta-E Table</span>
+                    </span>
+                    <p className="text-[10px] text-[#777b86] mt-0.5">
+                      Feed Master Plaque Reference & direct readings for S1..S5. Standard Target: ΔE ≤ 0.70 vs Master.
+                    </p>
                   </div>
 
                   {/* MASTER LAB FEED STRIP */}
