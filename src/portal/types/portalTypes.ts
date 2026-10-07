@@ -413,6 +413,15 @@ export interface JobCard {
 }
 
 // 4. First Part Approval (FPA - Golden Gate) (PK-QA-FPA-001)
+export interface FPAVisualCheckRow {
+  bubble: ('Pass' | 'Fail')[];
+  dustSpot: ('Pass' | 'Fail')[];
+  overPaint: ('Pass' | 'Fail')[];
+  paintMissing: ('Pass' | 'Fail')[];
+  colour: ('Pass' | 'Fail')[];
+  overallFinishing: ('Pass' | 'Fail')[];
+}
+
 export interface FPARecord {
   reportNo: string;
   date: string;
@@ -421,28 +430,47 @@ export interface FPARecord {
   jobCardNo: string;
   customer: string;
   partCode: string;
+  partDescription?: string;
+  family?: string;              // Component Family / Mould Family (e.g. Switch Frame, Bezel, Auto Trim)
   color: string;
+  paintDescription?: string;   // e.g. "Monza Red 2K PU Basecoat"
   paintBatch: string;
+  thinnerBatch?: string;       // e.g. "THN-2609-02"
   painter: string;
   booth: string;
+  startupTime?: string;        // e.g. "08:30 AM"
+  approvalTime?: string;       // e.g. "09:15 AM"
   viscositySec: number;        // Ford Cup 4 viscosity (e.g. 14-16s)
+  
+  // 1. Visual Tests Checklist
+  visualChecks?: FPAVisualCheckRow;
   sample1: 'Pass' | 'Fail';
   sample2: 'Pass' | 'Fail';
   sample3: 'Pass' | 'Fail';
   sample4: 'Pass' | 'Fail';
   sample5: 'Pass' | 'Fail';
+  
+  // 2. Adhesion Test & Tape Impression Space
+  adhesionPercent: number;     // Must be 100%
+  crossCutTest: 'Pass' | 'Fail';
+  tapeTest: 'Pass' | 'Fail';
+  tapeImpressionBox?: boolean; // Physical box for sticking 3M adhesive cross-cut tape
+  
+  // 3. Delta Value Test (Spectrometer)
   L: number;
   a: number;
   b: number;
   deltaE: number;              // Must be <= 0.70
-  adhesionPercent: number;     // Must be 100%
-  crossCutTest: 'Pass' | 'Fail';
-  tapeTest: 'Pass' | 'Fail';
-  conductivity: 'Pass' | 'Fail' | 'N/A';
+  
+  conductivity?: 'Pass' | 'Fail' | 'N/A';
   overallResult: 'Approved' | 'Hold' | 'Rejected';
+  
+  // Signatures & Notes
   qcEngineer: string;
   managerQAApproval: boolean;
   remarks?: string;
+  acceptancePainter?: string;
+  acceptanceProductionIncharge?: string;
 }
 
 // 5. Paint Mixing Record (PK-PRD-PMX-001)
