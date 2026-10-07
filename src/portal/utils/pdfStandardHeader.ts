@@ -2227,7 +2227,9 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
 /**
  * =========================================================================
  * OFFICIAL FIRST PART APPROVAL (FPA) REPORT PDF (UNIVERSAL PAINTKING STANDARD)
- * Matching IQC / GRN Universal Architecture & IATF 16949 / ISO 9001:2015
+ * Strictly matching IQC Inspection Report table specifications, line thickness (0.45pt),
+ * border colors [180, 185, 195], light grey headers [242, 242, 243], zebra striping,
+ * and continuous vertical column grid lines.
  * Doc: PK-QA-FPA-001 | Issue Date: 01.01.2021 | Rev: 02 | Rev Date: 13.02.2021
  * =========================================================================
  */
@@ -2320,203 +2322,248 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   drawMetaField('SPRAY BOOTH & PAINTER', boothInfo, metaCol2X, metaY + 30.0, metaY + 35.5, 54);
   drawMetaField('VISCOSITY & STATUS', statusInfo, metaCol3X, metaY + 30.0, metaY + 35.5, 50);
 
-  let currentY = metaY + metaBoxHeight + 4;
+  let currentY = metaY + metaBoxHeight + 5;
 
   // =========================================================================
-  // 4. SECTION 1: VISUAL INSPECTION CHECKLIST (5 SAMPLES: S1 - S5)
+  // TABLE 1: VISUAL INSPECTION CHECKLIST (5 PRODUCTION SAMPLES: S1 - S5)
+  // Exact IQC Specification: #f2f2f3 Header, 0.45pt Border, Continuous Columns
   // =========================================================================
-  const colSr = 10;
-  const colParam = 30;
-  const colSpec = 30;
-  const colTech = 28;
-  const colSampleW = 16.8; // 5 samples * 16.8 = 84 mm (Total 182)
-  const sampleStartX = 14 + colSr + colParam + colSpec + colTech;
-  const sampleHeaders = ['S1', 'S2', 'S3', 'S4', 'S5'];
-
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(8.5);
   doc.setTextColor(23, 25, 28);
   doc.text('1. VISUAL INSPECTION CHECKLIST (5 PRODUCTION SAMPLES)', 14, currentY);
-  currentY += 3.5;
+  currentY += 4.5;
 
-  // Table Header
+  const visTableStartY = currentY;
+  // Main columns: SR (10mm), Param (46mm), Spec (36mm), Tech (26mm), Samples (64mm -> 5 x 12.8mm)
+  const visColX = [14, 24, 70, 106, 132, 196];
+  const sampleSubColX = [132, 144.8, 157.6, 170.4, 183.2, 196];
+  const sampleHeaders = ['S1', 'S2', 'S3', 'S4', 'S5'];
+
+  // Table Header Background (Light Grey #f2f2f3)
+  doc.setFillColor(242, 242, 243);
+  doc.rect(14, currentY, 182, 8.5, 'F');
   doc.setDrawColor(...TABLE_BORDER_COLOR);
   doc.setLineWidth(TABLE_LINE_WIDTH);
-  doc.setFillColor(242, 242, 243);
-  doc.rect(14, currentY, 182, 9, 'FD');
+  doc.line(14, currentY, 196, currentY);
+  doc.line(14, currentY + 8.5, 196, currentY + 8.5);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.8);
   doc.setTextColor(23, 25, 28);
 
-  doc.text('SR NO.', 14 + colSr / 2, currentY + 5.5, { align: 'center' });
-  doc.text('PARAMETERS', 14 + colSr + 2, currentY + 5.5);
-  doc.text('SPECIFICATION', 14 + colSr + colParam + 2, currentY + 5.5);
-  doc.text('METHOD / TECH', 14 + colSr + colParam + colSpec + 2, currentY + 5.5);
+  doc.text('SR.', 19, currentY + 5.2, { align: 'center' });
+  doc.text('PARAMETERS', 26, currentY + 5.2);
+  doc.text('SPECIFICATION', 72, currentY + 5.2);
+  doc.text('METHOD / TECH', 108, currentY + 5.2);
 
-  // Super Header for S1-S5
-  doc.text('FPA SAMPLES OBSERVATION (S1 - S5)', sampleStartX + 42, currentY + 3.5, { align: 'center' });
-  doc.line(sampleStartX, currentY + 4.5, 196, currentY + 4.5);
+  // Super Header for S1 - S5
+  doc.text('FPA SAMPLES OBSERVATION', 164, currentY + 3.2, { align: 'center' });
+  doc.line(132, currentY + 4.2, 196, currentY + 4.2);
 
   sampleHeaders.forEach((sh, sIdx) => {
-    doc.text(sh, sampleStartX + sIdx * colSampleW + colSampleW / 2, currentY + 7.8, { align: 'center' });
-    if (sIdx > 0) {
-      doc.line(sampleStartX + sIdx * colSampleW, currentY + 4.5, sampleStartX + sIdx * colSampleW, currentY + 9);
-    }
+    const subCenterX = sampleSubColX[sIdx] + (sampleSubColX[sIdx + 1] - sampleSubColX[sIdx]) / 2;
+    doc.text(sh, subCenterX, currentY + 7.5, { align: 'center' });
   });
 
-  // Vertical dividers for header
-  doc.line(14 + colSr, currentY, 14 + colSr, currentY + 9);
-  doc.line(14 + colSr + colParam, currentY, 14 + colSr + colParam, currentY + 9);
-  doc.line(14 + colSr + colParam + colSpec, currentY, 14 + colSr + colParam + colSpec, currentY + 9);
-  doc.line(sampleStartX, currentY, sampleStartX, currentY + 9);
-
-  currentY += 9;
+  currentY += 8.5;
 
   const visualParams = [
     { code: 'A', name: 'Bubble / Blistering', spec: 'Zero Allowed (Nil)', tech: 'Visual / 10x Lens' },
     { code: 'B', name: 'Dust Spot / Particle Nibs', spec: 'Zero Allowed (Nil)', tech: 'Visual / Clean Room' },
     { code: 'C', name: 'Over Paint / Sagging / Runs', spec: 'Zero Allowed (Nil)', tech: 'Visual Inspection' },
     { code: 'D', name: 'Paint Missing / Dry Spray', spec: 'Zero Allowed (Nil)', tech: 'Visual Inspection' },
-    { code: 'E', name: 'Colour Uniformity & Shade', spec: 'As per Master Plaque', tech: 'Visual / D65 Light' },
+    { code: 'E', name: 'Colour Uniformity & Shade', spec: 'As per Approved Sample', tech: 'Visual / D65 Light' },
     { code: 'F', name: 'Overall Surface Finishing', spec: 'Defect-Free Class A', tech: 'Visual / Tactile' }
   ];
 
   visualParams.forEach((vp, vpIdx) => {
-    const rowBg = vpIdx % 2 === 1 ? [250, 250, 251] : [255, 255, 255];
-    doc.setFillColor(rowBg[0], rowBg[1], rowBg[2]);
-    doc.rect(14, currentY, 182, 4.8, 'FD');
+    const isEven = vpIdx % 2 === 0;
+    doc.setFillColor(isEven ? 255 : 250, isEven ? 255 : 250, isEven ? 255 : 251);
+    doc.rect(14, currentY, 182, 4.8, 'F');
+    doc.setDrawColor(...TABLE_BORDER_COLOR);
+    doc.setLineWidth(TABLE_LINE_WIDTH);
+    doc.line(14, currentY + 4.8, 196, currentY + 4.8);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.8);
     doc.setTextColor(23, 25, 28);
-    doc.text(vp.code, 14 + colSr / 2, currentY + 3.4, { align: 'center' });
+    doc.text(vp.code, 19, currentY + 3.4, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
-    doc.text(vp.name, 14 + colSr + 2, currentY + 3.4);
-    doc.text(vp.spec, 14 + colSr + colParam + 2, currentY + 3.4);
-    doc.text(vp.tech, 14 + colSr + colParam + colSpec + 2, currentY + 3.4);
+    doc.text(vp.name, 26, currentY + 3.4);
+    doc.text(vp.spec, 72, currentY + 3.4);
+    doc.text(vp.tech, 108, currentY + 3.4);
 
-    // S1 - S5 check values
+    // Render S1 - S5 check values in IQC Pass Green
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(5, 150, 105);
+    doc.setTextColor(16, 116, 55);
     sampleHeaders.forEach((_, sIdx) => {
-      doc.text('OK', sampleStartX + sIdx * colSampleW + colSampleW / 2, currentY + 3.4, { align: 'center' });
-      doc.setDrawColor(...TABLE_BORDER_COLOR);
-      doc.line(sampleStartX + sIdx * colSampleW, currentY, sampleStartX + sIdx * colSampleW, currentY + 4.8);
+      const subCenterX = sampleSubColX[sIdx] + (sampleSubColX[sIdx + 1] - sampleSubColX[sIdx]) / 2;
+      doc.text('OK', subCenterX, currentY + 3.4, { align: 'center' });
     });
-
-    // Vertical column grid lines
-    doc.line(14 + colSr, currentY, 14 + colSr, currentY + 4.8);
-    doc.line(14 + colSr + colParam, currentY, 14 + colSr + colParam, currentY + 4.8);
-    doc.line(14 + colSr + colParam + colSpec, currentY, 14 + colSr + colParam + colSpec, currentY + 4.8);
-    doc.line(sampleStartX, currentY, sampleStartX, currentY + 4.8);
 
     currentY += 4.8;
   });
 
-  currentY += 3;
+  // Draw Continuous Vertical Lines for Table 1 (Exact IQC Method)
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  visColX.forEach(x => {
+    doc.line(x, visTableStartY, x, currentY);
+  });
+  // Draw inner sample dividers (below super header)
+  sampleSubColX.slice(1, -1).forEach(x => {
+    doc.line(x, visTableStartY + 4.2, x, currentY);
+  });
+
+  currentY += 4.5;
 
   // =========================================================================
-  // 5. SECTION 2: ADHESION TEST & PHYSICAL TAPE IMPRESSION BOX (ASTM 5B)
+  // TABLE 2: ADHESION TEST & PHYSICAL TAPE IMPRESSION (ASTM D3359 / IS 101)
+  // Exact IQC Specification: #f2f2f3 Header, 0.45pt Border, Unified Grid
   // =========================================================================
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(8.5);
   doc.setTextColor(23, 25, 28);
   doc.text('2. ADHESION TEST & PHYSICAL TAPE IMPRESSION (ASTM D3359 / IS 101)', 14, currentY);
-  currentY += 3.5;
+  currentY += 4.5;
 
-  const adhesionBoxH = 22;
-  doc.setFillColor(255, 255, 255);
-  doc.rect(14, currentY, 182, adhesionBoxH, 'FD');
+  const adhTableStartY = currentY;
+  const adhColX = [14, 24, 70, 106, 132, 196];
 
-  // Parameters
+  // Header Table 2
+  doc.setFillColor(242, 242, 243);
+  doc.rect(14, currentY, 182, 6.2, 'F');
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.line(14, currentY, 196, currentY);
+  doc.line(14, currentY + 6.2, 196, currentY + 6.2);
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.8);
   doc.setTextColor(23, 25, 28);
-  doc.text('A', 14 + colSr / 2, currentY + adhesionBoxH / 2, { align: 'center' });
+  doc.text('SR.', 19, currentY + 4.3, { align: 'center' });
+  doc.text('TEST / PARAMETER', 26, currentY + 4.3);
+  doc.text('CRITERIA / SPECIFICATION', 72, currentY + 4.3);
+  doc.text('METHOD / TECH', 108, currentY + 4.3);
+  doc.text('STATUS & PHYSICAL TAPE IMPRESSION', 164, currentY + 4.3, { align: 'center' });
 
+  currentY += 6.2;
+
+  const adhesionBoxH = 20;
+  doc.setFillColor(255, 255, 255);
+  doc.rect(14, currentY, 182, adhesionBoxH, 'F');
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.line(14, currentY + adhesionBoxH, 196, currentY + adhesionBoxH);
+
+  // Sr
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(23, 25, 28);
+  doc.text('1', 19, currentY + adhesionBoxH / 2 + 1, { align: 'center' });
+
+  // Parameter
+  doc.text('Cross Cut Tape Test', 26, currentY + 7);
   doc.setFont('helvetica', 'normal');
-  doc.text('Cross Cut Tape Test', 14 + colSr + 2, currentY + adhesionBoxH / 2 - 2);
   doc.setFontSize(6.0);
   doc.setTextColor(100, 105, 115);
-  doc.text('(1mm Lattice Matrix)', 14 + colSr + 2, currentY + adhesionBoxH / 2 + 2.5);
+  doc.text('(1mm Lattice Matrix)', 26, currentY + 12);
 
+  // Specification
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.8);
   doc.setTextColor(23, 25, 28);
-  doc.text('100% Adhesion (5B)', 14 + colSr + colParam + 2, currentY + adhesionBoxH / 2 - 2);
+  doc.text('100% Adhesion (5B)', 72, currentY + 7);
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.0);
   doc.setTextColor(100, 105, 115);
-  doc.text('(0% Flaking / Peel)', 14 + colSr + colParam + 2, currentY + adhesionBoxH / 2 + 2.5);
+  doc.text('(0% Flaking / Peel)', 72, currentY + 12);
 
+  // Method
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.8);
   doc.setTextColor(23, 25, 28);
-  doc.text('Physical 3M #600', 14 + colSr + colParam + colSpec + 2, currentY + adhesionBoxH / 2);
+  doc.text('Physical 3M #600', 108, currentY + 7);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.0);
+  doc.setTextColor(100, 105, 115);
+  doc.text('ASTM D3359 / IS 101', 108, currentY + 12);
 
-  // Vertical lines for parameters
-  doc.line(14 + colSr, currentY, 14 + colSr, currentY + adhesionBoxH);
-  doc.line(14 + colSr + colParam, currentY, 14 + colSr + colParam, currentY + adhesionBoxH);
-  doc.line(14 + colSr + colParam + colSpec, currentY, 14 + colSr + colParam + colSpec, currentY + adhesionBoxH);
-
-  // Check Boxes: OK vs NOT OK
-  const okBoxX = 14 + colSr + colParam + colSpec + 3;
+  // Right Column: Result [ OK ] & Tape Impression Area
+  const okBoxX = 135;
   const isOk = fpa.adhesionPercent === 100 && fpa.crossCutTest === 'Pass';
 
-  // [ OK ] Box
+  // [ OK ] Checkbox
   doc.setDrawColor(...TABLE_BORDER_COLOR);
-  doc.rect(okBoxX, currentY + 3.5, 12, 15, 'D');
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.rect(okBoxX, currentY + 3, 11, 14, 'D');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.0);
+  doc.setFontSize(6.5);
   doc.setTextColor(23, 25, 28);
-  doc.text('OK', okBoxX + 6, currentY + 8.5, { align: 'center' });
+  doc.text('OK', okBoxX + 5.5, currentY + 7.5, { align: 'center' });
   if (isOk) {
-    doc.setTextColor(5, 150, 105);
+    doc.setTextColor(16, 116, 55);
     doc.setFontSize(9);
-    doc.text('✓', okBoxX + 6, currentY + 15, { align: 'center' });
+    doc.text('✓', okBoxX + 5.5, currentY + 14, { align: 'center' });
   }
 
-  // [ NOT OK ] Box
-  const notOkBoxX = okBoxX + 15;
-  doc.rect(notOkBoxX, currentY + 3.5, 14, 15, 'D');
+  // [ NOT OK ] Checkbox
+  const notOkBoxX = okBoxX + 13;
+  doc.rect(notOkBoxX, currentY + 3, 13, 14, 'D');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.2);
+  doc.setFontSize(5.8);
   doc.setTextColor(23, 25, 28);
-  doc.text('NOT OK', notOkBoxX + 7, currentY + 8.5, { align: 'center' });
+  doc.text('NOT OK', notOkBoxX + 6.5, currentY + 7.5, { align: 'center' });
   if (!isOk) {
-    doc.setTextColor(225, 29, 72);
+    doc.setTextColor(220, 38, 38);
     doc.setFontSize(9);
-    doc.text('✗', notOkBoxX + 7, currentY + 15, { align: 'center' });
+    doc.text('✗', notOkBoxX + 6.5, currentY + 14, { align: 'center' });
   }
 
-  // MANDATORY PHYSICAL TAPE IMPRESSION BOX (Where 3M Tape will be adhered!)
-  const tapeBoxX = notOkBoxX + 17;
+  // Physical 3M Tape Sticking Zone
+  const tapeBoxX = notOkBoxX + 16;
   const tapeBoxW = 196 - tapeBoxX - 3;
-  const tapeBoxH = 16;
+  const tapeBoxH = 14;
 
-  doc.setDrawColor(150, 155, 165);
-  doc.setLineWidth(0.5);
+  doc.setDrawColor(160, 165, 175);
+  doc.setLineWidth(0.45);
   doc.setFillColor(250, 250, 252);
   doc.rect(tapeBoxX, currentY + 3, tapeBoxW, tapeBoxH, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.0);
-  doc.setTextColor(100, 105, 115);
-  doc.text('TAPE IMPRESSION AREA', tapeBoxX + tapeBoxW / 2, currentY + 9.5, { align: 'center' });
+  doc.setFontSize(6.8);
+  doc.setTextColor(90, 95, 105);
+  doc.text('TAPE IMPRESSION AREA', tapeBoxX + tapeBoxW / 2, currentY + 8.5, { align: 'center' });
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.0);
-  doc.setTextColor(130, 135, 145);
-  doc.text('(Stick Physical 3M Cross-Cut Tape Sample Here)', tapeBoxX + tapeBoxW / 2, currentY + 14.5, { align: 'center' });
+  doc.setFontSize(5.8);
+  doc.setTextColor(120, 125, 135);
+  doc.text('(Stick Physical 3M Cross-Cut Tape Here)', tapeBoxX + tapeBoxW / 2, currentY + 13.5, { align: 'center' });
 
-  currentY += adhesionBoxH + 3;
+  currentY += adhesionBoxH;
+
+  // Draw Continuous Vertical Lines for Table 2
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  adhColX.forEach(x => {
+    doc.line(x, adhTableStartY, x, currentY);
+  });
+
+  currentY += 4.5;
 
   // =========================================================================
-  // 6. SECTION 3: SPECTROPHOTOMETER DELTA-E COLORIMETRY (CIELAB)
+  // TABLE 3: SPECTROPHOTOMETER DELTA-E COLORIMETRY (CIELAB - D65 / 10°)
+  // Exact IQC Specification: #f2f2f3 Header, 0.45pt Border, Continuous Columns
   // =========================================================================
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(8.5);
   doc.setTextColor(23, 25, 28);
   doc.text('3. SPECTROPHOTOMETER DELTA-E COLORIMETRY (CIELAB - D65 / 10°)', 14, currentY);
-  currentY += 3.5;
+  currentY += 4.5;
+
+  const specTableStartY = currentY;
+  const specColX = [14, 24, 70, 106, 132, 144.8, 157.6, 170.4, 183.2, 196];
 
   const defaultL = (fpa.L !== undefined ? fpa.L : 42.15).toFixed(2);
   const defaultA = (fpa.a !== undefined ? fpa.a : 54.30).toFixed(2);
@@ -2528,38 +2575,28 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   const masterB = String(fpa.masterLab?.masterB ?? fpa.masterB ?? '28.00');
 
   // Header Table 3
+  doc.setFillColor(242, 242, 243);
+  doc.rect(14, currentY, 182, 6.2, 'F');
   doc.setDrawColor(...TABLE_BORDER_COLOR);
   doc.setLineWidth(TABLE_LINE_WIDTH);
-  doc.setFillColor(242, 242, 243);
-  doc.rect(14, currentY, 182, 8, 'FD');
+  doc.line(14, currentY, 196, currentY);
+  doc.line(14, currentY + 6.2, 196, currentY + 6.2);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.8);
   doc.setTextColor(23, 25, 28);
 
-  doc.text('SR NO.', 14 + colSr / 2, currentY + 5.0, { align: 'center' });
-  doc.text('COLOR PARAMETER', 14 + colSr + 2, currentY + 5.0);
-  doc.text('MASTER / SPECIFICATION', 14 + colSr + colParam + 2, currentY + 5.0);
-  doc.text('MEASUREMENT TECH', 14 + colSr + colParam + colSpec + 2, currentY + 5.0);
+  doc.text('SR.', 19, currentY + 4.3, { align: 'center' });
+  doc.text('COLOR PARAMETER', 26, currentY + 4.3);
+  doc.text('MASTER / SPECIFICATION', 72, currentY + 4.3);
+  doc.text('METHOD / TECH', 108, currentY + 4.3);
 
-  doc.text('S1', sampleStartX + 0 * colSampleW + colSampleW / 2, currentY + 5.0, { align: 'center' });
-  doc.text('S2', sampleStartX + 1 * colSampleW + colSampleW / 2, currentY + 5.0, { align: 'center' });
-  doc.text('S3', sampleStartX + 2 * colSampleW + colSampleW / 2, currentY + 5.0, { align: 'center' });
-  doc.text('S4', sampleStartX + 3 * colSampleW + colSampleW / 2, currentY + 5.0, { align: 'center' });
-  doc.text('S5', sampleStartX + 4 * colSampleW + colSampleW / 2, currentY + 5.0, { align: 'center' });
-
-  // Vertical dividers for Table 3 header
-  doc.line(14 + colSr, currentY, 14 + colSr, currentY + 8);
-  doc.line(14 + colSr + colParam, currentY, 14 + colSr + colParam, currentY + 8);
-  doc.line(14 + colSr + colParam + colSpec, currentY, 14 + colSr + colParam + colSpec, currentY + 8);
-  doc.line(sampleStartX, currentY, sampleStartX, currentY + 8);
-  sampleHeaders.forEach((_, sIdx) => {
-    if (sIdx > 0) {
-      doc.line(sampleStartX + sIdx * colSampleW, currentY, sampleStartX + sIdx * colSampleW, currentY + 8);
-    }
+  sampleHeaders.forEach((sh, sIdx) => {
+    const subCenterX = sampleSubColX[sIdx] + (sampleSubColX[sIdx + 1] - sampleSubColX[sIdx]) / 2;
+    doc.text(sh, subCenterX, currentY + 4.3, { align: 'center' });
   });
 
-  currentY += 8;
+  currentY += 6.2;
 
   const deltaRows = [
     {
@@ -2593,19 +2630,22 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   ];
 
   deltaRows.forEach((dr, drIdx) => {
-    const rowBg = drIdx % 2 === 1 ? [250, 250, 251] : [255, 255, 255];
-    doc.setFillColor(rowBg[0], rowBg[1], rowBg[2]);
-    doc.rect(14, currentY, 182, 4.8, 'FD');
+    const isEven = drIdx % 2 === 0;
+    doc.setFillColor(isEven ? 255 : 250, isEven ? 255 : 250, isEven ? 255 : 251);
+    doc.rect(14, currentY, 182, 4.8, 'F');
+    doc.setDrawColor(...TABLE_BORDER_COLOR);
+    doc.setLineWidth(TABLE_LINE_WIDTH);
+    doc.line(14, currentY + 4.8, 196, currentY + 4.8);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.8);
     doc.setTextColor(23, 25, 28);
-    doc.text(dr.code, 14 + colSr / 2, currentY + 3.4, { align: 'center' });
+    doc.text(dr.code, 19, currentY + 3.4, { align: 'center' });
 
-    doc.text(dr.param, 14 + colSr + 2, currentY + 3.4);
+    doc.text(dr.param, 26, currentY + 3.4);
     doc.setFont('helvetica', 'normal');
-    doc.text(dr.spec, 14 + colSr + colParam + 2, currentY + 3.4);
-    doc.text(dr.tech, 14 + colSr + colParam + colSpec + 2, currentY + 3.4);
+    doc.text(dr.spec, 72, currentY + 3.4);
+    doc.text(dr.tech, 108, currentY + 3.4);
 
     // Value in S1-S5
     doc.setFont('helvetica', 'bold');
@@ -2614,41 +2654,41 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
       const numVal = parseFloat(cellVal);
       if (dr.code === 'D') {
         if (!isNaN(numVal) && numVal <= 0.70) {
-          doc.setTextColor(5, 150, 105);
+          doc.setTextColor(16, 116, 55);
         } else {
-          doc.setTextColor(225, 29, 72);
+          doc.setTextColor(220, 38, 38);
         }
       } else {
         doc.setTextColor(23, 25, 28);
       }
-      doc.text(cellVal, sampleStartX + sIdx * colSampleW + colSampleW / 2, currentY + 3.4, { align: 'center' });
-      doc.setDrawColor(...TABLE_BORDER_COLOR);
-      doc.line(sampleStartX + sIdx * colSampleW, currentY, sampleStartX + sIdx * colSampleW, currentY + 4.8);
+      const subCenterX = sampleSubColX[sIdx] + (sampleSubColX[sIdx + 1] - sampleSubColX[sIdx]) / 2;
+      doc.text(cellVal, subCenterX, currentY + 3.4, { align: 'center' });
     });
-
-    // Vertical column grid lines
-    doc.line(14 + colSr, currentY, 14 + colSr, currentY + 4.8);
-    doc.line(14 + colSr + colParam, currentY, 14 + colSr + colParam, currentY + 4.8);
-    doc.line(14 + colSr + colParam + colSpec, currentY, 14 + colSr + colParam + colSpec, currentY + 4.8);
-    doc.line(sampleStartX, currentY, sampleStartX, currentY + 4.8);
 
     currentY += 4.8;
   });
 
-  currentY += 3;
+  // Draw Continuous Vertical Lines for Table 3
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  specColX.forEach(x => {
+    doc.line(x, specTableStartY, x, currentY);
+  });
+
+  currentY += 4.5;
 
   // =========================================================================
-  // 7. SECTION 4: QUALITY ENGINEER REMARKS & FLOOR STANDARD NOTE
+  // SECTION 4: QUALITY ENGINEER REMARKS & FLOOR STANDARD NOTE
   // =========================================================================
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(8.5);
   doc.setTextColor(23, 25, 28);
   doc.text('4. QUALITY ENGINEER REMARKS & DISPOSITION', 14, currentY);
   currentY += 3.5;
 
   doc.setDrawColor(220, 222, 228);
   doc.setFillColor(250, 250, 251);
-  doc.roundedRect(14, currentY, 182, 14, 2, 2, 'FD');
+  doc.roundedRect(14, currentY, 182, 13.5, 2, 2, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.8);
@@ -2671,17 +2711,17 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   currentY += 16.5;
 
   // =========================================================================
-  // 8. SECTION 5: AUTHORIZED MULTI-DEPARTMENT SIGN-OFF BLOCK (4 BOXES)
+  // SECTION 5: AUTHORIZED MULTI-DEPARTMENT SIGN-OFF BLOCK (4 BOXES)
   // =========================================================================
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(8.5);
   doc.setTextColor(23, 25, 28);
   doc.text('5. AUTHORIZED MULTI-DEPARTMENT SIGN-OFF BLOCK', 14, currentY);
   currentY += 3.5;
 
   const sigBoxW = 43.5;
   const sigBoxGap = 2.6;
-  const sigBoxH = 17;
+  const sigBoxH = 16.5;
 
   const sigNodes = [
     {
@@ -2731,7 +2771,7 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
     // Status Badge
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.2);
-    doc.setTextColor(node.isOk ? 5 : 225, node.isOk ? 150 : 29, node.isOk ? 105 : 72);
+    doc.setTextColor(node.isOk ? 16 : 220, node.isOk ? 116 : 38, node.isOk ? 55 : 38);
     doc.text(node.status, boxX + sigBoxW / 2, currentY + 13.5, { align: 'center' });
   });
 
