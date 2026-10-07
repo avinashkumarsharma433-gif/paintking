@@ -22,7 +22,9 @@ import {
   Users,
   Settings,
   FlaskConical,
-  Download
+  Download,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { FPAModal } from '../components/FPAModal';
 import { IPQCModal } from '../components/IPQCModal';
@@ -116,12 +118,34 @@ export const PainterWorkspaceView: React.FC = () => {
     return isMatching && (jc.status === 'Completed' || jc.painterJobStatus === 'Verified & Accepted');
   });
 
+  const checkIsFpaApproved = (jc: JobCard): boolean => {
+    if (jc.fpaStatus === 'Approved') return true;
+    return fpaRecords.some(f => (
+      f.jobCardNo.toLowerCase() === jc.jobCardNo.toLowerCase() || 
+      (jc.woNo && f.woNo.toLowerCase() === jc.woNo.toLowerCase() && f.color.toLowerCase() === jc.color.toLowerCase())
+    ) && f.overallResult === 'Approved');
+  };
+
   const handleStartJob = (jobCardNo: string) => {
+    const jc = jobCards.find(j => j.jobCardNo === jobCardNo);
+    if (jc && !checkIsFpaApproved(jc)) {
+      setSelectedJcForFpa(jc);
+      setShowFpaModal(true);
+      showToast(`🔒 Quality Gate 2 Block: First Part Approval (FPA) mandatory before starting mass spray.`);
+      return;
+    }
     startPainterJob(jobCardNo, activeTargetPainter.name);
     showToast(`Job ${jobCardNo} started! Booth spraying timer is live.`);
   };
 
   const handleAddSprayed = (jobCardNo: string, amount: number) => {
+    const jc = jobCards.find(j => j.jobCardNo === jobCardNo);
+    if (jc && !checkIsFpaApproved(jc)) {
+      setSelectedJcForFpa(jc);
+      setShowFpaModal(true);
+      showToast(`🔒 Quality Gate 2 Block: FPA must be approved before logging mass output.`);
+      return;
+    }
     updateJobCardSprayed(jobCardNo, amount, 0);
     showToast(`Added +${amount} sprayed pieces to ${jobCardNo}`);
   };
@@ -688,59 +712,129 @@ export const PainterWorkspaceView: React.FC = () => {
 
                     {/* INTERACTIVE ACTIONS */}
                     <div className="pt-2 border-t border-[#ececec] space-y-3">
-                      {isAssignedNotStarted && (
-                        <button
-                          onClick={() => handleStartJob(jc.jobCardNo)}
-                          className="w-full py-3 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-98"
-                        >
-                          <Play className="w-4 h-4 fill-[#c09748]" />
-                          <span>▶ Start Spraying / Kaam Shuru Karo</span>
-                        </button>
-                      )}
+                      {(() => {
+                        const isFpaApproved = checkIsFpaApproved(jc);
 
-                      {isInProgress && (
-                        <div className="space-y-3">
-                          {/* Quick Increment Buttons */}
-                          <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-[#fafafb] rounded-[14px] border border-[#ececec]">
-                            <span className="text-xs font-bold text-[#17191c]">Log Sprayed Output:</span>
-                            <div className="flex items-center gap-1.5">
-                              {[10, 25, 50, 100].map(qty => (
+                        if (isAssignedNotStarted) {
+                          if (!isFpaApproved) {
+                            return (
+                              <div className="p-3.5 rounded-[18px] bg-amber-50 border border-amber-300/80 space-y-2.5">
+                                <div className="flex items-start gap-2 text-amber-900">
+                                  <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                                  <div className="text-xs space-y-0.5">
+                                    <strong className="block">Quality Gate 2 Locked (FPA Pending)</strong>
+                                    <p className="text-[11px] text-amber-800 leading-snug">
+                                      Plant ISO & OEM Rule: Mass production spraying is strictly locked until Initial 5-sample FPA is tested and approved by QA.
+                                    </p>
+                                  </div>
+                                </div>
                                 <button
-                                  key={qty}
                                   type="button"
-                                  onClick={() => handleAddSprayed(jc.jobCardNo, qty)}
-                                  className="px-2.5 py-1 rounded-full bg-white hover:bg-gray-100 text-[#17191c] text-xs font-mono font-bold border border-[#ececec] cursor-pointer shadow-2xs transition active:scale-95"
+                                  onClick={() => {
+                                    setSelectedJcForFpa(jc);
+                                    setShowFpaModal(true);
+                                  }}
+                                  className="w-full py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-98"
                                 >
-                                  +{qty}
+                                  <FlaskConical className="w-3.5 h-3.5" />
+                                  <span>+ Perform FPA First to Unlock Production</span>
                                 </button>
-                              ))}
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-2">
+                              <div className="p-2 rounded-[12px] bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] font-bold flex items-center gap-1.5">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span>✓ FPA Golden Gate Cleared • Mass Production Authorized</span>
+                              </div>
+                              <button
+                                onClick={() => handleStartJob(jc.jobCardNo)}
+                                className="w-full py-3 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-98"
+                              >
+                                <Play className="w-4 h-4 fill-[#c09748]" />
+                                <span>▶ Start Spraying / Kaam Shuru Karo</span>
+                              </button>
                             </div>
-                          </div>
+                          );
+                        }
 
-                          {/* Painter Notes */}
-                          <div>
-                            <label className="block text-[10px] font-bold uppercase text-[#777b86] mb-1">
-                              Booth Operator Notes / Finishing Remarks:
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="e.g. 2 coats applied, viscosity 14.5s Ford 4, zero dust nibs observed."
-                              value={painterNotesMap[jc.jobCardNo] || ''}
-                              onChange={e => setPainterNotesMap({ ...painterNotesMap, [jc.jobCardNo]: e.target.value })}
-                              className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                            />
-                          </div>
+                        if (isInProgress) {
+                          if (!isFpaApproved) {
+                            return (
+                              <div className="p-3.5 rounded-[18px] bg-rose-50 border border-rose-300 space-y-2.5">
+                                <div className="flex items-start gap-2 text-rose-900">
+                                  <Lock className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
+                                  <div className="text-xs space-y-0.5">
+                                    <strong className="block">Spraying Halted: FPA Quality Clearance Required</strong>
+                                    <p className="text-[11px] text-rose-800 leading-snug">
+                                      Logging mass production parts is disabled until FPA report is approved by QA.
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedJcForFpa(jc);
+                                    setShowFpaModal(true);
+                                  }}
+                                  className="w-full py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-98"
+                                >
+                                  <FlaskConical className="w-3.5 h-3.5" />
+                                  <span>+ Complete FPA Verification</span>
+                                </button>
+                              </div>
+                            );
+                          }
 
-                          {/* Mark Finished Button */}
-                          <button
-                            onClick={() => handleFinishJob(jc.jobCardNo)}
-                            className="w-full py-3 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-98"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>✓ Mark as Finished / Kaam Ho Gaya (Submit for Verification)</span>
-                          </button>
-                        </div>
-                      )}
+                          return (
+                            <div className="space-y-3">
+                              {/* Quick Increment Buttons */}
+                              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-[#fafafb] rounded-[14px] border border-[#ececec]">
+                                <span className="text-xs font-bold text-[#17191c]">Log Sprayed Output:</span>
+                                <div className="flex items-center gap-1.5">
+                                  {[10, 25, 50, 100].map(qty => (
+                                    <button
+                                      key={qty}
+                                      type="button"
+                                      onClick={() => handleAddSprayed(jc.jobCardNo, qty)}
+                                      className="px-2.5 py-1 rounded-full bg-white hover:bg-gray-100 text-[#17191c] text-xs font-mono font-bold border border-[#ececec] cursor-pointer shadow-2xs transition active:scale-95"
+                                    >
+                                      +{qty}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Painter Notes */}
+                              <div>
+                                <label className="block text-[10px] font-bold uppercase text-[#777b86] mb-1">
+                                  Booth Operator Notes / Finishing Remarks:
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. 2 coats applied, viscosity 14.5s Ford 4, zero dust nibs observed."
+                                  value={painterNotesMap[jc.jobCardNo] || ''}
+                                  onChange={e => setPainterNotesMap({ ...painterNotesMap, [jc.jobCardNo]: e.target.value })}
+                                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                                />
+                              </div>
+
+                              {/* Mark Finished Button */}
+                              <button
+                                onClick={() => handleFinishJob(jc.jobCardNo)}
+                                className="w-full py-3 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-sm active:scale-98"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span>✓ Mark as Finished / Kaam Ho Gaya (Submit for Verification)</span>
+                              </button>
+                            </div>
+                          );
+                        }
+
+                        return null;
+                      })()}
 
                       {isFinishedPendingReview && (
                         <div className="p-3.5 bg-amber-100/70 rounded-[16px] border border-amber-300 text-center text-xs text-amber-900 space-y-2">
