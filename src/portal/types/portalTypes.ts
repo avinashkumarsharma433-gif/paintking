@@ -429,6 +429,13 @@ export interface FPADeltaValueRow {
   deltaE: (number | string)[]; // 5 Samples S1 - S5
 }
 
+export interface FPAMasterLab {
+  masterL: number | string;    // e.g. 42.00
+  masterA: number | string;    // e.g. 54.00
+  masterB: number | string;    // e.g. 28.00
+  masterPlaqueRef?: string;    // e.g. "OEM Master Plaque #01"
+}
+
 export interface FPARecord {
   reportNo: string;
   date: string;
@@ -463,7 +470,11 @@ export interface FPARecord {
   tapeTest: 'Pass' | 'Fail';
   tapeImpressionBox?: boolean; // Physical box for sticking 3M adhesive cross-cut tape
   
-  // 3. Delta Value Test (Spectrometer across S1 - S5)
+  // 3. Delta Value Test (Master Reference LAB + 5 Production Samples S1 - S5)
+  masterLab?: FPAMasterLab;
+  masterL?: number | string;
+  masterA?: number | string;
+  masterB?: number | string;
   deltaSamples?: FPADeltaValueRow;
   L: number;
   a: number;

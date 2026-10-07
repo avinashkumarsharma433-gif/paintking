@@ -2533,25 +2533,33 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   const defaultB = (fpa.b !== undefined ? fpa.b : 28.10).toFixed(2);
   const defaultDeltaE = (fpa.deltaE !== undefined ? fpa.deltaE : 0.38).toFixed(2);
 
+  const masterL = String(fpa.masterLab?.masterL ?? fpa.masterL ?? '42.00');
+  const masterA = String(fpa.masterLab?.masterA ?? fpa.masterA ?? '54.00');
+  const masterB = String(fpa.masterLab?.masterB ?? fpa.masterB ?? '28.00');
+
   const deltaRows = [
     {
       code: 'A',
       param: 'L',
+      spec: `Master L* = ${masterL}`,
       vals: fpa.deltaSamples?.L?.map(v => String(v)) || [defaultL, defaultL, defaultL, defaultL, defaultL]
     },
     {
       code: 'B',
       param: 'A',
+      spec: `Master a* = ${masterA}`,
       vals: fpa.deltaSamples?.a?.map(v => String(v)) || [defaultA, defaultA, defaultA, defaultA, defaultA]
     },
     {
       code: 'C',
       param: 'B',
+      spec: `Master b* = ${masterB}`,
       vals: fpa.deltaSamples?.b?.map(v => String(v)) || [defaultB, defaultB, defaultB, defaultB, defaultB]
     },
     {
       code: 'D',
       param: 'Delta E (Delta Value)',
+      spec: 'Tolerance <= 0.70',
       vals: fpa.deltaSamples?.deltaE?.map(v => String(v)) || [defaultDeltaE, defaultDeltaE, defaultDeltaE, defaultDeltaE, defaultDeltaE]
     }
   ];
@@ -2568,6 +2576,7 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
 
     doc.text(dr.param, 14 + colSr + 2, currentY + 3.5);
     doc.setFont('helvetica', 'normal');
+    doc.text(dr.spec, 14 + colSr + colParam + 2, currentY + 3.5);
     doc.text('Spectrometer', 14 + colSr + colParam + colSpec + 2, currentY + 3.5);
 
     // Value in S1-S5

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { JobCard, FPARecord, FPAVisualCheckRow, FPADeltaValueRow } from '../types/portalTypes';
+import { JobCard, FPARecord, FPAVisualCheckRow, FPADeltaValueRow, FPAMasterLab } from '../types/portalTypes';
 import { 
   Sparkles, 
   CheckCircle2, 
@@ -18,7 +18,8 @@ import {
   ClipboardList,
   ArrowRight,
   ArrowLeft,
-  RotateCcw
+  RotateCcw,
+  Target
 } from 'lucide-react';
 import { downloadStandardFPAPdf } from '../utils/pdfStandardHeader';
 
@@ -80,6 +81,12 @@ export const FPAModal: React.FC<FPAModalProps> = ({
   const [tapeTest, setTapeTest] = useState<'Pass' | 'Fail'>('Pass');
   const [adhesionPercent, setAdhesionPercent] = useState<number>(100);
 
+  // 3. MASTER LAB TARGET VALUES (OEM Standard Plaque / Target Shade)
+  const [masterL, setMasterL] = useState<number | string>(42.00);
+  const [masterA, setMasterA] = useState<number | string>(54.00);
+  const [masterB, setMasterB] = useState<number | string>(28.00);
+  const [masterPlaqueRef, setMasterPlaqueRef] = useState<string>('OEM Approved Master Plaque #01');
+
   // 3. CIELAB Spectrometer Delta Values for 5 Samples (Manual Direct Inputs - No Auto Math)
   const [deltaSamples, setDeltaSamples] = useState<FPADeltaValueRow>({
     L: [42.15, 42.10, 42.20, 42.18, 42.12],
@@ -93,7 +100,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
   const [acceptanceProductionIncharge, setAcceptanceProductionIncharge] = useState<string>('Sunil Verma (Prod. Incharge)');
   const [qcEngineer, setQcEngineer] = useState<string>(currentUser?.name || 'Amit Verma (QA Engineer)');
   const [managerQAApproval, setManagerQAApproval] = useState<boolean>(true);
-  const [remarks, setRemarks] = useState<string>('Visual 5/5 OK, Cross-Cut 100% adhesion verified, Spectrometer Delta-E <= 0.70 across all 5 samples. Approved for production.');
+  const [remarks, setRemarks] = useState<string>('Visual 5/5 OK, Cross-Cut 100% adhesion verified, Spectrometer Delta-E <= 0.70 across all 5 samples vs Master Plaque. Approved for production.');
 
   // Result state after creation
   const [createdFpa, setCreatedFpa] = useState<FPARecord | null>(null);
@@ -132,6 +139,10 @@ export const FPAModal: React.FC<FPAModalProps> = ({
   };
 
   const handleResetDefaultDelta = () => {
+    setMasterL(42.00);
+    setMasterA(54.00);
+    setMasterB(28.00);
+    setMasterPlaqueRef('OEM Approved Master Plaque #01');
     setDeltaSamples({
       L: [42.15, 42.10, 42.20, 42.18, 42.12],
       a: [54.30, 54.25, 54.35, 54.28, 54.32],
@@ -164,8 +175,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
     });
   };
 
-  // Average or max Delta-E for summary badge
-  const primaryDeltaE = Number(deltaSamples.deltaE[0]) || 0.38;
+  // Validation
   const isDeltaEPass = deltaSamples.deltaE.every(d => Number(d) <= 0.70);
   const isAdhesionPass = adhesionPercent === 100 && crossCutTest === 'Pass' && tapeTest === 'Pass';
   const isAllVisualPass = Object.values(visualChecks).every(row => row.every(val => val === 'Pass'));
@@ -185,6 +195,13 @@ export const FPAModal: React.FC<FPAModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const masterLabData: FPAMasterLab = {
+      masterL,
+      masterA,
+      masterB,
+      masterPlaqueRef
+    };
 
     const fpaData = {
       date,
@@ -210,6 +227,10 @@ export const FPAModal: React.FC<FPAModalProps> = ({
       sample3,
       sample4,
       sample5,
+      masterLab: masterLabData,
+      masterL,
+      masterA,
+      masterB,
       deltaSamples,
       L: Number(deltaSamples.L[0]) || 42.15,
       a: Number(deltaSamples.a[0]) || 54.30,
@@ -283,7 +304,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                     First Part Approval Report Generated & Signed!
                   </h3>
                   <p className="text-xs text-[#777b86]">
-                    Job Card <strong>{createdFpa.jobCardNo}</strong> is cleared for mass production. Standard Excel Format (Issue Date: 01.01.2021 | Rev: 02) with <strong>Physical Tape Impression Box</strong> and <strong>5-Sample Spectrometer Delta-E Table</strong> is ready.
+                    Job Card <strong>{createdFpa.jobCardNo}</strong> is cleared for mass production. Standard Excel Format (Issue Date: 01.01.2021 | Rev: 02) with <strong>Master LAB ({createdFpa.masterL}, {createdFpa.masterA}, {createdFpa.masterB})</strong> and <strong>5-Sample Spectrometer Table</strong> is ready.
                   </p>
                 </div>
               </div>
@@ -324,8 +345,8 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                   <strong>{createdFpa.jobCardNo}</strong>
                 </div>
                 <div>
-                  <span className="text-[#777b86] block text-[9px] uppercase">Delta-E (ΔE S1..S5)</span>
-                  <strong className="text-emerald-700">≤ 0.70 (5/5 Pass)</strong>
+                  <span className="text-[#777b86] block text-[9px] uppercase">Master Ref</span>
+                  <strong className="text-[#8a6521]">L:{createdFpa.masterL} a:{createdFpa.masterA} b:{createdFpa.masterB}</strong>
                 </div>
                 <div>
                   <span className="text-[#777b86] block text-[9px] uppercase">Tape Adhesion</span>
@@ -657,16 +678,16 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                   </div>
                 </div>
 
-                {/* 3B: Delta Value Test (Spectrometer Direct 5-Samples Entry Table) */}
+                {/* 3B: Delta Value Test (Master LAB + Spectrometer 5-Samples Entry Table) */}
                 <div className="p-4 rounded-[20px] bg-white border border-[#ececec] space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-[10.5px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1">
                         <FlaskConical className="w-3.5 h-3.5 text-[#c09748]" />
-                        <span>3B. Delta Value Test (Spectrometer L, A, B & ΔE for 5 Samples)</span>
+                        <span>3B. Master Standard LAB & 5-Sample Spectrometer Delta-E Table</span>
                       </span>
                       <p className="text-[10px] text-[#777b86] mt-0.5">
-                        Direct manual entry for all 5 samples (No automatic calculation). Standard Target: ΔE ≤ 0.70 vs Master.
+                        Feed Master Plaque Reference & direct readings for S1..S5. Standard Target: ΔE ≤ 0.70 vs Master.
                       </p>
                     </div>
 
@@ -677,18 +698,81 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                       title="Reset standard values"
                     >
                       <RotateCcw className="w-3 h-3" />
-                      <span>Default Readings</span>
+                      <span>Default Master & Readings</span>
                     </button>
                   </div>
 
+                  {/* MASTER LAB FEED STRIP */}
+                  <div className="p-3 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be] space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-[#8a6521] uppercase font-mono flex items-center gap-1">
+                        <Target className="w-3.5 h-3.5 text-[#c09748]" />
+                        <span>Master Standard Shade Reference (Target Plaque)</span>
+                      </span>
+                      <span className="text-[9.5px] font-mono text-[#8a6521]">Master Plaque Reference Code</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      <div>
+                        <label className="block text-[9px] font-bold text-[#8a6521] mb-0.5">Master L* (Lightness)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={masterL}
+                          onChange={e => setMasterL(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-[10px] bg-white border border-[#f4e5be] text-xs font-mono font-bold text-[#17191c] outline-none focus:border-[#c09748]"
+                          placeholder="42.00"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-[#8a6521] mb-0.5">Master a* (Red / Green)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={masterA}
+                          onChange={e => setMasterA(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-[10px] bg-white border border-[#f4e5be] text-xs font-mono font-bold text-[#17191c] outline-none focus:border-[#c09748]"
+                          placeholder="54.00"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-[#8a6521] mb-0.5">Master b* (Yellow / Blue)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={masterB}
+                          onChange={e => setMasterB(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-[10px] bg-white border border-[#f4e5be] text-xs font-mono font-bold text-[#17191c] outline-none focus:border-[#c09748]"
+                          placeholder="28.00"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-[#8a6521] mb-0.5">Master Plaque / Sample Ref</label>
+                        <input
+                          type="text"
+                          value={masterPlaqueRef}
+                          onChange={e => setMasterPlaqueRef(e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-[10px] bg-white border border-[#f4e5be] text-xs font-semibold text-[#17191c] outline-none focus:border-[#c09748]"
+                          placeholder="OEM Approved Plaque #01"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 5-SAMPLE TABLE */}
                   <div className="overflow-x-auto border border-[#ececec] rounded-[14px]">
                     <table className="w-full text-[11px] text-left">
                       <thead className="bg-[#f2f2f3] text-[#17191c] font-bold text-[10px] border-b border-[#ececec]">
                         <tr>
-                          <th className="py-2.5 px-3 w-1/4">Parameter</th>
-                          <th className="py-2.5 px-2 text-center">Tech</th>
+                          <th className="py-2.5 px-3 w-[22%]">Parameter</th>
+                          <th className="py-2.5 px-2 text-center w-[14%] text-[#8a6521] bg-[#faf3e0]/80">Master Ref</th>
+                          <th className="py-2.5 px-2 text-center w-[12%]">Tech</th>
                           {['S1', 'S2', 'S3', 'S4', 'S5'].map((s, idx) => (
-                            <th key={idx} className="py-2.5 px-2 text-center w-[13%]">{s}</th>
+                            <th key={idx} className="py-2.5 px-2 text-center w-[10.4%]">{s}</th>
                           ))}
                         </tr>
                       </thead>
@@ -696,6 +780,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                         {/* Row A: L */}
                         <tr className="hover:bg-[#fafafb]">
                           <td className="py-2 px-3 font-semibold text-[#17191c]">A. L (Lightness)</td>
+                          <td className="py-2 px-2 text-center font-mono font-bold text-[#8a6521] bg-[#faf7ed]/50">{masterL}</td>
                           <td className="py-2 px-2 text-center text-[#777b86] font-mono text-[10px]">Spectrometer</td>
                           {[0, 1, 2, 3, 4].map(sIdx => (
                             <td key={sIdx} className="py-1.5 px-1.5 text-center">
@@ -715,6 +800,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                         {/* Row B: A */}
                         <tr className="hover:bg-[#fafafb]">
                           <td className="py-2 px-3 font-semibold text-[#17191c]">B. A (Red / Green)</td>
+                          <td className="py-2 px-2 text-center font-mono font-bold text-[#8a6521] bg-[#faf7ed]/50">{masterA}</td>
                           <td className="py-2 px-2 text-center text-[#777b86] font-mono text-[10px]">Spectrometer</td>
                           {[0, 1, 2, 3, 4].map(sIdx => (
                             <td key={sIdx} className="py-1.5 px-1.5 text-center">
@@ -734,6 +820,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                         {/* Row C: B */}
                         <tr className="hover:bg-[#fafafb]">
                           <td className="py-2 px-3 font-semibold text-[#17191c]">C. B (Yellow / Blue)</td>
+                          <td className="py-2 px-2 text-center font-mono font-bold text-[#8a6521] bg-[#faf7ed]/50">{masterB}</td>
                           <td className="py-2 px-2 text-center text-[#777b86] font-mono text-[10px]">Spectrometer</td>
                           {[0, 1, 2, 3, 4].map(sIdx => (
                             <td key={sIdx} className="py-1.5 px-1.5 text-center">
@@ -753,7 +840,8 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                         {/* Row D: Delta E (Direct Input) */}
                         <tr className="bg-[#faf7ed]/60">
                           <td className="py-2 px-3 font-bold text-[#8a6521]">D. ΔE (Delta Value)</td>
-                          <td className="py-2 px-2 text-center text-[#8a6521] font-mono text-[10px] font-bold">Limit ≤ 0.70</td>
+                          <td className="py-2 px-2 text-center font-mono font-bold text-[#8a6521] bg-[#faf3e0]/80">Limit ≤ 0.70</td>
+                          <td className="py-2 px-2 text-center text-[#8a6521] font-mono text-[10px]">Spectrometer</td>
                           {[0, 1, 2, 3, 4].map(sIdx => {
                             const valNum = Number(deltaSamples.deltaE[sIdx]);
                             const isCellPass = !isNaN(valNum) && valNum <= 0.70;
