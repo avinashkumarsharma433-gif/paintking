@@ -2,6 +2,9 @@ import { jsPDF } from 'jspdf';
 import { BillingInvoice, MaterialInwardRecord, MaterialOutwardRecord, IQCInspectionRecord, GoodsReceiptNote, FPARecord, IPQCRecord } from '../types/portalTypes';
 import { PAINTKING_LOGO_BASE64 } from './paintkingLogoBase64';
 
+export const TABLE_BORDER_COLOR = [180, 185, 195] as const;
+export const TABLE_LINE_WIDTH = 0.45;
+
 export interface StandardPdfHeaderOptions {
   docTitle?: string;       // e.g. 'TAX INVOICE', 'DELIVERY CHALLAN', 'GATE INWARD PASS'
   docNumber?: string;      // e.g. 'INV-2026-081', 'INW-2026-145'
@@ -2675,7 +2678,20 @@ export const downloadStandardIPQCPdf = (ipqc: IPQCRecord): void => {
   doc.setTextColor(119, 123, 134);
   doc.text(`DOC CODE: PK-QA-IPQ-001 • RESULT: ${ipqc.result.toUpperCase()}`, 192, currentY + 7, { align: 'right' });
 
-  currentY += 14;
+  // Helper to draw metadata cell
+  const drawMetaField = (doc: jsPDF, x: number, y: number, w: number, h: number, label: string, value: string, isBold?: boolean) => {
+    doc.setDrawColor(220, 222, 228);
+    doc.setFillColor(250, 250, 251);
+    doc.rect(x, y, w, h, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(119, 123, 134);
+    doc.text(label, x + 3, y + 3.8);
+    doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(23, 25, 28);
+    doc.text(String(value || '-'), x + 3, y + 7.8);
+  };
 
   // Metadata Grid
   const metaFields = [

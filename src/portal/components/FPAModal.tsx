@@ -15,7 +15,11 @@ import {
   ShieldCheck,
   Clock,
   FileCheck,
-  ClipboardList
+  ClipboardList,
+  ArrowRight,
+  ArrowLeft,
+  Eye,
+  CheckSquare
 } from 'lucide-react';
 import { downloadStandardFPAPdf } from '../utils/pdfStandardHeader';
 
@@ -34,6 +38,10 @@ export const FPAModal: React.FC<FPAModalProps> = ({
 }) => {
   const { createFPARecord, activePlant, currentUser } = usePortalStore();
 
+  // Wizard Step State (1: Identification, 2: Visual 5 Samples, 3: Adhesion & Delta-E, 4: Sign-offs)
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+
+  // Form State
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [woNo, setWoNo] = useState<string>('WO-1042');
   const [jobCardNo, setJobCardNo] = useState<string>('JC-1042-RED');
@@ -88,6 +96,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
 
   // Result state after creation
   const [createdFpa, setCreatedFpa] = useState<FPARecord | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   // Auto-fill from selected Job Card
   useEffect(() => {
@@ -109,6 +118,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
       setStartupTime(jobCard.issueTime || jobCard.startTime || '08:30 AM');
       setApprovalTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
       setCreatedFpa(null);
+      setCurrentStep(1);
     }
   }, [jobCard, isOpen]);
 
@@ -153,6 +163,16 @@ export const FPAModal: React.FC<FPAModalProps> = ({
   const isAdhesionPass = adhesionPercent === 100 && crossCutTest === 'Pass' && tapeTest === 'Pass';
   const isAllVisualPass = Object.values(visualChecks).every(row => row.every(val => val === 'Pass'));
   const isEligibleForApproval = isDeltaEPass && isAdhesionPass && isAllVisualPass;
+
+  const handleDownloadPdf = (record: FPARecord) => {
+    try {
+      setDownloadError(null);
+      downloadStandardFPAPdf(record);
+    } catch (err: any) {
+      console.error('Failed to download FPA PDF:', err);
+      setDownloadError(err?.message || 'Error generating PDF. Please check console.');
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -212,9 +232,16 @@ export const FPAModal: React.FC<FPAModalProps> = ({
     }
   };
 
+  const stepsList = [
+    { num: 1, title: 'Line & Paint Data', icon: Layers },
+    { num: 2, title: 'Visual 5-Samples', icon: ClipboardList },
+    { num: 3, title: 'Adhesion & Delta-E', icon: ShieldCheck },
+    { num: 4, title: 'Signatures & Release', icon: FileCheck }
+  ];
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
-      <div className="bg-white rounded-[28px] max-w-4xl w-full p-5 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 max-h-[92vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150 relative text-xs">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+      <div className="bg-white rounded-[24px] max-w-4xl w-full p-5 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 max-h-[92vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150 relative text-xs">
         
         {/* Top Close Button */}
         <button
@@ -230,7 +257,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
         {/* ========================================================================= */}
         {createdFpa ? (
           <div className="space-y-4 animate-in fade-in duration-150">
-            <div className="p-5 rounded-[22px] bg-[#faf7ed] border border-[#f4e5be] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="p-5 rounded-[20px] bg-[#faf7ed] border border-[#f4e5be] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-[#c09748] text-white flex items-center justify-center shrink-0 shadow-xs">
                   <CheckCircle2 className="w-7 h-7" />
@@ -256,7 +283,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
               <div className="flex items-center gap-2 self-end sm:self-auto">
                 <button
                   type="button"
-                  onClick={() => downloadStandardFPAPdf(createdFpa)}
+                  onClick={() => handleDownloadPdf(createdFpa)}
                   className="px-4 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -265,8 +292,14 @@ export const FPAModal: React.FC<FPAModalProps> = ({
               </div>
             </div>
 
+            {downloadError && (
+              <div className="p-3 rounded-[14px] bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                ⚠️ {downloadError}
+              </div>
+            )}
+
             {/* Printout Notice Box */}
-            <div className="p-4 rounded-[20px] bg-amber-50/60 border border-amber-200/80 flex items-start gap-3">
+            <div className="p-4 rounded-[18px] bg-amber-50/70 border border-amber-200/80 flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
               <div className="text-xs text-amber-900 space-y-1">
                 <p className="font-bold">Mandatory Physical Step: 3M Tape Sticking</p>
@@ -276,7 +309,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
               </div>
             </div>
 
-            <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-2">
+            <div className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] space-y-2">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[11px]">
                 <div>
                   <span className="text-[#777b86] block text-[9px] uppercase">Job Card</span>
@@ -301,7 +334,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-6 py-2.5 rounded-full bg-[#17191c] hover:bg-black text-white font-semibold text-xs transition cursor-pointer shadow-xs active:scale-95"
+                className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] font-semibold text-xs transition cursor-pointer shadow-2xs active:scale-95"
               >
                 Return to Floor Operations
               </button>
@@ -309,12 +342,12 @@ export const FPAModal: React.FC<FPAModalProps> = ({
           </div>
         ) : (
           /* ========================================================================= */
-          /* VIEW 2: 1:1 REPLICA OF PAINTKING EXCEL FIRST PART APPROVAL REPORT        */
+          /* VIEW 2: MULTI-STEP WIZARD (PARTS KE ANDAR FILL KARNA)                     */
           /* ========================================================================= */
           <form onSubmit={handleSubmit} className="space-y-4">
             
             {/* Modal Header */}
-            <div className="space-y-1 pb-3 border-b border-[#ececec] pr-8">
+            <div className="space-y-1 pb-2 border-b border-[#ececec] pr-8">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold">
                   DOC NO: PK-QA-FPA-001 • REV: 02
@@ -327,391 +360,468 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                 </span>
               </div>
               <h2 className="text-xl sm:text-2xl font-serif text-[#17191c] font-normal tracking-tight">
-                First Part Approval (FPA) Report
+                First Part Approval (FPA) Inspection Wizard
               </h2>
-              <p className="text-xs text-[#777b86]">
-                Official PaintKing Quality Gate — All Job Card details are pre-filled automatically. Verify 5 samples and test coupon.
-              </p>
             </div>
 
-            {/* PART 1: AUTO-FILLED METADATA SECTION */}
-            <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-[#c09748]" />
-                  <span>1. Auto-Populated Production & Paint Details</span>
-                </span>
-                <span className="text-[10px] font-mono text-[#777b86] bg-white px-2 py-0.5 rounded-full border border-[#ececec]">
-                  Auto-populated from active Job Card
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Part Description</label>
-                  <input
-                    type="text"
-                    value={partDescription}
-                    onChange={e => setPartDescription(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Part Code</label>
-                  <input
-                    type="text"
-                    value={partCode}
-                    onChange={e => setPartCode(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Family (Mould Group)</label>
-                  <input
-                    type="text"
-                    value={family}
-                    onChange={e => setFamily(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Customer / OEM</label>
-                  <input
-                    type="text"
-                    value={customer}
-                    onChange={e => setCustomer(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Work Order No</label>
-                  <input
-                    type="text"
-                    value={woNo}
-                    onChange={e => setWoNo(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Paint Description</label>
-                  <input
-                    type="text"
-                    value={paintDescription}
-                    onChange={e => setPaintDescription(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Paint Batch Number</label>
-                  <input
-                    type="text"
-                    value={paintBatch}
-                    onChange={e => setPaintBatch(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Thinner Batch Number</label>
-                  <input
-                    type="text"
-                    value={thinnerBatch}
-                    onChange={e => setThinnerBatch(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Painter Name</label>
-                  <input
-                    type="text"
-                    value={painter}
-                    onChange={e => setPainter(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Painting Booth</label>
-                  <input
-                    type="text"
-                    value={booth}
-                    onChange={e => setBooth(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Startup Time</label>
-                  <input
-                    type="text"
-                    value={startupTime}
-                    onChange={e => setStartupTime(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none font-mono"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Approval Time</label>
-                  <input
-                    type="text"
-                    value={approvalTime}
-                    onChange={e => setApprovalTime(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none font-mono"
-                    required
-                  />
-                </div>
-              </div>
+            {/* CONNECTED PILL STEPPER */}
+            <div className="grid grid-cols-4 gap-1.5 sm:gap-2 p-1.5 bg-[#fafafb] rounded-full border border-[#ececec]">
+              {stepsList.map(s => {
+                const isActive = currentStep === s.num;
+                const isCompleted = currentStep > s.num;
+                const IconComponent = s.icon;
+                return (
+                  <button
+                    key={s.num}
+                    type="button"
+                    onClick={() => setCurrentStep(s.num as any)}
+                    className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-full text-[11px] font-semibold transition cursor-pointer ${
+                      isActive
+                        ? 'bg-[#c09748] text-white shadow-xs'
+                        : isCompleted
+                        ? 'bg-emerald-100 text-emerald-900'
+                        : 'text-[#777b86] hover:text-[#17191c] hover:bg-white'
+                    }`}
+                  >
+                    <IconComponent className="w-3.5 h-3.5 shrink-0" />
+                    <span className="hidden sm:inline">{s.title}</span>
+                    <span className="sm:hidden">Step {s.num}</span>
+                  </button>
+                );
+              })}
             </div>
 
-            {/* PART 2: VISUAL TEST MATRIX (A to F across Samples S1 to S5) */}
-            <div className="p-4 rounded-[20px] bg-white border border-[#ececec] space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
-                  <ClipboardList className="w-3.5 h-3.5 text-[#c09748]" />
-                  <span>2. Visual Test Checklist (5 Samples)</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setAllVisualChecks('Pass')}
-                  className="px-3 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
-                >
-                  <Check className="w-3 h-3 text-emerald-700" />
-                  <span>✓ Mark All 5 Samples OK</span>
-                </button>
-              </div>
+            {/* ========================================================================= */}
+            {/* STEP 1: PRODUCTION LINE & PAINT IDENTIFICATION (AUTO-FILLED)              */}
+            {/* ========================================================================= */}
+            {currentStep === 1 && (
+              <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-3 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-[#c09748]" />
+                    <span>Step 1: Production Line & Paint Mix Identification</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full font-semibold">
+                    ✓ Pre-populated from Job Card
+                  </span>
+                </div>
 
-              <div className="overflow-x-auto border border-[#ececec] rounded-[14px]">
-                <table className="w-full text-[11px] text-left">
-                  <thead className="bg-[#f2f2f3] text-[#17191c] font-bold text-[10px] border-b border-[#ececec]">
-                    <tr>
-                      <th className="py-2 px-3 w-1/3">Visual Parameter</th>
-                      {['S1', 'S2', 'S3', 'S4', 'S5'].map((s, idx) => (
-                        <th key={idx} className="py-2 px-2 text-center">{s}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#f2f2f3]">
-                    {[
-                      { key: 'bubble' as keyof FPAVisualCheckRow, label: 'A. Bubble' },
-                      { key: 'dustSpot' as keyof FPAVisualCheckRow, label: 'B. Dust Spot' },
-                      { key: 'overPaint' as keyof FPAVisualCheckRow, label: 'C. Over Paint' },
-                      { key: 'paintMissing' as keyof FPAVisualCheckRow, label: 'D. Paint Missing' },
-                      { key: 'colour' as keyof FPAVisualCheckRow, label: 'E. Colour Match' },
-                      { key: 'overallFinishing' as keyof FPAVisualCheckRow, label: 'F. Overall Finishing' }
-                    ].map((row) => (
-                      <tr key={row.key} className="hover:bg-[#fafafb]">
-                        <td className="py-1.5 px-3 font-semibold text-[#17191c]">{row.label}</td>
-                        {visualChecks[row.key].map((val, sampleIdx) => (
-                          <td key={sampleIdx} className="py-1.5 px-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => toggleVisualCell(row.key, sampleIdx)}
-                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition ${
-                                val === 'Pass' 
-                                  ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                                  : 'bg-rose-100 text-rose-900 border border-rose-300'
-                              }`}
-                            >
-                              {val === 'Pass' ? 'OK' : 'NOT OK'}
-                            </button>
-                          </td>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Part Description</label>
+                    <input
+                      type="text"
+                      value={partDescription}
+                      onChange={e => setPartDescription(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c] outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Part Code</label>
+                    <input
+                      type="text"
+                      value={partCode}
+                      onChange={e => setPartCode(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Family (Mould Group)</label>
+                    <input
+                      type="text"
+                      value={family}
+                      onChange={e => setFamily(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Customer / OEM</label>
+                    <input
+                      type="text"
+                      value={customer}
+                      onChange={e => setCustomer(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Work Order No</label>
+                    <input
+                      type="text"
+                      value={woNo}
+                      onChange={e => setWoNo(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Paint Description</label>
+                    <input
+                      type="text"
+                      value={paintDescription}
+                      onChange={e => setPaintDescription(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Paint Batch Number</label>
+                    <input
+                      type="text"
+                      value={paintBatch}
+                      onChange={e => setPaintBatch(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono text-[#17191c] outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Thinner Batch Number</label>
+                    <input
+                      type="text"
+                      value={thinnerBatch}
+                      onChange={e => setThinnerBatch(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono text-[#17191c] outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Painter Name</label>
+                    <input
+                      type="text"
+                      value={painter}
+                      onChange={e => setPainter(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Painting Booth</label>
+                    <input
+                      type="text"
+                      value={booth}
+                      onChange={e => setBooth(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Startup Time</label>
+                    <input
+                      type="text"
+                      value={startupTime}
+                      onChange={e => setStartupTime(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none font-mono"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Viscosity (Ford Cup 4 sec)</label>
+                    <input
+                      type="number"
+                      value={viscositySec}
+                      onChange={e => setViscositySec(Number(e.target.value))}
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ========================================================================= */}
+            {/* STEP 2: VISUAL TEST MATRIX (A-F across S1 to S5)                          */}
+            {/* ========================================================================= */}
+            {currentStep === 2 && (
+              <div className="p-4 rounded-[20px] bg-white border border-[#ececec] space-y-3 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
+                    <ClipboardList className="w-4 h-4 text-[#c09748]" />
+                    <span>Step 2: Visual Test Checklist (5 Samples: S1 - S5)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setAllVisualChecks('Pass')}
+                    className="px-3 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <Check className="w-3 h-3 text-emerald-700" />
+                    <span>✓ Quick Mark: All 5 Samples OK</span>
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto border border-[#ececec] rounded-[14px]">
+                  <table className="w-full text-[11px] text-left">
+                    <thead className="bg-[#f2f2f3] text-[#17191c] font-bold text-[10px] border-b border-[#ececec]">
+                      <tr>
+                        <th className="py-2.5 px-3 w-1/3">Visual Parameter</th>
+                        {['S1', 'S2', 'S3', 'S4', 'S5'].map((s, idx) => (
+                          <th key={idx} className="py-2.5 px-2 text-center">{s}</th>
                         ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* PART 3: ADHESION TEST & PHYSICAL TAPE IMPRESSION BOX PREVIEW */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Adhesion Card */}
-              <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-[#c09748]" />
-                    <span>3. Adhesion Test (ASTM 5B)</span>
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                    100% Cross-Cut Required
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[9px] text-[#777b86] font-semibold">Cross-Cut Status</label>
-                    <select
-                      value={crossCutTest}
-                      onChange={e => setCrossCutTest(e.target.value as any)}
-                      className="w-full p-2 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c]"
-                    >
-                      <option value="Pass">OK (Zero Flaking)</option>
-                      <option value="Fail">NOT OK (Flaked)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[9px] text-[#777b86] font-semibold">3M Tape Pull Test</label>
-                    <select
-                      value={tapeTest}
-                      onChange={e => setTapeTest(e.target.value as any)}
-                      className="w-full p-2 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c]"
-                    >
-                      <option value="Pass">OK (100% Intact)</option>
-                      <option value="Fail">NOT OK (Peeled)</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Simulated Physical Tape Box */}
-                <div className="p-3 rounded-[14px] bg-white border-2 border-dashed border-[#c09748]/50 text-center space-y-1">
-                  <span className="text-[10px] font-mono font-bold text-[#8a6521] block">
-                    [ Tape Impression Box in PDF Printout ]
-                  </span>
-                  <p className="text-[9px] text-[#777b86]">
-                    Dedicated 45mm × 25mm space reserved on official PDF for physically sticking the peeled 3M tape sample.
-                  </p>
+                    </thead>
+                    <tbody className="divide-y divide-[#f2f2f3]">
+                      {[
+                        { key: 'bubble' as keyof FPAVisualCheckRow, label: 'A. Bubble (Solvent Pop / Air)' },
+                        { key: 'dustSpot' as keyof FPAVisualCheckRow, label: 'B. Dust Spot / Particle Nibs' },
+                        { key: 'overPaint' as keyof FPAVisualCheckRow, label: 'C. Over Paint / Runs / Sagging' },
+                        { key: 'paintMissing' as keyof FPAVisualCheckRow, label: 'D. Paint Missing / Dry Spray' },
+                        { key: 'colour' as keyof FPAVisualCheckRow, label: 'E. Colour Shade Match' },
+                        { key: 'overallFinishing' as keyof FPAVisualCheckRow, label: 'F. Overall Finishing & Texture' }
+                      ].map((row) => (
+                        <tr key={row.key} className="hover:bg-[#fafafb]">
+                          <td className="py-2 px-3 font-semibold text-[#17191c]">{row.label}</td>
+                          {visualChecks[row.key].map((val, sampleIdx) => (
+                            <td key={sampleIdx} className="py-2 px-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => toggleVisualCell(row.key, sampleIdx)}
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition ${
+                                  val === 'Pass' 
+                                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                    : 'bg-rose-100 text-rose-900 border border-rose-300'
+                                }`}
+                              >
+                                {val === 'Pass' ? 'OK' : 'NOT OK'}
+                              </button>
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
+            )}
 
-              {/* Colorimetry Card */}
-              <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1">
-                    <FlaskConical className="w-3.5 h-3.5 text-[#c09748]" />
-                    <span>4. Delta Value Test (Spectrometer)</span>
-                  </span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                    isDeltaEPass ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-rose-100 text-rose-900 border border-rose-300'
-                  }`}>
-                    ΔE = {deltaE.toFixed(2)} ({isDeltaEPass ? 'Pass' : 'Exceeded'})
-                  </span>
+            {/* ========================================================================= */}
+            {/* STEP 3: ADHESION & SPECTROMETER DELTA-E TEST                              */}
+            {/* ========================================================================= */}
+            {currentStep === 3 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 animate-in fade-in duration-150">
+                {/* Adhesion Card */}
+                <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#c09748]" />
+                      <span>Step 3A: Adhesion Test (ASTM 5B)</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      100% Cross-Cut Required
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[9px] text-[#777b86] font-semibold">Cross-Cut Status</label>
+                      <select
+                        value={crossCutTest}
+                        onChange={e => setCrossCutTest(e.target.value as any)}
+                        className="w-full p-2 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c]"
+                      >
+                        <option value="Pass">OK (Zero Flaking)</option>
+                        <option value="Fail">NOT OK (Flaked)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[9px] text-[#777b86] font-semibold">3M Tape Pull Test</label>
+                      <select
+                        value={tapeTest}
+                        onChange={e => setTapeTest(e.target.value as any)}
+                        className="w-full p-2 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c]"
+                      >
+                        <option value="Pass">OK (100% Intact)</option>
+                        <option value="Fail">NOT OK (Peeled)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Simulated Physical Tape Box */}
+                  <div className="p-3 rounded-[14px] bg-white border-2 border-dashed border-[#c09748]/50 text-center space-y-1">
+                    <span className="text-[10px] font-mono font-bold text-[#8a6521] block">
+                      [ Tape Impression Box in PDF Printout ]
+                    </span>
+                    <p className="text-[9px] text-[#777b86]">
+                      Dedicated space reserved on official PDF for physically sticking the peeled 3M tape sample.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="block text-[9px] text-[#777b86] font-semibold">L* (Lightness)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={L}
-                      onChange={e => handleColorChange(Number(e.target.value), a, b)}
-                      className="w-full p-2 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c]"
-                    />
+                {/* Colorimetry Card */}
+                <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1">
+                      <FlaskConical className="w-3.5 h-3.5 text-[#c09748]" />
+                      <span>Step 3B: Delta Value (Spectrometer)</span>
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                      isDeltaEPass ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-rose-100 text-rose-900 border border-rose-300'
+                    }`}>
+                      ΔE = {deltaE.toFixed(2)} ({isDeltaEPass ? 'Pass' : 'Exceeded'})
+                    </span>
                   </div>
-                  <div>
-                    <label className="block text-[9px] text-[#777b86] font-semibold">a* (Red/Green)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={a}
-                      onChange={e => handleColorChange(L, Number(e.target.value), b)}
-                      className="w-full p-2 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[9px] text-[#777b86] font-semibold">b* (Yellow/Blue)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={b}
-                      onChange={e => handleColorChange(L, a, Number(e.target.value))}
-                      className="w-full p-2 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c]"
-                    />
-                  </div>
-                </div>
 
-                <div className="text-[10px] text-[#777b86]">
-                  Standard Delta-E Limit: ΔE ≤ 0.70 vs Master Reference Plaque
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[9px] text-[#777b86] font-semibold">L* (Lightness)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={L}
+                        onChange={e => handleColorChange(Number(e.target.value), a, b)}
+                        className="w-full p-2 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] text-[#777b86] font-semibold">a* (Red/Green)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={a}
+                        onChange={e => handleColorChange(L, Number(e.target.value), b)}
+                        className="w-full p-2 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] text-[#777b86] font-semibold">b* (Yellow/Blue)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={b}
+                        onChange={e => handleColorChange(L, a, Number(e.target.value))}
+                        className="w-full p-2 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="text-[10px] text-[#777b86]">
+                    Standard Delta-E Limit: ΔE ≤ 0.70 vs Master Reference Plaque
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* PART 4: SIGNATURES & ACCEPTANCE */}
-            <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-2.5">
-              <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
-                <FileCheck className="w-3.5 h-3.5 text-[#c09748]" />
-                <span>5. Multi-Department Acceptance Signatures</span>
-              </span>
+            {/* ========================================================================= */}
+            {/* STEP 4: SIGNATURES & FINAL PRODUCTION RELEASE                             */}
+            {/* ========================================================================= */}
+            {currentStep === 4 && (
+              <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-3 animate-in fade-in duration-150">
+                <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
+                  <FileCheck className="w-4 h-4 text-[#c09748]" />
+                  <span>Step 4: Department Acceptance Signatures & Line Clearance</span>
+                </span>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Acceptance Painter</label>
+                  <label className="block text-[10px] font-semibold text-[#777b86] mb-1">Quality Engineer Comments & Release Notes</label>
                   <input
                     type="text"
-                    value={acceptancePainter}
-                    onChange={e => setAcceptancePainter(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c]"
+                    value={remarks}
+                    onChange={e => setRemarks(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none font-medium"
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Production Incharge</label>
-                  <input
-                    type="text"
-                    value={acceptanceProductionIncharge}
-                    onChange={e => setAcceptanceProductionIncharge(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c]"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Prepared By (QA Eng.)</label>
-                  <input
-                    type="text"
-                    value={qcEngineer}
-                    onChange={e => setQcEngineer(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c]"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Approved By (QA Head)</label>
-                  <div className="flex items-center gap-2 pt-1.5">
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Acceptance Painter</label>
                     <input
-                      type="checkbox"
-                      id="managerQAApproval"
-                      checked={managerQAApproval}
-                      onChange={e => setManagerQAApproval(e.target.checked)}
-                      className="w-4 h-4 accent-[#c09748] rounded cursor-pointer"
+                      type="text"
+                      value={acceptancePainter}
+                      onChange={e => setAcceptancePainter(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c]"
+                      required
                     />
-                    <label htmlFor="managerQAApproval" className="text-xs font-bold text-[#17191c] cursor-pointer">
-                      Manager QA Sign
-                    </label>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Production Incharge</label>
+                    <input
+                      type="text"
+                      value={acceptanceProductionIncharge}
+                      onChange={e => setAcceptanceProductionIncharge(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Prepared By (QA Eng.)</label>
+                    <input
+                      type="text"
+                      value={qcEngineer}
+                      onChange={e => setQcEngineer(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Approved By (QA Head)</label>
+                    <div className="flex items-center gap-2 pt-1.5">
+                      <input
+                        type="checkbox"
+                        id="managerQAApproval"
+                        checked={managerQAApproval}
+                        onChange={e => setManagerQAApproval(e.target.checked)}
+                        className="w-4 h-4 accent-[#c09748] rounded cursor-pointer"
+                      />
+                      <label htmlFor="managerQAApproval" className="text-xs font-bold text-[#17191c] cursor-pointer">
+                        Manager QA Sign
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Footer Action Buttons */}
+            {/* Footer Navigation & Submit Controls */}
             <div className="flex items-center justify-between pt-2 border-t border-[#ececec]">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-5 py-2.5 rounded-full bg-[#f4f4f6] hover:bg-[#ececee] text-[#17191c] text-xs font-semibold transition cursor-pointer"
-              >
-                Cancel
-              </button>
+              <div>
+                {currentStep > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(prev => (prev - 1) as any)}
+                    className="px-4 py-2 rounded-full bg-[#f4f4f6] hover:bg-[#ececee] text-[#17191c] text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Previous Step</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 rounded-full bg-[#f4f4f6] hover:bg-[#ececee] text-[#17191c] text-xs font-semibold transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
 
-              <button
-                type="submit"
-                className={`px-6 py-2.5 rounded-full font-bold text-xs shadow-xs transition flex items-center gap-2 cursor-pointer active:scale-95 ${
-                  isEligibleForApproval
-                    ? 'bg-[#c09748] hover:bg-[#a97e35] text-white'
-                    : 'bg-amber-600 hover:bg-amber-700 text-white'
-                }`}
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>{isEligibleForApproval ? '✓ Approve & Release for Mass Production' : '⚠️ Submit as Hold (QC Flag)'}</span>
-              </button>
+              <div>
+                {currentStep < 4 ? (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(prev => (prev + 1) as any)}
+                    className="px-5 py-2 rounded-full bg-[#17191c] hover:bg-black text-white text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-xs"
+                  >
+                    <span>Next: {stepsList[currentStep].title}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    className={`px-6 py-2.5 rounded-full font-bold text-xs shadow-xs transition flex items-center gap-2 cursor-pointer active:scale-95 ${
+                      isEligibleForApproval
+                        ? 'bg-[#c09748] hover:bg-[#a97e35] text-white'
+                        : 'bg-amber-600 hover:bg-amber-700 text-white'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{isEligibleForApproval ? '✓ Approve & Release for Mass Production' : '⚠️ Submit as Hold (QC Flag)'}</span>
+                  </button>
+                )}
+              </div>
             </div>
           </form>
         )}
@@ -719,4 +829,3 @@ export const FPAModal: React.FC<FPAModalProps> = ({
     </div>
   );
 };
-
