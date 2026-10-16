@@ -34,7 +34,8 @@ import {
   DefectCategory,
   MaterialRequisitionNote,
   PainterProfile,
-  PainterJobStatus
+  PainterJobStatus,
+  PreProductionInspectionRecord
 } from '../types/portalTypes';
 import {
   INITIAL_USER_PROFILES,
@@ -43,6 +44,7 @@ import {
   INITIAL_IQC_RECORDS,
   INITIAL_HANDOVERS,
   INITIAL_JOB_CARDS,
+  INITIAL_PRE_PRODUCTION_REPORTS,
   INITIAL_FPA_RECORDS,
   INITIAL_PAINT_MIXING,
   INITIAL_IPQC_RECORDS,
@@ -105,6 +107,8 @@ interface PortalContextType {
     onTimeJobCards: JobCard[];
   };
 
+  preProductionReports: PreProductionInspectionRecord[];
+  addPreProductionReport: (report: PreProductionInspectionRecord) => void;
   fpaRecords: FPARecord[];
   paintMixing: PaintMixingRecord[];
   ipqcRecords: IPQCRecord[];
@@ -506,6 +510,10 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return mergeByUniqueKey(localStorage.getItem('pk_painters'), INITIAL_PAINTERS, 'id');
   });
 
+  const [preProductionReports, setPreProductionReports] = useState<PreProductionInspectionRecord[]>(() => {
+    return mergeByUniqueKey(localStorage.getItem('pk_pir_data'), INITIAL_PRE_PRODUCTION_REPORTS, 'reportNo');
+  });
+
   const [fpaRecords, setFpaRecords] = useState<FPARecord[]>(() => {
     return mergeByUniqueKey(localStorage.getItem('pk_fpa_data'), INITIAL_FPA_RECORDS, 'reportNo');
   });
@@ -608,6 +616,10 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     localStorage.setItem('pk_painters', JSON.stringify(painters));
   }, [painters]);
+
+  useEffect(() => {
+    localStorage.setItem('pk_pir_data', JSON.stringify(preProductionReports));
+  }, [preProductionReports]);
 
   useEffect(() => {
     localStorage.setItem('pk_fpa_data', JSON.stringify(fpaRecords));
@@ -1283,10 +1295,41 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsPlantDayClosed(false);
   };
 
+  // Quality Gate 1: Pre-Production Substrate & Pre-Treatment Inspection Report (PIR)
+  const addPreProductionReport = (report: PreProductionInspectionRecord) => {
+    setPreProductionReports(prev => [report, ...prev]);
+
+    const isPassed = report.overallResult === 'Passed';
+    const statusVal = isPassed ? 'Passed' : report.overallResult === 'Hold' ? 'Hold' : 'Rejected';
+
+    // Update Job Card PIR Status Lot-Wide
+    setJobCards(prev => prev.map(jc => {
+      const matchExact = jc.jobCardNo && report.jobCardNo && jc.jobCardNo.toLowerCase() === report.jobCardNo.toLowerCase();
+      const matchParent = (jc.parentJobCardId && report.jobCardNo && jc.parentJobCardId.toLowerCase() === report.jobCardNo.toLowerCase()) ||
+                          (jc.jobCardNo && report.jobCardNo && jc.jobCardNo.toLowerCase() === report.jobCardNo.toLowerCase());
+      const matchWo = jc.woNo && report.workOrderNo && jc.woNo.trim().toLowerCase() === report.workOrderNo.trim().toLowerCase();
+      const matchLotCustomerPart = jc.customer && report.customer &&
+                                   jc.customer.trim().toLowerCase() === report.customer.trim().toLowerCase() &&
+                                   jc.partCode && report.partCode &&
+                                   jc.partCode.trim().toLowerCase() === report.partCode.trim().toLowerCase();
+
+      if (matchExact || matchParent || matchWo || matchLotCustomerPart) {
+        return {
+          ...jc,
+          pirStatus: statusVal,
+          pirReportNo: report.reportNo,
+          pirPassedAt: isPassed ? (report.date || new Date().toISOString()) : undefined
+        };
+      }
+      return jc;
+    }));
+  };
+
   // Quality FPA Golden Gate
   const createFPARecord = (fpaData: Omit<FPARecord, 'reportNo' | 'overallResult'>) => {
-    // STRICT RULE: Delta-E <= 0.70 AND Adhesion == 100% AND crossCutTest == Pass
-    const isApproved = fpaData.deltaE <= 0.70 && fpaData.adhesionPercent === 100 && fpaData.crossCutTest === 'Pass';
+    // STRICT RULE: Delta-E <= deltaToleranceLimit (default 0.70) AND Adhesion == 100% AND crossCutTest == Pass
+    const limit = fpaData.deltaToleranceLimit !== undefined ? fpaData.deltaToleranceLimit : 0.70;
+    const isApproved = fpaData.deltaE <= limit && fpaData.adhesionPercent === 100 && fpaData.crossCutTest === 'Pass';
     const overallResult: FPARecord['overallResult'] = isApproved ? 'Approved' : 'Hold';
 
     const currentYear = new Date().getFullYear();
@@ -1298,13 +1341,23 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setFpaRecords(prev => [newFpa, ...prev]);
 
-    // Update corresponding Job Card FPA status
+    // Update corresponding Job Card FPA status across all cards in the lot/batch family!
     setJobCards(prev => prev.map(jc => {
-      const matchJobCard = jc.jobCardNo.toLowerCase() === fpaData.jobCardNo.toLowerCase();
-      const matchWoColor = jc.woNo.toLowerCase() === fpaData.woNo.toLowerCase() &&
-                           jc.color.toLowerCase() === fpaData.color.toLowerCase();
-      if (matchJobCard || matchWoColor) {
-        return { ...jc, fpaStatus: overallResult };
+      const matchExact = jc.jobCardNo.toLowerCase() === fpaData.jobCardNo.toLowerCase();
+      const matchParent = (jc.parentJobCardId && jc.parentJobCardId.toLowerCase() === fpaData.jobCardNo.toLowerCase()) ||
+                          (fpaData.jobCardNo && jc.jobCardNo.toLowerCase() === fpaData.jobCardNo.toLowerCase());
+      const matchWo = jc.woNo && fpaData.woNo && jc.woNo.trim().toLowerCase() === fpaData.woNo.trim().toLowerCase();
+      const matchLotCustomerPart = jc.customer && fpaData.customer &&
+                                   jc.customer.trim().toLowerCase() === fpaData.customer.trim().toLowerCase() &&
+                                   jc.partCode && fpaData.partCode &&
+                                   jc.partCode.trim().toLowerCase() === fpaData.partCode.trim().toLowerCase();
+
+      if (matchExact || matchParent || matchWo || matchLotCustomerPart) {
+        return { 
+          ...jc, 
+          fpaStatus: overallResult,
+          fpaReportNo: newFpa.reportNo
+        };
       }
       return jc;
     }));
@@ -1634,17 +1687,34 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return { allowed: true };
   };
 
-  const canStartBulkProduction = (jobCardNo: string): { allowed: boolean; reason?: string } => {
+  const canStartBulkProduction = (jobCardNo: string): { allowed: boolean; reason?: string; fpaReportNo?: string } => {
     const jc = jobCards.find(j => j.jobCardNo === jobCardNo);
     if (!jc) return { allowed: false, reason: 'Job Card not found.' };
-    const matchingFpa = fpaRecords.find(f => f.jobCardNo === jobCardNo || f.woNo === jc.woNo);
-    if (!matchingFpa || matchingFpa.overallResult !== 'Approved') {
+
+    // Check if Job Card is directly marked approved or has an approved FPA in the lot family
+    if (jc.fpaStatus === 'Approved') {
+      return { allowed: true, fpaReportNo: jc.fpaReportNo };
+    }
+
+    const matchingFpa = fpaRecords.find(f => {
+      if (f.overallResult !== 'Approved') return false;
+      const directMatch = f.jobCardNo.toLowerCase() === jobCardNo.toLowerCase();
+      const parentMatch = jc.parentJobCardId && f.jobCardNo.toLowerCase() === jc.parentJobCardId.toLowerCase();
+      const woMatch = jc.woNo && f.woNo && jc.woNo.trim().toLowerCase() === f.woNo.trim().toLowerCase();
+      const customerPartMatch = jc.customer && f.customer &&
+                                jc.customer.trim().toLowerCase() === f.customer.trim().toLowerCase() &&
+                                jc.partCode && f.partCode &&
+                                jc.partCode.trim().toLowerCase() === f.partCode.trim().toLowerCase();
+      return directMatch || parentMatch || woMatch || customerPartMatch;
+    });
+
+    if (!matchingFpa) {
       return {
         allowed: false,
-        reason: `Gate 2 Block (FPA Golden Gate): No approved First Part Approval found for ${jobCardNo}. Spectrophotometer ΔE ≤ 0.70 and 100% tape adhesion approval required before bulk spray run.`
+        reason: `Gate 2 Block (FPA Golden Gate): No approved First Part Approval found for ${jobCardNo} or its lot (${jc.customer} - ${jc.partCode}). Spectrophotometer ΔE ≤ 0.70 and 100% tape adhesion approval required before bulk spray run.`
       };
     }
-    return { allowed: true };
+    return { allowed: true, fpaReportNo: matchingFpa.reportNo };
   };
 
   const canPrintPackingSlip = (jobCardNo: string): { allowed: boolean; reason?: string } => {
@@ -1692,6 +1762,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         verifyAndAcceptJob,
         rejectAndRequestRework,
         getPainterPerformanceStats,
+        preProductionReports,
+        addPreProductionReport,
         fpaRecords,
         paintMixing,
         ipqcRecords,

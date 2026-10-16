@@ -85,6 +85,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
   const [masterA, setMasterA] = useState<number | string>(54.00);
   const [masterB, setMasterB] = useState<number | string>(28.00);
   const [masterPlaqueRef, setMasterPlaqueRef] = useState<string>('OEM Approved Master Plaque #01');
+  const [deltaToleranceLimit, setDeltaToleranceLimit] = useState<number>(0.70);
 
   // 3. CIELAB Spectrometer Delta Values for 5 Samples (Manual Direct Inputs - No Auto Math)
   const [deltaSamples, setDeltaSamples] = useState<FPADeltaValueRow>({
@@ -99,7 +100,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
   const [acceptanceProductionIncharge, setAcceptanceProductionIncharge] = useState<string>('Sunil Verma (Prod. Incharge)');
   const [qcEngineer, setQcEngineer] = useState<string>(currentUser?.name || 'Amit Verma (QA Engineer)');
   const [managerQAApproval, setManagerQAApproval] = useState<boolean>(true);
-  const [remarks, setRemarks] = useState<string>('Visual 5/5 OK, Cross-Cut 100% adhesion verified, Spectrometer Delta-E <= 0.70 across all 5 samples vs Master Plaque. Approved for production.');
+  const [remarks, setRemarks] = useState<string>('Visual 5/5 OK, Cross-Cut 100% adhesion verified, Spectrometer Delta-E compliant across all 5 samples vs Master Plaque. Approved for production.');
 
   // Result state after creation
   const [createdFpa, setCreatedFpa] = useState<FPARecord | null>(null);
@@ -124,6 +125,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
       setBooth(jobCard.boothNo || 'Booth #1');
       setStartupTime(jobCard.issueTime || jobCard.startTime || '08:30 AM');
       setApprovalTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+      setDeltaToleranceLimit(0.70);
       setCreatedFpa(null);
       setCurrentStep(1);
     }
@@ -162,7 +164,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
   };
 
   // Validation
-  const isDeltaEPass = deltaSamples.deltaE.every(d => Number(d) <= 0.70);
+  const isDeltaEPass = deltaSamples.deltaE.every(d => Number(d) <= (deltaToleranceLimit || 0.70));
   const isAdhesionPass = adhesionPercent === 100 && crossCutTest === 'Pass' && tapeTest === 'Pass';
   const isAllVisualPass = Object.values(visualChecks).every(row => row.every(val => val === 'Pass'));
   const isEligibleForApproval = isDeltaEPass && isAdhesionPass && isAllVisualPass;
@@ -222,6 +224,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
       a: Number(deltaSamples.a[0]) || 54.30,
       b: Number(deltaSamples.b[0]) || 28.10,
       deltaE: Number(deltaSamples.deltaE[0]) || 0.38,
+      deltaToleranceLimit: Number(deltaToleranceLimit) || 0.70,
       adhesionPercent: Number(adhesionPercent),
       crossCutTest,
       tapeTest,
@@ -666,18 +669,25 @@ export const FPAModal: React.FC<FPAModalProps> = ({
 
                 {/* 3B: Delta Value Test (Master LAB + Spectrometer 5-Samples Entry Table) */}
                 <div className="p-4 rounded-[20px] bg-white border border-[#ececec] space-y-3">
-                  <div>
-                    <span className="text-[10.5px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1">
-                      <FlaskConical className="w-3.5 h-3.5 text-[#c09748]" />
-                      <span>3B. Master Standard LAB & 5-Sample Spectrometer Delta-E Table</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <span className="text-[10.5px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1">
+                        <FlaskConical className="w-3.5 h-3.5 text-[#c09748]" />
+                        <span>3B. Master Standard LAB & 5-Sample Spectrometer Delta-E Table</span>
+                      </span>
+                      <p className="text-[10px] text-[#777b86] mt-0.5">
+                        Feed Master Plaque Reference & direct readings for S1..S5. Evaluated against Client ΔE Tolerance Limit.
+                      </p>
+                    </div>
+                    <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] self-start sm:self-auto ${
+                      isDeltaEPass ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-red-600 text-white'
+                    }`}>
+                      {isDeltaEPass ? `✓ Delta-E PASS (≤ ${deltaToleranceLimit.toFixed(2)})` : `🚨 REJECT (> ${deltaToleranceLimit.toFixed(2)})`}
                     </span>
-                    <p className="text-[10px] text-[#777b86] mt-0.5">
-                      Feed Master Plaque Reference & direct readings for S1..S5. Standard Target: ΔE ≤ 0.70 vs Master.
-                    </p>
                   </div>
 
-                  {/* MASTER LAB FEED STRIP */}
-                  <div className="p-3 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be] space-y-2">
+                  {/* MASTER LAB FEED STRIP WITH INLINE TOLERANCE LIMIT */}
+                  <div className="p-3.5 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be] space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold text-[#8a6521] uppercase font-mono flex items-center gap-1">
                         <Target className="w-3.5 h-3.5 text-[#c09748]" />
@@ -686,9 +696,9 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                       <span className="text-[9.5px] font-mono text-[#8a6521]">Master Plaque Reference Code</span>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                       <div>
-                        <label className="block text-[9px] font-bold text-[#8a6521] mb-0.5">Master L* (Lightness)</label>
+                        <label className="block text-[9px] font-bold text-[#8a6521] mb-0.5">Master L*</label>
                         <input
                           type="number"
                           step="0.01"
@@ -700,7 +710,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-[9px] font-bold text-[#8a6521] mb-0.5">Master a* (Red / Green)</label>
+                        <label className="block text-[9px] font-bold text-[#8a6521] mb-0.5">Master a*</label>
                         <input
                           type="number"
                           step="0.01"
@@ -712,7 +722,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-[9px] font-bold text-[#8a6521] mb-0.5">Master b* (Yellow / Blue)</label>
+                        <label className="block text-[9px] font-bold text-[#8a6521] mb-0.5">Master b*</label>
                         <input
                           type="number"
                           step="0.01"
@@ -724,6 +734,20 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                         />
                       </div>
                       <div>
+                        <label className="block text-[9px] font-bold text-[#8a6521] mb-0.5">ΔE Tolerance Limit (≤)</label>
+                        <input
+                          type="number"
+                          step="0.05"
+                          min={0.10}
+                          max={5.00}
+                          value={deltaToleranceLimit}
+                          onChange={e => setDeltaToleranceLimit(Math.max(0.01, Number(e.target.value)))}
+                          className="w-full px-2.5 py-1.5 rounded-[10px] bg-white border-2 border-[#c09748] text-xs font-mono font-bold text-[#17191c] outline-none"
+                          placeholder="0.70"
+                          required
+                        />
+                      </div>
+                      <div className="col-span-2 sm:col-span-1">
                         <label className="block text-[9px] font-bold text-[#8a6521] mb-0.5">Master Plaque / Sample Ref</label>
                         <input
                           type="text"
@@ -811,14 +835,14 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                           ))}
                         </tr>
 
-                        {/* Row D: Delta E (Direct Input) */}
+                        {/* Row D: Delta E (Direct Input evaluated against dynamic tolerance) */}
                         <tr className="bg-[#faf7ed]/60">
                           <td className="py-2 px-3 font-bold text-[#8a6521]">D. ΔE (Delta Value)</td>
-                          <td className="py-2 px-2 text-center font-mono font-bold text-[#8a6521] bg-[#faf3e0]/80">Limit ≤ 0.70</td>
+                          <td className="py-2 px-2 text-center font-mono font-bold text-[#8a6521] bg-[#faf3e0]/80">Limit ≤ {deltaToleranceLimit.toFixed(2)}</td>
                           <td className="py-2 px-2 text-center text-[#8a6521] font-mono text-[10px]">Spectrometer</td>
                           {[0, 1, 2, 3, 4].map(sIdx => {
                             const valNum = Number(deltaSamples.deltaE[sIdx]);
-                            const isCellPass = !isNaN(valNum) && valNum <= 0.70;
+                            const isCellPass = !isNaN(valNum) && valNum <= deltaToleranceLimit;
                             return (
                               <td key={sIdx} className="py-1.5 px-1.5 text-center">
                                 <input

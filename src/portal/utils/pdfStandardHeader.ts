@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { BillingInvoice, MaterialInwardRecord, MaterialOutwardRecord, IQCInspectionRecord, GoodsReceiptNote, FPARecord, IPQCRecord } from '../types/portalTypes';
+import { BillingInvoice, MaterialInwardRecord, MaterialOutwardRecord, IQCInspectionRecord, GoodsReceiptNote, FPARecord, IPQCRecord, PreProductionInspectionRecord } from '../types/portalTypes';
 import { PAINTKING_LOGO_BASE64 } from './paintkingLogoBase64';
 
 export const TABLE_BORDER_COLOR = [180, 185, 195] as const;
@@ -2230,7 +2230,7 @@ export const downloadStandardGRNPdf = (grn: GoodsReceiptNote): void => {
  * Revamped into an editorial, spacious 2-page layout with generous whitespace,
  * clean table borders (0.45pt), #f2f2f3 headers, dedicated physical 3M tape frame,
  * CIELAB colorimetry analysis with Master Benchmark banner, and 4-party sign-offs.
- * Zero combined '&' fields - all metadata points separated into clean individual cells.
+ * Fixed text wrapping, column header spacing, and table vertical dividers.
  * Doc: PK-QA-FPA-001 | Issue Date: 01.01.2021 | Rev: 02 | Rev Date: 13.02.2021
  * =========================================================================
  */
@@ -2259,7 +2259,7 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
     x: number,
     labelY: number,
     valueY: number,
-    maxWidth: number = 54
+    maxWidth: number = 52
   ) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.8);
@@ -2352,8 +2352,8 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   currentY += 4.5;
 
   const visTableStartY = currentY;
-  const visColX = [14, 24, 70, 106, 132, 196];
-  const sampleSubColX = [132, 144.8, 157.6, 170.4, 183.2, 196];
+  const visColX = [14, 24, 70, 110, 138, 196];
+  const sampleSubColX = [138, 149.6, 161.2, 172.8, 184.4, 196];
   const sampleHeaders = ['S1', 'S2', 'S3', 'S4', 'S5'];
 
   // Table Header
@@ -2371,10 +2371,10 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   doc.text('SR.', 19, currentY + 5.2, { align: 'center' });
   doc.text('PARAMETERS', 26, currentY + 5.2);
   doc.text('SPECIFICATION', 72, currentY + 5.2);
-  doc.text('METHOD / TECH', 108, currentY + 5.2);
+  doc.text('METHOD / TECH', 112, currentY + 5.2);
 
-  doc.text('FPA SAMPLES OBSERVATION', 164, currentY + 3.2, { align: 'center' });
-  doc.line(132, currentY + 4.2, 196, currentY + 4.2);
+  doc.text('FPA SAMPLES OBSERVATION (S1 - S5)', 167, currentY + 3.2, { align: 'center' });
+  doc.line(138, currentY + 4.2, 196, currentY + 4.2);
 
   sampleHeaders.forEach((sh, sIdx) => {
     const subCenterX = sampleSubColX[sIdx] + (sampleSubColX[sIdx + 1] - sampleSubColX[sIdx]) / 2;
@@ -2384,12 +2384,12 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   currentY += 8.5;
 
   const visualParams = [
-    { code: 'A', name: 'Bubble / Blistering', spec: 'Zero Allowed (Nil)', tech: 'Visual / 10x Lens' },
-    { code: 'B', name: 'Dust Spot / Particle Nibs', spec: 'Zero Allowed (Nil)', tech: 'Visual / Clean Room' },
-    { code: 'C', name: 'Over Paint / Sagging / Runs', spec: 'Zero Allowed (Nil)', tech: 'Visual Inspection' },
-    { code: 'D', name: 'Paint Missing / Dry Spray', spec: 'Zero Allowed (Nil)', tech: 'Visual Inspection' },
-    { code: 'E', name: 'Colour Uniformity and Shade', spec: 'As per Approved Sample', tech: 'Visual / D65 Light' },
-    { code: 'F', name: 'Overall Surface Finishing', spec: 'Defect-Free Class A', tech: 'Visual / Tactile' }
+    { code: '1', name: 'Bubble / Blistering', spec: 'Zero Allowed (Nil)', tech: 'Visual / 10x Lens' },
+    { code: '2', name: 'Dust Spot / Particle Nibs', spec: 'Zero Allowed (Nil)', tech: 'Visual Check' },
+    { code: '3', name: 'Over Paint / Sagging / Runs', spec: 'Zero Allowed (Nil)', tech: 'Visual Inspection' },
+    { code: '4', name: 'Paint Missing / Dry Spray', spec: 'Zero Allowed (Nil)', tech: 'Visual Inspection' },
+    { code: '5', name: 'Colour Uniformity and Shade', spec: 'As per Approved Sample', tech: 'Visual Comparison' },
+    { code: '6', name: 'Overall Surface Finishing', spec: 'Defect-Free Class A', tech: 'Visual / Tactile' }
   ];
 
   visualParams.forEach((vp, vpIdx) => {
@@ -2408,7 +2408,7 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
     doc.setFont('helvetica', 'normal');
     doc.text(vp.name, 26, currentY + 3.9);
     doc.text(vp.spec, 72, currentY + 3.9);
-    doc.text(vp.tech, 108, currentY + 3.9);
+    doc.text(vp.tech, 112, currentY + 3.9);
 
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(16, 116, 55);
@@ -2441,13 +2441,13 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   doc.text('2. COATING ADHESION TEST - PHYSICAL 3M TAPE SPECIMEN (ASTM D3359 / IS 101)', 14, currentY);
   currentY += 4.5;
 
-  const adhCardHeight = 42;
+  const adhCardHeight = 44;
   const isOk = fpa.adhesionPercent === 100 && fpa.crossCutTest === 'Pass';
 
-  // Left Box: Technical Specifications (Width = 86mm)
+  // Left Box: Technical Specifications (Width = 88mm, x: 14 to 102)
   doc.setDrawColor(220, 222, 228);
   doc.setFillColor(250, 250, 251);
-  doc.roundedRect(14, currentY, 86, adhCardHeight, 3, 3, 'FD');
+  doc.roundedRect(14, currentY, 88, adhCardHeight, 3, 3, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
@@ -2457,43 +2457,43 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.0);
   doc.setTextColor(100, 105, 115);
-  doc.text('Method / Tool:', 18, currentY + 13);
+  doc.text('Method / Tool:', 18, currentY + 13.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(23, 25, 28);
-  doc.text('1mm Lattice Cutter + 3M #600 Tape', 42, currentY + 13);
+  doc.text('1mm Lattice Cutter + 3M #600 Tape', 42, currentY + 13.5);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 105, 115);
-  doc.text('Standard Spec:', 18, currentY + 19);
+  doc.text('Standard Spec:', 18, currentY + 19.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(23, 25, 28);
-  doc.text('100% Lattice Retention (0% Flaking)', 42, currentY + 19);
+  doc.text('100% Lattice Retention (0% Flaking)', 42, currentY + 19.5);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 105, 115);
-  doc.text('ASTM Rating:', 18, currentY + 25);
+  doc.text('ASTM Rating:', 18, currentY + 25.5);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(16, 116, 55);
-  doc.text('Class 5B (Superior Substrate Bonding)', 42, currentY + 25);
+  doc.setTextColor(23, 25, 28);
+  doc.text('Class 5B (Superior Substrate Bonding)', 42, currentY + 25.5);
 
-  // Status Badge inside Left Box
-  const badgeY = currentY + 30;
-  doc.setFillColor(isOk ? 220 : 254, isOk ? 252 : 226, isOk ? 231 : 226);
-  doc.setDrawColor(isOk ? 134 : 252, isOk ? 239 : 165, isOk ? 172 : 165);
-  doc.roundedRect(18, badgeY, 78, 8, 2, 2, 'FD');
+  // Status Badge inside Left Box (Clean Standard Portal Theme, No Green / Artifacts)
+  const badgeY = currentY + 31;
+  doc.setFillColor(242, 242, 243);
+  doc.setDrawColor(200, 205, 215);
+  doc.roundedRect(18, badgeY, 80, 8, 2, 2, 'FD');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(isOk ? 16 : 185, isOk ? 116 : 28, isOk ? 55 : 28);
+  doc.setFontSize(6.8);
+  doc.setTextColor(23, 25, 28);
   doc.text(
-    isOk ? '✓ 100% ADHESION COMPLIANT (5B PASS)' : '⚠️ ADHESION FAILED (REJECT)',
-    57,
-    badgeY + 5.5,
+    isOk ? '100% ADHESION COMPLIANT (5B PASS)' : 'ADHESION FAILED (REJECT)',
+    58,
+    badgeY + 5.2,
     { align: 'center' }
   );
 
-  // Right Box: Physical 3M Tape Sticking Zone (Width = 92mm)
-  const tapeFrameX = 104;
-  const tapeFrameW = 92;
+  // Right Box: Physical 3M Tape Sticking Zone (Width = 90mm, x: 106 to 196)
+  const tapeFrameX = 106;
+  const tapeFrameW = 90;
   doc.setDrawColor(160, 165, 175);
   doc.setLineWidth(0.5);
   doc.setFillColor(255, 255, 255);
@@ -2512,7 +2512,7 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   doc.setFontSize(6.5);
   doc.setTextColor(120, 125, 135);
   doc.text('[ AFFIX PEELED 3M #600 TAPE HERE ]', tapeFrameX + tapeFrameW / 2, currentY + 22, { align: 'center' });
-  doc.text('Mandatory: Stick physical tape swatch after cross-cut pull test.', tapeFrameX + tapeFrameW / 2, currentY + 31, { align: 'center' });
+  doc.text('Mandatory: Stick physical tape swatch after cross-cut pull test.', tapeFrameX + tapeFrameW / 2, currentY + 32, { align: 'center' });
 
   // Page 1 Footer
   drawStandardPdfFooter(
@@ -2525,17 +2525,12 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   );
 
   // =========================================================================
-  // PAGE 2: CIELAB COLORIMETRY, QA DISPOSITION AND 4-PARTY SIGN-OFF BLOCK
+  // PAGE 2: SPECTROPHOTOMETER ANALYSIS, QA DISPOSITION & SIGN-OFF
   // =========================================================================
   doc.addPage();
   const page2StartY = drawStandardPdfHeader(doc);
 
-  // Page 2 Title Bar and Control Info
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11.5);
-  doc.setTextColor(23, 25, 28);
-  doc.text('CIELAB COLORIMETRIC ANALYSIS - PRODUCTION RELEASE', 14, page2StartY + 5.5);
-
+  // Page 2 Control Info Header
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(192, 151, 72);
@@ -2554,13 +2549,15 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(23, 25, 28);
-  doc.text('3. SPECTROPHOTOMETER COLORIMETRIC ANALYSIS (CIELAB - D65 / 10°)', 14, p2Y);
+  doc.text('3. SPECTROPHOTOMETER COLORIMETRIC ANALYSIS', 14, p2Y);
   p2Y += 4.5;
 
   const defaultL = (fpa.L !== undefined ? fpa.L : 42.15).toFixed(2);
   const defaultA = (fpa.a !== undefined ? fpa.a : 54.30).toFixed(2);
   const defaultB = (fpa.b !== undefined ? fpa.b : 28.10).toFixed(2);
   const defaultDeltaE = (fpa.deltaE !== undefined ? fpa.deltaE : 0.38).toFixed(2);
+  const deltaLimit = fpa.deltaToleranceLimit !== undefined ? Number(fpa.deltaToleranceLimit) : 0.70;
+  const isDeltaEPass = (fpa.deltaE !== undefined ? Number(fpa.deltaE) : 0.38) <= deltaLimit;
 
   const masterL = String(fpa.masterLab?.masterL ?? fpa.masterL ?? '42.00');
   const masterA = String(fpa.masterLab?.masterA ?? fpa.masterA ?? '54.00');
@@ -2568,7 +2565,7 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   const plaqueRef = fpa.masterLab?.masterPlaqueRef || 'Approved OEM Master Plaque Ref STD-01';
 
   // Master Benchmark Card
-  const benchHeight = 15;
+  const benchHeight = 16;
   doc.setDrawColor(220, 222, 228);
   doc.setFillColor(250, 250, 251);
   doc.roundedRect(14, p2Y, 182, benchHeight, 2.5, 2.5, 'FD');
@@ -2576,46 +2573,50 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.0);
   doc.setTextColor(192, 151, 72);
-  doc.text('MASTER TARGET REFERENCE:', 18, p2Y + 5.0);
+  doc.text('MASTER TARGET REFERENCE:', 18, p2Y + 5.2);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.2);
   doc.setTextColor(23, 25, 28);
-  doc.text(`Master Plaque: `, 60, p2Y + 5.0);
+  doc.text(`Master Plaque: `, 62, p2Y + 5.2);
   doc.setFont('helvetica', 'bold');
-  doc.text(plaqueRef, 80, p2Y + 5.0);
+  doc.text(plaqueRef, 82, p2Y + 5.2);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 105, 115);
-  doc.text(`Master L* = `, 18, p2Y + 11.0);
+  doc.text(`Master L* = `, 18, p2Y + 11.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(23, 25, 28);
-  doc.text(masterL, 34, p2Y + 11.0);
+  doc.text(masterL, 34, p2Y + 11.5);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 105, 115);
-  doc.text(`Master a* = `, 56, p2Y + 11.0);
+  doc.text(`Master a* = `, 56, p2Y + 11.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(23, 25, 28);
-  doc.text(masterA, 72, p2Y + 11.0);
+  doc.text(masterA, 72, p2Y + 11.5);
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 105, 115);
-  doc.text(`Master b* = `, 94, p2Y + 11.0);
+  doc.text(`Master b* = `, 94, p2Y + 11.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(23, 25, 28);
-  doc.text(masterB, 110, p2Y + 11.0);
+  doc.text(masterB, 110, p2Y + 11.5);
 
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(16, 116, 55);
-  doc.text('Tolerance Limit: Delta-E <= 0.70', 140, p2Y + 11.0);
+  if (isDeltaEPass) {
+    doc.setTextColor(16, 116, 55);
+  } else {
+    doc.setTextColor(220, 38, 38);
+  }
+  doc.text(`Tolerance Limit: Delta-E <= ${deltaLimit.toFixed(2)}`, 140, p2Y + 11.5);
 
   p2Y += benchHeight + 4.5;
 
-  // 5-Sample Table for CIELAB
+  // 5-Sample Table for Spectrometer (Col X: 14, 24, 70, 110, 138, 149.6, 161.2, 172.8, 184.4, 196)
   const specTableStartY = p2Y;
-  const specColX = [14, 24, 70, 112, 134, 146.4, 158.8, 171.2, 183.6, 196];
-  const specSubColX = [134, 146.4, 158.8, 171.2, 183.6, 196];
+  const specColX = [14, 24, 70, 110, 138, 149.6, 161.2, 172.8, 184.4, 196];
+  const specSubColX = [138, 149.6, 161.2, 172.8, 184.4, 196];
 
   // Header Table 3
   doc.setFillColor(242, 242, 243);
@@ -2632,7 +2633,7 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   doc.text('SR.', 19, p2Y + 4.6, { align: 'center' });
   doc.text('COLOR CHANNEL', 26, p2Y + 4.6);
   doc.text('MASTER TARGET / SPEC', 72, p2Y + 4.6);
-  doc.text('METHOD / ILLUMINANT', 114, p2Y + 4.6);
+  doc.text('METHOD', 112, p2Y + 4.6);
 
   sampleHeaders.forEach((sh, sIdx) => {
     const subCenterX = specSubColX[sIdx] + (specSubColX[sIdx + 1] - specSubColX[sIdx]) / 2;
@@ -2643,31 +2644,31 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
 
   const deltaRows = [
     {
-      code: 'A',
-      param: 'L* (Lightness Channel)',
-      spec: `Target L* = ${masterL} (±0.50)`,
-      tech: 'Spectrometer d/8°',
+      code: '1',
+      param: 'L',
+      spec: masterL,
+      tech: 'Spectrometer',
       vals: fpa.deltaSamples?.L?.map(v => String(v)) || [defaultL, defaultL, defaultL, defaultL, defaultL]
     },
     {
-      code: 'B',
-      param: 'a* (Red / Green Channel)',
-      spec: `Target a* = ${masterA} (±0.40)`,
-      tech: 'Spectrometer d/8°',
+      code: '2',
+      param: 'a',
+      spec: masterA,
+      tech: 'Spectrometer',
       vals: fpa.deltaSamples?.a?.map(v => String(v)) || [defaultA, defaultA, defaultA, defaultA, defaultA]
     },
     {
-      code: 'C',
-      param: 'b* (Yellow / Blue Channel)',
-      spec: `Target b* = ${masterB} (±0.40)`,
-      tech: 'Spectrometer d/8°',
+      code: '3',
+      param: 'b',
+      spec: masterB,
+      tech: 'Spectrometer',
       vals: fpa.deltaSamples?.b?.map(v => String(v)) || [defaultB, defaultB, defaultB, defaultB, defaultB]
     },
     {
-      code: 'D',
-      param: 'Delta E (Total Color Difference)',
-      spec: 'Strict Tolerance <= 0.70',
-      tech: 'CIELAB Formula',
+      code: '4',
+      param: 'Delta E',
+      spec: `<= ${deltaLimit.toFixed(2)}`,
+      tech: 'Spectrometer',
       vals: fpa.deltaSamples?.deltaE?.map(v => String(v)) || [defaultDeltaE, defaultDeltaE, defaultDeltaE, defaultDeltaE, defaultDeltaE]
     }
   ];
@@ -2688,15 +2689,15 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
     doc.text(dr.param, 26, p2Y + 3.9);
     doc.setFont('helvetica', 'normal');
     doc.text(dr.spec, 72, p2Y + 3.9);
-    doc.text(dr.tech, 114, p2Y + 3.9);
+    doc.text(dr.tech, 112, p2Y + 3.9);
 
     // Value in S1-S5
     doc.setFont('helvetica', 'bold');
     sampleHeaders.forEach((_, sIdx) => {
       const cellVal = dr.vals[sIdx] || '-';
       const numVal = parseFloat(cellVal);
-      if (dr.code === 'D') {
-        if (!isNaN(numVal) && numVal <= 0.70) {
+      if (dr.code === '4') {
+        if (!isNaN(numVal) && numVal <= deltaLimit) {
           doc.setTextColor(16, 116, 55);
         } else {
           doc.setTextColor(220, 38, 38);
@@ -2711,33 +2712,42 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
     p2Y += 5.8;
   });
 
-  // Table 3 Summary Bar
-  doc.setFillColor(215, 220, 228);
-  doc.rect(14, p2Y, 182, 6.5, 'F');
-  doc.setDrawColor(...TABLE_BORDER_COLOR);
-  doc.setLineWidth(TABLE_LINE_WIDTH);
-  doc.line(14, p2Y + 6.5, 196, p2Y + 6.5);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.0);
-  doc.setTextColor(15, 18, 22);
-  doc.text('CONSOLIDATED COLOR CONFORMANCE:', 26, p2Y + 4.4);
-  doc.setTextColor(16, 116, 55);
-  doc.text(`Delta-E ${defaultDeltaE} • 100% WITHIN OEM COLOR TOLERANCE (PASS)`, 114, p2Y + 4.4);
-
-  p2Y += 6.5;
-
-  // Draw Continuous Vertical Lines for Table 3
+  // Draw Continuous Vertical Lines for Table 3 (Only through data rows, NOT cutting summary row)
   doc.setDrawColor(...TABLE_BORDER_COLOR);
   doc.setLineWidth(TABLE_LINE_WIDTH);
   specColX.forEach(x => {
     doc.line(x, specTableStartY, x, p2Y);
   });
 
-  p2Y += 12; // 12mm Generous Negative Spacing
+  // Table 3 Summary Bar (Clean full-width bar with center divider only at 110)
+  doc.setFillColor(215, 220, 228);
+  doc.rect(14, p2Y, 182, 6.5, 'F');
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.line(14, p2Y + 6.5, 196, p2Y + 6.5);
+  doc.line(14, p2Y, 14, p2Y + 6.5);
+  doc.line(196, p2Y, 196, p2Y + 6.5);
+  doc.line(110, p2Y, 110, p2Y + 6.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.0);
+  doc.setTextColor(15, 18, 22);
+  doc.text('CONSOLIDATED COLOR CONFORMANCE:', 26, p2Y + 4.4);
+  if (isDeltaEPass) {
+    doc.setTextColor(16, 116, 55);
+    doc.text(`Delta-E ${defaultDeltaE} • 100% WITHIN OEM COLOR TOLERANCE (PASS)`, 114, p2Y + 4.4);
+  } else {
+    doc.setTextColor(220, 38, 38);
+    doc.text(`Delta-E ${defaultDeltaE} • OUT OF COLOR TOLERANCE (FAIL)`, 114, p2Y + 4.4);
+  }
+
+  p2Y += 6.5;
+
+  p2Y += 10; // 10mm Generous Negative Spacing
 
   // -------------------------------------------------------------------------
   // SECTION 4: QUALITY ENGINEER REMARKS - MANDATORY BENCHMARK PROTOCOL
+  // Fixed multi-line text wrapping with splitTextToSize so text never overflows
   // -------------------------------------------------------------------------
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
@@ -2745,39 +2755,54 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
   doc.text('4. QUALITY ENGINEER REMARKS - MANDATORY FLOOR BENCHMARK PROTOCOL', 14, p2Y);
   p2Y += 4.5;
 
+  const rawRemarks = fpa.remarks || 'Visual 5/5 OK, Cross-Cut 100% adhesion verified, Spectrometer Delta-E <= 0.70 across all 5 samples vs Master Plaque. Approved for production.';
+  const sanitizedRemarks = rawRemarks
+    .replace(/[\u201C\u201D"]/g, '')
+    .replace(/[\u0394\u2206]/g, 'Delta-')
+    .replace(/[\u2264]/g, '<=')
+    .replace(/[\u2265]/g, '>=')
+    .replace(/&/g, 'and')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.0);
+  const remarkLines: string[] = doc.splitTextToSize(sanitizedRemarks, 172);
+
+  const rawProtocol = 'Upon First Part Approval (FPA), 1 master-verified golden sample is physically handed over to the Booth Painter and Shift Supervisor to serve as the visual and physical benchmark standard throughout mass production.';
+  const sanitizedProtocol = rawProtocol.replace(/&/g, 'and').replace(/\s+/g, ' ').trim();
+  const protocolLines: string[] = doc.splitTextToSize(sanitizedProtocol, 172);
+
+  const sec4BoxHeight = Math.max(30, 14 + remarkLines.length * 3.8 + 8 + protocolLines.length * 3.6);
   doc.setDrawColor(220, 222, 228);
   doc.setFillColor(250, 250, 251);
-  doc.roundedRect(14, p2Y, 182, 26, 3, 3, 'FD');
+  doc.roundedRect(14, p2Y, 182, sec4BoxHeight, 3, 3, 'FD');
 
+  let sec4TextY = p2Y + 5.5;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.0);
   doc.setTextColor(23, 25, 28);
-  doc.text('QA DISPOSITION - LAB SUMMARY:', 18, p2Y + 6.0);
+  doc.text('QA DISPOSITION - LAB SUMMARY:', 18, sec4TextY);
+  sec4TextY += 4.5;
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.2);
+  doc.setFontSize(7.0);
   doc.setTextColor(70, 75, 85);
-  doc.text(
-    fpa.remarks || 'Visual and adhesion parameters 100% compliant with Master OEM plaque. Delta-E within 0.70 tolerance limit. Mass line run authorized.',
-    18,
-    p2Y + 12.0
-  );
+  doc.text(remarkLines, 18, sec4TextY);
+  sec4TextY += remarkLines.length * 3.8 + 2.5;
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.8);
   doc.setTextColor(180, 115, 25);
-  doc.text('MANDATORY PRODUCTION LINE PROTOCOL:', 18, p2Y + 18.5);
+  doc.text('MANDATORY PRODUCTION LINE PROTOCOL:', 18, sec4TextY);
+  sec4TextY += 4.0;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.8);
   doc.setTextColor(90, 95, 105);
-  doc.text(
-    'Upon First Part Approval (FPA), 1 master-verified golden sample is physically handed over to the Booth Painter and Shift Supervisor to serve as the visual and physical benchmark standard throughout mass production.',
-    18,
-    p2Y + 23.0
-  );
+  doc.text(protocolLines, 18, sec4TextY);
 
-  p2Y += 36; // 10mm Generous Negative Spacing
+  p2Y += sec4BoxHeight + 10; // 10mm Generous Negative Spacing
 
   // -------------------------------------------------------------------------
   // SECTION 5: AUTHORIZED MULTI-DEPARTMENT SIGN-OFF BLOCK
@@ -2872,8 +2897,19 @@ export const downloadStandardFPAPdf = (fpa: FPARecord): void => {
 };
 
 /**
+/**
  * =========================================================================
- * OFFICIAL 3-HOURLY IN-PROCESS QUALITY CONTROL (IPQC) AUDIT PDF (PK-QA-IPQ-001)
+ * OFFICIAL IN-PROCESS INSPECTION REPORT (IPQC) PDF (PK-QA-IPQ-001)
+ * Follows PaintKing Standard: Newsreader / Helvetica, Light-Grey Headers (#f2f2f3),
+ * 8 Time-Slot Matrix (Shift A: 08:00-20:00 & Shift B: 20:00-08:00), 10 Parameters
+ * =========================================================================
+ */
+/**
+ * =========================================================================
+ * OFFICIAL IN-PROCESS INSPECTION REPORT (IPQC) PDF (PK-QA-IPQ-001)
+ * Vertical / Portrait A4 Layout Matching Official Format
+ * Follows PaintKing Standard: Light-Grey Headers (#f2f2f3),
+ * 8 Time-Slot Matrix (Shift A: 08:00-20:00 & Shift B: 20:00-08:00), 10 Parameters
  * =========================================================================
  */
 export const downloadStandardIPQCPdf = (ipqc: IPQCRecord): void => {
@@ -2883,139 +2919,814 @@ export const downloadStandardIPQCPdf = (ipqc: IPQCRecord): void => {
     format: 'a4'
   });
 
-  const headerY = drawStandardPdfHeader(doc);
-  let currentY = headerY + 2;
+  const liveTimestamp = new Date().toLocaleString('en-IN');
+  const TABLE_BORDER_COLOR = [180, 185, 195] as const;
+  const TABLE_LINE_WIDTH = 0.45;
 
-  // Title Box
-  doc.setDrawColor(TABLE_BORDER_COLOR[0], TABLE_BORDER_COLOR[1], TABLE_BORDER_COLOR[2]);
-  doc.setFillColor(242, 242, 243);
-  doc.roundedRect(14, currentY, 182, 11, 2, 2, 'FD');
+  const headerStartY = drawStandardPdfHeader(doc);
+  let currentY = headerStartY + 2;
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(23, 25, 28);
-  doc.text('3-HOURLY IN-PROCESS QUALITY CONTROL (IPQC) AUDIT', 18, currentY + 7);
+  const MARGIN_X = 12;
+  const USABLE_W = 186;
+  const RIGHT_X = MARGIN_X + USABLE_W; // 198mm
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(119, 123, 134);
-  doc.text(`DOC CODE: PK-QA-IPQ-001 • RESULT: ${ipqc.result.toUpperCase()}`, 192, currentY + 7, { align: 'right' });
+  // Helper for safe text rendering
+  const drawTruncatedText = (
+    text: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    options?: { align?: 'left' | 'center' | 'right'; bold?: boolean; size?: number; color?: [number, number, number] }
+  ) => {
+    if (options?.bold) doc.setFont('helvetica', 'bold');
+    else doc.setFont('helvetica', 'normal');
 
-  // Helper to draw metadata cell
-  const drawMetaField = (doc: jsPDF, x: number, y: number, w: number, h: number, label: string, value: string, isBold?: boolean) => {
-    doc.setDrawColor(220, 222, 228);
-    doc.setFillColor(250, 250, 251);
-    doc.rect(x, y, w, h, 'FD');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(119, 123, 134);
-    doc.text(label, x + 3, y + 3.8);
-    doc.setFont('helvetica', isBold ? 'bold' : 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(23, 25, 28);
-    doc.text(String(value || '-'), x + 3, y + 7.8);
+    if (options?.size) doc.setFontSize(options.size);
+    if (options?.color) doc.setTextColor(...options.color);
+    else doc.setTextColor(23, 25, 28);
+
+    const clean = (text || '-').trim();
+    let display = clean;
+    if (doc.getTextWidth(display) > maxWidth) {
+      while (display.length > 0 && doc.getTextWidth(display + '...') > maxWidth) {
+        display = display.slice(0, -1);
+      }
+      display += '...';
+    }
+    doc.text(display, x, y, { align: options?.align || 'left' });
   };
 
-  // Metadata Grid
-  const metaFields = [
-    { label: 'IPQC REPORT NO', value: ipqc.reportNo, isBold: true },
-    { label: 'AUDIT DATE & TIME', value: `${formatDateDDMMYYYY(ipqc.date)} • ${ipqc.checkTime}`, isBold: true },
-    { label: 'PLANT & SHIFT', value: `${ipqc.plant} (${ipqc.shift} Shift)` },
-    { label: 'WORK ORDER NO', value: ipqc.woNo, isBold: true },
-    { label: 'PART CODE', value: ipqc.partCode },
-    { label: 'COLOR SHADE', value: ipqc.color },
-    { label: 'SPRAY BOOTH', value: ipqc.booth },
-    { label: 'ACTIVE PAINTER', value: ipqc.painter },
-    { label: 'QC AUDITOR', value: ipqc.inspector, isBold: true }
-  ];
-
-  const fieldW = 182 / 3;
-  metaFields.forEach((f, idx) => {
-    const row = Math.floor(idx / 3);
-    const col = idx % 3;
-    const x = 14 + col * fieldW;
-    const y = currentY + row * 10;
-    drawMetaField(doc, x, y, fieldW, 10, f.label, f.value, f.isBold);
-  });
-
-  currentY += 34;
-
-  // Section 1: In-Process Defect Audits Table
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(23, 25, 28);
-  doc.text('1. LIVE IN-PROCESS DEFECT CHECKPOINTS', 14, currentY);
-  currentY += 3.5;
-
-  const defectRows = [
-    { name: 'Bubble / Blister Defect', desc: 'Zero solvent pop or air bubbles in coating film', res: ipqc.bubble },
-    { name: 'Dust Spot / Particle Nibs', desc: 'Clean room filtration check (Zero dust nibs >0.2mm)', res: ipqc.dustSpot },
-    { name: 'Over-Paint / Runs / Sagging', desc: 'Uniform vertical atomization (Zero paint drip/runs)', res: ipqc.overPaint },
-    { name: 'Paint Missing / Dry Spray', desc: 'Full edge and cavity wrap coverage', res: ipqc.paintMissing },
-    { name: 'Overall Surface Finishing', desc: 'Smooth luxury texture & orange peel within limit', res: ipqc.overallFinishing },
-    { name: 'Coating Adhesion Check', desc: '100% Cross-hatch adhesion on shift sample', res: ipqc.adhesionTest },
-    { name: 'Spectrophotometer Delta-E', desc: `Measured Delta-E: ${ipqc.deltaE.toFixed(2)} (Target <= 0.70)`, res: ipqc.deltaE <= 0.70 ? 'Pass' : 'Fail' }
-  ];
-
-  defectRows.forEach((r, rIdx) => {
-    const bg = rIdx % 2 === 1 ? [250, 250, 251] : [255, 255, 255];
-    doc.setFillColor(bg[0], bg[1], bg[2]);
-    doc.setDrawColor(TABLE_BORDER_COLOR[0], TABLE_BORDER_COLOR[1], TABLE_BORDER_COLOR[2]);
-    doc.rect(14, currentY, 182, 6.5, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.setTextColor(23, 25, 28);
-    doc.text(r.name, 18, currentY + 4.5);
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.8);
-    doc.setTextColor(100, 105, 115);
-    doc.text(r.desc, 70, currentY + 4.5);
-
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(r.res === 'Pass' ? 5 : 225, r.res === 'Pass' ? 150 : 29, r.res === 'Pass' ? 105 : 72);
-    doc.text(r.res === 'Pass' ? '✓ PASS' : '⚠️ FAIL', 188, currentY + 4.5, { align: 'right' });
-
-    currentY += 6.5;
-  });
-
-  currentY += 8;
-
-  // Section 2: Audit Outcome & Sign-off
-  doc.setDrawColor(220, 222, 228);
-  doc.setFillColor(250, 250, 251);
-  doc.roundedRect(14, currentY, 182, 22, 2, 2, 'FD');
+  // 1. Title Box
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.setFillColor(242, 242, 243);
+  doc.roundedRect(MARGIN_X, currentY, USABLE_W, 8.5, 2, 2, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(10.5);
   doc.setTextColor(23, 25, 28);
-  doc.text('AUDIT DISPOSITION & QUALITY CONCURRENCE:', 18, currentY + 6);
+  doc.text('In-Process Inspection Report', MARGIN_X + USABLE_W / 2, currentY + 5.8, { align: 'center' });
 
+  // Doc Control Info Top Right (Issue Date - 01.01.2021 | Rev No - 00 | Rev Date - 00)
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(80, 85, 95);
+  doc.setFontSize(6.0);
+  doc.setTextColor(100, 105, 115);
   doc.text(
-    ipqc.result === 'Pass'
-      ? '✓ All booth spray parameters and defect tolerances meet PaintKing OEM specifications. Production authorized to proceed.'
-      : '⚠️ Defect flagged during 3-hourly audit. Supervisor notified to check atomization pressure and route affected pieces to rework.',
-    18,
-    currentY + 12
+    `Issue Date: ${ipqc.issueDate || '01.01.2021'}  |  Rev No: ${ipqc.revNo || '00'}  |  Rev Date: ${ipqc.revDate || '00'}`,
+    RIGHT_X - 3,
+    currentY + 5.8,
+    { align: 'right' }
   );
 
-  doc.setFont('helvetica', 'bold');
-  doc.text(`QC AUDITOR: ${ipqc.inspector}`, 188, currentY + 17, { align: 'right' });
+  currentY += 11.5;
 
-  // Standard Footer
-  const liveTimestamp = new Date().toLocaleString('en-IN');
+  // -------------------------------------------------------------------------
+  // 2. METADATA GRID (Vertical 2-Column Multi-Row Layout)
+  // -------------------------------------------------------------------------
+  const metaStartY = currentY;
+  const colHalfW = USABLE_W / 2; // 93mm each
+  const metaRowH = 6.0;
+  const totalMetaRows = 6;
+  const metaHeight = metaRowH * totalMetaRows; // 36mm
+
+  doc.setFillColor(250, 250, 251);
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.rect(MARGIN_X, metaStartY, USABLE_W, metaHeight, 'FD');
+
+  // Vertical dividing line between Column 1 & Column 2
+  doc.line(MARGIN_X + colHalfW, metaStartY, MARGIN_X + colHalfW, metaStartY + metaHeight);
+
+  // Horizontal dividing lines
+  for (let r = 1; r < totalMetaRows; r++) {
+    doc.line(MARGIN_X, metaStartY + r * metaRowH, RIGHT_X, metaStartY + r * metaRowH);
+  }
+
+  // Helper to draw clean Key-Value inside column
+  const drawMetaCell = (
+    label: string,
+    value: string,
+    x: number,
+    y: number,
+    colW: number,
+    labelW: number = 30
+  ) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(23, 25, 28);
+    doc.text(`${label} :`, x + 2.5, y + 4.1);
+
+    const valX = x + labelW;
+    const maxValW = colW - labelW - 3;
+    drawTruncatedText(value || '-', valX, y + 4.1, maxValW, {
+      bold: false,
+      size: 6.8,
+      color: [70, 75, 85]
+    });
+  };
+
+  // Left Column Fields
+  drawMetaCell('Date', formatDateDDMMYYYY(ipqc.date), MARGIN_X, metaStartY, colHalfW, 26);
+  drawMetaCell('Report No', ipqc.reportNo, MARGIN_X, metaStartY + metaRowH, colHalfW, 26);
+  drawMetaCell('Customer', ipqc.customer || 'ROOP POLYMERS LTD', MARGIN_X, metaStartY + metaRowH * 2, colHalfW, 26);
+  drawMetaCell('Part Description', ipqc.partDescription || 'Car AC Vent Bezel Substrate', MARGIN_X, metaStartY + metaRowH * 3, colHalfW, 26);
+  drawMetaCell('Part Code', ipqc.partCode || 'RP-8841', MARGIN_X, metaStartY + metaRowH * 4, colHalfW, 26);
+  drawMetaCell('Family', ipqc.family || 'Auto Vent Bezel Family', MARGIN_X, metaStartY + metaRowH * 5, colHalfW, 26);
+
+  // Right Column Fields
+  const c2X = MARGIN_X + colHalfW;
+  drawMetaCell('Paint Description', ipqc.paintDescription || `${ipqc.color || 'Monza Red'} Basecoat`, c2X, metaStartY, colHalfW, 32);
+  drawMetaCell('Paint Batch No', ipqc.paintBatchNumber || ipqc.paintBatch || 'BAT-PPG-2609-R4', c2X, metaStartY + metaRowH, colHalfW, 32);
+  drawMetaCell('Thinner Batch', ipqc.thinnerBatchNumber || ipqc.thinnerBatch || 'THN-2609-02', c2X, metaStartY + metaRowH * 2, colHalfW, 32);
+  drawMetaCell('Paint Viscosity', ipqc.paintViscosity ? `${ipqc.paintViscosity}s (FC4)` : `${ipqc.viscositySec || 15}s (FC4)`, c2X, metaStartY + metaRowH * 3, colHalfW, 32);
+  drawMetaCell('Painting Booth', ipqc.paintingBooth || ipqc.booth || 'Booth #1 (Enclosed Line)', c2X, metaStartY + metaRowH * 4, colHalfW, 32);
+  drawMetaCell('Painter', ipqc.painter || 'Ramesh Kumar (P1)', c2X, metaStartY + metaRowH * 5, colHalfW, 32);
+
+  currentY = metaStartY + metaHeight + 2.5;
+
+  // -------------------------------------------------------------------------
+  // 3. WORK ORDER & SUPERVISOR STRIP
+  // -------------------------------------------------------------------------
+  doc.setFillColor(242, 242, 243);
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.rect(MARGIN_X, currentY, USABLE_W, 6.0, 'FD');
+
+  const sA = ipqc.supervisorShiftA || 'Vikram Patel (Shift A)';
+  const sB = ipqc.supervisorShiftB || 'Dinesh Sharma (Shift B)';
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text(`WO No: ${ipqc.workOrderNo || ipqc.woNo || '-'}  |  Job Card: ${ipqc.jobCardNo || '-'}  |  Supervisor A: ${sA}  |  Supervisor B: ${sB}`, MARGIN_X + 2.5, currentY + 4.1);
+
+  currentY += 8.5; // Negative spacing before observation matrix
+
+  // -------------------------------------------------------------------------
+  // 4. 10-PARAMETER X 8 TIME-SLOT OBSERVATION MATRIX (VERTICAL / PORTRAIT FIT)
+  // -------------------------------------------------------------------------
+  const tableStartY = currentY;
+  const colSrW = 7;
+  const colParamW = 28;
+  const colSpecW = 21;
+  const colTechW = 22;
+  const metaLeftW = colSrW + colParamW + colSpecW + colTechW; // 78mm
+  const remainingW = USABLE_W - metaLeftW; // 186 - 78 = 108mm
+  const slotW = remainingW / 8; // 13.5mm per slot
+
+  const timeSlotsHeader = [
+    { key: 'slot_08_11', time: '8:00-11:00', shortTime: '8-11', shift: 'Shift A' },
+    { key: 'slot_11_14', time: '11:00-14:00', shortTime: '11-14', shift: 'Shift A' },
+    { key: 'slot_14_17', time: '14:00-17:00', shortTime: '14-17', shift: 'Shift A' },
+    { key: 'slot_17_20', time: '17:00-20:00', shortTime: '17-20', shift: 'Shift A' },
+    { key: 'slot_20_23', time: '20:00-23:00', shortTime: '20-23', shift: 'Shift B' },
+    { key: 'slot_23_02', time: '23:00-2:00', shortTime: '23-02', shift: 'Shift B' },
+    { key: 'slot_02_05', time: '2:00-5:00', shortTime: '02-05', shift: 'Shift B' },
+    { key: 'slot_05_08', time: '5:00-8:00', shortTime: '05-08', shift: 'Shift B' }
+  ];
+
+  // Header Row 1: Left Columns Spanned + Shift A (4 Slots) + Shift B (4 Slots)
+  doc.setFillColor(242, 242, 243);
+  doc.rect(MARGIN_X, currentY, USABLE_W, 5.0, 'F');
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.line(MARGIN_X, currentY, RIGHT_X, currentY);
+  doc.line(MARGIN_X, currentY + 5.0, RIGHT_X, currentY + 5.0);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.2);
+  doc.setTextColor(23, 25, 28);
+  doc.text('Sr.', MARGIN_X + colSrW / 2, currentY + 3.5, { align: 'center' });
+  doc.text('Parameters', MARGIN_X + colSrW + 1.5, currentY + 3.5);
+  doc.text('Specification', MARGIN_X + colSrW + colParamW + colSpecW / 2, currentY + 3.5, { align: 'center' });
+  doc.text('Measurement', MARGIN_X + colSrW + colParamW + colSpecW + colTechW / 2, currentY + 3.5, { align: 'center' });
+
+  // Shift A Span
+  const shiftAX = MARGIN_X + metaLeftW;
+  const shiftAW = slotW * 4;
+  doc.text('Shift A', shiftAX + shiftAW / 2, currentY + 3.5, { align: 'center' });
+
+  // Shift B Span
+  const shiftBX = shiftAX + shiftAW;
+  const shiftBW = slotW * 4;
+  doc.text('Shift B', shiftBX + shiftBW / 2, currentY + 3.5, { align: 'center' });
+
+  currentY += 5.0;
+
+  // Header Row 2: Sub-headers (Technique & 8 Time Slots)
+  doc.setFillColor(242, 242, 243);
+  doc.rect(MARGIN_X, currentY, USABLE_W, 5.0, 'F');
+  doc.line(MARGIN_X, currentY + 5.0, RIGHT_X, currentY + 5.0);
+
+  doc.text('Technique', MARGIN_X + colSrW + colParamW + colSpecW + colTechW / 2, currentY + 3.5, { align: 'center' });
+
+  doc.setFontSize(5.5);
+  timeSlotsHeader.forEach((slot, sIdx) => {
+    const sX = MARGIN_X + metaLeftW + sIdx * slotW;
+    doc.text(slot.shortTime, sX + slotW / 2, currentY + 3.5, { align: 'center' });
+  });
+
+  currentY += 5.0;
+
+  // Parameter Rows Definition
+  const parameters = [
+    { sr: '1', name: 'Bubble', spec: 'Not Allowed', tech: 'Visual', field: 'bubble', defaultVal: 'OK' },
+    { sr: '2', name: 'Dust Spot', spec: 'Not Allowed', tech: 'Visual', field: 'dustSpot', defaultVal: 'OK' },
+    { sr: '3', name: 'Over Paint', spec: 'Not Allowed', tech: 'Visual', field: 'overPaint', defaultVal: 'OK' },
+    { sr: '4', name: 'Paint Missing', spec: 'Not Allowed', tech: 'Visual', field: 'paintMissing', defaultVal: 'OK' },
+    { sr: '5', name: 'L', spec: '-', tech: 'Spectrometer', field: 'L', defaultVal: '42.15' },
+    { sr: '6', name: 'A', spec: '-', tech: 'Spectrometer', field: 'a', defaultVal: '54.30' },
+    { sr: '7', name: 'B', spec: '-', tech: 'Spectrometer', field: 'b', defaultVal: '28.10' },
+    { sr: '8', name: 'DeltaE (Delta Value)', spec: '<= 0.70', tech: 'Spectrometer', field: 'deltaE', defaultVal: '0.40' },
+    { sr: '9', name: 'Overall Finishing', spec: 'Perfect', tech: 'Visual', field: 'overallFinishing', defaultVal: 'OK' },
+    { sr: '10', name: 'Adhesion Test', spec: 'Perfect', tech: 'Physical', field: 'adhesionTest', defaultVal: '100% (Pass)' }
+  ];
+
+  const rowHeight = 5.8;
+
+  parameters.forEach((param, pIdx) => {
+    const isEven = pIdx % 2 === 0;
+    doc.setFillColor(isEven ? 255 : 250, isEven ? 255 : 250, isEven ? 255 : 251);
+    doc.rect(MARGIN_X, currentY, USABLE_W, rowHeight, 'F');
+    doc.setDrawColor(...TABLE_BORDER_COLOR);
+    doc.setLineWidth(TABLE_LINE_WIDTH);
+    doc.line(MARGIN_X, currentY + rowHeight, RIGHT_X, currentY + rowHeight);
+
+    // Sr No
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.2);
+    doc.setTextColor(23, 25, 28);
+    doc.text(param.sr, MARGIN_X + colSrW / 2, currentY + 4.0, { align: 'center' });
+
+    // Parameter Name
+    doc.setFont('helvetica', 'normal');
+    drawTruncatedText(param.name, MARGIN_X + colSrW + 1.5, currentY + 4.0, colParamW - 2, { size: 6.0 });
+
+    // Specification
+    doc.setFontSize(5.8);
+    doc.text(param.spec || '-', MARGIN_X + colSrW + colParamW + colSpecW / 2, currentY + 4.0, { align: 'center' });
+
+    // Measurement Technique
+    doc.text(param.tech, MARGIN_X + colSrW + colParamW + colSpecW + colTechW / 2, currentY + 4.0, { align: 'center' });
+
+    // Fill observations across 8 time slots
+    timeSlotsHeader.forEach((slot, sIdx) => {
+      const sX = MARGIN_X + metaLeftW + sIdx * slotW;
+      const slotData = ipqc.timeSlots ? (ipqc.timeSlots as any)[slot.key] : null;
+      let cellVal = slotData ? slotData[param.field] : null;
+
+      if (!cellVal) {
+        // Fallback to active summary values for Shift A slot 1 or 2
+        if (sIdx === 0 || sIdx === 1) {
+          if (param.field === 'bubble') cellVal = ipqc.bubble || 'OK';
+          else if (param.field === 'dustSpot') cellVal = ipqc.dustSpot || 'OK';
+          else if (param.field === 'overPaint') cellVal = ipqc.overPaint || 'OK';
+          else if (param.field === 'paintMissing') cellVal = ipqc.paintMissing || 'OK';
+          else if (param.field === 'L') cellVal = ipqc.L !== undefined ? String(ipqc.L) : param.defaultVal;
+          else if (param.field === 'a') cellVal = ipqc.a !== undefined ? String(ipqc.a) : param.defaultVal;
+          else if (param.field === 'b') cellVal = ipqc.b !== undefined ? String(ipqc.b) : param.defaultVal;
+          else if (param.field === 'deltaE') cellVal = ipqc.deltaE !== undefined ? String(ipqc.deltaE) : param.defaultVal;
+          else if (param.field === 'overallFinishing') cellVal = ipqc.overallFinishing || 'OK';
+          else if (param.field === 'adhesionTest') cellVal = ipqc.adhesionTest || 'OK';
+        }
+      }
+
+      if (cellVal) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(5.8);
+        const strVal = String(cellVal).trim();
+        if (strVal.toLowerCase() === 'fail' || strVal.toLowerCase() === 'not ok') {
+          doc.setTextColor(220, 38, 38);
+        } else if (strVal.toLowerCase() === 'pass' || strVal.toLowerCase() === 'ok' || strVal.toLowerCase() === 'perfect') {
+          doc.setTextColor(16, 116, 55);
+        } else {
+          doc.setTextColor(23, 25, 28);
+        }
+        doc.text(strVal, sX + slotW / 2, currentY + 4.0, { align: 'center' });
+      }
+    });
+
+    currentY += rowHeight;
+  });
+
+  // Draw Vertical Table Lines
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  // Outer boundaries
+  doc.line(MARGIN_X, tableStartY, MARGIN_X, currentY);
+  doc.line(RIGHT_X, tableStartY, RIGHT_X, currentY);
+  // Inner column lines
+  doc.line(MARGIN_X + colSrW, tableStartY, MARGIN_X + colSrW, currentY);
+  doc.line(MARGIN_X + colSrW + colParamW, tableStartY, MARGIN_X + colSrW + colParamW, currentY);
+  doc.line(MARGIN_X + colSrW + colParamW + colSpecW, tableStartY, MARGIN_X + colSrW + colParamW + colSpecW, currentY);
+  doc.line(MARGIN_X + metaLeftW, tableStartY, MARGIN_X + metaLeftW, currentY);
+
+  // Shift divider in row 1
+  doc.line(shiftBX, tableStartY, shiftBX, currentY);
+
+  // 8 Time-slot columns
+  for (let s = 1; s < 8; s++) {
+    if (s === 4) continue; // already drawn by shiftBX
+    const sLineX = MARGIN_X + metaLeftW + s * slotW;
+    doc.line(sLineX, tableStartY + 5.0, sLineX, currentY);
+  }
+
+  currentY += 6.0; // Negative spacing before comments
+
+  // -------------------------------------------------------------------------
+  // 5. BOTTOM SECTION: COMMENTS OF QUALITY ENGINEER & MULTI-SHIFT SIGN-OFF
+  // -------------------------------------------------------------------------
+  const bottomStartY = currentY;
+  const commentBoxH = 13.0;
+  const signBoxH = 14.0;
+  const bottomTotalH = commentBoxH + signBoxH; // 27mm
+
+  doc.setFillColor(250, 250, 251);
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.rect(MARGIN_X, bottomStartY, USABLE_W, bottomTotalH, 'FD');
+
+  // Comment Header & Wrapped Text
+  const rawComment = ipqc.commentOfQualityEngineer || ipqc.remarks || 'Visual and Spectrometer checks pass all parameters. Surface finish clean, atomization and 100% tape adhesion verified. Authorized for mass run.';
+  const cleanComment = rawComment.replace(/&/g, 'and').replace(/\s+/g, ' ').trim();
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(23, 25, 28);
+  doc.text('Comment of Quality Engineer :-', MARGIN_X + 3, bottomStartY + 4.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.2);
+  doc.setTextColor(70, 75, 85);
+  const commentLines = doc.splitTextToSize(cleanComment, USABLE_W - 55);
+  doc.text(commentLines, MARGIN_X + 50, bottomStartY + 4.5);
+
+  // Horizontal divider for Signatures
+  doc.line(MARGIN_X, bottomStartY + commentBoxH, RIGHT_X, bottomStartY + commentBoxH);
+
+  // 3-Column Signatures: Shift A (62mm) | Shift B (62mm) | Verified By (62mm)
+  const signColW = USABLE_W / 3;
+  const signY = bottomStartY + commentBoxH;
+
+  doc.line(MARGIN_X + signColW, signY, MARGIN_X + signColW, bottomStartY + bottomTotalH);
+  doc.line(MARGIN_X + signColW * 2, signY, MARGIN_X + signColW * 2, bottomStartY + bottomTotalH);
+
+  // Col 1: Inspected By (Shift A)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text('Inspected By : (Shift A)', MARGIN_X + 3, signY + 4.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(70, 75, 85);
+  drawTruncatedText(ipqc.inspectedByShiftA || ipqc.inspector || 'Vikram Patel (Shift A Lead)', MARGIN_X + 3, signY + 9.5, signColW - 6, { size: 6.2 });
+
+  // Col 2: Inspected By (Shift B)
+  const signC2X = MARGIN_X + signColW;
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(23, 25, 28);
+  doc.text('Inspected By : (Shift B)', signC2X + 3, signY + 4.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(70, 75, 85);
+  drawTruncatedText(ipqc.inspectedByShiftB || 'Kailash Yadav (QA Auditor)', signC2X + 3, signY + 9.5, signColW - 6, { size: 6.2 });
+
+  // Col 3: Verified By
+  const signC3X = MARGIN_X + signColW * 2;
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(23, 25, 28);
+  doc.text('Verified By :-', signC3X + 3, signY + 4.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(70, 75, 85);
+  drawTruncatedText(ipqc.verifiedBy || 'Satish Sharma (Quality / Plant Head)', signC3X + 3, signY + 9.5, signColW - 6, { size: 6.2 });
+
+  // -------------------------------------------------------------------------
+  // 6. STANDARD PDF FOOTER
+  // -------------------------------------------------------------------------
   drawStandardPdfFooter(
     doc,
     1,
     1,
-    'PAINTKING • 3-Hourly IPQC Inspection Record • ISO 9001:2015 & IATF 16949 Certified',
+    'PAINTKING • In-Process Inspection Report (Doc: PK-QA-IPQ-001 • Rev.00) • ISO 9001:2015 and IATF 16949 Certified',
     liveTimestamp,
     false
   );
 
-  doc.save(`PaintKing_IPQC_${ipqc.reportNo}.pdf`);
+  doc.save(`PaintKing_IPQC_Report_${ipqc.reportNo}.pdf`);
+};
+
+/**
+ * =========================================================================
+ * OFFICIAL PRE-PRODUCTION INSPECTION REPORT (PIR) PDF (PK-QA-PIR-001)
+ * Vertical / Portrait A4 Layout (Quality Gate 1: Substrate Cleaning & Pre-Treatment)
+ * Follows PaintKing Universal Standard: Light-Grey Headers (#f2f2f3),
+ * 8 Critical Checkpoints, Substrate Verification, ISO 9001:2015 footer.
+ * =========================================================================
+ */
+export const downloadStandardPreProductionPdf = (pir: PreProductionInspectionRecord): void => {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const liveTimestamp = new Date().toLocaleString('en-IN');
+  const TABLE_BORDER_COLOR = [180, 185, 195] as const;
+  const TABLE_LINE_WIDTH = 0.45;
+
+  const headerStartY = drawStandardPdfHeader(doc);
+  let currentY = headerStartY + 2;
+
+  const MARGIN_X = 12;
+  const USABLE_W = 186;
+  const RIGHT_X = MARGIN_X + USABLE_W; // 198mm
+
+  // Helper for safe text truncation
+  const drawTruncatedText = (
+    text: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    options?: { align?: 'left' | 'center' | 'right'; bold?: boolean; size?: number; color?: [number, number, number] }
+  ) => {
+    if (options?.bold) doc.setFont('helvetica', 'bold');
+    else doc.setFont('helvetica', 'normal');
+
+    if (options?.size) doc.setFontSize(options.size);
+    if (options?.color) doc.setTextColor(...options.color);
+    else doc.setTextColor(23, 25, 28);
+
+    const clean = (text || '-').trim();
+    let display = clean;
+    if (doc.getTextWidth(display) > maxWidth) {
+      while (display.length > 0 && doc.getTextWidth(display + '...') > maxWidth) {
+        display = display.slice(0, -1);
+      }
+      display += '...';
+    }
+    doc.text(display, x, y, { align: options?.align || 'left' });
+  };
+
+  // 1. Title Box
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.setFillColor(242, 242, 243);
+  doc.roundedRect(MARGIN_X, currentY, USABLE_W, 8.5, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10.0);
+  doc.setTextColor(23, 25, 28);
+  doc.text('Pre-Production Substrate & Pre-Treatment Inspection Report', MARGIN_X + USABLE_W / 2, currentY + 5.8, { align: 'center' });
+
+  // Doc Control Info Top Right
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.0);
+  doc.setTextColor(100, 105, 115);
+  doc.text(
+    `Doc: ${pir.docNo || 'PK-QA-PIR-001'}  |  Rev: ${pir.revNo || '00'}  |  Gate 1 Release`,
+    RIGHT_X - 3,
+    currentY + 5.8,
+    { align: 'right' }
+  );
+
+  currentY += 11.5;
+
+  // -------------------------------------------------------------------------
+  // 2. METADATA GRID (Vertical 2-Column Multi-Row Layout)
+  // -------------------------------------------------------------------------
+  const metaStartY = currentY;
+  const colHalfW = USABLE_W / 2; // 93mm each
+  const metaRowH = 6.0;
+  const totalMetaRows = 6;
+  const metaHeight = metaRowH * totalMetaRows; // 36mm
+
+  doc.setFillColor(250, 250, 251);
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.rect(MARGIN_X, metaStartY, USABLE_W, metaHeight, 'FD');
+
+  // Vertical dividing line
+  doc.line(MARGIN_X + colHalfW, metaStartY, MARGIN_X + colHalfW, metaStartY + metaHeight);
+
+  // Horizontal dividing lines
+  for (let r = 1; r < totalMetaRows; r++) {
+    doc.line(MARGIN_X, metaStartY + r * metaRowH, RIGHT_X, metaStartY + r * metaRowH);
+  }
+
+  // Key-Value drawer
+  const drawMetaCell = (
+    label: string,
+    value: string,
+    x: number,
+    y: number,
+    colW: number,
+    labelW: number = 32
+  ) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(23, 25, 28);
+    doc.text(`${label} :`, x + 2.5, y + 4.1);
+
+    const valX = x + labelW;
+    const maxValW = colW - labelW - 3;
+    drawTruncatedText(value || '-', valX, y + 4.1, maxValW, {
+      bold: false,
+      size: 6.8,
+      color: [70, 75, 85]
+    });
+  };
+
+  // Left Column (Job & Part Identifiers)
+  drawMetaCell('Date', formatDateDDMMYYYY(pir.date), MARGIN_X, metaStartY, colHalfW, 26);
+  drawMetaCell('Report No', pir.reportNo, MARGIN_X, metaStartY + metaRowH, colHalfW, 26);
+  drawMetaCell('Customer', pir.customer || 'OEM Client', MARGIN_X, metaStartY + metaRowH * 2, colHalfW, 26);
+  drawMetaCell('Part Description', pir.partDescription || 'Raw Substrates Component', MARGIN_X, metaStartY + metaRowH * 3, colHalfW, 26);
+  drawMetaCell('Part Code', pir.partCode || 'RP-8841', MARGIN_X, metaStartY + metaRowH * 4, colHalfW, 26);
+  drawMetaCell('Family', pir.family || 'Auto Mould Family', MARGIN_X, metaStartY + metaRowH * 5, colHalfW, 26);
+
+  // Right Column (Substrate & Quantity Verification)
+  const c2X = MARGIN_X + colHalfW;
+  drawMetaCell('Substrate Material', pir.substrateMaterial || 'ABS Plastic', c2X, metaStartY, colHalfW, 34);
+  drawMetaCell('Color / Coating Finish', pir.color || 'Monza Red Basecoat', c2X, metaStartY + metaRowH, colHalfW, 34);
+  drawMetaCell('Stores Issued Qty', `${pir.issuedQty?.toLocaleString() || 0} Pcs`, c2X, metaStartY + metaRowH * 2, colHalfW, 34);
+  drawMetaCell('100% Inspected Qty', `${pir.inspectedQty?.toLocaleString() || 0} Pcs`, c2X, metaStartY + metaRowH * 3, colHalfW, 34);
+  drawMetaCell('Accepted / OK Qty', `${pir.acceptedQty?.toLocaleString() || 0} Pcs (Clean)`, c2X, metaStartY + metaRowH * 4, colHalfW, 34);
+  drawMetaCell('Rejected Raw Qty', `${pir.rejectedQty || 0} Pcs ${pir.rejectedQty > 0 ? '(Hold / Scrap)' : '(Nil)'}`, c2X, metaStartY + metaRowH * 5, colHalfW, 34);
+
+  currentY = metaStartY + metaHeight + 2.5;
+
+  // -------------------------------------------------------------------------
+  // 3. WORK ORDER & CUSTODY LINK STRIP
+  // -------------------------------------------------------------------------
+  doc.setFillColor(242, 242, 243);
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.rect(MARGIN_X, currentY, USABLE_W, 6.0, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text(
+    `Work Order No: ${pir.workOrderNo || '-'}   |   Job Card No: ${pir.jobCardNo || '-'}   |   Inspection Station: Pre-Treatment / Jigging Bay`,
+    MARGIN_X + 2.5,
+    currentY + 4.1
+  );
+
+  currentY += 8.5; // Negative spacing before checklist table
+
+  // -------------------------------------------------------------------------
+  // 4. 8 CRITICAL SUBSTRATE CHECKPOINTS TABLE
+  // -------------------------------------------------------------------------
+  const tableStartY = currentY;
+  const colSrW = 8;
+  const colParamW = 52;
+  const colStandardW = 68;
+  const colTechW = 34;
+  const colResultW = 24; // Total = 186mm
+
+  // Table Header
+  doc.setFillColor(242, 242, 243);
+  doc.rect(MARGIN_X, currentY, USABLE_W, 6.0, 'F');
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.line(MARGIN_X, currentY, RIGHT_X, currentY);
+  doc.line(MARGIN_X, currentY + 6.0, RIGHT_X, currentY + 6.0);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.4);
+  doc.setTextColor(23, 25, 28);
+  doc.text('Sr.', MARGIN_X + colSrW / 2, currentY + 4.1, { align: 'center' });
+  doc.text('Inspection Parameter / Checkpoint', MARGIN_X + colSrW + 2, currentY + 4.1);
+  doc.text('Acceptance Standard / Requirement', MARGIN_X + colSrW + colParamW + 2, currentY + 4.1);
+  doc.text('Inspection Technique', MARGIN_X + colSrW + colParamW + colStandardW + colTechW / 2, currentY + 4.1, { align: 'center' });
+  doc.text('Result / Status', MARGIN_X + colSrW + colParamW + colStandardW + colTechW + colResultW / 2, currentY + 4.1, { align: 'center' });
+
+  currentY += 6.0;
+
+  const checkpoints = [
+    {
+      sr: '1',
+      name: 'Physical Condition & Transit Check',
+      standard: 'Zero cracks, dents, deep scuffs, deformation or transit breakage',
+      tech: '100% Visual Inspection',
+      result: pir.physicalCondition
+    },
+    {
+      sr: '2',
+      name: 'Burrs, Parting Line Flash & Sink Marks',
+      standard: 'Smooth clean edges, no excessive flash, zero sink marks on cosmetic face',
+      tech: 'Visual & Tactile Touch Test',
+      result: pir.burrsFlashSinkMarks
+    },
+    {
+      sr: '3',
+      name: 'Oil, Grease & Mold Release Chemical',
+      standard: '100% Free from silicone, grease, machining oil or mold release agents',
+      tech: 'White Cloth / Solvent Wipe',
+      result: pir.oilGreaseChemical
+    },
+    {
+      sr: '4',
+      name: 'Cleaning & Pre-Treatment (IPA Wiping)',
+      standard: 'Substrates thoroughly cleaned with Isopropyl Alcohol (IPA) to strip contaminants',
+      tech: 'Process Verification',
+      result: pir.cleaningIpaWiping
+    },
+    {
+      sr: '5',
+      name: 'Static Charge De-Dusting',
+      standard: 'Ionized air blown to eliminate static charge and all loose dust particles',
+      tech: 'Ionized Air Blow Check',
+      result: pir.staticDedusting
+    },
+    {
+      sr: '6',
+      name: 'Masking & Critical Area Protection',
+      standard: 'Precision masking tape applied strictly per customer technical drawing',
+      tech: 'Dimensional & Visual Check',
+      result: pir.maskingProtection || 'N/A'
+    },
+    {
+      sr: '7',
+      name: 'Jigging & Hanging Orientation',
+      standard: 'Firm hook clamping, stable positioning, zero touch points between components',
+      tech: 'Jig Line Audit',
+      result: pir.jiggingOrientation
+    },
+    {
+      sr: '8',
+      name: 'Quantity Count Verification',
+      standard: 'Physical piece count matches work order issuance; rejected raw parts segregated',
+      tech: '100% Part Count',
+      result: pir.quantityVerification
+    }
+  ];
+
+  const rowHeight = 7.2;
+
+  checkpoints.forEach((cp, idx) => {
+    const isEven = idx % 2 === 0;
+    doc.setFillColor(isEven ? 255 : 250, isEven ? 255 : 250, isEven ? 255 : 251);
+    doc.rect(MARGIN_X, currentY, USABLE_W, rowHeight, 'F');
+    doc.setDrawColor(...TABLE_BORDER_COLOR);
+    doc.setLineWidth(TABLE_LINE_WIDTH);
+    doc.line(MARGIN_X, currentY + rowHeight, RIGHT_X, currentY + rowHeight);
+
+    // Sr
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.2);
+    doc.setTextColor(23, 25, 28);
+    doc.text(cp.sr, MARGIN_X + colSrW / 2, currentY + 4.8, { align: 'center' });
+
+    // Name
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.0);
+    drawTruncatedText(cp.name, MARGIN_X + colSrW + 2, currentY + 4.8, colParamW - 3);
+
+    // Standard
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(5.6);
+    drawTruncatedText(cp.standard, MARGIN_X + colSrW + colParamW + 2, currentY + 4.8, colStandardW - 4);
+
+    // Tech
+    doc.setFontSize(5.8);
+    doc.text(cp.tech, MARGIN_X + colSrW + colParamW + colStandardW + colTechW / 2, currentY + 4.8, { align: 'center' });
+
+    // Result
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    const res = String(cp.result || 'Pass').trim();
+    if (res.toLowerCase() === 'pass') {
+      doc.setTextColor(16, 116, 55);
+      doc.text('✓ PASS', MARGIN_X + colSrW + colParamW + colStandardW + colTechW + colResultW / 2, currentY + 4.8, { align: 'center' });
+    } else if (res.toLowerCase() === 'fail') {
+      doc.setTextColor(220, 38, 38);
+      doc.text('✗ FAIL', MARGIN_X + colSrW + colParamW + colStandardW + colTechW + colResultW / 2, currentY + 4.8, { align: 'center' });
+    } else {
+      doc.setTextColor(119, 123, 134);
+      doc.text('N/A', MARGIN_X + colSrW + colParamW + colStandardW + colTechW + colResultW / 2, currentY + 4.8, { align: 'center' });
+    }
+
+    currentY += rowHeight;
+  });
+
+  // Total Quantity Summary Row
+  doc.setFillColor(242, 242, 243);
+  doc.rect(MARGIN_X, currentY, USABLE_W, 6.2, 'F');
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.line(MARGIN_X, currentY + 6.2, RIGHT_X, currentY + 6.2);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text('TOTAL SUBSTRATE QUANTITY:', MARGIN_X + colSrW + 2, currentY + 4.2);
+  doc.text(
+    `Inspected: ${pir.inspectedQty || 0} Pcs   |   Clean Accepted: ${pir.acceptedQty || 0} Pcs   |   Raw Rejected: ${pir.rejectedQty || 0} Pcs`,
+    MARGIN_X + colSrW + colParamW + 2,
+    currentY + 4.2
+  );
+
+  const isBatchApproved = pir.overallResult === 'Passed';
+  doc.setTextColor(isBatchApproved ? 16 : 220, isBatchApproved ? 116 : 38, isBatchApproved ? 55 : 38);
+  doc.text(
+    isBatchApproved ? '✓ APPROVED' : 'HOLD / REJECT',
+    MARGIN_X + colSrW + colParamW + colStandardW + colTechW + colResultW / 2,
+    currentY + 4.2,
+    { align: 'center' }
+  );
+
+  currentY += 6.2;
+
+  // Draw Vertical Column Lines
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  // Outer Boundaries
+  doc.line(MARGIN_X, tableStartY, MARGIN_X, currentY);
+  doc.line(RIGHT_X, tableStartY, RIGHT_X, currentY);
+  // Inner dividers
+  doc.line(MARGIN_X + colSrW, tableStartY, MARGIN_X + colSrW, currentY);
+  doc.line(MARGIN_X + colSrW + colParamW, tableStartY, MARGIN_X + colSrW + colParamW, currentY);
+  doc.line(MARGIN_X + colSrW + colParamW + colStandardW, tableStartY, MARGIN_X + colSrW + colParamW + colStandardW, currentY);
+  doc.line(MARGIN_X + colSrW + colParamW + colStandardW + colTechW, tableStartY, MARGIN_X + colSrW + colParamW + colStandardW + colTechW, currentY);
+
+  currentY += 5.5; // Negative spacing before bottom remarks
+
+  // -------------------------------------------------------------------------
+  // 5. REMARKS & QUALITY GATE CLEARANCE AUTHORIZATION
+  // -------------------------------------------------------------------------
+  const bottomStartY = currentY;
+  const commentBoxH = 13.0;
+  const signBoxH = 14.0;
+  const bottomTotalH = commentBoxH + signBoxH; // 27mm
+
+  doc.setFillColor(250, 250, 251);
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.rect(MARGIN_X, bottomStartY, USABLE_W, bottomTotalH, 'FD');
+
+  // Remarks Header & Text
+  const rawRemarks = pir.remarks || (isBatchApproved
+    ? '100% Substrates cleaned with Isopropyl alcohol (IPA), static de-dusted. Zero flash, oil or burrs observed. Authorized to proceed to Gate 2 (First Part Approval / FPA test spray).'
+    : 'Substrates held due to raw material defect / contamination. Do not proceed with coating without corrective action.');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(23, 25, 28);
+  doc.text('Pre-Production Quality Remarks & Gate 1 Decision :-', MARGIN_X + 3, bottomStartY + 4.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.0);
+  doc.setTextColor(70, 75, 85);
+  const remarksLines = doc.splitTextToSize(rawRemarks, USABLE_W - 75);
+  doc.text(remarksLines, MARGIN_X + 70, bottomStartY + 4.5);
+
+  // Horizontal divider for Signatures
+  doc.line(MARGIN_X, bottomStartY + commentBoxH, RIGHT_X, bottomStartY + commentBoxH);
+
+  // 3-Column Signatures: Substrate Inspector | Production Supervisor | QA Engineer
+  const signColW = USABLE_W / 3;
+  const signY = bottomStartY + commentBoxH;
+
+  doc.line(MARGIN_X + signColW, signY, MARGIN_X + signColW, bottomStartY + bottomTotalH);
+  doc.line(MARGIN_X + signColW * 2, signY, MARGIN_X + signColW * 2, bottomStartY + bottomTotalH);
+
+  // Col 1: Substrate Inspector
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text('Substrate Inspector', MARGIN_X + 3, signY + 4.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(70, 75, 85);
+  drawTruncatedText(pir.inspectedBy || 'Kailash Yadav (Line Inspector)', MARGIN_X + 3, signY + 9.5, signColW - 6, { size: 6.2 });
+
+  // Col 2: Production Supervisor
+  const signC2X = MARGIN_X + signColW;
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(23, 25, 28);
+  doc.text('Production Floor Supervisor', signC2X + 3, signY + 4.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(70, 75, 85);
+  drawTruncatedText(pir.productionSupervisor || 'Vikram Patel (Shift A Lead)', signC2X + 3, signY + 9.5, signColW - 6, { size: 6.2 });
+
+  // Col 3: QA Release Engineer
+  const signC3X = MARGIN_X + signColW * 2;
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(23, 25, 28);
+  doc.text('Quality Release Engineer', signC3X + 3, signY + 4.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(70, 75, 85);
+  drawTruncatedText(pir.qaEngineer || 'Amit Verma (Lead QA Auditor)', signC3X + 3, signY + 9.5, signColW - 6, { size: 6.2 });
+
+  // -------------------------------------------------------------------------
+  // 6. STANDARD PDF FOOTER
+  // -------------------------------------------------------------------------
+  drawStandardPdfFooter(
+    doc,
+    1,
+    1,
+    'PAINTKING • Pre-Production Inspection Report (Doc: PK-QA-PIR-001 • Rev.00) • ISO 9001:2015 and IATF 16949 Certified',
+    liveTimestamp,
+    false
+  );
+
+  doc.save(`PaintKing_PreProduction_Report_${pir.reportNo}.pdf`);
 };

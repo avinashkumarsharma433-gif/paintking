@@ -33,17 +33,21 @@ import {
 } from 'lucide-react';
 import { 
   IQCInspectionRecord, 
-  IQCAspectItem,
-  IQCVerifiedItem,
+  IQCAspectItem, 
+  IQCVerifiedItem, 
   IPQCRecord, 
-  FinalQualityRelease,
-  MaterialInwardRecord,
-  DefectCategory
+  PreProductionInspectionRecord, 
+  FinalQualityRelease, 
+  MaterialInwardRecord, 
+  DefectCategory,
+  JobCard
 } from '../types/portalTypes';
 import { CustomSelect } from '../components/CustomSelect';
 import { PaintkingDatePicker } from '../components/PaintkingDatePicker';
-import { downloadStandardIQCPdf, formatDateDDMMYYYY } from '../utils/pdfStandardHeader';
+import { downloadStandardIQCPdf, downloadStandardIPQCPdf, downloadStandardPreProductionPdf, downloadStandardFPAPdf, formatDateDDMMYYYY } from '../utils/pdfStandardHeader';
 import { UniversalEmailModal } from '../components/UniversalEmailModal';
+import { IPQCModal } from '../components/IPQCModal';
+import { PreProductionInspectionModal } from '../components/PreProductionInspectionModal';
 import { composeIqcEmailDraft, EmailDispatchPayload } from '../utils/emailDispatchEngine';
 
 export const QAView: React.FC = () => {
@@ -52,6 +56,8 @@ export const QAView: React.FC = () => {
     createFPARecord, 
     ipqcRecords, 
     addIPQCRecord,
+    preProductionReports,
+    addPreProductionReport,
     iqcRecords,
     addIQCRecord,
     submitMasterIQCReport,
@@ -151,6 +157,8 @@ export const QAView: React.FC = () => {
     notes: 'Spectrophotometer ΔE ≤ 0.70 and ASTM 5B Cross-Cut Adhesion 100% compliant. Cleared for billing.'
   });
 
+  const [showPirModal, setShowPirModal] = useState<boolean>(false);
+  const [selectedJcForPir, setSelectedJcForPir] = useState<JobCard | null>(null);
   const [showFpaModal, setShowFpaModal] = useState<boolean>(false);
   const [showIpqcModal, setShowIpqcModal] = useState<boolean>(false);
   const [showIqcModal, setShowIqcModal] = useState<boolean>(false);
@@ -223,6 +231,7 @@ export const QAView: React.FC = () => {
     a: 54.20,
     b: 28.15,
     deltaE: 0.38,
+    deltaToleranceLimit: 0.70,
     adhesionPercent: 100,
     crossCutTest: 'Pass' as const,
     tapeTest: 'Pass' as const,
@@ -878,8 +887,12 @@ export const QAView: React.FC = () => {
   // Handlers
   const handleFpaSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const tolerance = fpaForm.deltaToleranceLimit !== undefined ? fpaForm.deltaToleranceLimit : 0.70;
+    const isPass = fpaForm.deltaE <= tolerance && fpaForm.adhesionPercent === 100;
     createFPARecord({
       ...fpaForm,
+      deltaToleranceLimit: tolerance,
+      overallResult: isPass ? 'Approved' : 'Hold',
       plant: activePlant,
       date: new Date().toISOString().split('T')[0]
     });
@@ -960,7 +973,7 @@ export const QAView: React.FC = () => {
     setShowUniversalQaModal(false);
   };
 
-  const isDeltaEPass = fpaForm.deltaE <= 0.70;
+  const isDeltaEPass = fpaForm.deltaE <= (fpaForm.deltaToleranceLimit !== undefined ? fpaForm.deltaToleranceLimit : 0.70);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1383,16 +1396,107 @@ export const QAView: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 1: IPQC & FPA VIEW */}
+      {/* TAB 1: IPQC, FPA & PRE-PRODUCTION QUALITY VIEW */}
       {activeSubTab === 'IPQC' && (
         <div className="space-y-4 sm:space-y-6">
+          {/* Pre-Production Inspection (PIR) Section */}
+          <div className="bg-white rounded-[20px] sm:rounded-[24px] border border-[#ececec] p-4 sm:p-6 shadow-xs sm:shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#f2f2f3]">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#777b86]">
+                  Pre-Production Inspection (PIR / Pre-Spray Substrate Check)
+                </h3>
+                <span className="text-[11px] sm:text-xs font-mono text-[#c09748] font-bold">PK-QA-PIR-001</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedJcForPir(jobCards[0] || null);
+                  setShowPirModal(true);
+                }}
+                className="px-4 py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1.5 active:scale-95 self-start sm:self-auto"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>+ Perform PIR Check</span>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {preProductionReports.map(pir => (
+                <div
+                  key={pir.reportNo}
+                  className="p-4 sm:p-5 rounded-[18px] sm:rounded-[20px] border border-[#ececec] hover:border-[#c09748] transition bg-[#fafafb] space-y-3 text-xs"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-[#ececec]">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="font-mono font-bold text-[#c09748] px-2.5 py-0.5 rounded-full bg-white border border-[#f4e5be] whitespace-nowrap text-[11px]">
+                        {pir.reportNo}
+                      </span>
+                      <span className="font-serif font-normal text-sm sm:text-base text-[#17191c]">{pir.customer}</span>
+                      <span className="text-[#777b86] font-mono text-[11px] whitespace-nowrap">({pir.partCode} &bull; {pir.jobCardNo})</span>
+                    </div>
+                    <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto shrink-0 pt-1 sm:pt-0">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold whitespace-nowrap ${
+                        pir.overallStatus === 'Passed' ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' : 'bg-red-50 border border-red-200 text-red-800'
+                      }`}>
+                        Result: {pir.overallStatus} (8/8 Checks)
+                      </span>
+                      <span className="text-[#777b86] font-mono text-[11px] whitespace-nowrap">{pir.date}</span>
+                      <button
+                        type="button"
+                        onClick={() => downloadStandardPreProductionPdf(pir)}
+                        className="px-3 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-medium text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                        title="Download Official Pre-Production PDF"
+                      >
+                        <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                        <span>PDF</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 p-3 sm:p-4 bg-white rounded-[14px] sm:rounded-[16px] border border-[#ececec]">
+                    <div>
+                      <span className="text-[#777b86] text-[11px]">Substrate / Material:</span>
+                      <div className="font-medium text-xs text-[#17191c] mt-0.5">{pir.substrateMaterial}</div>
+                    </div>
+                    <div>
+                      <span className="text-[#777b86] text-[11px]">Quantity Verification:</span>
+                      <div className="font-semibold text-xs text-emerald-800 mt-0.5">
+                        {pir.acceptedQty} Pcs Accepted / {pir.inspectedQty} Inspected
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[#777b86] text-[11px]">Pre-Treatment Status:</span>
+                      <div className="font-mono text-xs text-[#17191c] mt-0.5">IPA Wipe &bull; De-Dusted &bull; Jigged</div>
+                    </div>
+                    <div>
+                      <span className="text-[#777b86] text-[11px]">Auditor & Approver:</span>
+                      <div className="font-medium text-[#17191c] mt-0.5 text-xs">{pir.inspectorName}</div>
+                      <div className="text-[10px] text-emerald-700 font-medium">✓ Passed for Gate 2 (FPA)</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* FPA Section */}
           <div className="bg-white rounded-[20px] sm:rounded-[24px] border border-[#ececec] p-4 sm:p-6 shadow-xs sm:shadow-sm space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#f2f2f3]">
-              <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#777b86]">
-                First Part Approval (FPA) Golden Gate Releases
-              </h3>
-              <span className="text-[11px] sm:text-xs font-mono text-[#c09748] font-bold">PK-QA-FPA-001</span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#f2f2f3]">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#777b86]">
+                  First Part Approval (FPA) Golden Gate Releases
+                </h3>
+                <span className="text-[11px] sm:text-xs font-mono text-[#c09748] font-bold">PK-QA-FPA-001</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFpaModal(true)}
+                className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1.5 active:scale-95 self-start sm:self-auto"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>+ New FPA Inspection</span>
+              </button>
             </div>
 
             <div className="space-y-3">
@@ -1416,6 +1520,15 @@ export const QAView: React.FC = () => {
                         Result: {fpa.overallResult}
                       </span>
                       <span className="text-[#777b86] font-mono text-[11px] whitespace-nowrap">{fpa.date}</span>
+                      <button
+                        type="button"
+                        onClick={() => downloadStandardFPAPdf(fpa)}
+                        className="px-3 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-medium text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                        title="Download Official FPA PDF"
+                      >
+                        <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                        <span>PDF</span>
+                      </button>
                     </div>
                   </div>
 
@@ -1423,7 +1536,7 @@ export const QAView: React.FC = () => {
                     <div>
                       <span className="text-[#777b86] text-[11px]">Colorimetry ΔE:</span>
                       <div className="font-serif font-normal text-sm sm:text-base text-[#17191c] mt-0.5">
-                        {fpa.deltaE} <span className="text-[9px] sm:text-[10px] text-emerald-700 font-sans font-medium">(≤ 0.70)</span>
+                        {fpa.deltaE} <span className="text-[9px] sm:text-[10px] text-emerald-700 font-sans font-medium">(≤ {(fpa.deltaToleranceLimit !== undefined ? fpa.deltaToleranceLimit : 0.70).toFixed(2)})</span>
                       </div>
                     </div>
                     <div>
@@ -1454,31 +1567,41 @@ export const QAView: React.FC = () => {
 
           {/* 3-Hourly IPQC Inspection */}
           <div className="bg-white rounded-[20px] sm:rounded-[24px] border border-[#ececec] p-4 sm:p-6 shadow-xs sm:shadow-sm space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[#f2f2f3]">
-              <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#777b86]">
-                3-Hourly In-Process Quality Control (IPQC) Logs
-              </h3>
-              <span className="text-[11px] sm:text-xs font-mono text-[#c09748] font-bold">PK-QA-IPQ-001</span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#f2f2f3]">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#777b86]">
+                  In-Process Quality Control (IPQC) Inspection Reports
+                </h3>
+                <span className="text-[11px] font-mono text-[#c09748] font-bold">Doc: PK-QA-IPQ-001 • 8 Time-Slots Line Matrix</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowIpqcModal(true)}
+                className="px-4 py-2 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer flex items-center gap-1.5 active:scale-95 self-start sm:self-auto"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>+ Record In-Process Inspection (IPQC)</span>
+              </button>
             </div>
 
             {/* Mobile Touch Card List View (< 640px) */}
             <div className="block sm:hidden space-y-3">
               {ipqcRecords.map(rec => (
-                <div key={rec.reportNo} className="p-3.5 bg-[#fafafb] border border-[#ececec] rounded-[16px] space-y-2 text-xs">
+                <div key={rec.reportNo} className="p-3.5 bg-[#fafafb] border border-[#ececec] rounded-[18px] space-y-2.5 text-xs">
                   <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
                     <div>
                       <span className="font-mono font-bold text-[#c09748] text-xs">{rec.reportNo}</span>
-                      <div className="text-[11px] text-[#777b86]">{rec.checkTime} ({rec.shift})</div>
+                      <div className="text-[11px] text-[#777b86]">{rec.date ? formatDateDDMMYYYY(rec.date) : ''} • {rec.checkTime} ({rec.shift})</div>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${rec.result === 'Pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${rec.result === 'Pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
                       {rec.result}
                     </span>
                   </div>
 
-                  <div className="text-[#17191c] font-medium">{rec.partCode} • {rec.color}</div>
-                  <div className="text-[11px] text-[#777b86]">{rec.booth} ({rec.painter})</div>
+                  <div className="text-[#17191c] font-medium">{rec.partDescription || rec.partCode} {rec.color ? `• ${rec.color}` : ''}</div>
+                  <div className="text-[11px] text-[#777b86]">Customer: <span className="text-[#17191c] font-medium">{rec.customer || 'OEM Client'}</span> • Booth: {rec.booth} ({rec.painter})</div>
 
-                  <div className="grid grid-cols-3 gap-1.5 pt-1.5 text-center text-[10px]">
+                  <div className="grid grid-cols-3 gap-1.5 pt-1 text-center text-[10px]">
                     <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]">
                       <span className="text-[#777b86] block">Bubble</span>
                       <span className={`font-bold ${rec.bubble === 'Pass' ? 'text-emerald-700' : 'text-red-700'}`}>{rec.bubble}</span>
@@ -1504,6 +1627,17 @@ export const QAView: React.FC = () => {
                       <span className={`font-bold ${rec.adhesionTest === 'Pass' ? 'text-emerald-700' : 'text-red-700'}`}>{rec.adhesionTest}</span>
                     </div>
                   </div>
+
+                  <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#f2f2f3]">
+                    <button
+                      type="button"
+                      onClick={() => downloadStandardIPQCPdf(rec)}
+                      className="px-3 py-1.5 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold rounded-full shadow-2xs transition cursor-pointer flex items-center gap-1 active:scale-95"
+                    >
+                      <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                      <span>Download PDF</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1512,10 +1646,9 @@ export const QAView: React.FC = () => {
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-[#ececec] text-[#777b86] bg-[#fafafb]">
-                    <th className="p-3 font-semibold">Report No</th>
-                    <th className="p-3 font-semibold">Time / Shift</th>
-                    <th className="p-3 font-semibold">Part Code & Finish</th>
+                  <tr className="border-b border-[#ececec] text-[#17191c] bg-[#f2f2f3]">
+                    <th className="p-3 font-semibold">Report No & Date</th>
+                    <th className="p-3 font-semibold">Customer & Part Details</th>
                     <th className="p-3 font-semibold">Booth & Painter</th>
                     <th className="p-3 font-semibold text-center">Bubble</th>
                     <th className="p-3 font-semibold text-center">Dust Spot</th>
@@ -1523,17 +1656,26 @@ export const QAView: React.FC = () => {
                     <th className="p-3 font-semibold text-center">Missing Paint</th>
                     <th className="p-3 font-semibold text-center">ΔE (Delta)</th>
                     <th className="p-3 font-semibold text-center">Adhesion</th>
-                    <th className="p-3 font-semibold text-center">Overall Finishing</th>
-                    <th className="p-3 font-semibold text-right">Result</th>
+                    <th className="p-3 font-semibold text-center">Overall</th>
+                    <th className="p-3 font-semibold text-center">Result</th>
+                    <th className="p-3 font-semibold text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#ececec]">
                   {ipqcRecords.map(rec => (
                     <tr key={rec.reportNo} className="hover:bg-[#fafafb] transition">
-                      <td className="p-3 font-mono font-bold text-[#c09748]">{rec.reportNo}</td>
-                      <td className="p-3 text-[#17191c] font-medium">{rec.checkTime} <span className="text-[10px] text-[#777b86]">({rec.shift})</span></td>
-                      <td className="p-3 text-[#17191c] font-medium">{rec.partCode} • {rec.color}</td>
-                      <td className="p-3 text-[#777b86]">{rec.booth} ({rec.painter})</td>
+                      <td className="p-3 font-mono">
+                        <div className="font-bold text-[#c09748]">{rec.reportNo}</div>
+                        <div className="text-[11px] text-[#777b86]">{rec.date ? formatDateDDMMYYYY(rec.date) : ''} • {rec.checkTime}</div>
+                      </td>
+                      <td className="p-3">
+                        <div className="text-[#17191c] font-medium">{rec.customer || 'OEM Client'}</div>
+                        <div className="text-[11px] text-[#777b86]">{rec.partCode} {rec.color ? `• ${rec.color}` : ''} {rec.family ? `(${rec.family})` : ''}</div>
+                      </td>
+                      <td className="p-3 text-[#777b86]">
+                        <div className="text-[#17191c] font-medium">{rec.booth}</div>
+                        <div className="text-[11px]">{rec.painter}</div>
+                      </td>
                       <td className="p-3 text-center">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${rec.bubble === 'Pass' ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>
                           {rec.bubble}
@@ -1567,12 +1709,23 @@ export const QAView: React.FC = () => {
                           {rec.overallFinishing}
                         </span>
                       </td>
-                      <td className="p-3 text-right">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      <td className="p-3 text-center">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                           rec.result === 'Pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
                         }`}>
                           {rec.result}
                         </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => downloadStandardIPQCPdf(rec)}
+                          className="px-3 py-1.5 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
+                          title="Download Official IPQC Report PDF"
+                        >
+                          <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                          <span>PDF</span>
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -2444,148 +2597,22 @@ export const QAView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 2: NEW IPQC 3-HOURLY AUDIT FORM (WITH SMART PARTY SEARCH & 1-TAP ALL PASS) */}
+      {/* MODAL 1B: PRE-PRODUCTION INSPECTION (PIR / PRE-SPRAY SUBSTRATE CHECK) */}
+      <PreProductionInspectionModal
+        isOpen={showPirModal}
+        onClose={() => {
+          setShowPirModal(false);
+          setSelectedJcForPir(null);
+        }}
+        jobCard={selectedJcForPir}
+      />
+
+      {/* MODAL 2: NEW IPQC 3-HOURLY AUDIT FORM (OFFICIAL 8 TIME-SLOTS & MATRIX) */}
       {showIpqcModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-2xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
-            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
-              <div>
-                <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">New 3-Hourly IPQC Line Inspection (PK-QA-IPQ-001)</h3>
-                <p className="text-[10px] sm:text-[11px] text-[#777b86]">Select Party / Work Order to auto-fill line details below</p>
-              </div>
-              <button onClick={() => setShowIpqcModal(false)} className="text-[#979799] hover:text-[#17191c] cursor-pointer p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleIpqcSubmit} className="space-y-3 sm:space-y-4">
-              {/* SMART PARTY / WORK ORDER DROPDOWN AUTO-FILL */}
-              <div className="p-3 bg-[#faf3e0]/50 rounded-[14px] border border-[#f4e5be] space-y-1.5">
-                <label className="block text-[#8a6521] font-bold text-xs flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
-                  Select Party Name / Active Job Card (Auto-Fill Details):
-                </label>
-                <select
-                  onChange={e => selectOrderForIpqc(e.target.value)}
-                  className="w-full p-2.5 rounded-[12px] border border-[#f4e5be] bg-white font-medium text-xs text-[#17191c] cursor-pointer focus:outline-none"
-                >
-                  <option value="">-- Choose Party / Job Card to Auto-Populate --</option>
-                  {availableOrders.map(o => (
-                    <option key={o.jobCardNo} value={o.jobCardNo}>
-                      {o.customer} • {o.woNo} ({o.partCode} - {o.color})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Work Order No</label>
-                  <input
-                    type="text"
-                    value={ipqcForm.woNo}
-                    onChange={e => setIpqcForm({ ...ipqcForm, woNo: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Part Code</label>
-                  <input
-                    type="text"
-                    value={ipqcForm.partCode}
-                    onChange={e => setIpqcForm({ ...ipqcForm, partCode: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Color / Finish</label>
-                  <input
-                    type="text"
-                    value={ipqcForm.color}
-                    onChange={e => setIpqcForm({ ...ipqcForm, color: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* IPQC Selection Grid with 1-Tap "Set All Pass" Button */}
-              <div className="p-3.5 sm:p-4 bg-[#fafafb] rounded-[16px] sm:rounded-[20px] border border-[#ececec] space-y-2.5 sm:space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-[#17191c] text-xs">IPQC Parameter Options:</span>
-                  <button
-                    type="button"
-                    onClick={setAllIpqcPass}
-                    className="px-3 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition flex items-center gap-1 active:scale-95 cursor-pointer"
-                  >
-                    <Check className="w-3 h-3" />
-                    <span>✓ Set All Pass (100% Clean)</span>
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-                  {[
-                    { label: 'Bubble', key: 'bubble' },
-                    { label: 'Dust Spot', key: 'dustSpot' },
-                    { label: 'Over Paint', key: 'overPaint' },
-                    { label: 'Paint Missing', key: 'paintMissing' },
-                    { label: 'Overall Finishing', key: 'overallFinishing' },
-                    { label: 'Adhesion Test', key: 'adhesionTest' }
-                  ].map(item => (
-                    <div key={item.key} className="flex items-center justify-between p-2 sm:p-2.5 bg-white rounded-[12px] border border-[#ececec]">
-                      <span className="font-medium text-[#17191c] text-xs">{item.label}</span>
-                      <select
-                        value={(ipqcForm as any)[item.key]}
-                        onChange={e => setIpqcForm({ ...ipqcForm, [item.key]: e.target.value })}
-                        className={`p-1 rounded-[6px] text-xs font-bold border cursor-pointer ${
-                          (ipqcForm as any)[item.key] === 'Pass' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'
-                        }`}
-                      >
-                        <option value="Pass">Pass</option>
-                        <option value="Fail">Fail</option>
-                      </select>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Spectrophotometer LAB & Delta-E Entry */}
-              <div className="p-3.5 sm:p-4 bg-[#faf3e0]/40 rounded-[16px] sm:rounded-[20px] border border-[#f4e5be] space-y-2">
-                <div className="font-semibold text-[#17191c] flex items-center justify-between text-xs">
-                  <span>Spectrophotometer Colorimetry (L, A, B, ΔE)</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ipqcForm.deltaE <= 0.70 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                    {ipqcForm.deltaE <= 0.70 ? '✓ PASS' : '🚨 REJECT'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-4 gap-2">
-                  <div>
-                    <label className="block text-[10px] text-[#777b86]">L*</label>
-                    <input type="number" step="0.01" value={ipqcForm.L} onChange={e => setIpqcForm({ ...ipqcForm, L: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] border border-[#ececec] bg-white font-mono text-xs" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-[#777b86]">a*</label>
-                    <input type="number" step="0.01" value={ipqcForm.a} onChange={e => setIpqcForm({ ...ipqcForm, a: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] border border-[#ececec] bg-white font-mono text-xs" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-[#777b86]">b*</label>
-                    <input type="number" step="0.01" value={ipqcForm.b} onChange={e => setIpqcForm({ ...ipqcForm, b: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] border border-[#ececec] bg-white font-mono text-xs" />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-[#777b86] font-bold">ΔE (Delta)</label>
-                    <input type="number" step="0.01" min={0} value={ipqcForm.deltaE} onChange={e => setIpqcForm({ ...ipqcForm, deltaE: Number(e.target.value) })} className="w-full p-1.5 sm:p-2 rounded-[8px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button type="button" onClick={() => setShowIpqcModal(false)} className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86]">Cancel</button>
-                <button type="submit" className="px-5 sm:px-6 py-2 sm:py-2.5 rounded-full bg-[#c09748] text-[#17191c] font-semibold">Save IPQC Inspection</button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <IPQCModal 
+          isOpen={showIpqcModal} 
+          onClose={() => setShowIpqcModal(false)} 
+        />
       )}
 
       {/* MODAL 3: NEW OQC / PDI RELEASE FORM (WITH SMART PARTY SEARCH & 1-TAP ALL PASS) */}
@@ -2814,25 +2841,25 @@ export const QAView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Delta-E Spectrophotometer Calculator Card */}
+              {/* Delta-E Spectrophotometer Calculator Card with Unified Inline Tolerance */}
               <div className={`p-3.5 sm:p-4 rounded-[16px] sm:rounded-[20px] border space-y-2.5 ${
                 isDeltaEPass ? 'bg-[#faf3e0]/40 border-[#f4e5be]' : 'bg-red-50 border-red-300'
               }`}>
                 <div className="flex justify-between items-center text-xs">
                   <div className="font-semibold text-[#17191c] flex items-center gap-1.5">
                     <Gauge className="w-4 h-4 text-[#c09748]" />
-                    Spectrophotometer ΔE
+                    <span>Spectrophotometer Colorimetry (L, a, b, ΔE)</span>
                   </div>
                   <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] ${
                     isDeltaEPass ? 'bg-emerald-100 text-emerald-800' : 'bg-red-600 text-white'
                   }`}>
-                    {isDeltaEPass ? '✓ PASS' : '🚨 REJECT'}
+                    {isDeltaEPass ? `✓ PASS (≤ ${(fpaForm.deltaToleranceLimit || 0.70).toFixed(2)})` : `🚨 REJECT (> ${(fpaForm.deltaToleranceLimit || 0.70).toFixed(2)})`}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   <div>
-                    <label className="block text-[10px] text-[#777b86] font-medium">L*</label>
+                    <label className="block text-[10px] text-[#777b86] font-medium mb-0.5">L*</label>
                     <input
                       type="number"
                       step="0.01"
@@ -2842,7 +2869,7 @@ export const QAView: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-[#777b86] font-medium">a*</label>
+                    <label className="block text-[10px] text-[#777b86] font-medium mb-0.5">a*</label>
                     <input
                       type="number"
                       step="0.01"
@@ -2852,7 +2879,7 @@ export const QAView: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-[#777b86] font-medium">b*</label>
+                    <label className="block text-[10px] text-[#777b86] font-medium mb-0.5">b*</label>
                     <input
                       type="number"
                       step="0.01"
@@ -2862,14 +2889,27 @@ export const QAView: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-[#777b86] font-medium">ΔE</label>
+                    <label className="block text-[10px] text-[#8a6521] font-bold mb-0.5">ΔE Limit (≤)</label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      min={0.10}
+                      max={5.00}
+                      value={fpaForm.deltaToleranceLimit ?? 0.70}
+                      onChange={e => setFpaForm({ ...fpaForm, deltaToleranceLimit: Math.max(0.01, Number(e.target.value)) })}
+                      className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[12px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs text-center text-[#17191c] focus:outline-none"
+                      placeholder="0.70"
+                    />
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="block text-[10px] text-[#777b86] font-bold mb-0.5">Observed ΔE</label>
                     <input
                       type="number"
                       step="0.01"
                       min={0}
                       value={fpaForm.deltaE}
                       onChange={e => setFpaForm({ ...fpaForm, deltaE: Math.max(0, Number(e.target.value)) })}
-                      className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[12px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs text-[#17191c] focus:outline-none"
+                      className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none"
                     />
                   </div>
                 </div>

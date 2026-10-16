@@ -35,18 +35,22 @@ import {
   Check,
   Paintbrush,
   FlaskConical,
-  Download
+  Download,
+  Lock
 } from 'lucide-react';
 import { JobCardModal } from '../components/JobCardModal';
+import { PreProductionInspectionModal } from '../components/PreProductionInspectionModal';
 import { FPAModal } from '../components/FPAModal';
 import { IPQCModal } from '../components/IPQCModal';
-import { downloadStandardFPAPdf, downloadStandardIPQCPdf } from '../utils/pdfStandardHeader';
+import { downloadStandardPreProductionPdf, downloadStandardFPAPdf, downloadStandardIPQCPdf } from '../utils/pdfStandardHeader';
 
 export const JobCardsView: React.FC = () => {
   const { 
     jobCards, 
     universalJobs, 
     grnList,
+    preProductionReports,
+    addPreProductionReport,
     fpaRecords,
     ipqcRecords,
     updateJobCardSprayed, 
@@ -76,7 +80,9 @@ export const JobCardsView: React.FC = () => {
   // Active filter tab: ALL, MASTER, PAINTERS, REWORK, REQUISITIONS, STORE_STOCK, BOOTH_FLEET
   const [activeTab, setActiveTab] = useState<'ALL' | 'MASTER' | 'PAINTERS' | 'REWORK' | 'REQUISITIONS' | 'STORE_STOCK' | 'BOOTH_FLEET'>('ALL');
 
-  // FPA Golden Gate & 3-Hourly IPQC Modal States
+  // Quality Gates: 1. PIR (Pre-Production Substrate), 2. FPA (Golden Gate), 3. IPQC Line Modal States
+  const [showPirModal, setShowPirModal] = useState<boolean>(false);
+  const [selectedJcForPir, setSelectedJcForPir] = useState<JobCard | null>(null);
   const [showFpaModal, setShowFpaModal] = useState<boolean>(false);
   const [selectedJcForFpa, setSelectedJcForFpa] = useState<JobCard | null>(null);
   const [showIpqcModal, setShowIpqcModal] = useState<boolean>(false);
@@ -448,6 +454,89 @@ export const JobCardsView: React.FC = () => {
     setShowRequisitionModal(false);
     setToastMessage(`✓ Material Requisition sent to Store! Demanded ${reqQty} ${reqUom} for ${targetLineForReq}.`);
     setTimeout(() => setToastMessage(null), 5000);
+  };
+
+  // Open Store MRN Custody Verification Modal
+  const handleOpenAcceptModal = (req: MaterialRequisitionNote) => {
+    setSelectedReqForAccept(req);
+    const expected = req.issuedQty || req.requestedQty;
+    setActualReceivedCount(expected);
+    setAcceptingPerson(currentUser?.name || 'Vikram Patel (Line Supervisor)');
+    setDiscrepancyReasonChoice('Count Shortage from Store');
+    setAcceptRemarks(`Material received and verified on floor against Store Issue Slip ${req.issuedSlipNo || 'MIN-DIRECT'}.`);
+    setShowAcceptModal(true);
+  };
+
+  const handleAcceptSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedReqForAccept) return;
+
+    const expected = selectedReqForAccept.issuedQty || selectedReqForAccept.requestedQty;
+    const isDiscrepant = actualReceivedCount !== expected;
+
+    acceptMaterialRequisition(
+      selectedReqForAccept.mrnNo,
+      Number(actualReceivedCount),
+      acceptingPerson,
+      isDiscrepant ? discrepancyReasonChoice : undefined,
+      acceptRemarks
+    );
+
+    setShowAcceptModal(false);
+    setToastMessage(`✓ Floor Custody Accepted: ${actualReceivedCount} ${selectedReqForAccept.uom} taken into WIP!`);
+    setTimeout(() => setToastMessage(null), 5000);
+  };
+
+  const handleAcceptAndOpenPir = () => {
+    if (!selectedReqForAccept) return;
+
+    const expected = selectedReqForAccept.issuedQty || selectedReqForAccept.requestedQty;
+    const isDiscrepant = actualReceivedCount !== expected;
+
+    acceptMaterialRequisition(
+      selectedReqForAccept.mrnNo,
+      Number(actualReceivedCount),
+      acceptingPerson,
+      isDiscrepant ? discrepancyReasonChoice : undefined,
+      acceptRemarks
+    );
+
+    const matchedJc = jobCards.find(
+      j => j.jobCardNo.toLowerCase() === selectedReqForAccept.jobCardNo.toLowerCase() ||
+           (j.woNo && selectedReqForAccept.woNo && j.woNo.toLowerCase() === selectedReqForAccept.woNo.toLowerCase())
+    );
+
+    setShowAcceptModal(false);
+
+    if (matchedJc) {
+      setSelectedJcForPir({
+        ...matchedJc,
+        targetQty: Number(actualReceivedCount),
+        issuedRawQty: Number(actualReceivedCount)
+      });
+    } else {
+      setSelectedJcForPir({
+        jobCardNo: selectedReqForAccept.jobCardNo,
+        woNo: selectedReqForAccept.woNo,
+        customer: selectedReqForAccept.customer,
+        partCode: selectedReqForAccept.partCode,
+        partDescription: selectedReqForAccept.partDescription,
+        color: selectedReqForAccept.colorName || 'Standard OEM Tone',
+        targetQty: Number(actualReceivedCount),
+        issuedRawQty: Number(actualReceivedCount),
+        sprayedQty: 0,
+        goodQty: 0,
+        rejectQty: 0,
+        status: 'Open',
+        jobCardType: 'master',
+        docNo: 'Doc No: 001',
+        dept: 'Cubic Line',
+        boothNo: 'Booth #1',
+        painterName: 'Ramesh Kumar (P1)',
+        checkingPerson: 'Amit Verma'
+      });
+    }
+    setShowPirModal(true);
   };
 
   // 1-Click Job Card Creation after physical material receipt on floor
@@ -1062,25 +1151,84 @@ export const JobCardsView: React.FC = () => {
                               <span className="text-[11px] text-amber-700 font-medium italic">
                                 Awaiting Store MIN Issue...
                               </span>
-                            ) : isReceived ? (
-                              <div className="text-right flex flex-col items-end gap-1.5">
-                                <span className="text-[11px] text-emerald-800 font-bold flex items-center justify-end gap-1">
-                                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>In Active WIP</span>
-                                </span>
-                                <div className="text-[10px] text-[#777b86]">
-                                  {req.receivedQty} {req.uom} recd by {req.receivedBy?.split(' ')[0]}
+                            ) : isReceived ? (() => {
+                              const reqMatchingPir = preProductionReports.find(
+                                p => p.jobCardNo.toLowerCase() === req.jobCardNo.toLowerCase() ||
+                                     (req.woNo && p.workOrderNo && p.workOrderNo.toLowerCase() === req.woNo.toLowerCase())
+                              );
+
+                              return (
+                                <div className="text-right flex flex-col items-end gap-1.5">
+                                  <span className="text-[11px] text-emerald-800 font-bold flex items-center justify-end gap-1">
+                                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span>In Active WIP</span>
+                                  </span>
+                                  <div className="text-[10px] text-[#777b86]">
+                                    {req.receivedQty} {req.uom} recd by {req.receivedBy?.split(' ')[0]}
+                                  </div>
+                                  <div className="flex items-center gap-1.5 pt-0.5">
+                                    {reqMatchingPir ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => downloadStandardPreProductionPdf(reqMatchingPir)}
+                                        className="px-2.5 py-1 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer transition"
+                                        title={`Download PIR PDF (${reqMatchingPir.reportNo})`}
+                                      >
+                                        <Download className="w-3 h-3 text-[#c09748]" />
+                                        <span>PIR PDF ({reqMatchingPir.reportNo})</span>
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const matchedJc = jobCards.find(
+                                            j => j.jobCardNo.toLowerCase() === req.jobCardNo.toLowerCase() ||
+                                                 (j.woNo && req.woNo && j.woNo.toLowerCase() === req.woNo.toLowerCase())
+                                          );
+                                          if (matchedJc) {
+                                            setSelectedJcForPir(matchedJc);
+                                          } else {
+                                            setSelectedJcForPir({
+                                              jobCardNo: req.jobCardNo,
+                                              woNo: req.woNo,
+                                              customer: req.customer,
+                                              partCode: req.partCode,
+                                              partDescription: req.partDescription,
+                                              color: req.colorName || 'Standard OEM Tone',
+                                              targetQty: req.receivedQty || req.issuedQty || req.requestedQty,
+                                              issuedRawQty: req.receivedQty || req.issuedQty || req.requestedQty,
+                                              sprayedQty: 0,
+                                              goodQty: 0,
+                                              rejectQty: 0,
+                                              status: 'Open',
+                                              jobCardType: 'master',
+                                              docNo: 'Doc No: 001',
+                                              dept: 'Cubic Line',
+                                              boothNo: 'Booth #1',
+                                              painterName: 'Ramesh Kumar (P1)',
+                                              checkingPerson: 'Amit Verma'
+                                            });
+                                          }
+                                          setShowPirModal(true);
+                                        }}
+                                        className="px-2.5 py-1 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer transition"
+                                      >
+                                        <Sparkles className="w-3 h-3 text-[#c09748]" />
+                                        <span>+ Generate PIR Report</span>
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCreateJobCardFromReceivedBatch(req)}
+                                      className="px-3 py-1 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-[11px] flex items-center gap-1 shadow-2xs cursor-pointer transition"
+                                    >
+                                      <Plus className="w-3 h-3 text-[#c09748]" />
+                                      <span>+ Job Card</span>
+                                    </button>
+                                  </div>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleCreateJobCardFromReceivedBatch(req)}
-                                  className="px-3 py-1 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-[11px] flex items-center gap-1 shadow-2xs cursor-pointer transition"
-                                >
-                                  <Plus className="w-3 h-3 text-[#c09748]" />
-                                  <span>+ Create Job Card</span>
-                                </button>
-                              </div>
-                            ) : (
+                              );
+                            })() : (
                               <div className="text-right">
                                 <span className="text-[11px] text-rose-700 font-bold flex items-center justify-end gap-1">
                                   <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
@@ -1174,14 +1322,74 @@ export const JobCardsView: React.FC = () => {
                             {req.receivedQty} {req.uom}
                           </span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleCreateJobCardFromReceivedBatch(req)}
-                          className="w-full py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition"
-                        >
-                          <Plus className="w-3.5 h-3.5 text-[#c09748]" />
-                          <span>+ Create Job Card from Received Batch</span>
-                        </button>
+                        {(() => {
+                          const reqMatchingPir = preProductionReports.find(
+                            p => p.jobCardNo.toLowerCase() === req.jobCardNo.toLowerCase() ||
+                                 (req.woNo && p.workOrderNo && p.workOrderNo.toLowerCase() === req.woNo.toLowerCase())
+                          );
+
+                          return (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                              {reqMatchingPir ? (
+                                <button
+                                  type="button"
+                                  onClick={() => downloadStandardPreProductionPdf(reqMatchingPir)}
+                                  className="w-full py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition"
+                                >
+                                  <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                                  <span>Download PIR PDF</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const matchedJc = jobCards.find(
+                                      j => j.jobCardNo.toLowerCase() === req.jobCardNo.toLowerCase() ||
+                                           (j.woNo && req.woNo && j.woNo.toLowerCase() === req.woNo.toLowerCase())
+                                    );
+                                    if (matchedJc) {
+                                      setSelectedJcForPir(matchedJc);
+                                    } else {
+                                      setSelectedJcForPir({
+                                        jobCardNo: req.jobCardNo,
+                                        woNo: req.woNo,
+                                        customer: req.customer,
+                                        partCode: req.partCode,
+                                        partDescription: req.partDescription,
+                                        color: req.colorName || 'Standard OEM Tone',
+                                        targetQty: req.receivedQty || req.issuedQty || req.requestedQty,
+                                        issuedRawQty: req.receivedQty || req.issuedQty || req.requestedQty,
+                                        sprayedQty: 0,
+                                        goodQty: 0,
+                                        rejectQty: 0,
+                                        status: 'Open',
+                                        jobCardType: 'master',
+                                        docNo: 'Doc No: 001',
+                                        dept: 'Cubic Line',
+                                        boothNo: 'Booth #1',
+                                        painterName: 'Ramesh Kumar (P1)',
+                                        checkingPerson: 'Amit Verma'
+                                      });
+                                    }
+                                    setShowPirModal(true);
+                                  }}
+                                  className="w-full py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition"
+                                >
+                                  <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
+                                  <span>+ Generate PIR Report</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleCreateJobCardFromReceivedBatch(req)}
+                                className="w-full py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition"
+                              >
+                                <Plus className="w-3.5 h-3.5 text-[#c09748]" />
+                                <span>+ Create Job Card</span>
+                              </button>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
@@ -1481,6 +1689,40 @@ export const JobCardsView: React.FC = () => {
             const isExpanded = !!expandedMasterIds[jc.jobCardNo];
             const hasChildren = childCards.length > 0;
 
+            // Lot-Wide Pre-Production Inspection (PIR) Resolution
+            const matchingPir = preProductionReports.find(
+              p => p.overallResult === 'Passed' && (
+                p.jobCardNo.toLowerCase() === jc.jobCardNo.toLowerCase() ||
+                (jc.parentJobCardId && p.jobCardNo.toLowerCase() === jc.parentJobCardId.toLowerCase()) ||
+                (jc.woNo && p.workOrderNo && p.workOrderNo.trim().toLowerCase() === jc.woNo.trim().toLowerCase()) ||
+                (jc.customer && p.customer && jc.customer.trim().toLowerCase() === p.customer.trim().toLowerCase() &&
+                 jc.partCode && p.partCode && jc.partCode.trim().toLowerCase() === p.partCode.trim().toLowerCase())
+              )
+            ) || preProductionReports.find(
+              p => p.jobCardNo.toLowerCase() === jc.jobCardNo.toLowerCase() ||
+                   (jc.woNo && p.workOrderNo && p.workOrderNo.trim().toLowerCase() === jc.woNo.trim().toLowerCase())
+            );
+
+            const isPirPassed = jc.pirStatus === 'Passed' || (matchingPir?.overallResult === 'Passed');
+            const activePirReportNo = jc.pirReportNo || matchingPir?.reportNo;
+
+            // Lot-Wide FPA Resolution: Check if this Job Card or ANY card in the same Lot/WO/Customer+Part passed FPA
+            const matchingFpa = fpaRecords.find(
+              f => f.overallResult === 'Approved' && (
+                f.jobCardNo.toLowerCase() === jc.jobCardNo.toLowerCase() ||
+                (jc.parentJobCardId && f.jobCardNo.toLowerCase() === jc.parentJobCardId.toLowerCase()) ||
+                (jc.woNo && f.woNo && f.woNo.trim().toLowerCase() === jc.woNo.trim().toLowerCase()) ||
+                (jc.customer && f.customer && jc.customer.trim().toLowerCase() === f.customer.trim().toLowerCase() &&
+                 jc.partCode && f.partCode && jc.partCode.trim().toLowerCase() === f.partCode.trim().toLowerCase())
+              )
+            ) || fpaRecords.find(
+              f => f.jobCardNo.toLowerCase() === jc.jobCardNo.toLowerCase() ||
+                   (jc.woNo && f.woNo && f.woNo.trim().toLowerCase() === jc.woNo.trim().toLowerCase())
+            );
+
+            const isFpaApproved = jc.fpaStatus === 'Approved' || (matchingFpa?.overallResult === 'Approved');
+            const activeFpaReportNo = jc.fpaReportNo || matchingFpa?.reportNo;
+
             return (
               <div
                 key={jc.jobCardNo}
@@ -1528,16 +1770,34 @@ export const JobCardsView: React.FC = () => {
                           {jc.docNo || 'Doc No: 001'}
                         </span>
 
-                        {/* FPA Golden Gate Status Badge */}
-                        {jc.fpaStatus === 'Approved' ? (
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold flex items-center gap-1">
+                        {/* Gate 1: Pre-Production Inspection (PIR) Badge */}
+                        {isPirPassed ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold flex items-center gap-1" title={activePirReportNo ? `Substrates Cleared under ${activePirReportNo}` : 'PIR Passed'}>
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>Gate 1: PIR Cleared ✓ {activePirReportNo ? `(${activePirReportNo})` : ''}</span>
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-amber-900 text-[10px] font-mono font-bold flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3 text-amber-700" />
+                            <span>Gate 1: PIR Pending</span>
+                          </span>
+                        )}
+
+                        {/* Gate 2: FPA Golden Gate Status Badge - Lot Synced */}
+                        {isFpaApproved ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold flex items-center gap-1" title={activeFpaReportNo ? `Approved under ${activeFpaReportNo}` : 'FPA Approved for this Lot'}>
                             <Sparkles className="w-3 h-3 text-emerald-600" />
-                            <span>FPA Approved ✓</span>
+                            <span>Gate 2: FPA Approved ✓ {activeFpaReportNo ? `(${activeFpaReportNo})` : ''}</span>
+                          </span>
+                        ) : !isPirPassed ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-gray-100 border border-gray-300 text-gray-600 text-[10px] font-mono font-bold flex items-center gap-1" title="Complete Pre-Production Inspection first to unlock FPA">
+                            <Lock className="w-3 h-3 text-gray-500" />
+                            <span>Gate 2: FPA Locked (PIR Required)</span>
                           </span>
                         ) : (
                           <span className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-300 text-amber-900 text-[10px] font-mono font-bold flex items-center gap-1">
                             <FlaskConical className="w-3 h-3 text-amber-700" />
-                            <span>FPA Pending (Gate 2)</span>
+                            <span>Gate 2: FPA Pending</span>
                           </span>
                         )}
 
@@ -1601,20 +1861,52 @@ export const JobCardsView: React.FC = () => {
                         {jc.status}
                       </span>
 
-                      {/* FPA Golden Gate Action Button */}
+                      {/* Gate 1: PIR Action Button */}
                       <button
                         onClick={() => {
-                          setSelectedJcForFpa(jc);
-                          setShowFpaModal(true);
+                          if (matchingPir) {
+                            downloadStandardPreProductionPdf(matchingPir);
+                          } else {
+                            setSelectedJcForPir(jc);
+                            setShowPirModal(true);
+                          }
                         }}
                         className={`px-3.5 py-1 rounded-full text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 ${
-                          jc.fpaStatus === 'Approved'
+                          isPirPassed
                             ? 'bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100'
                             : 'bg-[#faf7ed] border border-[#f4e5be] text-[#8a6521] hover:bg-[#faf3e0]'
                         }`}
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
-                        <span>{jc.fpaStatus === 'Approved' ? 'FPA Approved ✓' : '+ Perform FPA Test'}</span>
+                        <ShieldCheck className="w-3.5 h-3.5 text-[#c09748]" />
+                        <span>{isPirPassed ? (activePirReportNo ? `PIR Ready (${activePirReportNo}) ✓` : 'PIR Ready ✓') : '+ Perform PIR Check'}</span>
+                      </button>
+
+                      {/* Gate 2: FPA Golden Gate Action Button (Strictly Locked if PIR Not Passed) */}
+                      <button
+                        disabled={!isPirPassed && !isFpaApproved}
+                        onClick={() => {
+                          if (matchingFpa) {
+                            downloadStandardFPAPdf(matchingFpa);
+                          } else if (isPirPassed) {
+                            setSelectedJcForFpa(jc);
+                            setShowFpaModal(true);
+                          }
+                        }}
+                        title={!isPirPassed && !isFpaApproved ? 'Gate 1 Pre-Production Substrate Inspection must be passed before FPA test' : undefined}
+                        className={`px-3.5 py-1 rounded-full text-xs font-semibold transition flex items-center gap-1.5 shadow-2xs active:scale-95 ${
+                          isFpaApproved
+                            ? 'bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 cursor-pointer'
+                            : !isPirPassed
+                            ? 'bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed opacity-75'
+                            : 'bg-[#faf7ed] border border-[#f4e5be] text-[#8a6521] hover:bg-[#faf3e0] cursor-pointer'
+                        }`}
+                      >
+                        {!isPirPassed && !isFpaApproved ? (
+                          <Lock className="w-3.5 h-3.5 text-gray-400" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
+                        )}
+                        <span>{isFpaApproved ? (activeFpaReportNo ? `FPA Ready (${activeFpaReportNo}) ✓` : 'FPA Approved ✓') : !isPirPassed ? 'FPA Locked (PIR Req.)' : '+ Perform FPA Test'}</span>
                       </button>
 
                       {/* In-Process 3-Hourly IPQC Action */}
@@ -1854,11 +2146,8 @@ export const JobCardsView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* QUALITY GATES: FPA GOLDEN GATE & 3-HOURLY IPQC AUDITS STRIP */}
+                  {/* QUALITY GATES: 1. PIR (PRE-PRODUCTION) -> 2. FPA (GOLDEN GATE) -> 3. IPQC AUDITS */}
                   {(() => {
-                    const matchingFpa = fpaRecords.find(
-                      f => f.jobCardNo.toLowerCase() === jc.jobCardNo.toLowerCase() || (jc.woNo && f.woNo.toLowerCase() === jc.woNo.toLowerCase() && f.color.toLowerCase() === jc.color.toLowerCase())
-                    );
                     const matchingIpqc = ipqcRecords.filter(
                       i => (jc.woNo && i.woNo.toLowerCase() === jc.woNo.toLowerCase()) || i.partCode.toLowerCase() === jc.partCode.toLowerCase()
                     );
@@ -1869,38 +2158,110 @@ export const JobCardsView: React.FC = () => {
                           <div className="flex items-center gap-2">
                             <ShieldCheck className="w-4 h-4 text-[#c09748]" />
                             <span className="font-bold uppercase tracking-wider text-[11px] text-[#17191c] font-mono">
-                              Quality Gates: FPA Golden Sample & 3-Hourly IPQC Audits
+                              Quality Gates: 1. PIR Substrate Check &rarr; 2. FPA Golden Lab &rarr; 3. IPQC Line Audits
                             </span>
                           </div>
                           <span className="text-[10px] text-[#8a6521] font-mono font-semibold">
-                            Strict Standard: ΔE ≤ 0.70 • ASTM 5B Adhesion (100%)
+                            Sequential Release: 100% Pre-Check &bull; &Delta;E &le; 0.70 &bull; ASTM 5B
                           </span>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {/* FPA Status & Details */}
-                          <div className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-1.5 shadow-2xs">
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                          {/* GATE 1: Pre-Production Inspection (PIR / Pre-Spray Substrate Check) */}
+                          <div className={`p-3 rounded-[14px] border space-y-1.5 shadow-2xs ${
+                            isPirPassed ? 'bg-white border-emerald-200' : 'bg-amber-50/50 border-amber-200'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] uppercase font-bold text-[#777b86] font-mono flex items-center gap-1">
+                                <PackageCheck className="w-3.5 h-3.5 text-[#c09748]" />
+                                Gate 1: Pre-Production (PIR)
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold ${
+                                isPirPassed ? 'bg-emerald-100 text-emerald-900' : 'bg-amber-100 text-amber-900 animate-pulse'
+                              }`}>
+                                {isPirPassed ? '✓ PASSED (GATE 1 OK)' : '⚠️ AWAITING PRE-CHECK'}
+                              </span>
+                            </div>
+
+                            {matchingPir ? (
+                              <div className="space-y-1 text-[11px]">
+                                <div className="flex items-center justify-between font-mono">
+                                  <span className="text-[#777b86]">Report: <strong>{matchingPir.reportNo}</strong></span>
+                                  <span className="text-emerald-700 font-bold">8/8 Checks Pass</span>
+                                </div>
+                                <div className="text-[10px] text-[#777b86] truncate">
+                                  Accepted: {matchingPir.acceptedQty} / {matchingPir.inspectedQty} pcs &bull; By: {matchingPir.inspectorName}
+                                </div>
+                                <div className="pt-1 flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadStandardPreProductionPdf(matchingPir)}
+                                    className="px-2.5 py-1 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-bold hover:bg-[#f4e5be] transition flex items-center gap-1 cursor-pointer shadow-2xs"
+                                  >
+                                    <Download className="w-3 h-3" />
+                                    <span>Download PIR PDF ({matchingPir.reportNo})</span>
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-1.5 pt-0.5">
+                                <p className="text-[10.5px] text-[#777b86]">
+                                  100% Pre-treatment check (IPA wipe, burrs/flash, jigging, piece count) required from Stores to Floor.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedJcForPir(jc);
+                                    setShowPirModal(true);
+                                  }}
+                                  className="px-3 py-1.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] text-[10.5px] font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs active:scale-95"
+                                >
+                                  <PackageCheck className="w-3 h-3 text-[#c09748]" />
+                                  <span>+ Perform PIR Substrate Check</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* GATE 2: First Part Approval (FPA - Golden Gate) */}
+                          <div className={`p-3 rounded-[14px] border space-y-1.5 shadow-2xs ${
+                            !isPirPassed 
+                              ? 'bg-gray-50/70 border-gray-200 opacity-80' 
+                              : isFpaApproved 
+                                ? 'bg-white border-emerald-200' 
+                                : 'bg-white border-[#ececec]'
+                          }`}>
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] uppercase font-bold text-[#777b86] font-mono flex items-center gap-1">
                                 <FlaskConical className="w-3.5 h-3.5 text-[#c09748]" />
                                 Gate 2: First Part Approval (FPA)
                               </span>
                               <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold ${
-                                jc.fpaStatus === 'Approved' ? 'bg-emerald-100 text-emerald-900' : 'bg-amber-100 text-amber-900'
+                                !isPirPassed
+                                  ? 'bg-gray-200 text-gray-700'
+                                  : isFpaApproved
+                                    ? 'bg-emerald-100 text-emerald-900'
+                                    : 'bg-amber-100 text-amber-900'
                               }`}>
-                                {jc.fpaStatus === 'Approved' ? '✓ APPROVED' : '⚠️ PENDING LAB CHECK'}
+                                {!isPirPassed ? '🔒 LOCKED (NEEDS PIR)' : isFpaApproved ? '✓ APPROVED (LOT RELEASED)' : '⚠️ PENDING LAB CHECK'}
                               </span>
                             </div>
 
-                            {matchingFpa ? (
+                            {!isPirPassed ? (
+                              <div className="space-y-1 pt-1 text-[10.5px] text-gray-500">
+                                <p className="italic">
+                                  Gate 2 is locked until Gate 1 (Pre-Production Inspection) is recorded and passed for this batch.
+                                </p>
+                              </div>
+                            ) : matchingFpa ? (
                               <div className="space-y-1 text-[11px]">
                                 <div className="flex items-center justify-between font-mono">
                                   <span className="text-[#777b86]">Report: <strong>{matchingFpa.reportNo}</strong></span>
-                                  <span className="text-emerald-700 font-bold">ΔE = {matchingFpa.deltaE} (Pass)</span>
-                                  <span className="text-emerald-700 font-bold">Adhesion: {matchingFpa.adhesionPercent}%</span>
+                                  <span className="text-emerald-700 font-bold">&Delta;E = {matchingFpa.deltaE} (Pass)</span>
+                                  <span className="text-emerald-700 font-bold">Adh: {matchingFpa.adhesionPercent}%</span>
                                 </div>
                                 <div className="text-[10px] text-[#777b86] truncate">
-                                  Audited by: {matchingFpa.qcEngineer} • Viscosity: {matchingFpa.viscositySec}s (FC4)
+                                  Audited by: {matchingFpa.qcEngineer} &bull; Viscosity: {matchingFpa.viscositySec}s (FC4)
                                 </div>
                                 <div className="pt-1 flex items-center gap-2">
                                   <button
@@ -1909,7 +2270,7 @@ export const JobCardsView: React.FC = () => {
                                     className="px-2.5 py-1 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-bold hover:bg-[#f4e5be] transition flex items-center gap-1 cursor-pointer shadow-2xs"
                                   >
                                     <Download className="w-3 h-3" />
-                                    <span>Download FPA Report PDF</span>
+                                    <span>Download FPA PDF ({matchingFpa.reportNo})</span>
                                   </button>
                                 </div>
                               </div>
@@ -1933,12 +2294,12 @@ export const JobCardsView: React.FC = () => {
                             )}
                           </div>
 
-                          {/* 3-Hourly IPQC In-Process Trail */}
+                          {/* GATE 3: 3-Hourly IPQC In-Process Trail */}
                           <div className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-1.5 shadow-2xs">
                             <div className="flex items-center justify-between">
                               <span className="text-[10px] uppercase font-bold text-[#777b86] font-mono flex items-center gap-1">
                                 <Clock className="w-3.5 h-3.5 text-[#c09748]" />
-                                In-Process IPQC Audits ({matchingIpqc.length} Recorded)
+                                Gate 3: IPQC ({matchingIpqc.length} Logs)
                               </span>
                               <button
                                 type="button"
@@ -1971,7 +2332,7 @@ export const JobCardsView: React.FC = () => {
                                   ))}
                                 </div>
                                 <div className="text-[10px] text-[#777b86] pt-0.5">
-                                  Latest Audit: {matchingIpqc[0].checkTime} • ΔE: {matchingIpqc[0].deltaE} • Booth: {matchingIpqc[0].booth}
+                                  Latest Audit: {matchingIpqc[0].checkTime} &bull; &Delta;E: {matchingIpqc[0].deltaE} &bull; Booth: {matchingIpqc[0].booth}
                                 </div>
                               </div>
                             ) : (
@@ -2847,20 +3208,28 @@ export const JobCardsView: React.FC = () => {
                 />
               </div>
 
-              <div className="pt-2 flex justify-end gap-2.5">
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-end gap-2.5">
                 <button
                   type="button"
                   onClick={() => setShowAcceptModal(false)}
-                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold shadow-xs cursor-pointer transition flex items-center gap-1.5"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold shadow-xs cursor-pointer transition flex items-center justify-center gap-1.5"
                 >
                   <PackageCheck className="w-4 h-4" />
-                  <span>Acknowledge Custody & Transfer to WIP</span>
+                  <span>Acknowledge Custody</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAcceptAndOpenPir}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold shadow-xs cursor-pointer transition flex items-center justify-center gap-1.5 active:scale-95"
+                >
+                  <Sparkles className="w-4 h-4 text-[#c09748]" />
+                  <span>✓ Accept & Generate PIR Report</span>
                 </button>
               </div>
             </form>
@@ -3467,6 +3836,18 @@ export const JobCardsView: React.FC = () => {
           </div>
         );
       })()}
+
+      {/* ====================================================================== */}
+      {/* MODAL 10B: PRE-PRODUCTION INSPECTION (PIR / PRE-SPRAY CHECK) MODAL     */}
+      {/* ====================================================================== */}
+      <PreProductionInspectionModal
+        isOpen={showPirModal}
+        onClose={() => {
+          setShowPirModal(false);
+          setSelectedJcForPir(null);
+        }}
+        jobCard={selectedJcForPir}
+      />
 
       {/* ====================================================================== */}
       {/* MODAL 11: FPA (FIRST PART APPROVAL) GOLDEN SAMPLE TEST MODAL           */}

@@ -331,7 +331,12 @@ export interface JobCard {
   goodQty: number;
   rejectQty: number;
   status: 'Open' | 'In Process' | 'Target Met' | 'Over-Run Flagged' | 'Completed' | 'Closed';
-  fpaStatus?: 'Pending' | 'Approved' | 'Hold' | 'Rejected';
+  pirStatus?: 'Pending' | 'Passed' | 'Hold' | 'Rejected'; // Quality Gate 1: Pre-Production Substrate Inspection
+  pirReportNo?: string;
+  pirPassedAt?: string;
+  fpaStatus?: 'Pending' | 'Approved' | 'Hold' | 'Rejected'; // Quality Gate 2: First Part Approval
+  storesDispatchStatus?: 'Pending' | 'Dispatched';
+  storesDispatchedAt?: string;
   
   // Painter Execution & Verification Lifecycle
   painterJobStatus?: PainterJobStatus;
@@ -429,11 +434,50 @@ export interface FPADeltaValueRow {
   deltaE: (number | string)[]; // 5 Samples S1 - S5
 }
 
-export interface FPAMasterLab {
-  masterL: number | string;    // e.g. 42.00
-  masterA: number | string;    // e.g. 54.00
-  masterB: number | string;    // e.g. 28.00
-  masterPlaqueRef?: string;    // e.g. "OEM Master Plaque #01"
+// 1c. Pre-Production Inspection Report (PIR / Pre-Treatment & Substrate Gate)
+export interface PreProductionInspectionRecord {
+  docNo?: string;           // "PK-QA-PIR-001"
+  issueDate?: string;       // "01.01.2021"
+  revNo?: string;           // "00"
+  revDate?: string;         // "00"
+  reportNo: string;         // e.g. "PK-PIR-2026-001"
+  date: string;
+  plant: PlantLocation;
+  customer: string;
+  workOrderNo: string;
+  jobCardNo: string;
+  partCode: string;
+  partDescription: string;
+  substrateMaterial: string; // e.g. 'ABS (Acrylonitrile Butadiene Styrene)', 'PC', 'Aluminum'
+  family?: string;
+  color?: string;
+  paintDescription?: string;
+  paintBatch?: string;
+  
+  // Quantities
+  issuedQty: number;        // Total parts issued from Stores
+  inspectedQty: number;     // 100% parts inspected
+  acceptedQty: number;      // Good clean raw parts
+  rejectedQty: number;      // Raw defect parts
+  rejectionReason?: string; // Reason for raw defect rejection
+  
+  // 8 Critical Substrate Checkpoints
+  physicalCondition: 'Pass' | 'Fail';       // No transit scratches, dents, cracks
+  burrsFlashSinkMarks: 'Pass' | 'Fail';     // Clean edges, parting lines, no sink marks
+  oilGreaseChemical: 'Pass' | 'Fail';       // 100% Free from grease/silicone/mold release
+  cleaningIpaWiping: 'Pass' | 'Fail';       // Cleaned with IPA (Isopropyl Alcohol)
+  staticDedusting: 'Pass' | 'Fail';         // Ionized air blow cleaned
+  maskingProtection: 'Pass' | 'Fail' | 'N/A'; // Masking accuracy as per drawing
+  jiggingOrientation: 'Pass' | 'Fail';     // Secure hook clamping, no touch points
+  quantityVerification: 'Pass' | 'Fail';   // Physical count matches issued qty
+  
+  // Decision & Authorization
+  overallResult: 'Passed' | 'Hold' | 'Rejected';
+  remarks?: string;
+  inspectedBy: string;          // Substrate / Pre-treatment Inspector
+  productionSupervisor: string; // Floor Supervisor
+  qaEngineer: string;           // QA Release Engineer
+  generatedAt?: string;
 }
 
 export interface FPARecord {
@@ -480,6 +524,7 @@ export interface FPARecord {
   a: number;
   b: number;
   deltaE: number;              // Overall / Avg or Master DeltaE
+  deltaToleranceLimit?: number; // Configurable OEM/Client Delta Tolerance Limit (e.g. 0.70, 1.00)
   
   conductivity?: 'Pass' | 'Fail' | 'N/A';
   overallResult: 'Approved' | 'Hold' | 'Rejected';
@@ -614,30 +659,91 @@ export interface IQCInspectionRecord {
   verifiedBy?: string;           // Production Manager / QA Manager
 }
 
-// 6. 3-Hourly IPQC Inspection (PK-QA-IPQ-001)
+// 6. Multi-Slot In-Process Inspection Report (PK-QA-IPQ-001 / Exact Format)
+export type IPQCTimeSlotKey = 
+  | 'slot_08_11' // 08:00 - 11:00 (Shift A)
+  | 'slot_11_14' // 11:00 - 14:00 (Shift A)
+  | 'slot_14_17' // 14:00 - 17:00 (Shift A)
+  | 'slot_17_20' // 17:00 - 20:00 (Shift A)
+  | 'slot_20_23' // 20:00 - 23:00 (Shift B)
+  | 'slot_23_02' // 23:00 - 02:00 (Shift B)
+  | 'slot_02_05' // 02:00 - 05:00 (Shift B)
+  | 'slot_05_08'; // 05:00 - 08:00 (Shift B)
+
+export interface IPQCSlotObservation {
+  bubble?: 'Pass' | 'Fail' | string;
+  dustSpot?: 'Pass' | 'Fail' | string;
+  overPaint?: 'Pass' | 'Fail' | string;
+  paintMissing?: 'Pass' | 'Fail' | string;
+  L?: number | string;
+  a?: number | string;
+  b?: number | string;
+  deltaE?: number | string;
+  overallFinishing?: 'Pass' | 'Fail' | 'Perfect' | string;
+  adhesionTest?: 'Pass' | 'Fail' | 'Perfect' | string;
+}
+
 export interface IPQCRecord {
   reportNo: string;
   date: string;
   plant: PlantLocation;
-  shift: ShiftType;
-  checkTime: string;           // e.g. 09:00, 12:00, 15:00
-  woNo: string;
+  
+  // Header Meta from Official Sheet
+  docNo?: string;                  // e.g. "DOC NO: PK-QA-IPQ-001"
+  issueDate?: string;              // "01.01.2021"
+  revNo?: string;                  // "00"
+  revDate?: string;                // "00"
+  
+  // Job & Paint Mix Identification
+  partDescription?: string;
   partCode: string;
+  family?: string;
+  customer?: string;
+  workOrderNo?: string;
+  woNo: string;
+  jobCardNo?: string;
   color: string;
-  painter: string;
+  
+  paintDescription?: string;
+  paintBatchNumber?: string;
+  paintBatch?: string;
+  thinnerBatchNumber?: string;
+  thinnerBatch?: string;
+  paintViscosity?: string | number;
+  viscositySec?: number;
+  paintingBooth?: string;
   booth: string;
-  bubble: 'Pass' | 'Fail';
-  dustSpot: 'Pass' | 'Fail';
-  overPaint: 'Pass' | 'Fail';
-  paintMissing: 'Pass' | 'Fail';
-  L: number;
-  a: number;
-  b: number;
-  deltaE: number;              // Spectrophotometer ΔE
-  overallFinishing: 'Pass' | 'Fail';
-  adhesionTest: 'Pass' | 'Fail';
-  result: 'Pass' | 'Fail' | 'Hold';
-  inspector: string;
+  painter: string;
+  
+  // Supervisors
+  supervisorShiftA?: string;
+  supervisorShiftB?: string;
+  
+  // 8 Time-Slot Observations Grid
+  timeSlots?: Partial<Record<IPQCTimeSlotKey, IPQCSlotObservation>>;
+  
+  // Backward-compatible single-slot summary fields
+  shift?: ShiftType | 'Day' | 'Night' | 'Day 12H';
+  checkTime?: string;              // e.g. 09:00, 11:00, 14:00
+  bubble?: 'Pass' | 'Fail';
+  dustSpot?: 'Pass' | 'Fail';
+  overPaint?: 'Pass' | 'Fail';
+  paintMissing?: 'Pass' | 'Fail';
+  L?: number;
+  a?: number;
+  b?: number;
+  deltaE?: number;                 // Spectrophotometer ΔE
+  overallFinishing?: 'Pass' | 'Fail';
+  adhesionTest?: 'Pass' | 'Fail';
+  result?: 'Pass' | 'Fail' | 'Hold';
+  
+  // Signatures & Comments
+  commentOfQualityEngineer?: string;
+  remarks?: string;
+  inspectedByShiftA?: string;
+  inspectedByShiftB?: string;
+  verifiedBy?: string;
+  inspector?: string;
 }
 
 // 7. Packing & Box Traceability (PK-STR-PKG-001)

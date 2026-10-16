@@ -23,7 +23,8 @@ import {
   MaterialOutwardRecord,
   PlantDayEndClosure,
   MaterialRequisitionNote,
-  PainterProfile
+  PainterProfile,
+  PreProductionInspectionRecord
 } from '../types/portalTypes';
 import { INITIAL_MNC_AUDIT_QUESTIONS } from './mncAuditQuestionsData';
 export { INITIAL_MNC_AUDIT_QUESTIONS };
@@ -1137,6 +1138,86 @@ export const INITIAL_JOB_CARDS: JobCard[] = [
   }
 ];
 
+// Pre-Production Substrate & Pre-Treatment Inspection Reports (PK-QA-PIR-001)
+export const INITIAL_PRE_PRODUCTION_REPORTS: PreProductionInspectionRecord[] = [
+  {
+    docNo: 'PK-QA-PIR-001',
+    issueDate: '01.01.2021',
+    revNo: '00',
+    revDate: '00',
+    reportNo: 'PK-PIR-2026-001',
+    date: '2026-10-06',
+    plant: 'Haridwar',
+    customer: 'AVINASH SHARMA',
+    workOrderNo: 'WO-AS-2026',
+    jobCardNo: 'JC-AVINASH-500',
+    partCode: 'AS-9901',
+    partDescription: 'Piano Black Bezel Assembly Frame',
+    substrateMaterial: 'ABS (Acrylonitrile Butadiene Styrene)',
+    family: 'Auto Vent Bezel Family',
+    color: 'Piano Jet Black Gloss & Royal Gold Accent',
+    paintDescription: 'Monza Red / Jet Black 2K PU Basecoat',
+    paintBatch: 'BAT-PPG-AS-01',
+    issuedQty: 500,
+    inspectedQty: 500,
+    acceptedQty: 500,
+    rejectedQty: 0,
+    rejectionReason: 'Nil - All raw parts clean and defect free',
+    physicalCondition: 'Pass',
+    burrsFlashSinkMarks: 'Pass',
+    oilGreaseChemical: 'Pass',
+    cleaningIpaWiping: 'Pass',
+    staticDedusting: 'Pass',
+    maskingProtection: 'Pass',
+    jiggingOrientation: 'Pass',
+    quantityVerification: 'Pass',
+    overallResult: 'Passed',
+    remarks: '100% Substrates cleaned with Isopropyl alcohol, static de-dusted. Zero flash or burrs observed. Approved for FPA test spray.',
+    inspectedBy: 'Ramesh Sharma (Line Inspector)',
+    productionSupervisor: 'Vikram Patel (Shift A Lead)',
+    qaEngineer: 'Amit Verma (Lead QA Auditor)',
+    generatedAt: '2026-10-06T08:45:00Z'
+  },
+  {
+    docNo: 'PK-QA-PIR-001',
+    issueDate: '01.01.2021',
+    revNo: '00',
+    revDate: '00',
+    reportNo: 'PK-PIR-2026-002',
+    date: '2026-10-07',
+    plant: 'Haridwar',
+    customer: 'ROOP POLYMERS LTD',
+    workOrderNo: 'WO-1042',
+    jobCardNo: 'JC-1042-RED',
+    partCode: 'RP-8841',
+    partDescription: 'Car AC Vent Bezel Substrate (ABS)',
+    substrateMaterial: 'ABS Grade HI-121',
+    family: 'Auto Vent Bezel Family (Mould-01)',
+    color: 'Monza Red Gloss',
+    paintDescription: 'Monza Red 2K PU Basecoat',
+    paintBatch: 'BAT-PPG-2609-R4',
+    issuedQty: 250,
+    inspectedQty: 250,
+    acceptedQty: 248,
+    rejectedQty: 2,
+    rejectionReason: '2 raw parts had injection molding sink marks on front lip; returned to store/scrap',
+    physicalCondition: 'Pass',
+    burrsFlashSinkMarks: 'Pass',
+    oilGreaseChemical: 'Pass',
+    cleaningIpaWiping: 'Pass',
+    staticDedusting: 'Pass',
+    maskingProtection: 'N/A',
+    jiggingOrientation: 'Pass',
+    quantityVerification: 'Pass',
+    overallResult: 'Passed',
+    remarks: '248 OK substrates released to booth jigging rack. FPA test coupon authorized.',
+    inspectedBy: 'Kailash Yadav (Substrate Inspector)',
+    productionSupervisor: 'Dinesh Sharma (Shift Lead)',
+    qaEngineer: 'Amit Verma (Lead QA Auditor)',
+    generatedAt: '2026-10-07T08:15:00Z'
+  }
+];
+
 // FPA Golden Gate Records (PK-QA-FPA-001)
 export const INITIAL_FPA_RECORDS: FPARecord[] = [
   {
@@ -1160,7 +1241,8 @@ export const INITIAL_FPA_RECORDS: FPARecord[] = [
     L: 25.10,
     a: 0.05,
     b: -0.12,
-    deltaE: 0.32,        // STRICT RULE: Delta-E <= 0.70 (PASSED)
+    deltaE: 0.32,        // STRICT RULE: Delta-E <= deltaToleranceLimit (PASSED)
+    deltaToleranceLimit: 0.70, // Standard OEM Tolerance Limit
     adhesionPercent: 100, // STRICT RULE: 100% Adhesion (PASSED)
     crossCutTest: 'Pass',
     tapeTest: 'Pass',
@@ -1168,7 +1250,7 @@ export const INITIAL_FPA_RECORDS: FPARecord[] = [
     overallResult: 'Approved',
     qcEngineer: 'Amit Verma (Lead QA Auditor)',
     managerQAApproval: true,
-    remarks: 'First Part Approval 100% compliant. Master Plaque ΔE = 0.32 ≤ 0.70. Released for mass run.'
+    remarks: 'First Part Approval 100% compliant. Master Plaque Delta-E = 0.32 <= 0.70. Released for mass run.'
   },
   {
     reportNo: 'PK-FPA-2026-0312',
@@ -1191,7 +1273,8 @@ export const INITIAL_FPA_RECORDS: FPARecord[] = [
     L: 42.15,
     a: 54.30,
     b: 28.10,
-    deltaE: 0.38,        // STRICT RULE: Delta-E <= 0.70 (PASSED)
+    deltaE: 0.38,        // STRICT RULE: Delta-E <= deltaToleranceLimit (PASSED)
+    deltaToleranceLimit: 0.70,
     adhesionPercent: 100, // STRICT RULE: 100% Adhesion (PASSED)
     crossCutTest: 'Pass',
     tapeTest: 'Pass',
