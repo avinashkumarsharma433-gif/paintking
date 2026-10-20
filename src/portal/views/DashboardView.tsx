@@ -21,17 +21,29 @@ import {
   Activity,
   Layers,
   ShieldCheck,
-  Hammer
+  Hammer,
+  Filter,
+  Building2,
+  Zap,
+  Calendar,
+  Flag,
+  Check,
+  Send,
+  X
 } from 'lucide-react';
-import { DefectCategory } from '../types/portalTypes';
+import { DefectCategory, ProductionPriorityLevel, PlantHeadPriorityAssignment, ShiftType } from '../types/portalTypes';
 
 interface DashboardViewProps {
   onNavigateTab: (tab: PortalTab) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) => {
-  const { 
-    jobCards, 
+  const {
+    jobCards,
+    grnList = [],
+    plantHeadPriorities = [],
+    assignProductionPriority,
+    currentUser, 
     handovers, 
     billingInvoices, 
     defects, 
@@ -45,6 +57,116 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
     reopenPlant,
     routeToRework
   } = usePortalStore();
+
+  
+  // Plant Head Store Priority Scheduling State
+  const [showPriorityModal, setShowPriorityModal] = useState<boolean>(false);
+  const [selectedStockForPriority, setSelectedStockForPriority] = useState<any | null>(null);
+  const [priorityLevelInput, setPriorityLevelInput] = useState<ProductionPriorityLevel>('P1_URGENT');
+  const [targetDateInput, setTargetDateInput] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [targetShiftInput, setTargetShiftInput] = useState<ShiftType>('General Day Shift (08:30 - 18:30)');
+  const [instructionsInput, setInstructionsInput] = useState<string>('');
+  const [priorityFilter, setPriorityFilter] = useState<'ALL' | 'P1_URGENT' | 'P2_HIGH' | 'P3_NORMAL' | 'HOLD' | 'UNASSIGNED'>('ALL');
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  // Synchronized Store Stock Items with Priority Status
+  const storeStockItems = React.useMemo(() => {
+    return grnList
+      .filter(g => g.iqcStatus !== 'Rejected')
+      .map(grn => {
+        const partCode = grn.items?.[0]?.partCode || grn.partCode || 'SUBSTRATE';
+        const partDesc = grn.items?.[0]?.partDescription || grn.description || 'Raw Molded Components';
+        const totalInward = grn.totalQty || grn.actualReceivedQty || grn.invoicedQty || 0;
+        const uom = 'Pcs';
+        const customer = grn.supplierCustomer;
+
+        const matchingJobCards = jobCards.filter(jc => 
+          (jc.customer && jc.customer.trim().toLowerCase() === customer.trim().toLowerCase()) ||
+          (jc.partCode && jc.partCode.trim().toLowerCase() === partCode.trim().toLowerCase()) ||
+          (jc.woNo && grn.invoiceChallanNo && jc.woNo.includes(grn.invoiceChallanNo)) ||
+          (jc.wNo && grn.invoiceChallanNo && jc.wNo.includes(grn.invoiceChallanNo))
+        );
+        const primaryJobCards = matchingJobCards.filter(jc => jc.jobCardType === 'master' || (!jc.jobCardType && !jc.parentJobCardId));
+        const totalIssuedToFloor = primaryJobCards.reduce((acc, curr) => acc + (Number(curr.targetQty) || 0), 0);
+        const balanceAvailable = Math.max(0, totalInward - totalIssuedToFloor);
+
+        const priority = plantHeadPriorities.find(p => 
+          (p.grnNo && p.grnNo === grn.grnNo) ||
+          (p.customer.toLowerCase().trim() === customer.toLowerCase().trim() && p.partCode.toLowerCase().trim() === partCode.toLowerCase().trim())
+        );
+
+        return {
+          grnNo: grn.grnNo,
+          challanNo: grn.invoiceChallanNo,
+          receivedDate: grn.receivedDate || grn.date,
+          customer,
+          partCode,
+          partDesc,
+          uom,
+          totalInward,
+          totalIssuedToFloor,
+          balanceAvailable,
+          priorityRecord: priority,
+          vehicleNo: grn.vehicleNo
+        };
+      });
+  }, [grnList, jobCards, plantHeadPriorities]);
+
+  const p1Count = storeStockItems.filter(s => s.priorityRecord?.priorityLevel === 'P1_URGENT').length;
+  const p2Count = storeStockItems.filter(s => s.priorityRecord?.priorityLevel === 'P2_HIGH').length;
+  const p3Count = storeStockItems.filter(s => s.priorityRecord?.priorityLevel === 'P3_NORMAL').length;
+  const unassignedCount = storeStockItems.filter(s => !s.priorityRecord).length;
+
+  const filteredStoreStockItems = React.useMemo(() => {
+    return storeStockItems.filter(item => {
+      if (priorityFilter === 'ALL') return true;
+      if (priorityFilter === 'UNASSIGNED') return !item.priorityRecord;
+      return item.priorityRecord?.priorityLevel === priorityFilter;
+    });
+  }, [storeStockItems, priorityFilter]);
+
+  const handleOpenPriorityModal = (stockItem: any) => {
+    setSelectedStockForPriority(stockItem);
+    const existing = stockItem.priorityRecord;
+    if (existing) {
+      setPriorityLevelInput(existing.priorityLevel);
+      setTargetDateInput(existing.targetDate || new Date().toISOString().split('T')[0]);
+      setTargetShiftInput(existing.targetShift || 'General Day Shift (08:30 - 18:30)');
+      setInstructionsInput(existing.plantHeadRemarks || '');
+    } else {
+      setPriorityLevelInput('P1_URGENT');
+      setTargetDateInput(new Date().toISOString().split('T')[0]);
+      setTargetShiftInput('General Day Shift (08:30 - 18:30)');
+      setInstructionsInput(`Critical batch order for ${stockItem.customer}. Run as planned priority.`);
+    }
+    setShowPriorityModal(true);
+  };
+
+  const handleSavePriority = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStockForPriority) return;
+
+    assignProductionPriority({
+      grnNo: selectedStockForPriority.grnNo,
+      challanNo: selectedStockForPriority.challanNo,
+      customer: selectedStockForPriority.customer,
+      partCode: selectedStockForPriority.partCode,
+      partDescription: selectedStockForPriority.partDesc,
+      availableQty: selectedStockForPriority.balanceAvailable,
+      uom: selectedStockForPriority.uom,
+      priorityLevel: priorityLevelInput,
+      targetDate: targetDateInput,
+      targetShift: targetShiftInput,
+            assignedToProductionManager: 'Vikram Patel (Production Manager)',
+      plantHeadRemarks: instructionsInput || `Run with priority by Vikram Patel.`,
+      assignedBy: `${currentUser.name} (${currentUser.roleTitle})`,
+      plant: activePlant
+    });
+
+    setShowPriorityModal(false);
+    setToastMsg(`✓ Priority successfully assigned for ${selectedStockForPriority.customer} (${priorityLevelInput.replace('_', ' ')}) to Production Manager!`);
+    setTimeout(() => setToastMsg(null), 4000);
+  };
 
   const [showInwardModal, setShowInwardModal] = useState<boolean>(false);
   const [showEodModal, setShowEodModal] = useState<boolean>(false);
@@ -225,6 +347,313 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
           <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777b86]">Billed Value</div>
           <div className="text-xl font-serif font-normal text-[#17191c] mt-1.5">₹{totalInvoicedRevenue.toLocaleString()}</div>
           <div className="text-[10px] text-emerald-700 font-medium mt-1">Delivered Parts Only</div>
+        </div>
+      </div>
+
+      
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div className="fixed top-5 right-5 z-50 bg-[#17191c] text-[#c09748] px-5 py-3 rounded-full shadow-2xl border border-[#c09748]/40 text-xs font-semibold flex items-center gap-2 animate-bounce">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>{toastMsg}</span>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 2.5 PLANT HEAD STORE STOCK & DAILY PRODUCTION PRIORITY ALLOCATOR DESK    */}
+      {/* ========================================================================= */}
+      <div className="bg-white rounded-[24px] p-5 sm:p-6 border border-[#ececec] shadow-xs space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#ececec]">
+          <div>
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#c09748] animate-pulse" />
+              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#8a6521] bg-[#faf3e0] px-2.5 py-0.5 rounded-full border border-[#f4e5be]">
+                PLANT HEAD SCHEDULER • SATISH SHARMA
+              </span>
+              <span className="text-[10px] font-mono text-[#777b86]">
+                Target Assignee: <strong>Vikram Patel (Production Manager)</strong>
+              </span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-serif font-normal text-[#17191c] tracking-tight">
+              Store Material Stock & Production Priority Allocator
+            </h2>
+            <p className="text-xs text-[#777b86] mt-1">
+              Store me aaye huye sabhi raw substrates aur paint stock ki list. Plant Head delivery SLA aur line constraints dekh kar <strong>P1 Urgent, P2 High, P3 Normal</strong> priority assign karta hai jo direct Production Manager ke dashboard me reflect hoti hai.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 self-start md:self-auto">
+            <button
+              onClick={() => onNavigateTab('jobcards')}
+              className="px-4 py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+            >
+              <span>View Production Queue</span>
+              <ArrowRight className="w-3.5 h-3.5 text-[#c09748]" />
+            </button>
+          </div>
+        </div>
+
+        {/* Priority KPI Metric Chips */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+          <div 
+            onClick={() => setPriorityFilter('ALL')}
+            className={`p-3 rounded-[16px] border cursor-pointer transition flex flex-col justify-between ${
+              priorityFilter === 'ALL' ? 'bg-[#fafafb] border-[#17191c] shadow-xs' : 'bg-white border-[#ececec] hover:border-[#c09748]'
+            }`}
+          >
+            <span className="text-[10px] font-bold text-[#777b86] uppercase font-mono">Total Store Lots</span>
+            <div className="text-lg font-serif font-bold text-[#17191c] mt-1">{storeStockItems.length} Lots</div>
+            <span className="text-[10px] text-[#777b86]">All Inwarded Lots</span>
+          </div>
+
+          <div 
+            onClick={() => setPriorityFilter('P1_URGENT')}
+            className={`p-3 rounded-[16px] border cursor-pointer transition flex flex-col justify-between ${
+              priorityFilter === 'P1_URGENT' ? 'bg-rose-50 border-rose-300 shadow-xs' : 'bg-white border-[#ececec] hover:border-rose-300'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-rose-800 uppercase font-mono flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping" />
+                P1 - Urgent
+              </span>
+              <span className="text-[9px] font-bold bg-rose-100 text-rose-800 px-1.5 py-0.2 rounded">Line Risk</span>
+            </div>
+            <div className="text-lg font-serif font-bold text-rose-700 mt-1">{p1Count} Batches</div>
+            <span className="text-[10px] text-rose-600">Immediate Run Required</span>
+          </div>
+
+          <div 
+            onClick={() => setPriorityFilter('P2_HIGH')}
+            className={`p-3 rounded-[16px] border cursor-pointer transition flex flex-col justify-between ${
+              priorityFilter === 'P2_HIGH' ? 'bg-amber-50 border-amber-300 shadow-xs' : 'bg-white border-[#ececec] hover:border-amber-300'
+            }`}
+          >
+            <span className="text-[10px] font-bold text-amber-800 uppercase font-mono">P2 - High Priority</span>
+            <div className="text-lg font-serif font-bold text-amber-800 mt-1">{p2Count} Batches</div>
+            <span className="text-[10px] text-amber-700">Next In-Line Queue</span>
+          </div>
+
+          <div 
+            onClick={() => setPriorityFilter('P3_NORMAL')}
+            className={`p-3 rounded-[16px] border cursor-pointer transition flex flex-col justify-between ${
+              priorityFilter === 'P3_NORMAL' ? 'bg-blue-50 border-blue-300 shadow-xs' : 'bg-white border-[#ececec] hover:border-blue-300'
+            }`}
+          >
+            <span className="text-[10px] font-bold text-blue-800 uppercase font-mono">P3 - Standard</span>
+            <div className="text-lg font-serif font-bold text-blue-800 mt-1">{p3Count} Batches</div>
+            <span className="text-[10px] text-blue-600">FIFO Schedule</span>
+          </div>
+
+          <div 
+            onClick={() => setPriorityFilter('UNASSIGNED')}
+            className={`p-3 rounded-[16px] border cursor-pointer transition flex flex-col justify-between ${
+              priorityFilter === 'UNASSIGNED' ? 'bg-gray-100 border-gray-400 shadow-xs' : 'bg-white border-[#ececec] hover:border-gray-400'
+            }`}
+          >
+            <span className="text-[10px] font-bold text-gray-600 uppercase font-mono">Unassigned</span>
+            <div className="text-lg font-serif font-bold text-gray-700 mt-1">{unassignedCount} Lots</div>
+            <span className="text-[10px] text-gray-500">Awaiting Priority</span>
+          </div>
+        </div>
+
+        {/* Priority Filter Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-[#777b86] font-semibold mr-1 flex items-center gap-1">
+              <Filter className="w-3.5 h-3.5 text-[#c09748]" /> Filter:
+            </span>
+            {(['ALL', 'P1_URGENT', 'P2_HIGH', 'P3_NORMAL', 'UNASSIGNED'] as const).map(tabKey => (
+              <button
+                key={tabKey}
+                onClick={() => setPriorityFilter(tabKey)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition ${
+                  priorityFilter === tabKey 
+                    ? 'bg-[#17191c] text-[#c09748]' 
+                    : 'bg-[#fafafb] text-[#777b86] border border-[#ececec] hover:border-[#c09748]'
+                }`}
+              >
+                {tabKey === 'ALL' ? 'All Store Lots' : tabKey === 'P1_URGENT' ? '🚨 P1 Urgent' : tabKey === 'P2_HIGH' ? '⚡ P2 High' : tabKey === 'P3_NORMAL' ? '📋 P3 Standard' : '⏳ Unassigned'}
+              </button>
+            ))}
+          </div>
+
+          <span className="text-[11px] text-[#777b86] font-mono">
+            Showing <strong>{filteredStoreStockItems.length}</strong> material lots in Store
+          </span>
+        </div>
+
+        {/* Desktop Table of Store Stock & Plant Head Priority */}
+        <div className="hidden md:block overflow-x-auto border border-[#ececec] rounded-[18px]">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-[#fafafb] text-[#777b86] font-semibold uppercase text-[10px] tracking-wider border-b border-[#ececec]">
+                <th className="p-3.5">Party / Customer</th>
+                <th className="p-3.5">Part Code & Description</th>
+                <th className="p-3.5">GRN & Challan</th>
+                <th className="p-3.5 text-center">Store Balance</th>
+                <th className="p-3.5">Assigned Priority Level</th>
+                <th className="p-3.5">Target Date & Floor Directive</th>
+                <th className="p-3.5 text-right">Plant Head Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#ececec] text-[#17191c]">
+              {filteredStoreStockItems.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-[#777b86]">
+                    No material lots found matching the selected priority filter.
+                  </td>
+                </tr>
+              ) : (
+                filteredStoreStockItems.map((item, idx) => {
+                  const prio = item.priorityRecord;
+                  const isP1 = prio?.priorityLevel === 'P1_URGENT';
+                  const isP2 = prio?.priorityLevel === 'P2_HIGH';
+                  const isP3 = prio?.priorityLevel === 'P3_NORMAL';
+                  const isHold = prio?.priorityLevel === 'HOLD';
+                  const isJobCardCreated = prio?.status === 'Job Card Launched' || prio?.status === 'Completed';
+
+                  return (
+                    <tr key={idx} className={`hover:bg-[#fafafb] transition ${isP1 ? 'bg-rose-50/15' : ''}`}>
+                      <td className="p-3.5">
+                        <div className="font-bold text-[#17191c] flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-[#c09748]" />
+                          <span>{item.customer}</span>
+                        </div>
+                        <div className="text-[10px] font-mono text-[#777b86] mt-0.5">Rec: {item.receivedDate}</div>
+                      </td>
+
+                      <td className="p-3.5">
+                        <div className="font-mono font-bold text-[#8a6521]">{item.partCode}</div>
+                        <div className="text-[11px] text-[#777b86] truncate max-w-[220px]">{item.partDesc}</div>
+                      </td>
+
+                      <td className="p-3.5">
+                        <div className="font-mono font-bold text-[#17191c] text-[11px]">{item.grnNo}</div>
+                        <div className="text-[10px] text-[#777b86] font-mono">Challan: {item.challanNo}</div>
+                      </td>
+
+                      <td className="p-3.5 text-center">
+                        <span className={`font-mono font-bold text-xs px-2.5 py-1 rounded-full inline-block border ${
+                          item.balanceAvailable > 0 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'
+                        }`}>
+                          {item.balanceAvailable.toLocaleString('en-IN')} {item.uom}
+                        </span>
+                        <div className="text-[10px] text-[#777b86] font-mono mt-0.5">Inward: {item.totalInward} {item.uom}</div>
+                      </td>
+
+                      <td className="p-3.5">
+                        {prio ? (
+                          <div className="space-y-1">
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono font-bold border ${
+                              isP1 
+                                ? 'bg-rose-50 text-rose-800 border-rose-300 ring-1 ring-rose-200 animate-pulse' 
+                                : isP2 
+                                  ? 'bg-amber-50 text-amber-800 border-amber-300' 
+                                  : isP3 
+                                    ? 'bg-blue-50 text-blue-800 border-blue-200' 
+                                    : 'bg-gray-100 text-gray-700 border-gray-300'
+                            }`}>
+                              <Zap className="w-3 h-3" />
+                              <span>{isP1 ? 'P1 - URGENT (Line Risk)' : isP2 ? 'P2 - HIGH PRIORITY' : isP3 ? 'P3 - STANDARD FIFO' : 'HOLD'}</span>
+                            </span>
+                            
+                          </div>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-mono text-gray-500 bg-gray-100 border border-dashed border-gray-300">
+                            ⏳ Unscheduled
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="p-3.5">
+                        {prio ? (
+                          <div className="space-y-0.5">
+                            <div className="text-[11px] font-semibold text-[#17191c] flex items-center gap-1">
+                              <Calendar className="w-3 h-3 text-[#c09748]" />
+                              <span>Target: {prio.targetDate}</span>
+                            </div>
+                            <div className="text-[10px] text-[#8a6521] italic bg-[#faf7ed] p-1.5 rounded-md border border-[#f4e5be] line-clamp-2">
+                              "{prio.plantHeadRemarks}"
+                            </div>
+                            <div className="text-[9px] text-[#777b86]">
+                              Status: {isJobCardCreated ? <strong className="text-emerald-700">✓ Job Card Launched ({prio.linkedJobCardNo || 'Active'})</strong> : <strong className="text-amber-700">Assigned to Vikram Patel</strong>}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-gray-400 italic">No directives assigned yet</span>
+                        )}
+                      </td>
+
+                      <td className="p-3.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPriorityModal(item)}
+                          className="px-3.5 py-1.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs shadow-2xs cursor-pointer transition inline-flex items-center gap-1.5 ml-auto active:scale-95"
+                        >
+                          <Flag className="w-3.5 h-3.5 text-[#c09748]" />
+                          <span>{prio ? 'Edit Priority' : '+ Assign Priority'}</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Cards for Store Stock & Priority */}
+        <div className="grid grid-cols-1 gap-3 md:hidden">
+          {filteredStoreStockItems.map((item, idx) => {
+            const prio = item.priorityRecord;
+            const isP1 = prio?.priorityLevel === 'P1_URGENT';
+            return (
+              <div 
+                key={idx}
+                className={`p-4 rounded-[18px] border bg-white space-y-3 shadow-2xs ${isP1 ? 'border-rose-200 bg-rose-50/10' : 'border-[#ececec]'}`}
+              >
+                <div className="flex items-start justify-between gap-2 pb-2 border-b border-[#ececec]">
+                  <div>
+                    <span className="font-bold text-xs text-[#17191c]">{item.customer}</span>
+                    <div className="font-mono text-[10px] text-[#8a6521]">{item.partCode}</div>
+                  </div>
+                  {prio ? (
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                      isP1 ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {prio.priorityLevel.replace('_', ' ')}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-gray-400 font-mono">Unassigned</span>
+                  )}
+                </div>
+
+                <div className="text-xs text-[#777b86]">
+                  {item.partDesc} • Store Bal: <strong className="text-[#17191c] font-mono">{item.balanceAvailable} {item.uom}</strong>
+                </div>
+
+                {prio && (
+                  <div className="p-2.5 rounded-[12px] bg-[#fafafb] border border-[#ececec] text-xs space-y-1">
+                    <div className="flex justify-between font-semibold text-[#17191c]">
+                      <span>Target Date: {prio.targetDate}</span>
+                      
+                    </div>
+                    <p className="text-[11px] text-[#8a6521] italic">"{prio.plantHeadRemarks}"</p>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenPriorityModal(item)}
+                  className="w-full py-2.5 rounded-full bg-[#17191c] text-[#c09748] font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-xs"
+                >
+                  <Flag className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span>{prio ? 'Update Priority Order' : '+ Set Priority for Production'}</span>
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -710,6 +1139,148 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
       )}
 
       {/* Inward Modal */}
+      
+      {/* ========================================================================= */}
+      {/* PLANT HEAD PRIORITY ASSIGNMENT MODAL DIALOG                               */}
+      {/* ========================================================================= */}
+      {showPriorityModal && selectedStockForPriority && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-[24px] max-w-xl w-full p-5 sm:p-7 shadow-2xl border border-[#ececec] space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#ececec]">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] text-[10px] font-mono font-bold border border-[#f4e5be]">
+                    PLANT HEAD PRODUCTION DIRECTIVE
+                  </span>
+                  <span className="text-[10px] font-mono text-[#777b86]">
+                    GRN: {selectedStockForPriority.grnNo}
+                  </span>
+                </div>
+                <h3 className="font-serif font-bold text-lg sm:text-xl text-[#17191c]">
+                  Assign Production Priority & Floor Directive
+                </h3>
+                <p className="text-xs text-[#777b86] mt-0.5">
+                  Party: <strong>{selectedStockForPriority.customer}</strong> • Substrate: <strong>{selectedStockForPriority.partCode}</strong> ({selectedStockForPriority.balanceAvailable} {selectedStockForPriority.uom})
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowPriorityModal(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-[#17191c] font-bold flex items-center justify-center cursor-pointer transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePriority} className="space-y-4 text-xs">
+              {/* Priority Level Radio Selector */}
+              <div>
+                <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1.5 font-mono">
+                  Select Production Priority Level *
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <label 
+                    onClick={() => setPriorityLevelInput('P1_URGENT')}
+                    className={`p-3 rounded-[16px] border cursor-pointer transition flex flex-col justify-between ${
+                      priorityLevelInput === 'P1_URGENT' 
+                        ? 'bg-rose-50 border-rose-400 ring-2 ring-rose-400/30' 
+                        : 'bg-white border-[#ececec] hover:border-rose-300'
+                    }`}
+                  >
+                    <div className="font-bold text-rose-800 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse" />
+                      <span>🚨 P1 - Urgent</span>
+                    </div>
+                    <p className="text-[10px] text-rose-700 mt-1">Line stoppage risk / Run first shift</p>
+                  </label>
+
+                  <label 
+                    onClick={() => setPriorityLevelInput('P2_HIGH')}
+                    className={`p-3 rounded-[16px] border cursor-pointer transition flex flex-col justify-between ${
+                      priorityLevelInput === 'P2_HIGH' 
+                        ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/30' 
+                        : 'bg-white border-[#ececec] hover:border-amber-300'
+                    }`}
+                  >
+                    <div className="font-bold text-amber-800 flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-amber-600" />
+                      <span>⚡ P2 - High</span>
+                    </div>
+                    <p className="text-[10px] text-amber-700 mt-1">Next in queue after urgent lot</p>
+                  </label>
+
+                  <label 
+                    onClick={() => setPriorityLevelInput('P3_NORMAL')}
+                    className={`p-3 rounded-[16px] border cursor-pointer transition flex flex-col justify-between ${
+                      priorityLevelInput === 'P3_NORMAL' 
+                        ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-400/30' 
+                        : 'bg-white border-[#ececec] hover:border-blue-300'
+                    }`}
+                  >
+                    <div className="font-bold text-blue-800 flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5 text-blue-600" />
+                      <span>📋 P3 - Standard</span>
+                    </div>
+                    <p className="text-[10px] text-blue-700 mt-1">Standard FIFO sequence batch</p>
+                  </label>
+                </div>
+              </div>
+
+              {/* Target Date */}
+              <div>
+                <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
+                  Target Completion Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={targetDateInput}
+                  onChange={e => setTargetDateInput(e.target.value)}
+                  className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white text-xs font-semibold focus:border-[#c09748] focus:outline-none"
+                />
+              </div>
+
+              
+
+              {/* Directive Notes for Production Manager */}
+              <div>
+                <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
+                  Floor Directives for Vikram Patel (Production Manager) *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={instructionsInput}
+                  onChange={e => setInstructionsInput(e.target.value)}
+                  placeholder="e.g. Tata Autocomp urgent delivery. Paint after White batch on Line 1. Confirm viscosity 18s prior to spray."
+                  className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white text-xs focus:border-[#c09748] focus:outline-none resize-none leading-relaxed"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#ececec]">
+                <button
+                  type="button"
+                  onClick={() => setShowPriorityModal(false)}
+                  className="px-4 py-2 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs flex items-center gap-2 cursor-pointer shadow-md transition active:scale-95"
+                >
+                  <Send className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span>Lock Priority & Dispatch to Production</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {showInwardModal && (
         <QuickInwardModal onClose={() => setShowInwardModal(false)} />
       )}

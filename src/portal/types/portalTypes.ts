@@ -315,7 +315,59 @@ export interface PainterProfile {
   delayedJobsCount?: number;
 }
 
+export type JobCardNature = 'STANDARD_PRODUCTION' | 'SAMPLING_RND';
+
+export interface SamplingRecipeSheet {
+  basePaintBrand: string;
+  basePaintCode: string;
+  hardenerCode: string;
+  thinnerCode: string;
+  mixingRatio: string; // e.g. "4:1:1"
+  viscositySec: number; // e.g. 18s Ford Cup 4
+  airPressureBar: number; // e.g. 2.2 bar
+  nozzleSizeMm: number; // e.g. 1.3 mm
+  numberOfCoats: string; // e.g. "1 Primer + 2 Base + 1 Clear"
+  flashOffMins: number; // e.g. 10 mins
+  bakingTempC: number; // e.g. 65°C
+  bakingTimeMins: number; // e.g. 30 mins
+  achievedDeltaE: number; // e.g. 0.38
+  achievedGloss60: number; // e.g. 92 GU
+  technicianPainter: string;
+  labChemist: string;
+  loggedAt?: string;
+  isLockedAsMasterRecipe?: boolean;
+  notes?: string;
+}
+
+export interface SamplingPartyApproval {
+  status: 'Pending In-House Trial' | 'Sample Dispatched to Party' | 'Party Approved' | 'Party Revision Requested';
+  dispatchedAt?: string;
+  courierOrHandover?: string;
+  partyFeedback?: string;
+  approvedAt?: string;
+  approvedByPartyPerson?: string;
+}
+
+export interface JobCardProductionProgressLog {
+  id: string;
+  timestamp: string; // ISO string
+  timeLabel: string; // e.g. "14:15"
+  dateLabel: string; // e.g. "20-10-2026"
+  piecesCompleted: number; // pieces finished in this slot
+  cumulativeGoodQty: number; // running good total
+  reworkPieces?: number;
+  scrapPieces?: number;
+  painterName: string;
+  boothNo?: string;
+  recordedBy: string;
+  remarks?: string;
+}
+
 export interface JobCard {
+  jobCardNature?: JobCardNature;
+  samplingRecipe?: SamplingRecipeSheet;
+  samplingApproval?: SamplingPartyApproval;
+  progressLogs?: JobCardProductionProgressLog[];
   docNo?: string;           // "Doc No: 001"
   revNo?: string;           // "00"
   revDate?: string;
@@ -1095,3 +1147,30 @@ export interface CalibrationRecord {
 }
 
 
+
+
+// 18. Plant Head Production Priority Scheduling & Allocation (PK-PPC-SCH-001)
+export type ProductionPriorityLevel = 'P1_URGENT' | 'P2_HIGH' | 'P3_NORMAL' | 'HOLD';
+
+export interface PlantHeadPriorityAssignment {
+  id: string; // e.g. "PRIO-2026-001"
+  grnNo: string;
+  challanNo?: string;
+  customer: string;
+  partCode: string;
+  partDescription: string;
+  color?: string;
+  availableQty: number;
+  uom: string;
+  priorityLevel: ProductionPriorityLevel; // P1_URGENT, P2_HIGH, P3_NORMAL, HOLD
+  targetDate: string;
+  targetShift?: ShiftType;
+  recommendedBooth?: string;
+  assignedToProductionManager: string; // e.g. "Vikram Patel"
+  plantHeadRemarks: string; // e.g. "Tata Autocomp urgent delivery. Paint after White batch on Line 1."
+  assignedBy: string; // "Satish Sharma (Plant Head)"
+  assignedAt: string;
+  status: 'Priority Assigned' | 'Job Card Launched' | 'Completed';
+  linkedJobCardNo?: string;
+  plant: PlantLocation;
+}

@@ -35,7 +35,13 @@ import {
   MaterialRequisitionNote,
   PainterProfile,
   PainterJobStatus,
-  PreProductionInspectionRecord
+  PreProductionInspectionRecord,
+  PlantHeadPriorityAssignment,
+  ProductionPriorityLevel,
+  JobCardNature,
+  SamplingRecipeSheet,
+  SamplingPartyApproval,
+  JobCardProductionProgressLog
 } from '../types/portalTypes';
 import {
   INITIAL_USER_PROFILES,
@@ -63,7 +69,8 @@ import {
   INITIAL_MNC_AUDIT_QUESTIONS,
   INITIAL_DAY_END_CLOSURES,
   INITIAL_PAINTERS,
-  INITIAL_REQUISITIONS
+  INITIAL_REQUISITIONS,
+  INITIAL_PLANT_HEAD_PRIORITIES
 } from '../data/mockInitialData';
 
 
@@ -86,6 +93,11 @@ interface PortalContextType {
   jobCards: JobCard[];
   painters: PainterProfile[];
   pendingVerificationJobsCount: number;
+
+  // Plant Head Production Scheduling & Priority Desk
+  plantHeadPriorities: PlantHeadPriorityAssignment[];
+  assignProductionPriority: (assignment: Omit<PlantHeadPriorityAssignment, 'id' | 'assignedAt' | 'status'>) => void;
+  updatePriorityStatus: (priorityId: string, status: PlantHeadPriorityAssignment['status'], linkedJobCardNo?: string) => void;
 
   // Painter Workspace & Max-2 Guardrail Methods
   getPainterActiveJobCount: (painterNameOrId: string) => number;
@@ -166,6 +178,12 @@ interface PortalContextType {
   addIPQCRecord: (ipqc: IPQCRecord) => void;
   addOQCRelease: (release: FinalQualityRelease) => void;
   addJobCard: (jc: JobCard) => void;
+  updateJobCard: (jc: JobCard) => void;
+  addJobCardProgressLog: (jobCardNo: string, log: Omit<JobCardProductionProgressLog, 'id' | 'timestamp'>) => void;
+  updateSamplingRecipe: (jobCardNo: string, recipe: Partial<SamplingRecipeSheet>) => void;
+  updateSamplingPartyStatus: (jobCardNo: string, status: SamplingPartyApproval['status'], feedback?: string) => void;
+  lockSamplingAsMasterRecipe: (jobCardNo: string) => void;
+  createMultiPainterJobCards: (parentData: JobCard, splits: { painterId: string; painterName: string; boothNo: string; targetQty: number }[]) => void;
   addMaterialInwardRecord: (record: MaterialInwardRecord) => void;
   addMaterialOutwardRecord: (record: MaterialOutwardRecord) => void;
 
@@ -332,6 +350,39 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }
 
   // Operational State Collections with smart localStorage syncing
+  
+  const [plantHeadPriorities, setPlantHeadPriorities] = useState<PlantHeadPriorityAssignment[]>(() => {
+    return mergeByUniqueKey(localStorage.getItem('pk_plant_head_priorities'), INITIAL_PLANT_HEAD_PRIORITIES, 'id');
+  });
+
+  useEffect(() => {
+    localStorage.setItem('pk_plant_head_priorities', JSON.stringify(plantHeadPriorities));
+  }, [plantHeadPriorities]);
+
+  const assignProductionPriority = (assignment: Omit<PlantHeadPriorityAssignment, 'id' | 'assignedAt' | 'status'>) => {
+    const nextId = `PRIO-2026-${String(plantHeadPriorities.length + 1).padStart(3, '0')}`;
+    const newRecord: PlantHeadPriorityAssignment = {
+      ...assignment,
+      id: nextId,
+      assignedAt: `${new Date().toISOString().split('T')[0]} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+      status: 'Priority Assigned'
+    };
+    setPlantHeadPriorities(prev => [newRecord, ...prev.filter(p => !(p.grnNo === assignment.grnNo && p.partCode === assignment.partCode))]);
+  };
+
+  const updatePriorityStatus = (priorityId: string, status: PlantHeadPriorityAssignment['status'], linkedJobCardNo?: string) => {
+    setPlantHeadPriorities(prev => prev.map(p => {
+      if (p.id === priorityId || (linkedJobCardNo && p.linkedJobCardNo === linkedJobCardNo)) {
+        return {
+          ...p,
+          status,
+          linkedJobCardNo: linkedJobCardNo || p.linkedJobCardNo
+        };
+      }
+      return p;
+    }));
+  };
+
   const [universalJobs, setUniversalJobs] = useState<UniversalJobRecord[]>(() => {
     return mergeByUniqueKey(localStorage.getItem('pk_universal_jobs'), INITIAL_UNIVERSAL_JOBS, 'jobId');
   });
@@ -725,6 +776,20 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setJobCards(prev => [formattedJc, ...prev]);
 
+    // Auto-link Plant Head priority status
+    setPlantHeadPriorities(prev => prev.map(p => {
+      const isMatch = (p.grnNo && formattedJc.issuedMaterials?.some(m => m.remark?.includes(p.grnNo))) ||
+                      (p.customer.toLowerCase().trim() === formattedJc.customer.toLowerCase().trim() && p.partCode.toLowerCase().trim() === formattedJc.partCode.toLowerCase().trim());
+      if (isMatch && p.status === 'Priority Assigned') {
+        return {
+          ...p,
+          status: 'Job Card Launched',
+          linkedJobCardNo: formattedJc.jobCardNo
+        };
+      }
+      return p;
+    }));
+
     // SMART UNIFIED WORKFLOW:
     // Creating a Job Card automatically creates a Material Release Demand (MRN) for Store Incharge
     const itemsSummary = formattedJc.issuedMaterials && formattedJc.issuedMaterials.length > 0
@@ -751,6 +816,185 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       productionRemarks: `Auto-generated from Job Card creation for Painter [${formattedJc.painterName}]. Store to release: ${itemsSummary}`
     };
 
+    setMaterialRequisitions(prev => [autoMrn, ...prev]);
+  };
+
+  const updateJobCard = (jc: JobCard) => {
+    setJobCards(prev => prev.map(existing => existing.jobCardNo === jc.jobCardNo ? { ...existing, ...jc } : existing));
+  };
+
+  const addJobCardProgressLog = (jobCardNo: string, log: Omit<JobCardProductionProgressLog, 'id' | 'timestamp'>) => {
+    const now = new Date();
+    const newLog: JobCardProductionProgressLog = {
+      ...log,
+      id: `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      timestamp: now.toISOString(),
+      timeLabel: log.timeLabel || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      dateLabel: log.dateLabel || now.toISOString().split('T')[0]
+    };
+
+    setJobCards(prev => prev.map(jc => {
+      if (jc.jobCardNo !== jobCardNo) return jc;
+
+      const updatedLogs = [newLog, ...(jc.progressLogs || [])];
+      const newSprayed = (jc.sprayedQty || 0) + log.piecesCompleted;
+      const netGood = log.piecesCompleted - (log.reworkPieces || 0) - (log.scrapPieces || 0);
+      const newGood = Math.max(0, (jc.goodQty || 0) + Math.max(0, netGood));
+      const newReject = (jc.rejectQty || 0) + (log.reworkPieces || 0) + (log.scrapPieces || 0);
+      
+      let nextStatus = jc.status;
+      if (newGood >= jc.targetQty) {
+        nextStatus = 'Target Met';
+      } else if (newGood > 0 && nextStatus === 'Open') {
+        nextStatus = 'In Process';
+      }
+
+      return {
+        ...jc,
+        sprayedQty: newSprayed,
+        goodQty: newGood,
+        rejectQty: newReject,
+        status: nextStatus,
+        progressLogs: updatedLogs
+      };
+    }));
+  };
+
+  const updateSamplingRecipe = (jobCardNo: string, recipe: Partial<SamplingRecipeSheet>) => {
+    setJobCards(prev => prev.map(jc => {
+      if (jc.jobCardNo !== jobCardNo) return jc;
+      return {
+        ...jc,
+        samplingRecipe: {
+          ...(jc.samplingRecipe || {
+            basePaintBrand: 'Asian Paints PPG',
+            basePaintCode: 'PU-BLK-99',
+            hardenerCode: 'HARD-PU-20',
+            thinnerCode: 'THN-FAST-01',
+            mixingRatio: '4:1:1',
+            viscositySec: 18,
+            airPressureBar: 2.2,
+            nozzleSizeMm: 1.3,
+            numberOfCoats: '1 Primer + 2 Base + 1 Clear',
+            flashOffMins: 10,
+            bakingTempC: 65,
+            bakingTimeMins: 30,
+            achievedDeltaE: 0.38,
+            achievedGloss60: 92,
+            technicianPainter: jc.assignedPainterName || 'Ramesh Kumar',
+            labChemist: 'Dr. S. Nair'
+          }),
+          ...recipe,
+          loggedAt: new Date().toISOString()
+        }
+      };
+    }));
+  };
+
+  const updateSamplingPartyStatus = (jobCardNo: string, status: SamplingPartyApproval['status'], feedback?: string) => {
+    setJobCards(prev => prev.map(jc => {
+      if (jc.jobCardNo !== jobCardNo) return jc;
+      const prevApproval = jc.samplingApproval || { status: 'Pending In-House Trial' };
+      return {
+        ...jc,
+        samplingApproval: {
+          ...prevApproval,
+          status,
+          partyFeedback: feedback !== undefined ? feedback : prevApproval.partyFeedback,
+          dispatchedAt: status === 'Sample Dispatched to Party' ? new Date().toISOString().split('T')[0] : prevApproval.dispatchedAt,
+          approvedAt: status === 'Party Approved' ? new Date().toISOString().split('T')[0] : prevApproval.approvedAt
+        }
+      };
+    }));
+  };
+
+  const lockSamplingAsMasterRecipe = (jobCardNo: string) => {
+    setJobCards(prev => prev.map(jc => {
+      if (jc.jobCardNo !== jobCardNo) return jc;
+      if (!jc.samplingRecipe) return jc;
+      return {
+        ...jc,
+        samplingRecipe: {
+          ...jc.samplingRecipe,
+          isLockedAsMasterRecipe: true
+        },
+        samplingApproval: {
+          ...(jc.samplingApproval || { status: 'Party Approved' }),
+          status: 'Party Approved',
+          approvedAt: new Date().toISOString().split('T')[0]
+        }
+      };
+    }));
+  };
+
+  const createMultiPainterJobCards = (
+    parentData: JobCard, 
+    splits: { painterId: string; painterName: string; boothNo: string; targetQty: number }[]
+  ) => {
+    const masterCard: JobCard = {
+      ...parentData,
+      jobCardType: 'master',
+      status: 'Open',
+      allocatedQty: parentData.targetQty,
+      sprayedQty: 0,
+      goodQty: 0,
+      rejectQty: 0
+    };
+
+    const childCards: JobCard[] = splits.map((split, idx) => ({
+      ...parentData,
+      jobCardNo: `${parentData.jobCardNo}-P${idx + 1}`,
+      jobCardType: 'painter_child',
+      parentJobCardId: parentData.jobCardNo,
+      targetQty: split.targetQty,
+      allocatedQty: split.targetQty,
+      assignedPainterId: split.painterId,
+      assignedPainterName: split.painterName,
+      painterName: split.painterName,
+      sprayedQty: 0,
+      goodQty: 0,
+      rejectQty: 0,
+      status: 'Open',
+      painterJobStatus: 'Assigned',
+      progressLogs: []
+    }));
+
+    setJobCards(prev => [masterCard, ...childCards, ...prev]);
+
+    setPlantHeadPriorities(prev => prev.map(p => {
+      const isMatch = (p.grnNo && parentData.issuedMaterials?.some(m => m.remark?.includes(p.grnNo))) ||
+                      (p.customer.toLowerCase().trim() === parentData.customer.toLowerCase().trim() && p.partCode.toLowerCase().trim() === parentData.partCode.toLowerCase().trim());
+      if (isMatch && p.status === 'Priority Assigned') {
+        return {
+          ...p,
+          status: 'Job Card Launched',
+          linkedJobCardNo: parentData.jobCardNo
+        };
+      }
+      return p;
+    }));
+
+    const autoMrn: MaterialRequisitionNote = {
+      mrnNo: `MRN-2026-${String(materialRequisitions.length + 1).padStart(3, '0')}`,
+      jobCardNo: parentData.jobCardNo,
+      woNo: parentData.woNo,
+      customer: parentData.customer,
+      partCode: parentData.partCode,
+      requestedItems: parentData.issuedMaterials?.map(m => ({
+        itemCode: m.itemDescription.substring(0, 10).toUpperCase(),
+        itemDescription: m.itemDescription,
+        requiredQty: m.qty,
+        uom: m.uom,
+        issuedQty: 0,
+        pendingQty: m.qty,
+        batchLotNo: `LOT-${Date.now().toString().slice(-4)}`
+      })) || [],
+      requestedBy: currentUser.name,
+      requestedAt: `${parentData.issueDate} ${parentData.issueTime}`,
+      status: 'DEMAND_RAISED_TO_STORE',
+      priority: parentData.targetQty > 500 ? 'URGENT' : 'HIGH',
+      plant: activePlant
+    };
     setMaterialRequisitions(prev => [autoMrn, ...prev]);
   };
 
@@ -1784,6 +2028,12 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         addIPQCRecord,
         addOQCRelease,
         addJobCard,
+        updateJobCard,
+        addJobCardProgressLog,
+        updateSamplingRecipe,
+        updateSamplingPartyStatus,
+        lockSamplingAsMasterRecipe,
+        createMultiPainterJobCards,
         addMaterialInwardRecord,
         addMaterialOutwardRecord,
         sendHandover,
@@ -1843,6 +2093,9 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         addPackingSlip,
         executeDayEndClosure,
         reopenPlant,
+        plantHeadPriorities,
+        assignProductionPriority,
+        updatePriorityStatus,
         activeSubTab,
         setActiveSubTab
       }}

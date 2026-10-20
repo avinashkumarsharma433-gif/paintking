@@ -24,7 +24,8 @@ import {
   PlantDayEndClosure,
   MaterialRequisitionNote,
   PainterProfile,
-  PreProductionInspectionRecord
+  PreProductionInspectionRecord,
+  PlantHeadPriorityAssignment
 } from '../types/portalTypes';
 import { INITIAL_MNC_AUDIT_QUESTIONS } from './mncAuditQuestionsData';
 export { INITIAL_MNC_AUDIT_QUESTIONS };
@@ -670,6 +671,99 @@ export const INITIAL_HANDOVERS: CustodyHandover[] = [
 
 // Ground-Truth Operational Data: Master Job Cards + 3-Painter Split + Rework Child Cards
 export const INITIAL_JOB_CARDS: JobCard[] = [
+  // R&D / SAMPLING JOB CARD SPECIMEN
+  {
+    docNo: 'Doc No: 001-SMP',
+    revNo: '00',
+    revDate: '2026-10-18',
+    jobCardNo: 'SMP-2026-001',
+    jobCardType: 'master',
+    jobCardNature: 'SAMPLING_RND',
+    woNo: 'WO-SMP-991',
+    customer: 'TATA MOTORS LTD',
+    partCode: 'TM-HARRIER-GRILLE',
+    partDescription: 'Harrier Front Honeycomb Radiator Grille Trial Specimen',
+    model: 'Harrier Facelift Dark Edition',
+    color: 'Stardust Satin Gunmetal Gray (Trial Plaque Match)',
+    targetQty: 5,
+    sprayedQty: 5,
+    goodQty: 5,
+    firstPassGoodQty: 5,
+    rejectQty: 0,
+    status: 'In Process',
+    painterName: 'Ramesh Kumar (P1)',
+    assignedPainterName: 'Ramesh Kumar (P1)',
+    assignedPainterId: 'ptr_1',
+    wNo: 'WO-SMP-991',
+    issueDate: '2026-10-18',
+    issueTime: '10:00 AM',
+    leadTime: '2 Days',
+    dept: 'Booth #1 (Automotive Cleanroom)',
+    storeIncharge: 'Manoj Tiwari',
+    prodSupervisor: 'Vikram Patel',
+    approvedBy: 'Satish Sharma (Plant Head)',
+    samplingRecipe: {
+      basePaintBrand: 'AkzoNobel Sikkens Autocoat BT',
+      basePaintCode: 'GUNMETAL-SATIN-88',
+      hardenerCode: 'HARD-AKZO-FAST-10',
+      thinnerCode: 'THN-AKZO-MED-05',
+      mixingRatio: '4:1:1',
+      viscositySec: 19,
+      airPressureBar: 2.2,
+      nozzleSizeMm: 1.3,
+      numberOfCoats: '1 Coat PU Primer + 2 Coats Satin Base + 1 Coat Semi-Matte Clear',
+      flashOffMins: 12,
+      bakingTempC: 65,
+      bakingTimeMins: 35,
+      achievedDeltaE: 0.34,
+      achievedGloss60: 45,
+      technicianPainter: 'Ramesh Kumar (P1)',
+      labChemist: 'Dr. S. Nair (R&D Lab)',
+      isLockedAsMasterRecipe: true,
+      notes: 'Customer plaque Delta-E target <= 0.50 achieved (Actual: 0.34). Surface finish completely pinhole-free.'
+    },
+    samplingApproval: {
+      status: 'Sample Dispatched to Party',
+      dispatchedAt: '2026-10-19',
+      courierOrHandover: 'BlueDart Air Exp #BLU-88291 (Attn: Mr. R. Deshmukh - Tata Pune Plant)',
+      partyFeedback: 'Sample received at Tata QA lab. Lab immersion & salt spray testing underway.',
+      approvedByPartyPerson: 'Pending Final Signoff'
+    },
+    progressLogs: [
+      {
+        id: 'LOG-SMP-1',
+        timestamp: '2026-10-18T14:30:00.000Z',
+        timeLabel: '14:30',
+        dateLabel: '18-10-2026',
+        piecesCompleted: 5,
+        cumulativeGoodQty: 5,
+        reworkPieces: 0,
+        scrapPieces: 0,
+        painterName: 'Ramesh Kumar (P1)',
+        boothNo: 'Booth #1',
+        recordedBy: 'Vikram Patel',
+        remarks: 'All 5 trial honeycomb grilles sprayed, baked at 65C for 35 min and verified under spectrophotometer.'
+      }
+    ],
+    issuedMaterials: [
+      {
+        id: 'mat_smp_1',
+        itemDescription: 'Raw ABS Honeycomb Grille Molded Substrate',
+        qty: 5,
+        colour: 'Raw Black ABS',
+        uom: 'Pcs',
+        remark: 'Sampling lot'
+      },
+      {
+        id: 'mat_smp_2',
+        itemDescription: 'AkzoNobel Satin Gunmetal Polyurethane Base',
+        qty: 2,
+        colour: 'Gunmetal Gray',
+        uom: 'Litres',
+        remark: 'Trial Formulation Cans'
+      }
+    ]
+  },
   // 0. Completed End-to-End Master Job Card for Avinash Sharma
   {
     docNo: 'Doc No: 001-AS',
@@ -2425,3 +2519,69 @@ export const INITIAL_REQUISITIONS: MaterialRequisitionNote[] = [
 
 
 
+
+export const INITIAL_PLANT_HEAD_PRIORITIES: PlantHeadPriorityAssignment[] = [
+  {
+    id: 'PRIO-2026-001',
+    grnNo: 'PK-GRN-2026-1252',
+    challanNo: 'TAT/PUN/8841',
+    customer: 'TATA AUTOCOMP SYSTEMS',
+    partCode: 'RP-8841',
+    partDescription: 'Automotive Instrument Panel Bezel Substrates (ABS)',
+    color: 'Monza Red Gloss',
+    availableQty: 1000,
+    uom: 'Pcs',
+    priorityLevel: 'P1_URGENT',
+    targetDate: '2026-10-21',
+    targetShift: 'General Day Shift (08:30 - 18:30)',
+    recommendedBooth: 'Booth #1 (Automotive Robotic Line)',
+    assignedToProductionManager: 'Vikram Patel',
+    plantHeadRemarks: 'CRITICAL OEM LINE SHORTAGE: Tata Pune assembly line stoppage risk. Run as First Priority on Line 1 morning shift.',
+    assignedBy: 'Satish Sharma (Plant Head)',
+    assignedAt: '2026-10-20 09:30 AM',
+    status: 'Priority Assigned',
+    plant: 'Haridwar'
+  },
+  {
+    id: 'PRIO-2026-002',
+    grnNo: 'PK-GRN-2026-0891',
+    challanNo: 'RP/CH/99824',
+    customer: 'ROOP POLYMERS LTD',
+    partCode: 'RP-8841',
+    partDescription: 'Auto AC Center Vent Bezel Substrate (ABS)',
+    color: 'Monza Red Gloss',
+    availableQty: 750,
+    uom: 'Pcs',
+    priorityLevel: 'P2_HIGH',
+    targetDate: '2026-10-22',
+    targetShift: 'General Day Shift (08:30 - 18:30)',
+    recommendedBooth: 'Booth #1 (Automotive Robotic Line)',
+    assignedToProductionManager: 'Vikram Patel',
+    plantHeadRemarks: '2nd priority following Tata batch. Use PPG 2K PU Basecoat mix ratio 4:1:1.',
+    assignedBy: 'Satish Sharma (Plant Head)',
+    assignedAt: '2026-10-20 10:15 AM',
+    status: 'Priority Assigned',
+    plant: 'Haridwar'
+  },
+  {
+    id: 'PRIO-2026-003',
+    grnNo: 'PK-GRN-2026-1250',
+    challanNo: 'ET/CH/7741',
+    customer: 'ENDURANCE TECHNOLOGIES',
+    partCode: 'ET-7721',
+    partDescription: 'Two-Wheeler Grab Handle Substrates (Nylon-6 GF)',
+    color: 'Satin Metallic Silver',
+    availableQty: 300,
+    uom: 'Pcs',
+    priorityLevel: 'P3_NORMAL',
+    targetDate: '2026-10-23',
+    targetShift: 'General Day Shift (08:30 - 18:30)',
+    recommendedBooth: 'Booth #2 (Hydrographic & Dipping Line)',
+    assignedToProductionManager: 'Vikram Patel',
+    plantHeadRemarks: 'Standard production schedule. Primer check mandatory prior to satin coat.',
+    assignedBy: 'Satish Sharma (Plant Head)',
+    assignedAt: '2026-10-20 11:00 AM',
+    status: 'Priority Assigned',
+    plant: 'Haridwar'
+  }
+];

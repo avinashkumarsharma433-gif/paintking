@@ -1,50 +1,56 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { JobCard, IssuedMaterialItem } from '../types/portalTypes';
+import { 
+  JobCard, 
+  IssuedMaterialItem, 
+  JobCardProductionProgressLog 
+} from '../types/portalTypes';
 import { 
   Plus, 
   Trash2, 
   Save, 
+  X, 
   Printer, 
   Layers, 
-  User, 
-  Calendar, 
-  Clock, 
-  Sparkles, 
-  CheckCircle2, 
-  AlertTriangle, 
   Building2, 
-  Package, 
-  ShieldCheck, 
-  ArrowRightLeft,
-  X,
-  Droplets,
-  Palette,
-  Check,
-  RotateCcw,
-  Lock,
-  Truck,
-  FileText
+  AlertTriangle, 
+  CheckCircle2, 
+  Clock, 
+  History,
+  TrendingUp,
+  AlertCircle
 } from 'lucide-react';
 
 interface JobCardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialData?: Partial<JobCard>;
+  initialData?: JobCard;
 }
 
 export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, initialData }) => {
-  const { addJobCard, activePlant, currentUser, grnList, jobCards, painters, getPainterActiveJobCount } = usePortalStore();
+  const { 
+    addJobCard, 
+    updateJobCard,
+    addJobCardProgressLog,
+    createMultiPainterJobCards,
+    activePlant, 
+    currentUser, 
+    grnList, 
+    jobCards, 
+    painters, 
+    getPainterActiveJobCount 
+  } = usePortalStore();
 
   const [viewMode, setViewMode] = useState<'PORTAL' | 'PRINT'>('PORTAL');
 
   // Metadata
+  const isExistingCard = Boolean(initialData?.jobCardNo && jobCards.some(j => j.jobCardNo === initialData.jobCardNo));
   const [docNo] = useState<string>(initialData?.docNo || 'Doc No: 001');
   const [revNo] = useState<string>(initialData?.revNo || 'Rev.No: 00');
   const [revDate] = useState<string>(initialData?.revDate || new Date().toISOString().split('T')[0]);
 
   // INITIAL PROCESS
-  const [jobCardNo, setJobCardNo] = useState<string>(initialData?.jobCardNo || `JC-${Math.floor(1000 + Math.random() * 9000)}-RD`);
+  const [jobCardNo] = useState<string>(initialData?.jobCardNo || `JC-2026-${String(jobCards.length + 1).padStart(3, '0')}`);
   const [wNo, setWNo] = useState<string>(initialData?.wNo || initialData?.woNo || 'WO-1042');
   const [painterName, setPainterName] = useState<string>(initialData?.assignedPainterName || initialData?.painterName || painters[0]?.name || 'Ramesh Kumar (P1)');
   const [assignedPainterId, setAssignedPainterId] = useState<string>(initialData?.assignedPainterId || painters[0]?.id || 'PAINTER-01');
@@ -53,14 +59,32 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [customer, setCustomer] = useState<string>(initialData?.customer || (grnList[0]?.supplierCustomer) || 'ROOP POLYMERS LTD');
   const [partCode, setPartCode] = useState<string>(initialData?.partCode || (grnList[0]?.items?.[0]?.partCode) || 'RP-8841');
   const [selectedGrnNo, setSelectedGrnNo] = useState<string>(initialData?.sourceGrnNo || (initialData as any)?.sourceGrnNo || (initialData as any)?.grnNo || '');
-  const [leadTime, setLeadTime] = useState<string>(initialData?.leadTime || '4 Hours');
   const [slaHours, setSlaHours] = useState<number>(initialData?.slaHours || 4);
   const [dept, setDept] = useState<string>(initialData?.dept || 'Booth #1 (Continuous Conveyor Line)');
-  const [headerRemark, setHeaderRemark] = useState<string>(initialData?.headerRemark || 'Target cap enforced for shop floor.');
+  const [headerRemark] = useState<string>(initialData?.headerRemark || 'Target cap enforced for shop floor.');
 
   // Target Quantity for this Job Card batch
   const [targetQty, setTargetQty] = useState<number>(initialData?.targetQty || 250);
   const [batchColor, setBatchColor] = useState<string>(initialData?.color || 'Monza Red Gloss');
+
+  // Live Hourly / Progress Logging State (For Existing Cards)
+  const [showProgressLogger, setShowProgressLogger] = useState<boolean>(false);
+  const [logPiecesCount, setLogPiecesCount] = useState<number>(50);
+  const [logReworkCount, setLogReworkCount] = useState<number>(0);
+  const [logScrapCount, setLogScrapCount] = useState<number>(0);
+  const [logTimeInput, setLogTimeInput] = useState<string>(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  const [logRemarksInput, setLogRemarksInput] = useState<string>('Batch passed inspection on floor');
+  const [liveProgressLogs, setLiveProgressLogs] = useState<JobCardProductionProgressLog[]>(initialData?.progressLogs || []);
+  const [currentSprayedQty, setCurrentSprayedQty] = useState<number>(initialData?.sprayedQty || 0);
+  const [currentGoodQty, setCurrentGoodQty] = useState<number>(initialData?.goodQty || 0);
+  const [currentRejectQty, setCurrentRejectQty] = useState<number>(initialData?.rejectQty || 0);
+
+  // Multi-Painter Split in Creation Mode
+  const [isMultiPainterSplit] = useState<boolean>(false);
+  const [painterSplits] = useState<{ painterId: string; painterName: string; boothNo: string; targetQty: number }[]>([
+    { painterId: painters[0]?.id || 'ptr_1', painterName: painters[0]?.name || 'Ramesh Kumar (P1)', boothNo: 'Booth #1', targetQty: Math.floor((initialData?.targetQty || 250) / 2) },
+    { painterId: painters[1]?.id || 'ptr_2', painterName: painters[1]?.name || 'Suresh Verma (P2)', boothNo: 'Booth #2', targetQty: Math.ceil((initialData?.targetQty || 250) / 2) }
+  ]);
 
   // Calculated SLA Target Deadline
   const calculatedDeadline = useMemo(() => {
@@ -93,13 +117,13 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   }, [calculatedDeadline, slaHours]);
 
   // FINAL PROCESS
-  const [returnMaterialDesc, setReturnMaterialDesc] = useState<string>(initialData?.returnMaterialDesc || 'Unused Basecoat Monza Red');
-  const [returnPainterName, setReturnPainterName] = useState<string>(initialData?.returnPainterName || 'Ramesh Sharma');
-  const [returnDate, setReturnDate] = useState<string>(initialData?.returnDate || '');
-  const [returnTime, setReturnTime] = useState<string>(initialData?.returnTime || '');
-  const [returnOkQty, setReturnOkQty] = useState<number>(initialData?.returnOkQty || 0);
-  const [returnRejectionQty, setReturnRejectionQty] = useState<number>(initialData?.returnRejectionQty || 0);
-  const [checkingPerson, setCheckingPerson] = useState<string>(initialData?.checkingPerson || 'Amit Verma (QA Lead)');
+  const [returnMaterialDesc] = useState<string>(initialData?.returnMaterialDesc || 'Unused Basecoat Monza Red');
+  const [returnPainterName] = useState<string>(initialData?.returnPainterName || 'Ramesh Sharma');
+  const [returnDate] = useState<string>(initialData?.returnDate || '');
+  const [returnTime] = useState<string>(initialData?.returnTime || '');
+  const [returnOkQty] = useState<number>(initialData?.returnOkQty || 0);
+  const [returnRejectionQty] = useState<number>(initialData?.returnRejectionQty || 0);
+  const [checkingPerson] = useState<string>(initialData?.checkingPerson || 'Amit Verma (QA Lead)');
 
   // ISSUE MATERIAL DETAILS TABLE (Internal chemicals / raw components)
   const [issuedMaterials, setIssuedMaterials] = useState<IssuedMaterialItem[]>(
@@ -134,19 +158,19 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   );
 
   // SIGNATURES
-  const [storeIncharge, setStoreIncharge] = useState<string>(initialData?.storeIncharge || currentUser.name || 'Manoj Tiwari');
-  const [prodSupervisor, setProdSupervisor] = useState<string>(initialData?.prodSupervisor || 'Vikram Patel');
-  const [approvedBy, setApprovedBy] = useState<string>(initialData?.approvedBy || 'Satish Sharma');
+  const [storeIncharge] = useState<string>(initialData?.storeIncharge || currentUser.name || 'Manoj Tiwari');
+  const [prodSupervisor] = useState<string>(initialData?.prodSupervisor || 'Vikram Patel');
+  const [approvedBy] = useState<string>(initialData?.approvedBy || 'Satish Sharma');
 
-  // 3-STAGE PRODUCTION PROCESS
+  // 3-STAGE PRODUCTION PROCESS (For Existing Cards)
   const [firstStage, setFirstStage] = useState({ totalQty: initialData?.stageProcessFirst?.totalQty || 250, okQty: initialData?.stageProcessFirst?.okQty || 245, rejectionQty: initialData?.stageProcessFirst?.rejectionQty || 5 });
   const [secondStage, setSecondStage] = useState({ totalQty: initialData?.stageProcessSecond?.totalQty || 245, okQty: initialData?.stageProcessSecond?.okQty || 240, rejectionQty: initialData?.stageProcessSecond?.rejectionQty || 5 });
-  const [thirdStage, setThirdStage] = useState({ totalQty: initialData?.stageProcessThird?.totalQty || 240, okQty: initialData?.stageProcessThird?.okQty || 235, rejectionQty: initialData?.stageProcessThird?.rejectionQty || 5 });
+  const [thirdStage, setThirdStage] = useState({ totalQty: initialData?.stageProcessThird?.totalQty || 240, okQty: initialData?.stageProcessThird?.okQty || 238, rejectionQty: initialData?.stageProcessThird?.rejectionQty || 2 });
   const [stageRemark, setStageRemark] = useState<string>(initialData?.stageRemark || 'Final lacquer cured at 80°C for 45 mins.');
 
-  const [preparedBy, setPreparedBy] = useState<string>(initialData?.preparedBy || 'Manoj Tiwari (Stores)');
-  const [checkedBy, setCheckedBy] = useState<string>(initialData?.checkedBy || 'Vikram Patel (Supervisor)');
-  const [stageApprovedBy, setStageApprovedBy] = useState<string>(initialData?.stageApprovedBy || 'Satish Sharma (Plant Head)');
+  const [preparedBy] = useState<string>(initialData?.preparedBy || 'Manoj Tiwari (Stores)');
+  const [checkedBy] = useState<string>(initialData?.checkedBy || 'Vikram Patel (Supervisor)');
+  const [stageApprovedBy] = useState<string>(initialData?.stageApprovedBy || 'Satish Sharma (Plant Head)');
 
   // Sync initialData when modal opens
   useEffect(() => {
@@ -167,6 +191,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       if (initialData.issuedMaterials && initialData.issuedMaterials.length > 0) {
         setIssuedMaterials(initialData.issuedMaterials);
       }
+      if (initialData.progressLogs) {
+        setLiveProgressLogs(initialData.progressLogs);
+      }
+      if (initialData.sprayedQty !== undefined) setCurrentSprayedQty(initialData.sprayedQty);
+      if (initialData.goodQty !== undefined) setCurrentGoodQty(initialData.goodQty);
+      if (initialData.rejectQty !== undefined) setCurrentRejectQty(initialData.rejectQty);
     }
   }, [initialData, isOpen, grnList]);
 
@@ -203,39 +233,23 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       );
       if (match) return match;
     }
-    return availableGrnLots.find(g => g.supplierCustomer?.trim().toLowerCase() === customer?.trim().toLowerCase()) || availableGrnLots[0] || grnList[0];
-  }, [grnList, selectedGrnNo, initialData, customer, partCode, availableGrnLots]);
+    return availableGrnLots[0] || grnList[0];
+  }, [selectedGrnNo, initialData, customer, partCode, grnList, availableGrnLots]);
 
+  // Calculate actual total inward quantity of this GRN lot
   const grnTotalQty = useMemo(() => {
-    if (!selectedGrn) return initialData?.targetQty || 1000;
-    return Number(selectedGrn.actualReceivedQty) || Number(selectedGrn.totalQty) || 1000;
-  }, [selectedGrn, initialData]);
-
-  // Materials / Substrates inside this GRN
-  const grnItemsList = useMemo(() => {
-    if (selectedGrn?.items && selectedGrn.items.length > 0) {
-      return selectedGrn.items;
+    if (!selectedGrn) return 500;
+    if (selectedGrn.items && selectedGrn.items.length > 0) {
+      const matchedItem = selectedGrn.items.find(i => i.partCode === partCode);
+      if (matchedItem) return matchedItem.actualReceivedQty || matchedItem.invoicedQty || 500;
+      return selectedGrn.items.reduce((s, it) => s + (it.actualReceivedQty || it.invoicedQty || 0), 0);
     }
-    if (selectedGrn) {
-      return [{
-        id: '1',
-        partCode: selectedGrn.partCode || partCode || 'SUBSTRATE-01',
-        partDescription: selectedGrn.description || initialData?.partDescription || 'Raw Substrate Injection Molded Parts',
-        invoicedQty: selectedGrn.invoicedQty || selectedGrn.actualReceivedQty || grnTotalQty,
-        actualReceivedQty: selectedGrn.actualReceivedQty || selectedGrn.totalQty || grnTotalQty,
-        shortExcessQty: 0,
-        okByIqcQty: selectedGrn.actualReceivedQty || selectedGrn.totalQty || grnTotalQty,
-        rejectionQty: 0,
-        remark: 'IQC Passed Store Stock'
-      }];
-    }
-    return [];
-  }, [selectedGrn, partCode, initialData, grnTotalQty]);
+    return selectedGrn.actualReceivedQty || selectedGrn.totalQty || 500;
+  }, [selectedGrn, partCode]);
 
   // Existing Master Job Cards created against this GRN
   const existingJobCardsForGrn = useMemo(() => {
     return jobCards.filter(jc => {
-      // Exclude the current job card if editing
       if (initialData?.jobCardNo && jc.jobCardNo === initialData.jobCardNo) return false;
       const isMaster = jc.jobCardType === 'master' || (!jc.jobCardType && !jc.parentJobCardId);
       if (!isMaster) return false;
@@ -255,7 +269,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     return Math.max(0, grnTotalQty - alreadyAllocatedQty);
   }, [grnTotalQty, alreadyAllocatedQty]);
 
-  const isOverAllocated = targetQty > maxAllowedTargetQty;
+  const isOverAllocated = !isExistingCard && targetQty > maxAllowedTargetQty;
 
   // Preset Color Palettes for Quick Selection
   const colorPresets = [
@@ -283,31 +297,29 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const handleColorChange = (newColor: string) => {
     setBatchColor(newColor);
     setIssuedMaterials(prev => prev.map((item, idx) => {
-      if (idx === 0 || idx === 1) {
-        return { ...item, colour: newColor };
+      if (idx === 1) {
+        return { ...item, colour: newColor, itemDescription: `${newColor} 2K PU Basecoat Paint` };
       }
       return item;
     }));
   };
 
-  if (!isOpen) return null;
-
   const handleAddMaterialRow = () => {
+    const newId = String(issuedMaterials.length + 1);
     setIssuedMaterials([
       ...issuedMaterials,
       {
-        id: Date.now().toString(),
-        itemDescription: 'High-Gloss Clear Protective Lacquer',
-        qty: 5,
-        colour: 'Clear Topcoat',
+        id: newId,
+        itemDescription: '',
+        qty: 1,
+        colour: '',
         uom: 'Litres',
-        remark: 'Top UV cured coat'
+        remark: ''
       }
     ]);
   };
 
   const handleRemoveMaterialRow = (id: string) => {
-    if (issuedMaterials.length <= 1) return;
     setIssuedMaterials(issuedMaterials.filter(m => m.id !== id));
   };
 
@@ -318,10 +330,55 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     }));
   };
 
+  // Add Live Progress Log (For Running Job Card)
+  const handleAddLiveProgressLog = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (logPiecesCount <= 0) return;
+
+    const now = new Date();
+    const newEntry: JobCardProductionProgressLog = {
+      id: `LOG-${Date.now()}`,
+      timestamp: now.toISOString(),
+      timeLabel: logTimeInput || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      dateLabel: now.toISOString().split('T')[0],
+      piecesCompleted: Number(logPiecesCount),
+      cumulativeGoodQty: currentGoodQty + Number(logPiecesCount) - Number(logReworkCount) - Number(logScrapCount),
+      reworkPieces: Number(logReworkCount),
+      scrapPieces: Number(logScrapCount),
+      painterName: painterName,
+      boothNo: dept.split('(')[0]?.trim() || 'Booth #1',
+      recordedBy: currentUser.name,
+      remarks: logRemarksInput
+    };
+
+    setLiveProgressLogs(prev => [newEntry, ...prev]);
+    setCurrentSprayedQty(prev => prev + Number(logPiecesCount));
+    setCurrentGoodQty(prev => prev + Math.max(0, Number(logPiecesCount) - Number(logReworkCount) - Number(logScrapCount)));
+    setCurrentRejectQty(prev => prev + Number(logReworkCount) + Number(logScrapCount));
+
+    if (initialData?.jobCardNo) {
+      addJobCardProgressLog(initialData.jobCardNo, {
+        timeLabel: newEntry.timeLabel,
+        dateLabel: newEntry.dateLabel,
+        piecesCompleted: newEntry.piecesCompleted,
+        cumulativeGoodQty: newEntry.cumulativeGoodQty,
+        reworkPieces: newEntry.reworkPieces,
+        scrapPieces: newEntry.scrapPieces,
+        painterName: newEntry.painterName,
+        boothNo: newEntry.boothNo,
+        recordedBy: newEntry.recordedBy,
+        remarks: newEntry.remarks
+      });
+    }
+
+    setShowProgressLogger(false);
+    setLogRemarksInput('');
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (isOverAllocated) {
+    if (!isExistingCard && isOverAllocated) {
       alert(`Validation Error: Target quantity (${targetQty} Pcs) cannot exceed the remaining available GRN balance of ${maxAllowedTargetQty} Pcs.`);
       return;
     }
@@ -330,6 +387,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       alert("Validation Error: Target quantity must be greater than 0.");
       return;
     }
+
+    const isEditMode = Boolean(initialData?.jobCardNo);
 
     const newJobCard: JobCard = {
       docNo,
@@ -344,11 +403,14 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       model: initialData?.model || 'OEM Batch',
       color: batchColor,
       targetQty: targetQty,
-      sprayedQty: initialData?.sprayedQty || 0,
-      goodQty: initialData?.goodQty || 0,
-      rejectQty: initialData?.rejectQty || 0,
+      sprayedQty: currentSprayedQty,
+      goodQty: currentGoodQty,
+      rejectQty: currentRejectQty,
       status: initialData?.status || 'Open',
       fpaStatus: initialData?.fpaStatus || 'Approved',
+
+      jobCardNature: 'STANDARD_PRODUCTION',
+      progressLogs: liveProgressLogs,
 
       painterName,
       assignedPainterName: painterName,
@@ -388,13 +450,22 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       stageApprovedBy
     };
 
-    addJobCard(newJobCard);
+    if (isEditMode) {
+      updateJobCard(newJobCard);
+    } else if (isMultiPainterSplit) {
+      createMultiPainterJobCards(newJobCard, painterSplits);
+    } else {
+      addJobCard(newJobCard);
+    }
+
     onClose();
   };
 
   const handlePrint = () => {
     window.print();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
@@ -405,7 +476,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold uppercase tracking-wider">
-                MASTER JOB CARD (FORMAT C.01)
+                {isExistingCard ? 'ACTIVE PRODUCTION TRACKER' : 'NEW MASTER JOB CARD (FORMAT C.01)'}
               </span>
               <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[10px] font-mono font-bold">
                 {docNo} • {revNo}
@@ -415,10 +486,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-serif text-[#17191c] font-normal tracking-tight">
-              Create Production Master Job Card
+              {isExistingCard ? `Job Card Floor Tracker • ${jobCardNo}` : 'Create Production Master Job Card'}
             </h2>
             <p className="text-[11px] sm:text-xs text-[#777b86]">
-              Allocate customer raw substrates, enforce GRN target cap & demand required internal paints and chemicals
+              {isExistingCard 
+                ? 'Track live floor output pieces, record hourly production logs, and update quality milestones'
+                : 'Allocate customer substrates, assign line & painter, and requisition required paints & chemicals'}
             </p>
           </div>
 
@@ -470,24 +543,251 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
           {/* ========================================================================= */}
           {viewMode === 'PORTAL' && (
             <div className="space-y-5 text-xs">
-              
+
               {/* ========================================================================= */}
-              {/* SECTION 1: LINKED CUSTOMER SUBSTRATE & STORE GRN LOT                      */}
+              {/* LIVE PRODUCTION PROGRESS TRACKER (ONLY FOR RUNNING / EXISTING JOB CARDS)   */}
               {/* ========================================================================= */}
-              <div className="bg-[#fafafb] p-4.5 sm:p-5 rounded-[20px] border border-[#ececec] space-y-4 shadow-2xs">
-                
+              {isExistingCard && (
+                <div className="bg-white p-4.5 sm:p-5 rounded-[22px] border border-[#ececec] shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-[#c09748]" />
+                        <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono">
+                          Real-time Production Progress & Time Tracking
+                        </span>
+                      </div>
+                      <h3 className="font-serif font-normal text-lg sm:text-xl text-[#17191c] mt-0.5">
+                        Floor Output Execution Status
+                      </h3>
+                      <p className="text-[11px] text-[#777b86]">
+                        Kitne pieces assign kiye gaye the, kitne complete hue hain aur kitne baje tak hue the—sab yahan live track hota hai.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowProgressLogger(!showProgressLogger)}
+                      className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs self-start sm:self-auto active:scale-95"
+                    >
+                      <Plus className="w-4 h-4 text-[#8a6521]" />
+                      <span>{showProgressLogger ? 'Hide Progress Drawer' : '+ Log Pieces Output'}</span>
+                    </button>
+                  </div>
+
+                  {/* 4 Stat Cards Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className="bg-[#fafafb] p-3 rounded-[16px] border border-[#ececec] space-y-1">
+                      <span className="text-[9.5px] font-mono uppercase text-[#777b86] block">Total Target</span>
+                      <div className="font-mono text-xl sm:text-2xl font-bold text-[#17191c]">
+                        {targetQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
+                      </div>
+                      <div className="text-[10px] text-[#777b86] font-mono">Assigned to {painterName}</div>
+                    </div>
+
+                    <div className="bg-emerald-50/70 p-3 rounded-[16px] border border-emerald-200 space-y-1">
+                      <span className="text-[9.5px] font-mono uppercase text-emerald-800 font-bold block flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        Good Finished (Passed)
+                      </span>
+                      <div className="font-mono text-xl sm:text-2xl font-bold text-emerald-900">
+                        {currentGoodQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-emerald-700">Pcs</span>
+                      </div>
+                      <div className="text-[10px] text-emerald-800 font-semibold">
+                        {targetQty > 0 ? ((currentGoodQty / targetQty) * 100).toFixed(0) : 0}% Target Fulfilled
+                      </div>
+                    </div>
+
+                    <div className="bg-amber-50/70 p-3 rounded-[16px] border border-amber-200 space-y-1">
+                      <span className="text-[9.5px] font-mono uppercase text-amber-800 font-bold block flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-amber-600" />
+                        Remaining to Spray
+                      </span>
+                      <div className="font-mono text-xl sm:text-2xl font-bold text-amber-900">
+                        {Math.max(0, targetQty - currentGoodQty).toLocaleString('en-IN')} <span className="text-xs font-normal text-amber-700">Pcs</span>
+                      </div>
+                      <div className="text-[10px] text-amber-800">Pending on Line</div>
+                    </div>
+
+                    <div className="bg-red-50/70 p-3 rounded-[16px] border border-red-200 space-y-1">
+                      <span className="text-[9.5px] font-mono uppercase text-red-800 font-bold block flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 text-red-600" />
+                        Floor Rejection
+                      </span>
+                      <div className="font-mono text-xl sm:text-2xl font-bold text-red-900">
+                        {currentRejectQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-red-700">Pcs</span>
+                      </div>
+                      <div className="text-[10px] text-red-800">
+                        {targetQty > 0 ? ((currentRejectQty / targetQty) * 100).toFixed(1) : 0}% Defect Rate
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Visual Progress Bar */}
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex justify-between text-[11px] font-mono">
+                      <span className="text-[#777b86]">Floor Production Completion</span>
+                      <span className="font-bold text-[#17191c]">
+                        {currentGoodQty} / {targetQty} Pcs ({targetQty > 0 ? ((currentGoodQty / targetQty) * 100).toFixed(0) : 0}%)
+                      </span>
+                    </div>
+                    <div className="h-2.5 w-full bg-[#f2f2f3] rounded-full overflow-hidden flex border border-[#ececec]">
+                      <div 
+                        className="bg-emerald-500 h-full transition-all duration-300"
+                        style={{ width: `${Math.min(100, targetQty > 0 ? (currentGoodQty / targetQty) * 100 : 0)}%` }}
+                        title="Good Finished"
+                      />
+                      <div 
+                        className="bg-red-400 h-full transition-all duration-300"
+                        style={{ width: `${Math.min(100, targetQty > 0 ? (currentRejectQty / targetQty) * 100 : 0)}%` }}
+                        title="Rejections"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Interactive Hourly / Batch Output Logger Drawer */}
+                  {showProgressLogger && (
+                    <div className="bg-[#faf7ed] p-4 rounded-[18px] border border-[#f4e5be] space-y-3 animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4 text-[#8a6521]" />
+                          <span className="font-mono font-bold text-xs text-[#8a6521] uppercase tracking-wide">
+                            Log Production Pieces Update (Hourly Output)
+                          </span>
+                        </div>
+                        <span className="text-[10.5px] text-[#777b86] font-mono">
+                          Operator: {currentUser.name} • Plant: {activePlant}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                        <div>
+                          <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
+                            Pieces Finished Now *
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max={Math.max(1, targetQty - currentGoodQty)}
+                            value={logPiecesCount}
+                            onChange={e => setLogPiecesCount(Number(e.target.value))}
+                            className="w-full h-9 px-3 rounded-[12px] border border-[#dcdfe4] bg-white font-mono font-bold text-[#17191c]"
+                            placeholder="e.g. 50"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
+                            Time Completed *
+                          </label>
+                          <input
+                            type="text"
+                            value={logTimeInput}
+                            onChange={e => setLogTimeInput(e.target.value)}
+                            className="w-full h-9 px-3 rounded-[12px] border border-[#dcdfe4] bg-white font-mono text-[#17191c]"
+                            placeholder="e.g. 02:45 PM"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
+                            Rejection / Scrap Count
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={logScrapCount}
+                            onChange={e => setLogScrapCount(Number(e.target.value))}
+                            className="w-full h-9 px-3 rounded-[12px] border border-[#dcdfe4] bg-white font-mono text-red-600"
+                            placeholder="0"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
+                            Supervisor Floor Remarks
+                          </label>
+                          <input
+                            type="text"
+                            value={logRemarksInput}
+                            onChange={e => setLogRemarksInput(e.target.value)}
+                            className="w-full h-9 px-3 rounded-[12px] border border-[#dcdfe4] bg-white text-[#17191c]"
+                            placeholder="e.g. Oven baked, cleared IQC inspection"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowProgressLogger(false)}
+                          className="px-4 py-1.5 rounded-full bg-white border border-[#ececec] text-[#777b86] text-xs font-semibold cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleAddLiveProgressLog}
+                          className="px-5 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 text-[#8a6521]" />
+                          <span>Record {logPiecesCount} Pcs Output</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hourly Audit Log History Timeline */}
+                  {liveProgressLogs.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-[#ececec]">
+                      <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-[#777b86] uppercase font-mono">
+                        <History className="w-3.5 h-3.5 text-[#c09748]" />
+                        <span>Logged Output Audit History ({liveProgressLogs.length} Entries):</span>
+                      </div>
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto no-scrollbar">
+                        {liveProgressLogs.map((log) => (
+                          <div key={log.id} className="p-2.5 rounded-[12px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between gap-3 text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-white border border-[#ececec] text-[#8a6521]">
+                                {log.timeLabel}
+                              </span>
+                              <span className="font-semibold text-[#17191c]">
+                                +{log.piecesCompleted} Pcs Produced
+                              </span>
+                              <span className="text-[#777b86] text-[11px]">
+                                (Total Good: <strong className="text-emerald-800">{log.cumulativeGoodQty}</strong>)
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] text-[#777b86]">By {log.recordedBy || 'Supervisor'}</span>
+                              {log.remarks && (
+                                <div className="text-[10px] text-gray-500 italic truncate max-w-xs">{log.remarks}</div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ========================================================================= */}
+              {/* STEP 1: SUBSTRATE & CUSTOMER ORDER ALLOCATION                             */}
+              {/* ========================================================================= */}
+              <div className="bg-[#fafafb] p-4.5 sm:p-5 rounded-[22px] border border-[#ececec] space-y-4 shadow-2xs">
                 {/* Header Strip with Customer Name & Job Card Badges */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-[#ececec] pb-3">
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1">
-                        <Lock className="w-3 h-3 text-[#c09748]" />
-                        1. Linked Customer Substrate & Store GRN Lot
+                        <Layers className="w-3.5 h-3.5 text-[#c09748]" />
+                        Step 1: Substrate & Customer Order Allocation
                       </span>
                     </div>
-                    <h3 className="text-base sm:text-xl font-serif text-[#17191c] font-normal flex items-center gap-2">
-                      <Building2 className="w-5 h-5 text-[#c09748]" />
-                      <span>{customer || 'SPARK MINDA AUTOMOTIVE LTD'}</span>
+                    <h3 className="text-base sm:text-lg font-serif text-[#17191c] font-normal flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-[#c09748]" />
+                      <span>{customer || 'Spark Minda Automotive Ltd'}</span>
                     </h3>
                   </div>
                   <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -500,140 +800,84 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </div>
                 </div>
 
-                {/* Linked GRN Info Card (Auto-Linked, No select dropdown) */}
-                <div className="p-3.5 sm:p-4 bg-[#faf7ed] rounded-[18px] border border-[#f4e5be] space-y-3.5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-[#f4e5be]/70">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-[#c09748]/15 border border-[#c09748]/30 flex items-center justify-center text-[#8a6521]">
-                        <Package className="w-4 h-4 text-[#8a6521]" />
-                      </div>
-                      <div>
-                        <div className="text-[10px] font-bold text-[#8a6521] uppercase tracking-wider font-mono">
-                          Source Store Inward GRN Lot (Auto-Linked):
-                        </div>
-                        <div className="font-mono font-bold text-sm text-[#17191c] flex items-center gap-2">
-                          <span>{selectedGrn?.grnNo || initialData?.sourceGrnNo || 'PK-GRN-2026-881'}</span>
-                          <span className="text-[10px] font-mono font-normal text-[#777b86] px-2 py-0.5 rounded-md bg-white border border-[#f4e5be]">
-                            Locked from Selected Item
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        <span>IQC Verified & Store Received</span>
-                      </span>
-                      <span className="text-[11px] font-mono text-[#777b86] bg-white px-2.5 py-1 rounded-full border border-[#f4e5be]">
-                        Plant: {selectedGrn?.plant || activePlant}
-                      </span>
-                    </div>
+                {/* Order & Substrate Details 3-Column Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Customer Account */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-[#777b86] uppercase font-mono">
+                      Customer Account *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={customer}
+                      onChange={e => setCustomer(e.target.value)}
+                      className="w-full h-9.5 px-3 rounded-[14px] border border-[#dcdfe4] bg-white font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                    />
                   </div>
 
-                  {/* Metadata Chips */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                    <div className="bg-white/90 p-2.5 rounded-[12px] border border-[#f4e5be]">
-                      <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">Challan / W.No</span>
-                      <span className="font-mono font-bold text-[#17191c] truncate block" title={selectedGrn?.invoiceChallanNo || wNo}>
-                        {selectedGrn?.invoiceChallanNo || wNo}
-                      </span>
-                    </div>
-                    <div className="bg-white/90 p-2.5 rounded-[12px] border border-[#f4e5be]">
-                      <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">Inward Date</span>
-                      <span className="font-mono font-semibold text-[#17191c]">
-                        {selectedGrn?.date || selectedGrn?.receivedDate || issueDate}
-                      </span>
-                    </div>
-                    <div className="bg-white/90 p-2.5 rounded-[12px] border border-[#f4e5be]">
-                      <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">Vehicle No</span>
-                      <span className="font-mono font-semibold text-[#17191c]">
-                        {selectedGrn?.vehicleNo || 'MH-04-AZ-9912'}
-                      </span>
-                    </div>
-                    <div className="bg-white/90 p-2.5 rounded-[12px] border border-[#f4e5be]">
-                      <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">Transporter</span>
-                      <span className="font-semibold text-[#17191c] truncate block" title={selectedGrn?.transporter || 'Direct Delivery'}>
-                        {selectedGrn?.transporter || 'Direct Party Vehicle'}
-                      </span>
-                    </div>
+                  {/* Part Code */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-[#777b86] uppercase font-mono">
+                      Part Code (OEM Spec) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={partCode}
+                      onChange={e => setPartCode(e.target.value)}
+                      className="w-full h-9.5 px-3 rounded-[14px] border border-[#dcdfe4] bg-white font-mono font-bold text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                    />
                   </div>
 
-                  {/* Material / Substrate Line Items Table from this GRN */}
-                  <div className="space-y-1.5 pt-1">
-                    <div className="flex items-center justify-between text-[10.5px] font-bold text-[#8a6521] uppercase font-mono">
-                      <span className="flex items-center gap-1.5">
-                        <Layers className="w-3.5 h-3.5 text-[#8a6521]" />
-                        Materials & Substrates in this GRN ({grnItemsList.length} Items):
+                  {/* Work Order / Challan */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-[#777b86] uppercase font-mono">
+                      Work Order / Challan Ref *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={wNo}
+                      onChange={e => setWNo(e.target.value)}
+                      className="w-full h-9.5 px-3 rounded-[14px] border border-[#dcdfe4] bg-white font-mono font-bold text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Linked Store GRN Lot & Guardrail Allocation Card */}
+                <div className="p-3.5 sm:p-4 bg-[#faf7ed] rounded-[18px] border border-[#f4e5be] space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-[#8a6521] uppercase tracking-wider font-mono">
+                        Source Store Inward GRN Lot:
+                      </span>
+                      <span className="font-mono font-bold text-xs text-[#17191c] px-2 py-0.5 rounded-md bg-white border border-[#f4e5be]">
+                        {selectedGrn?.grnNo || 'PK-GRN-2026-881'}
                       </span>
                     </div>
-                    
-                    <div className="overflow-x-auto rounded-[14px] border border-[#f4e5be] bg-white">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="bg-[#faf7ed] text-[#8a6521] font-mono text-[10px] uppercase tracking-wider border-b border-[#f4e5be]">
-                            <th className="py-2.5 px-3">Part Code</th>
-                            <th className="py-2.5 px-3">Substrate / Description</th>
-                            <th className="py-2.5 px-3 text-center">Challan Qty</th>
-                            <th className="py-2.5 px-3 text-center">Inward OK Qty</th>
-                            <th className="py-2.5 px-3 text-center">IQC Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#f4e5be]/50">
-                          {grnItemsList.map((item, iIdx) => {
-                            const isCurrentPart = item.partCode === partCode;
-                            return (
-                              <tr key={iIdx} className={isCurrentPart ? 'bg-[#faf3e0]/40 font-semibold' : 'hover:bg-[#fafafb]'}>
-                                <td className="py-2.5 px-3 font-mono font-bold text-[#8a6521]">
-                                  {item.partCode}
-                                  {isCurrentPart && (
-                                    <span className="ml-1.5 px-1.5 py-0.5 rounded text-[9px] bg-[#c09748] text-white uppercase font-sans">
-                                      Active Job Target
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-2.5 px-3 text-[#17191c]">
-                                  {item.partDescription}
-                                </td>
-                                <td className="py-2.5 px-3 text-center font-mono text-[#777b86]">
-                                  {(item.invoicedQty || item.actualReceivedQty || grnTotalQty).toLocaleString('en-IN')} Pcs
-                                </td>
-                                <td className="py-2.5 px-3 text-center font-mono font-bold text-[#17191c]">
-                                  {(item.actualReceivedQty || item.okByIqcQty || grnTotalQty).toLocaleString('en-IN')} Pcs
-                                </td>
-                                <td className="py-2.5 px-3 text-center">
-                                  <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold">
-                                    Passed ✓
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-bold self-start sm:self-auto">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <span>IQC Verified & Store Received</span>
+                    </span>
                   </div>
 
-                  {/* Dynamic 4-Tile Guardrail Summary Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center pt-1">
-                    <div className="p-2.5 rounded-[14px] bg-white border border-[#f4e5be]">
-                      <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">Customer Account</span>
-                      <span className="font-bold text-xs text-[#17191c] truncate block" title={customer}>{customer}</span>
-                    </div>
-                    <div className="p-2.5 rounded-[14px] bg-white border border-[#f4e5be]">
+                  {/* 3-Pill Guardrail Summary */}
+                  <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
+                    <div className="bg-white p-2.5 rounded-[12px] border border-[#f4e5be]">
                       <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">GRN Inward Total</span>
                       <span className="font-mono font-bold text-xs text-[#17191c]">{grnTotalQty.toLocaleString('en-IN')} Pcs</span>
                     </div>
-                    <div className="p-2.5 rounded-[14px] bg-white border border-[#f4e5be]">
-                      <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">Already in Job Cards</span>
+                    <div className="bg-white p-2.5 rounded-[12px] border border-[#f4e5be]">
+                      <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">Already Allocated</span>
                       <span className="font-mono font-bold text-xs text-blue-800">
-                        {alreadyAllocatedQty.toLocaleString('en-IN')} Pcs ({existingJobCardsForGrn.length} Cards)
+                        {alreadyAllocatedQty.toLocaleString('en-IN')} Pcs
                       </span>
                     </div>
-                    <div className={`p-2.5 rounded-[14px] border ${
+                    <div className={`p-2.5 rounded-[12px] border ${
                       maxAllowedTargetQty > 0 ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900' : 'bg-red-50 border-red-200 text-red-800'
                     }`}>
-                      <span className="text-[9.5px] uppercase font-mono font-semibold block">Max Available for This Card</span>
+                      <span className="text-[9.5px] uppercase font-mono font-semibold block">Max Available Balance</span>
                       <span className="font-mono font-bold text-xs">
                         {maxAllowedTargetQty.toLocaleString('en-IN')} Pcs
                       </span>
@@ -645,88 +889,89 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     <div className="p-3 rounded-[14px] bg-red-50 border border-red-300 text-red-800 text-xs flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
                       <span>
-                        <strong>Guardrail Blocked:</strong> Target quantity (<strong>{targetQty} Pcs</strong>) exceeds the remaining available GRN balance of <strong>{maxAllowedTargetQty} Pcs</strong>. Please reduce the quantity.
+                        <strong>Target Exceeded:</strong> Target quantity (<strong>{targetQty} Pcs</strong>) exceeds the remaining GRN balance of <strong>{maxAllowedTargetQty} Pcs</strong>. Please adjust.
                       </span>
                     </div>
                   )}
-                </div>
 
-                {/* Target Qty Input with Quick-Fill Pill Controls */}
-                <div className="p-3.5 bg-white rounded-[16px] border border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-1">
-                    <label className="block text-[10.5px] font-bold text-[#17191c] uppercase font-mono">
-                      Target Quantity for this Job Card (Pcs) *
-                    </label>
-                    <div className="text-[11px] text-[#777b86]">
-                      Max allowed unallocated balance: <strong className="text-[#8a6521] font-mono">{maxAllowedTargetQty} Pcs</strong>
+                  {/* Target Qty Stepper & Quick-Fill Pills */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                    <div className="space-y-0.5">
+                      <label className="block text-[10.5px] font-bold text-[#17191c] uppercase font-mono">
+                        Target Quantity to Allocate for this Job Card *
+                      </label>
+                      <span className="text-[11px] text-[#777b86]">
+                        Remaining available in store: <strong className="text-[#8a6521] font-mono">{maxAllowedTargetQty} Pcs</strong>
+                      </span>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="1"
-                      max={maxAllowedTargetQty > 0 ? maxAllowedTargetQty : undefined}
-                      required
-                      value={targetQty}
-                      onChange={e => handleTargetQtyChange(Number(e.target.value))}
-                      className={`w-32 h-10 px-3.5 rounded-[12px] border font-mono font-bold text-sm bg-white focus:outline-none transition shadow-2xs ${
-                        isOverAllocated 
-                          ? 'border-red-500 text-red-600 focus:ring-2 focus:ring-red-200' 
-                          : 'border-[#dcdfe4] text-[#17191c] focus:border-[#c09748]'
-                      }`}
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max={maxAllowedTargetQty > 0 ? maxAllowedTargetQty : undefined}
+                        required
+                        value={targetQty}
+                        onChange={e => handleTargetQtyChange(Number(e.target.value))}
+                        className={`w-32 h-10 px-3.5 rounded-[14px] border font-mono font-bold text-sm bg-white focus:outline-none transition shadow-2xs ${
+                          isOverAllocated 
+                            ? 'border-red-500 text-red-600 focus:ring-2 focus:ring-red-200' 
+                            : 'border-[#dcdfe4] text-[#17191c] focus:border-[#c09748]'
+                        }`}
+                      />
 
-                    {maxAllowedTargetQty > 0 && targetQty !== maxAllowedTargetQty && (
-                      <button
-                        type="button"
-                        onClick={() => handleTargetQtyChange(maxAllowedTargetQty)}
-                        className="px-3 py-2 rounded-[12px] bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold transition cursor-pointer shadow-2xs active:scale-95"
-                        title="Allocate full remaining GRN balance"
-                      >
-                        ⚡ Fill All ({maxAllowedTargetQty})
-                      </button>
-                    )}
+                      {maxAllowedTargetQty > 0 && targetQty !== maxAllowedTargetQty && (
+                        <button
+                          type="button"
+                          onClick={() => handleTargetQtyChange(maxAllowedTargetQty)}
+                          className="px-3 py-2 rounded-[12px] bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold transition cursor-pointer shadow-2xs active:scale-95"
+                          title="Allocate full remaining GRN balance"
+                        >
+                          ⚡ Fill All ({maxAllowedTargetQty})
+                        </button>
+                      )}
 
-                    {maxAllowedTargetQty >= 2 && (
-                      <button
-                        type="button"
-                        onClick={() => handleTargetQtyChange(Math.floor(maxAllowedTargetQty / 2))}
-                        className="px-3 py-2 rounded-[12px] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold transition cursor-pointer shadow-2xs active:scale-95"
-                        title="Split into 50% batch"
-                      >
-                        ½ Split 50% ({Math.floor(maxAllowedTargetQty / 2)})
-                      </button>
-                    )}
+                      {maxAllowedTargetQty >= 2 && (
+                        <button
+                          type="button"
+                          onClick={() => handleTargetQtyChange(Math.floor(maxAllowedTargetQty / 2))}
+                          className="px-3 py-2 rounded-[12px] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold transition cursor-pointer shadow-2xs active:scale-95"
+                          title="Split into 50% batch"
+                        >
+                          ½ Split 50% ({Math.floor(maxAllowedTargetQty / 2)})
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* ========================================================================= */}
-              {/* SECTION 2: BATCH FINISH SPECIFICATION & LINE ASSIGNMENT                   */}
+              {/* STEP 2: FINISH SPECIFICATION, LINE & PAINTER ASSIGNMENT                   */}
               {/* ========================================================================= */}
-              <div className="bg-[#fafafb] p-4.5 sm:p-5 rounded-[20px] border border-[#ececec] space-y-3.5 shadow-2xs">
+              <div className="bg-[#fafafb] p-4.5 sm:p-5 rounded-[22px] border border-[#ececec] space-y-4 shadow-2xs">
                 <div className="border-b border-[#ececec] pb-2">
                   <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono">
-                    2. Batch Finish Specification & Line Assignment
+                    Step 2: Line Assignment, Painter & SLA Target Duration
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                  {/* Color Shade Input + Preset Pills */}
-                  <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  {/* Finish / Color Shade */}
+                  <div className="space-y-1.5">
                     <label className="block text-[10.5px] font-bold text-[#777b86] uppercase font-mono">
-                      Batch Finish / Color Shade *
+                      Finish / Color Shade *
                     </label>
                     <input
                       type="text"
                       required
                       value={batchColor}
                       onChange={e => handleColorChange(e.target.value)}
-                      placeholder="e.g. Monza Red Gloss / Piano Black"
-                      className="w-full h-10 px-3.5 rounded-[12px] border border-[#dcdfe4] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
+                      placeholder="e.g. Monza Red Gloss"
+                      className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-white font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
                     />
-                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    {/* Preset Color Chips */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                       {colorPresets.map((preset, pIdx) => (
                         <button
                           key={pIdx}
@@ -740,7 +985,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     </div>
                   </div>
 
-                  {/* Painting Line / Department */}
+                  {/* Painting Line / Booth */}
                   <div className="space-y-1.5">
                     <label className="block text-[10.5px] font-bold text-[#777b86] uppercase font-mono">
                       Department / Painting Line *
@@ -748,7 +993,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     <select
                       value={dept}
                       onChange={e => setDept(e.target.value)}
-                      className="w-full h-10 px-3.5 rounded-[12px] border border-[#dcdfe4] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer shadow-2xs"
+                      className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-white font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer shadow-2xs"
                     >
                       <option value="Booth #1 (Continuous Conveyor Line)">Booth #1 (Continuous Conveyor Line)</option>
                       <option value="Booth #2 (Dust-Free Pressurized Cleanroom)">Booth #2 (Dust-Free Pressurized Cleanroom)</option>
@@ -756,11 +1001,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       <option value="Booth #4 (Flatbed Industrial Direct UV Plotter)">Booth #4 (Flatbed Industrial Direct UV Plotter)</option>
                     </select>
                     <div className="text-[10px] text-[#777b86]">
-                      Target Line: <strong>{dept.split('(')[0]}</strong>
+                      Target Floor: <strong>{dept.split('(')[0]}</strong>
                     </div>
                   </div>
 
-                  {/* Assign Floor Painter */}
+                  {/* Assign Painter */}
                   <div className="space-y-1.5">
                     <label className="block text-[10.5px] font-bold text-[#777b86] uppercase font-mono">
                       Assign Floor Painter (Max 2 Jobs) *
@@ -773,7 +1018,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         setPainterName(e.target.value);
                         if (selectedP) setAssignedPainterId(selectedP.id);
                       }}
-                      className="w-full h-10 px-3.5 rounded-[12px] border border-[#dcdfe4] bg-white font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer shadow-2xs"
+                      className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-white font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer shadow-2xs"
                     >
                       {painters.map(p => {
                         const count = getPainterActiveJobCount ? getPainterActiveJobCount(p.id) : 0;
@@ -786,73 +1031,21 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       })}
                     </select>
                     <div className="text-[10px] text-[#777b86] font-mono">
-                      Booth: {painters.find(p => p.name === painterName)?.boothNo || 'Booth #1'}
+                      Assigned Booth: {painters.find(p => p.name === painterName)?.boothNo || 'Booth #1'}
                     </div>
                   </div>
                 </div>
 
-                {/* Second row: Part Code, Work Order & Lead Time */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase font-mono">
-                      Part Code (OEM Spec) *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={partCode}
-                      onChange={e => setPartCode(e.target.value)}
-                      placeholder="e.g. RP-8841 / MS-VENT-01"
-                      className="w-full h-9 px-3 rounded-[12px] border border-[#dcdfe4] bg-white font-mono font-bold text-xs text-[#17191c]"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase font-mono">
-                      Work Order Ref (W.No) *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={wNo}
-                      onChange={e => setWNo(e.target.value)}
-                      className="w-full h-9 px-3 rounded-[12px] border border-[#dcdfe4] bg-white font-mono font-bold text-xs text-[#17191c]"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase font-mono">
-                      Issue Date & Time *
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="date"
-                        required
-                        value={issueDate}
-                        onChange={e => setIssueDate(e.target.value)}
-                        className="w-full h-9 px-2.5 rounded-[12px] border border-[#dcdfe4] bg-white text-xs"
-                      />
-                      <input
-                        type="text"
-                        required
-                        value={issueTime}
-                        onChange={e => setIssueTime(e.target.value)}
-                        className="w-24 h-9 px-2.5 rounded-[12px] border border-[#dcdfe4] bg-white text-xs text-center font-mono"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Third Row: Target SLA Completion Time & Profile On-Time Guardrail */}
+                {/* SLA Target Duration & Deadline */}
                 <div className="p-3.5 bg-white rounded-[16px] border border-[#f4e5be] space-y-2.5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <label className="block text-[10.5px] font-bold text-[#8a6521] uppercase font-mono flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5 text-[#8a6521]" />
-                        <span>Target SLA Completion Duration (Time Limit to Close Job) *</span>
+                        <span>Target SLA Completion Duration (Time Limit to Finish Job) *</span>
                       </label>
                       <p className="text-[11px] text-[#777b86]">
-                        Agar job card is time me close nahi hua, toh Painter Profile me <strong>"Delayed Job (Time se nahi hua)"</strong> mark lag jayega.
+                        Time limit for painter. Job finish hone ke baad ye direct <strong>Packing & Quality Inspection</strong> stage me transfer hoga.
                       </p>
                     </div>
 
@@ -870,7 +1063,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     </div>
                   </div>
 
-                  {/* Preset Duration Pills */}
+                  {/* Preset SLA Duration Chips */}
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#ececec]">
                     <div className="flex flex-wrap items-center gap-1.5">
                       {[
@@ -904,13 +1097,13 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               </div>
 
               {/* ========================================================================= */}
-              {/* SECTION 3: REQUIRED INTERNAL CHEMICALS & PAINTS DEMAND (MRN)              */}
+              {/* STEP 3: STORE CHEMICAL & PAINT REQUISITION (MRN)                          */}
               {/* ========================================================================= */}
               <div className="space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#ececec] pb-2">
                   <div>
                     <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono">
-                      3. Internal Material Requirements (Paints, Thinners & Chemicals)
+                      Step 3: Internal Material Requirements (Paints, Thinners & Chemicals)
                     </span>
                     <p className="text-xs text-[#777b86]">
                       Store will issue these chemicals against this Job Card via Material Issue Note (MIN)
@@ -1010,90 +1203,92 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               </div>
 
               {/* ========================================================================= */}
-              {/* SECTION 4: 3-STAGE INTER-STAGE PROCESS VERIFICATION                       */}
+              {/* SECTION 4: 3-STAGE INTER-STAGE PROCESS VERIFICATION (ACTIVE CARDS ONLY)   */}
               {/* ========================================================================= */}
-              <div className="bg-[#fafafb] p-4.5 sm:p-5 rounded-[20px] border border-[#ececec] space-y-3.5 shadow-2xs">
-                <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono block">
-                  4. 3-Stage Process Verification Checkpoints (Target: {targetQty} Pcs)
-                </span>
+              {isExistingCard && (
+                <div className="bg-[#fafafb] p-4.5 sm:p-5 rounded-[20px] border border-[#ececec] space-y-3.5 shadow-2xs">
+                  <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono block">
+                    4. 3-Stage Process Verification Checkpoints (Target: {targetQty} Pcs)
+                  </span>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-                  {/* Stage 1 */}
-                  <div className="bg-white p-3.5 rounded-[16px] border border-[#ececec] space-y-1.5">
-                    <span className="font-bold text-xs text-[#17191c] block">Stage 1: Basecoat Application</span>
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div>
-                        <span className="text-[9px] text-[#777b86] block">Inward</span>
-                        <input
-                          type="number"
-                          value={firstStage.totalQty}
-                          onChange={e => setFirstStage({ ...firstStage, totalQty: Number(e.target.value) })}
-                          className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold"
-                        />
-                      </div>
-                      <div>
-                        <span className="text-[9px] text-[#777b86] block">OK Passed</span>
-                        <input
-                          type="number"
-                          value={firstStage.okQty}
-                          onChange={e => setFirstStage({ ...firstStage, okQty: Number(e.target.value) })}
-                          className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold text-emerald-800"
-                        />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                    {/* Stage 1 */}
+                    <div className="bg-white p-3.5 rounded-[16px] border border-[#ececec] space-y-1.5">
+                      <span className="font-bold text-xs text-[#17191c] block">Stage 1: Basecoat Application</span>
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        <div>
+                          <span className="text-[9px] text-[#777b86] block">Inward</span>
+                          <input
+                            type="number"
+                            value={firstStage.totalQty}
+                            onChange={e => setFirstStage({ ...firstStage, totalQty: Number(e.target.value) })}
+                            className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-[#777b86] block">OK Passed</span>
+                          <input
+                            type="number"
+                            value={firstStage.okQty}
+                            onChange={e => setFirstStage({ ...firstStage, okQty: Number(e.target.value) })}
+                            className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold text-emerald-800"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Stage 2 */}
-                  <div className="bg-white p-3.5 rounded-[16px] border border-[#ececec] space-y-1.5">
-                    <span className="font-bold text-xs text-[#17191c] block">Stage 2: Dipping / UV Pattern</span>
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div>
-                        <span className="text-[9px] text-[#777b86] block">Inward</span>
-                        <input
-                          type="number"
-                          value={secondStage.totalQty}
-                          onChange={e => setSecondStage({ ...secondStage, totalQty: Number(e.target.value) })}
-                          className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold"
-                        />
-                      </div>
-                      <div>
-                        <span className="text-[9px] text-[#777b86] block">OK Passed</span>
-                        <input
-                          type="number"
-                          value={secondStage.okQty}
-                          onChange={e => setSecondStage({ ...secondStage, okQty: Number(e.target.value) })}
-                          className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold text-emerald-800"
-                        />
+                    {/* Stage 2 */}
+                    <div className="bg-white p-3.5 rounded-[16px] border border-[#ececec] space-y-1.5">
+                      <span className="font-bold text-xs text-[#17191c] block">Stage 2: Dipping / UV Pattern</span>
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        <div>
+                          <span className="text-[9px] text-[#777b86] block">Inward</span>
+                          <input
+                            type="number"
+                            value={secondStage.totalQty}
+                            onChange={e => setSecondStage({ ...secondStage, totalQty: Number(e.target.value) })}
+                            className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-[#777b86] block">OK Passed</span>
+                          <input
+                            type="number"
+                            value={secondStage.okQty}
+                            onChange={e => setSecondStage({ ...secondStage, okQty: Number(e.target.value) })}
+                            className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold text-emerald-800"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Stage 3 */}
-                  <div className="bg-white p-3.5 rounded-[16px] border border-[#ececec] space-y-1.5">
-                    <span className="font-bold text-xs text-[#17191c] block">Stage 3: Clear Lacquer Curing</span>
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div>
-                        <span className="text-[9px] text-[#777b86] block">Inward</span>
-                        <input
-                          type="number"
-                          value={thirdStage.totalQty}
-                          onChange={e => setThirdStage({ ...thirdStage, totalQty: Number(e.target.value) })}
-                          className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold"
-                        />
-                      </div>
-                      <div>
-                        <span className="text-[9px] text-[#777b86] block">OK Passed</span>
-                        <input
-                          type="number"
-                          value={thirdStage.okQty}
-                          onChange={e => setThirdStage({ ...thirdStage, okQty: Number(e.target.value) })}
-                          className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold text-emerald-800"
-                        />
+                    {/* Stage 3 */}
+                    <div className="bg-white p-3.5 rounded-[16px] border border-[#ececec] space-y-1.5">
+                      <span className="font-bold text-xs text-[#17191c] block">Stage 3: Clear Lacquer Curing</span>
+                      <div className="grid grid-cols-2 gap-2 text-[11px]">
+                        <div>
+                          <span className="text-[9px] text-[#777b86] block">Inward</span>
+                          <input
+                            type="number"
+                            value={thirdStage.totalQty}
+                            onChange={e => setThirdStage({ ...thirdStage, totalQty: Number(e.target.value) })}
+                            className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-[#777b86] block">OK Passed</span>
+                          <input
+                            type="number"
+                            value={thirdStage.okQty}
+                            onChange={e => setThirdStage({ ...thirdStage, okQty: Number(e.target.value) })}
+                            className="w-full h-8 px-2 border border-[#dcdfe4] rounded-lg font-mono font-bold text-emerald-800"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* ACTION BUTTON BAR (NO BLACK BUTTONS) */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-[#ececec]">
@@ -1103,6 +1298,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </span>
                   <span>•</span>
                   <span>Painter: <strong className="text-[#17191c]">{painterName}</strong></span>
+                  <span>•</span>
+                  <span>Line: <strong className="text-[#17191c]">{dept.split('(')[0]}</strong></span>
                 </div>
 
                 <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
@@ -1123,7 +1320,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     }`}
                   >
                     <Save className="w-4 h-4 text-[#8a6521]" />
-                    <span>Create Master Job Card & Demand Chemicals</span>
+                    <span>{isExistingCard ? 'Save Job Card Updates' : '🚀 Launch Job Card & Demand Chemicals'}</span>
                   </button>
                 </div>
               </div>

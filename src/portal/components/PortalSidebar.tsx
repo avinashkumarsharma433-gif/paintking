@@ -141,7 +141,6 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
         { label: '3-Painter Splits (P1 / P2 / P3)', subTab: 'PAINTERS' },
         { label: 'Rework & Salvage Recovery', subTab: 'REWORK' },
         { label: 'Store Demands & Arriving (MRN)', subTab: 'REQUISITIONS' },
-        { label: 'Available Store Stock', subTab: 'STORE_STOCK' },
         { label: 'Painting Lines & Spray Booth Fleet', subTab: 'BOOTH_FLEET' }
       ]
     },
