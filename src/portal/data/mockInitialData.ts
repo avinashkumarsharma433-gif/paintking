@@ -429,15 +429,37 @@ export const INITIAL_GRN_DATA: GoodsReceiptNote[] = [
         id: 'grn_item_1',
         partCode: 'RP-8841',
         partDescription: 'Auto AC Center Vent Bezel Substrate (ABS)',
-        invoicedQty: 1000,
-        actualReceivedQty: 1000,
+        invoicedQty: 1500,
+        actualReceivedQty: 1500,
         shortExcessQty: 0,
-        okByIqcQty: 990,
-        rejectionQty: 10,
-        remark: '10 pcs found with surface scratches at IQC stage'
+        okByIqcQty: 1500,
+        rejectionQty: 0,
+        remark: '100% passed dimensional and adhesion checks'
+      },
+      {
+        id: 'grn_item_2',
+        partCode: 'RP-8842',
+        partDescription: 'Side Louver Bezel Left Substrate (ABS)',
+        invoicedQty: 800,
+        actualReceivedQty: 800,
+        shortExcessQty: 0,
+        okByIqcQty: 800,
+        rejectionQty: 0,
+        remark: '100% passed visual IQC inspection'
+      },
+      {
+        id: 'grn_item_3',
+        partCode: 'RP-8843',
+        partDescription: 'Side Louver Bezel Right Substrate (ABS)',
+        invoicedQty: 800,
+        actualReceivedQty: 800,
+        shortExcessQty: 0,
+        okByIqcQty: 800,
+        rejectionQty: 0,
+        remark: '100% passed visual IQC inspection'
       }
     ],
-    totalQty: 1000,
+    totalQty: 3100,
     iqcStatus: 'Accepted',
     storeIncharge: 'Manoj Tiwari',
     qualityApprovedBy: 'Amit Verma (QA)',

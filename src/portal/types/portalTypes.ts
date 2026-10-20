@@ -284,6 +284,18 @@ export interface IssuedMaterialItem {
   remark?: string;
 }
 
+export interface JobCardMaterialAllocation {
+  id?: string;
+  partCode: string;
+  partDescription: string;
+  grnTotalQty: number;
+  alreadyAllocatedQty: number;
+  availableQty: number;
+  allocatedQty: number;
+  color: string;
+  uom?: string;
+}
+
 export interface ProcessStageCount {
   totalQty: number;
   okQty: number;
@@ -368,6 +380,7 @@ export interface JobCard {
   samplingRecipe?: SamplingRecipeSheet;
   samplingApproval?: SamplingPartyApproval;
   progressLogs?: JobCardProductionProgressLog[];
+  materialAllocations?: JobCardMaterialAllocation[];
   docNo?: string;           // "Doc No: 001"
   revNo?: string;           // "00"
   revDate?: string;
