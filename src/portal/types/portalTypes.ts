@@ -360,15 +360,35 @@ export interface SamplingPartyApproval {
   approvedByPartyPerson?: string;
 }
 
+export type CoatingProcessStage = 
+  | 'stage_1_primer'      // Primer Undercoat / Pre-Treatment
+  | 'stage_2_basecoat'    // Basecoat Colour Coat / Hydrographic Immersion
+  | 'stage_3_topcoat';    // Clear Topcoat / Final Baking & QC
+
+export type JobCardActionType = 
+  | 'BATCH_OUTPUT'         // Production batch sprayed/logged
+  | 'MATERIAL_ISSUED'      // Additional paint, solvent or consumable issued
+  | 'JOB_CREATED'          // Initial job card created & launched
+  | 'STATUS_CHANGE'        // Status transitioned (e.g. Target Met)
+  | 'DETAILS_UPDATED';     // Modifications to deadline, booth, painter, etc.
+
 export interface JobCardProductionProgressLog {
   id: string;
   timestamp: string; // ISO string
-  timeLabel: string; // e.g. "14:15"
-  dateLabel: string; // e.g. "20-10-2026"
+  timeLabel: string; // e.g. "04:45 PM"
+  dateLabel: string; // e.g. "27-10-2026"
+  actionType?: JobCardActionType;
+  actionTitle?: string;
+  exactChanges?: string[]; // Detailed list of exact updates performed
   piecesCompleted: number; // pieces finished in this slot
+  goodPieces?: number; // good pieces passed in this slot
   cumulativeGoodQty: number; // running good total
   reworkPieces?: number;
   scrapPieces?: number;
+  defectCategory?: DefectCategory;
+  defectReason?: string;
+  processStage?: CoatingProcessStage;
+  stageName?: string;
   painterName: string;
   boothNo?: string;
   recordedBy: string;
@@ -381,6 +401,12 @@ export interface JobCard {
   samplingApproval?: SamplingPartyApproval;
   progressLogs?: JobCardProductionProgressLog[];
   materialAllocations?: JobCardMaterialAllocation[];
+  primerCompletedQty?: number;
+  primerRejectQty?: number;
+  basecoatCompletedQty?: number;
+  basecoatRejectQty?: number;
+  topcoatCompletedQty?: number;
+  topcoatRejectQty?: number;
   docNo?: string;           // "Doc No: 001"
   revNo?: string;           // "00"
   revDate?: string;
@@ -429,8 +455,12 @@ export interface JobCard {
   reworkStatus?: 'Pending Sanding' | 'In Re-spray' | 'In Oven Re-bake' | 'Passed QC' | 'Scrapped';
 
   // SLA & Sequential Gate Control
+  processType?: string;
   slaHours?: number;
   slaDeadline?: string;
+  deadlineDate?: string;
+  deadlineTime?: string;
+  remainingQty?: number;
   isSlaBreached?: boolean;
   sourceGrnNo?: string;
   iqcApproved?: boolean;
@@ -1174,6 +1204,7 @@ export interface PlantHeadPriorityAssignment {
   partDescription: string;
   color?: string;
   availableQty: number;
+  totalOrderQty?: number;
   uom: string;
   priorityLevel: ProductionPriorityLevel; // P1_URGENT, P2_HIGH, P3_NORMAL, HOLD
   targetDate: string;

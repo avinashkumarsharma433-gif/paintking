@@ -825,22 +825,38 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const addJobCardProgressLog = (jobCardNo: string, log: Omit<JobCardProductionProgressLog, 'id' | 'timestamp'>) => {
     const now = new Date();
+    const defaultDate = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+    const defaultTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+
     const newLog: JobCardProductionProgressLog = {
       ...log,
       id: `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       timestamp: now.toISOString(),
-      timeLabel: log.timeLabel || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      dateLabel: log.dateLabel || now.toISOString().split('T')[0]
+      timeLabel: log.timeLabel || defaultTime,
+      dateLabel: log.dateLabel || defaultDate
     };
 
     setJobCards(prev => prev.map(jc => {
       if (jc.jobCardNo !== jobCardNo) return jc;
 
       const updatedLogs = [newLog, ...(jc.progressLogs || [])];
-      const newSprayed = (jc.sprayedQty || 0) + log.piecesCompleted;
-      const netGood = log.piecesCompleted - (log.reworkPieces || 0) - (log.scrapPieces || 0);
-      const newGood = Math.max(0, (jc.goodQty || 0) + Math.max(0, netGood));
+      
+      const isStage1 = log.processStage === 'stage_1_primer';
+      const isStage2 = log.processStage === 'stage_2_basecoat';
+      const isStage3 = log.processStage === 'stage_3_topcoat' || !log.processStage;
+
+      const primerCompleted = (jc.primerCompletedQty || 0) + (isStage1 ? log.piecesCompleted : 0);
+      const primerReject = (jc.primerRejectQty || 0) + (isStage1 ? (log.reworkPieces || 0) : 0);
+      const basecoatCompleted = (jc.basecoatCompletedQty || 0) + (isStage2 ? log.piecesCompleted : 0);
+      const basecoatReject = (jc.basecoatRejectQty || 0) + (isStage2 ? (log.reworkPieces || 0) : 0);
+      const topcoatCompleted = (jc.topcoatCompletedQty || 0) + (isStage3 ? log.piecesCompleted : 0);
+      const topcoatReject = (jc.topcoatRejectQty || 0) + (isStage3 ? (log.reworkPieces || 0) : 0);
+
+      const newSprayed = (jc.sprayedQty || 0) + (isStage3 ? log.piecesCompleted : 0);
+      const netGood = log.goodPieces !== undefined ? log.goodPieces : (log.piecesCompleted - (log.reworkPieces || 0) - (log.scrapPieces || 0));
+      const newGood = isStage3 ? Math.max(0, (jc.goodQty || 0) + Math.max(0, netGood)) : (jc.goodQty || 0);
       const newReject = (jc.rejectQty || 0) + (log.reworkPieces || 0) + (log.scrapPieces || 0);
+      const remaining = Math.max(0, (jc.targetQty || 0) - newGood);
       
       let nextStatus = jc.status;
       if (newGood >= jc.targetQty) {
@@ -854,6 +870,13 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         sprayedQty: newSprayed,
         goodQty: newGood,
         rejectQty: newReject,
+        remainingQty: remaining,
+        primerCompletedQty: primerCompleted,
+        primerRejectQty: primerReject,
+        basecoatCompletedQty: basecoatCompleted,
+        basecoatRejectQty: basecoatReject,
+        topcoatCompletedQty: topcoatCompleted,
+        topcoatRejectQty: topcoatReject,
         status: nextStatus,
         progressLogs: updatedLogs
       };

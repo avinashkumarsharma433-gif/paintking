@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { BillingInvoice, MaterialInwardRecord, MaterialOutwardRecord, IQCInspectionRecord, GoodsReceiptNote, FPARecord, IPQCRecord, PreProductionInspectionRecord } from '../types/portalTypes';
+import { JobCard, BillingInvoice, MaterialInwardRecord, MaterialOutwardRecord, IQCInspectionRecord, GoodsReceiptNote, FPARecord, IPQCRecord, PreProductionInspectionRecord } from '../types/portalTypes';
 import { PAINTKING_LOGO_BASE64 } from './paintkingLogoBase64';
 
 export const TABLE_BORDER_COLOR = [180, 185, 195] as const;
@@ -3729,4 +3729,311 @@ export const downloadStandardPreProductionPdf = (pir: PreProductionInspectionRec
   );
 
   doc.save(`PaintKing_PreProduction_Report_${pir.reportNo}.pdf`);
+};
+
+
+/**
+ * Official Shop Floor Production Job Card Handover Slip PDF
+ * Handed to the floor painter with target pieces, colour shade, booth & issued materials.
+ */
+export const downloadStandardJobCardPdf = (jobCard: JobCard): void => {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const MARGIN_X = 14;
+  const PAGE_WIDTH = 210;
+  const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_X * 2; // 182mm
+
+  // 1. STANDARD HEADER
+  const startY = drawStandardPdfHeader(doc);
+
+  // 2. DOCUMENT TITLE STRIP
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(23, 25, 28);
+  doc.text('SHOP FLOOR PRODUCTION JOB CARD (HANDOVER SLIP)', MARGIN_X, startY + 5);
+
+  // Job Card Reference Badge on Right
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(192, 151, 72); // Brand Accent Gold #c09748
+  doc.text(`JOB CARD: ${jobCard.jobCardNo}`, PAGE_WIDTH - MARGIN_X, startY + 5, { align: 'right' });
+
+  // 3. SECTION 1: CORE HANDOVER METADATA GRID (4 Rows)
+  const metaY = startY + 8;
+  const metaH = 50;
+  doc.setDrawColor(TABLE_BORDER_COLOR[0], TABLE_BORDER_COLOR[1], TABLE_BORDER_COLOR[2]);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.setFillColor(250, 250, 251);
+  doc.roundedRect(MARGIN_X, metaY, CONTENT_WIDTH, metaH, 2.5, 2.5, 'FD');
+
+  const c1X = MARGIN_X + 4;
+  const c2X = MARGIN_X + 64;
+  const c3X = MARGIN_X + 124;
+
+  const drawField = (label: string, value: string, x: number, lY: number, vY: number, maxW: number = 55, isHighlight = false) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(23, 25, 28);
+    doc.text(label.toUpperCase(), x, lY);
+
+    if (isHighlight) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(138, 101, 33); // #8a6521 deep gold
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.8);
+      doc.setTextColor(70, 75, 85);
+    }
+    const lines = doc.splitTextToSize(value || '-', maxW);
+    doc.text(lines.slice(0, 2), x, vY);
+  };
+
+  // Row 1
+  drawField('CUSTOMER / PARTY NAME', jobCard.customer, c1X, metaY + 4.5, metaY + 8.5, 56);
+  drawField('DELIVERY CHALLAN / WO REF', jobCard.woNo || jobCard.wNo || '-', c2X, metaY + 4.5, metaY + 8.5, 56);
+  drawField('LINKED GRN IDENTIFICATION', jobCard.sourceGrnNo || 'PK-GRN-VERIFIED', c3X, metaY + 4.5, metaY + 8.5, 52);
+
+  // Row 2
+  drawField('PART CODE', jobCard.partCode, c1X, metaY + 16.5, metaY + 20.5, 56);
+  drawField('DESCRIPTION & SUBSTRATE', jobCard.partDescription, c2X, metaY + 16.5, metaY + 20.5, 56);
+  drawField('FINISHING PROCESS', jobCard.processType || 'Liquid PU Spray Painting', c3X, metaY + 16.5, metaY + 20.5, 52);
+
+  // Row 3: Target Pieces & Finish Shade
+  drawField('TARGET PIECES (QUANTITY)', `${(jobCard.targetQty || 0).toLocaleString('en-IN')} Pieces`, c1X, metaY + 28.5, metaY + 32.5, 56, true);
+  drawField('TARGET COLOUR / FINISH SHADE', jobCard.color || 'Standard', c2X, metaY + 28.5, metaY + 32.5, 56, true);
+  drawField('STRICT COMPLETION DEADLINE', `${jobCard.deadlineDate || '2026-10-21'} • ${jobCard.deadlineTime || '05:30 PM'}`, c3X, metaY + 28.5, metaY + 32.5, 52);
+
+  // Row 4: Floor Assignment
+  drawField('ASSIGNED FLOOR PAINTER', jobCard.assignedPainterName || jobCard.painterName || 'Floor Painter', c1X, metaY + 40.5, metaY + 44.5, 56);
+  drawField('PAINTING BOOTH / LINE', jobCard.dept || 'Booth #1 Continuous Conveyor Line', c2X, metaY + 40.5, metaY + 44.5, 56);
+  drawField('PRODUCTION SUPERVISOR', jobCard.prodSupervisor || 'Vikram Patel', c3X, metaY + 40.5, metaY + 44.5, 52);
+
+  // 4. SECTION 2: COMPANY ISSUED MATERIALS & CONSUMABLES TABLE
+  let currentY = metaY + metaH + 6;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text('COMPANY ISSUED PAINTS & CONSUMABLES', MARGIN_X, currentY);
+
+  currentY += 3.5;
+  const colPositions = [MARGIN_X, MARGIN_X + 10, MARGIN_X + 80, MARGIN_X + 102, MARGIN_X + 128];
+  const tableHeaders = ['#', 'MATERIAL DESCRIPTION & SPECIFICATION', 'QTY', 'UOM', 'REMARK / MIX RATIO'];
+
+  // Table Header
+  doc.setFillColor(242, 242, 243);
+  doc.rect(MARGIN_X, currentY, CONTENT_WIDTH, 6.5, 'F');
+  doc.setDrawColor(TABLE_BORDER_COLOR[0], TABLE_BORDER_COLOR[1], TABLE_BORDER_COLOR[2]);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.rect(MARGIN_X, currentY, CONTENT_WIDTH, 6.5, 'S');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.0);
+  doc.setTextColor(23, 25, 28);
+  tableHeaders.forEach((h, idx) => {
+    doc.text(h, colPositions[idx] + 2, currentY + 4.5);
+  });
+
+  currentY += 6.5;
+
+  const materials = jobCard.issuedMaterials && jobCard.issuedMaterials.length > 0
+    ? jobCard.issuedMaterials
+    : [
+        { id: '1', itemDescription: `${jobCard.color || 'Basecoat'} 2K PU Basecoat Paint`, qty: Math.max(1, Math.ceil(((jobCard.targetQty || 250) / 500) * 8)), uom: 'Litres', remark: 'Mix Ratio 4:1:1 with Hardener' },
+        { id: '2', itemDescription: 'PU Thinner 400 Solvent', qty: Math.max(1, Math.ceil(((jobCard.targetQty || 250) / 500) * 3)), uom: 'Litres', remark: 'Viscosity control solvent' },
+        { id: '3', itemDescription: '2K Scratch-Resistant Hardener', qty: Math.max(1, Math.ceil(((jobCard.targetQty || 250) / 500) * 2)), uom: 'Litres', remark: 'Reaction curing catalyst' }
+      ];
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+
+  materials.forEach((m, idx) => {
+    const isEven = idx % 2 === 1;
+    if (isEven) {
+      doc.setFillColor(250, 250, 251);
+      doc.rect(MARGIN_X, currentY, CONTENT_WIDTH, 6.5, 'F');
+    }
+    doc.setDrawColor(TABLE_BORDER_COLOR[0], TABLE_BORDER_COLOR[1], TABLE_BORDER_COLOR[2]);
+    doc.setLineWidth(TABLE_LINE_WIDTH);
+    doc.rect(MARGIN_X, currentY, CONTENT_WIDTH, 6.5, 'S');
+
+    doc.setTextColor(23, 25, 28);
+    doc.text(String(idx + 1), colPositions[0] + 2, currentY + 4.5);
+    doc.text(doc.splitTextToSize(m.itemDescription || '-', 66)[0], colPositions[1] + 2, currentY + 4.5);
+    doc.text(String(m.qty || '-'), colPositions[2] + 2, currentY + 4.5);
+    doc.text(m.uom || 'Litres', colPositions[3] + 2, currentY + 4.5);
+    doc.setTextColor(70, 75, 85);
+    doc.text(doc.splitTextToSize(m.remark || '-', 50)[0], colPositions[4] + 2, currentY + 4.5);
+
+    currentY += 6.5;
+  });
+
+  // 5. SECTION 3: 3-STAGE COATING PROCESS EXECUTION & INTERMEDIATE QC CHECKLIST
+  currentY += 5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text('3-STAGE COATING PROCESS EXECUTION & INTERMEDIATE QC CHECKLIST', MARGIN_X, currentY);
+
+  currentY += 3.5;
+  const stageColX = [MARGIN_X, MARGIN_X + 8, MARGIN_X + 64, MARGIN_X + 115, MARGIN_X + 148];
+  const stageHeaders = ['#', 'COATING PROCESS STAGE', 'APPLICATION CRITERIA', 'OPERATOR SIGN / TIME', 'IPQC OK / REJ TALLY'];
+
+  doc.setFillColor(242, 242, 243);
+  doc.rect(MARGIN_X, currentY, CONTENT_WIDTH, 6, 'F');
+  doc.setDrawColor(TABLE_BORDER_COLOR[0], TABLE_BORDER_COLOR[1], TABLE_BORDER_COLOR[2]);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.rect(MARGIN_X, currentY, CONTENT_WIDTH, 6, 'S');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(23, 25, 28);
+  stageHeaders.forEach((h, idx) => {
+    doc.text(h, stageColX[idx] + 2, currentY + 4.2);
+  });
+
+  currentY += 6;
+
+  const pdfStages = [
+    { 
+      num: '1', 
+      name: 'Stage 1: Pre-Treatment & Primer', 
+      spec: 'IPA wipe + Adhesion primer (15-20u DFT)', 
+      op: '[   ] Operator Sign', 
+      qc: `OK: ${jobCard.primerCompletedQty ? jobCard.primerCompletedQty - (jobCard.primerRejectQty || 0) : '____'} / Rej: ${jobCard.primerRejectQty || '____'}` 
+    },
+    { 
+      num: '2', 
+      name: 'Stage 2: Basecoat Colour', 
+      spec: `Shade: ${jobCard.color || 'Standard'} (2 coats, 8m flash)`, 
+      op: '[   ] Operator Sign', 
+      qc: `OK: ${jobCard.basecoatCompletedQty ? jobCard.basecoatCompletedQty - (jobCard.basecoatRejectQty || 0) : '____'} / Rej: ${jobCard.basecoatRejectQty || '____'}` 
+    },
+    { 
+      num: '3', 
+      name: 'Stage 3: 2K Clear & Final QC', 
+      spec: '2K PU Clear topcoat + 65°C oven bake 30m', 
+      op: '[   ] Operator Sign', 
+      qc: `OK: ${jobCard.goodQty || '____'} / Rej: ${jobCard.rejectQty || '____'}` 
+    }
+  ];
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.0);
+  pdfStages.forEach((s, idx) => {
+    if (idx % 2 === 1) {
+      doc.setFillColor(250, 250, 251);
+      doc.rect(MARGIN_X, currentY, CONTENT_WIDTH, 5.8, 'F');
+    }
+    doc.setDrawColor(TABLE_BORDER_COLOR[0], TABLE_BORDER_COLOR[1], TABLE_BORDER_COLOR[2]);
+    doc.setLineWidth(TABLE_LINE_WIDTH);
+    doc.rect(MARGIN_X, currentY, CONTENT_WIDTH, 5.8, 'S');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(23, 25, 28);
+    doc.text(s.num, stageColX[0] + 2, currentY + 4);
+    doc.text(s.name, stageColX[1] + 2, currentY + 4);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(70, 75, 85);
+    doc.text(s.spec, stageColX[2] + 2, currentY + 4);
+    doc.text(s.op, stageColX[3] + 2, currentY + 4);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(138, 101, 33);
+    doc.text(s.qc, stageColX[4] + 2, currentY + 4);
+
+    currentY += 5.8;
+  });
+
+  // 6. SECTION 4: SHOP FLOOR DIRECTIVES & ASTM CHECKPOINTS
+  currentY += 4;
+  doc.setFillColor(250, 247, 237); // Champagne-50
+  doc.setDrawColor(244, 229, 190);
+  doc.roundedRect(MARGIN_X, currentY, CONTENT_WIDTH, 18, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(138, 101, 33); // Deep Gold
+  doc.text('SHOP FLOOR DIRECTIVES & ASTM ADHESION QUALITY GUIDELINES:', MARGIN_X + 4, currentY + 4.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.8);
+  doc.setTextColor(23, 25, 28);
+  doc.text('1. Substrates must be completely wiped with IPA lint-free wipes prior to conveyor jigging. Inspect for flash burrs.', MARGIN_X + 4, currentY + 8.5);
+  doc.text('2. Spray gun fluid pressure 2.0-2.5 bar, booth temp 24°C ± 2°C. Maintain 8-10 mins flash-off time before clearcoat.', MARGIN_X + 4, currentY + 12);
+  doc.text('3. Cross-hatch adhesion ASTM 5B test required on 1st sample. Count and record ok pieces in bin trolley card.', MARGIN_X + 4, currentY + 15.5);
+
+  // 7. SECTION 5: THREE SIGNATURE BLOCKS
+  currentY += 22;
+  const sigColW = CONTENT_WIDTH / 3;
+
+  doc.setDrawColor(TABLE_BORDER_COLOR[0], TABLE_BORDER_COLOR[1], TABLE_BORDER_COLOR[2]);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.setFillColor(250, 250, 251);
+  doc.roundedRect(MARGIN_X, currentY, CONTENT_WIDTH, 22, 2, 2, 'FD');
+
+  // Dividers
+  doc.line(MARGIN_X + sigColW, currentY, MARGIN_X + sigColW, currentY + 22);
+  doc.line(MARGIN_X + sigColW * 2, currentY, MARGIN_X + sigColW * 2, currentY + 22);
+
+  // Sig 1: Production Supervisor
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(23, 25, 28);
+  doc.text('ISSUED BY (PRODUCTION SUP.)', MARGIN_X + 3, currentY + 5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.0);
+  doc.setTextColor(138, 101, 33);
+  doc.text(jobCard.prodSupervisor || 'Vikram Patel', MARGIN_X + 3, currentY + 13);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(70, 75, 85);
+  doc.text('Production Floor Manager', MARGIN_X + 3, currentY + 17);
+
+  // Sig 2: Floor Painter
+  const s2X = MARGIN_X + sigColW;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(23, 25, 28);
+  doc.text('RECEIVED BY (FLOOR PAINTER)', s2X + 3, currentY + 5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.0);
+  doc.setTextColor(23, 25, 28);
+  doc.text(jobCard.assignedPainterName || jobCard.painterName || 'Floor Painter', s2X + 3, currentY + 13);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(70, 75, 85);
+  doc.text('Shop Floor Coating Tech', s2X + 3, currentY + 17);
+
+  // Sig 3: Quality Lead
+  const s3X = MARGIN_X + sigColW * 2;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(23, 25, 28);
+  doc.text('VERIFIED BY (QUALITY IPQC)', s3X + 3, currentY + 5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.0);
+  doc.setTextColor(23, 25, 28);
+  doc.text(jobCard.checkingPerson || 'Amit Verma', s3X + 3, currentY + 13);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(70, 75, 85);
+  doc.text('Lead Quality Inspector', s3X + 3, currentY + 17);
+
+  // 7. FOOTER
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(130, 135, 145);
+  doc.text(`Official Job Card generated via PaintKing Surface OS on ${dateStr} at ${timeStr} IST • ISO 9001:2015 Certified Plant`, MARGIN_X, 287);
+  doc.text(`Doc Ref: ${jobCard.docNo || '001'} | Rev: ${jobCard.revNo || '01'} | Page 1 of 1`, PAGE_WIDTH - MARGIN_X, 287, { align: 'right' });
+
+  doc.save(`PaintKing_JobCard_${jobCard.jobCardNo}.pdf`);
 };

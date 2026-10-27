@@ -162,46 +162,6 @@ export const INITIAL_USER_PROFILES: UserProfile[] = [
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'
   },
   {
-    id: 'usr_operator_1',
-    name: 'Ramesh Kumar (P1)',
-    role: 'OPERATOR',
-    roleTitle: 'Booth #1 Robotic Line Painter (P1)',
-    plant: 'Haridwar',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80'
-  },
-  {
-    id: 'usr_operator_2',
-    name: 'Suresh Verma (P2)',
-    role: 'OPERATOR',
-    roleTitle: 'Booth #2 Dipping & Immersion Painter (P2)',
-    plant: 'Haridwar',
-    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80'
-  },
-  {
-    id: 'usr_operator_3',
-    name: 'Mahesh Sharma (P3)',
-    role: 'OPERATOR',
-    roleTitle: 'Booth #3 UV Flatbed & Topcoat Painter (P3)',
-    plant: 'Haridwar',
-    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80'
-  },
-  {
-    id: 'usr_operator_4',
-    name: 'Kailash Yadav',
-    role: 'OPERATOR',
-    roleTitle: 'Senior 2K Polyurethane Coating Tech',
-    plant: 'Haridwar',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80'
-  },
-  {
-    id: 'usr_operator_5',
-    name: 'Raju Painter',
-    role: 'OPERATOR',
-    roleTitle: 'Master Booth Painter (W.No. 42)',
-    plant: 'Haridwar',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80'
-  },
-  {
     id: 'usr_hr_1',
     name: 'Pooja Mehra',
     role: 'HR',
@@ -952,7 +912,78 @@ export const INITIAL_JOB_CARDS: JobCard[] = [
       }
     ],
     boothNo: 'Booths #1, #2, #3',
-    paintBatch: 'BAT-PPG-2609-R4'
+    paintBatch: 'BAT-PPG-2609-R4',
+    progressLogs: [
+      {
+        id: 'LOG-1042-3',
+        timestamp: '2026-10-27T14:30:00.000Z',
+        dateLabel: '27-10-2026',
+        timeLabel: '02:30 PM',
+        actionType: 'BATCH_OUTPUT',
+        actionTitle: 'Stage 3 Clear Topcoat: Batch of 500 Pcs Processed',
+        piecesCompleted: 500,
+        goodPieces: 485,
+        cumulativeGoodQty: 1875,
+        reworkPieces: 15,
+        scrapPieces: 0,
+        defectCategory: 'dust_nibs',
+        defectReason: 'Dust Nibs / Air Lint (D01)',
+        processStage: 'stage_3_topcoat',
+        stageName: 'Stage 3: 2K PU Clear Lacquer & Oven Cure',
+        painterName: 'Ramesh Kumar (P1)',
+        boothNo: 'Booth #1',
+        recordedBy: 'Vikram Patel',
+        remarks: 'Trolley #4 cured at 65°C for 30 min, gloss verified at 91 GU.'
+      },
+      {
+        id: 'LOG-1042-2',
+        timestamp: '2026-10-27T11:45:00.000Z',
+        dateLabel: '27-10-2026',
+        timeLabel: '11:45 AM',
+        actionType: 'MATERIAL_ISSUED',
+        actionTitle: 'Additional Chemical Issued: PU Thinner 400 Solvent',
+        exactChanges: [
+          'Issued Material: PU Thinner 400 Solvent',
+          'Quantity Issued: +5.0 Litres',
+          'Shade / Grade: Clear Solvent',
+          'Assigned Painter: Ramesh Kumar (P1) (Booth #1)',
+          'Floor Purpose: Mid-shift viscosity adjustment (18s Ford Cup 4)',
+          'Total Materials on Job: 3 Items'
+        ],
+        piecesCompleted: 0,
+        cumulativeGoodQty: 1390,
+        painterName: 'Ramesh Kumar (P1)',
+        boothNo: 'Booth #1',
+        recordedBy: 'Vikram Patel',
+        remarks: 'Requested by painter for ambient humidity viscosity correction.'
+      },
+      {
+        id: 'LOG-1042-1',
+        timestamp: '2026-10-25T08:30:00.000Z',
+        dateLabel: '25-09-2026',
+        timeLabel: '08:30 AM',
+        actionType: 'JOB_CREATED',
+        actionTitle: 'Job Card Initialized & Released to Shop Floor (JC-1042-RED)',
+        exactChanges: [
+          'Job Card Number: JC-1042-RED',
+          'Customer / Party: ROOP POLYMERS LTD',
+          'Work Order / Challan: WO-1042',
+          'Part Specification: RP-8841 - Car AC Vent Bezel',
+          'Target Pieces Allocated: 3,000 Pieces',
+          'Target Finish Shade: Monza Red Gloss',
+          'Assigned Floor Painter: Split Across 3 Line Painters (P1, P2, P3)',
+          'Finish Deadline: 2026-10-27 • 05:30 PM',
+          'Initial Issued Materials: 2 Items (3,050 Substrates + 75L Red Basecoat)',
+          'Production Plant: Vasai Unit 1'
+        ],
+        piecesCompleted: 0,
+        cumulativeGoodQty: 0,
+        painterName: 'Split Across 3 Line Painters (P1, P2, P3)',
+        boothNo: 'Booths #1, #2, #3',
+        recordedBy: 'Satish Sharma (Plant Head)',
+        remarks: 'High-priority OEM automotive run approved by Plant Head.'
+      }
+    ]
   },
 
   // 1a. Painter 1 Child Job Card (Ramesh Kumar - P1, Booth #1)
@@ -2551,7 +2582,8 @@ export const INITIAL_PLANT_HEAD_PRIORITIES: PlantHeadPriorityAssignment[] = [
     partCode: 'RP-8841',
     partDescription: 'Automotive Instrument Panel Bezel Substrates (ABS)',
     color: 'Monza Red Gloss',
-    availableQty: 1000,
+    availableQty: 10000,
+    totalOrderQty: 10000,
     uom: 'Pcs',
     priorityLevel: 'P1_URGENT',
     targetDate: '2026-10-21',
