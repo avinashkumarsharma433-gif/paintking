@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { JobCard, DefectCategory, MaterialRequisitionNote, RequisitionStatus, PlantHeadPriorityAssignment, ProductionPriorityLevel } from '../types/portalTypes';
+import { JobCard, DefectCategory, MaterialRequisitionNote, RequisitionStatus, PlantHeadPriorityAssignment, ProductionPriorityLevel, PaintingBooth, PainterProfile } from '../types/portalTypes';
 import { 
   AlertTriangle, 
   Plus, 
@@ -33,6 +33,7 @@ import {
   Settings,
   Sliders,
   Trash2,
+  X,
   Check,
   Paintbrush,
   FlaskConical,
@@ -40,13 +41,20 @@ import {
   Lock,
   Flag,
   Calendar,
-  Zap
+  Zap,
+  Edit,
+  UserCheck,
+  UserX
 } from 'lucide-react';
 import { JobCardModal } from '../components/JobCardModal';
 import { PreProductionInspectionModal } from '../components/PreProductionInspectionModal';
 import { FPAModal } from '../components/FPAModal';
 import { IPQCModal } from '../components/IPQCModal';
+import { BoothConfigModal } from '../components/BoothConfigModal';
+import { PainterConfigModal } from '../components/PainterConfigModal';
+import { PainterDetailProfileView } from './PainterDetailProfileView';
 import { downloadStandardPreProductionPdf, downloadStandardFPAPdf, downloadStandardIPQCPdf, downloadStandardJobCardPdf } from '../utils/pdfStandardHeader';
+import { BalanceReturnModal } from '../components/BalanceReturnModal';
 
 export const JobCardsView: React.FC = () => {
   const {
@@ -73,7 +81,16 @@ export const JobCardsView: React.FC = () => {
     currentUser,
     activeSubTab,
     setActiveSubTab,
+    paintingBooths,
+    addPaintingBooth,
+    updatePaintingBooth,
+    deletePaintingBooth,
+    toggleBoothStatus,
     painters,
+    addPainter,
+    updatePainter,
+    deletePainter,
+    togglePainterStatus,
     getPainterActiveJobCount,
     canAssignPainter,
     assignJobCardToPainter,
@@ -150,22 +167,22 @@ export const JobCardsView: React.FC = () => {
   const [showJobCardModal, setShowJobCardModal] = useState<boolean>(false);
   const [selectedJobCardForView, setSelectedJobCardForView] = useState<JobCard | null>(null);
 
+  // Balance Return to Store Modal State
+  const [showReturnModal, setShowReturnModal] = useState<boolean>(false);
+  const [jobCardForReturn, setJobCardForReturn] = useState<string | undefined>(undefined);
+
   // Expanded master cards for sub-tree view
   const [expandedMasterIds, setExpandedMasterIds] = useState<Record<string, boolean>>({
     'JC-1042-RED': true
   });
 
-  // Floor Booth / Line Fleet Setup (Production Manager's Line Fleet)
-  const [paintingLines, setPaintingLines] = useState<Array<{ id: string; name: string; type: string; status: 'Active' | 'Under Maintenance' | 'Changeover' }>>([
-    { id: 'LINE-1', name: 'Booth #1 (Continuous Conveyor Line)', type: 'Conveyor Liquid PU', status: 'Active' },
-    { id: 'LINE-2', name: 'Booth #2 (Dust-Free Pressurized Cleanroom)', type: 'Enclosed 2K High Gloss', status: 'Active' },
-    { id: 'LINE-3', name: 'Booth #3 (Hydrographic Immersion & Dipping)', type: 'Water Transfer 3D', status: 'Active' },
-    { id: 'LINE-4', name: 'Booth #4 (Flatbed Industrial Direct UV Plotter)', type: 'Direct UV Printing', status: 'Active' }
-  ]);
+  // Floor Booth / Line Fleet & Painter Fleet Modals
   const [targetLineForReq, setTargetLineForReq] = useState<string>('Booth #1 (Continuous Conveyor Line)');
-  const [showLineFleetModal, setShowLineFleetModal] = useState<boolean>(false);
-  const [newLineName, setNewLineName] = useState<string>('');
-  const [newLineType, setNewLineType] = useState<string>('Liquid Spray Booth');
+  const [showBoothModal, setShowBoothModal] = useState<boolean>(false);
+  const [editingBooth, setEditingBooth] = useState<PaintingBooth | null>(null);
+  const [showPainterModal, setShowPainterModal] = useState<boolean>(false);
+  const [editingPainter, setEditingPainter] = useState<PainterProfile | null>(null);
+  const [selectedPainterForDetail, setSelectedPainterForDetail] = useState<PainterProfile | null>(null);
 
   // Material Requisition (MRN) Raise Modal State
   const [showRequisitionModal, setShowRequisitionModal] = useState<boolean>(false);
@@ -552,6 +569,8 @@ export const JobCardsView: React.FC = () => {
     const initialJcData: Partial<JobCard> = {
       jobCardNo: newJobCardNo,
       woNo: req.woNo || `WO-2026-${nextJcIndex}`,
+      wNo: req.woNo || `WO-2026-${nextJcIndex}`,
+      sourceGrnNo: req.sourceGrnNo,
       customer: req.customer,
       partCode: req.partCode,
       partDescription: req.partDescription,
@@ -585,6 +604,7 @@ export const JobCardsView: React.FC = () => {
       jobCardNo: `JC-2026-${nextJcIndex}`,
       woNo: priorityOrder.challanNo || `WO-2026-${nextJcIndex}`,
       wNo: priorityOrder.challanNo || `WO-2026-${nextJcIndex}`,
+      sourceGrnNo: priorityOrder.grnNo,
       customer: priorityOrder.customer,
       partCode: priorityOrder.partCode,
       partDescription: priorityOrder.partDescription,
@@ -696,39 +716,49 @@ export const JobCardsView: React.FC = () => {
     setShowJobCardModal(true);
   };
 
-  // Add / manage line fleet
-  const handleAddLine = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newLineName.trim()) return;
-    const nextNum = paintingLines.length + 1;
-    const newLine = {
-      id: `LINE-${nextNum}`,
-      name: newLineName.trim(),
-      type: newLineType,
-      status: 'Active' as const
-    };
-    setPaintingLines(prev => [...prev, newLine]);
-    setNewLineName('');
-    setToastMessage(`✓ Added ${newLine.name} to shop floor fleet!`);
-    setTimeout(() => setToastMessage(null), 4000);
-  };
-
-  const handleToggleLineStatus = (id: string) => {
-    setPaintingLines(prev => prev.map(line => {
-      if (line.id === id) {
-        const nextStatus = line.status === 'Active' ? 'Under Maintenance' : 'Active';
-        return { ...line, status: nextStatus };
-      }
-      return line;
-    }));
-  };
-
-  const handleDeleteLine = (id: string) => {
-    if (paintingLines.length <= 1) {
-      alert("At least one painting line/booth must remain configured.");
+  // Delete confirmation handlers for Booths and Painters
+  const handleDeleteBooth = (id: string, name: string) => {
+    if (paintingBooths.length <= 1) {
+      alert("At least one painting booth must remain configured in the fleet.");
       return;
     }
-    setPaintingLines(prev => prev.filter(line => line.id !== id));
+    if (window.confirm(`Are you sure you want to remove "${name}" from the booth fleet?`)) {
+      deletePaintingBooth(id);
+      setToastMessage(`✓ Removed ${name} from booth fleet`);
+      setTimeout(() => setToastMessage(null), 3500);
+    }
+  };
+
+  const handleDeletePainter = (id: string, name: string) => {
+    if (painters.length <= 1) {
+      alert("At least one painter must remain configured in the fleet.");
+      return;
+    }
+    const targetPainter = painters.find(p => p.id === id);
+    if (targetPainter) {
+      const pName = targetPainter.name.toLowerCase().trim();
+      const pCode = targetPainter.code?.toLowerCase().trim();
+      const count = jobCards.filter(jc => {
+        const assigned = (jc.assignedPainterName || (jc as any).painterName || '').toLowerCase().trim();
+        const assignedId = (jc.assignedPainterId || '').toLowerCase().trim();
+        return (
+          assignedId === id.toLowerCase() ||
+          (pCode && (assigned.includes(pCode) || assignedId === pCode)) ||
+          assigned === pName ||
+          assigned.includes(pName)
+        );
+      }).length;
+
+      if (count > 0) {
+        alert(`Cannot delete "${name}": This technician has ${count} Job Card(s) recorded in the system. In order to preserve manufacturing audit trails and quality history, deletion is blocked. You can set their status to "On Leave" instead.`);
+        return;
+      }
+    }
+    if (window.confirm(`Are you sure you want to remove painter "${name}" from the fleet?`)) {
+      deletePainter(id);
+      setToastMessage(`✓ Removed painter ${name} from fleet`);
+      setTimeout(() => setToastMessage(null), 3500);
+    }
   };
 
   // Live calculation of Store Stock available for Production Manager to inspect
@@ -845,6 +875,67 @@ export const JobCardsView: React.FC = () => {
   const totalSprayed = jobCards.reduce((acc, j) => acc + (j.jobCardType === 'painter_child' ? j.sprayedQty : 0), 0) ||
                        jobCards.reduce((acc, j) => acc + (j.jobCardType === 'master' ? j.sprayedQty : 0), 0);
   const totalRework = jobCards.filter(j => j.jobCardType === 'rework_child').reduce((acc, j) => acc + j.targetQty, 0);
+
+  // Dedicated Full Page View: Painter Profile & Date-wise Production History (No popups)
+  if (selectedPainterForDetail) {
+    return (
+      <div className="space-y-6">
+        <PainterDetailProfileView
+          painter={selectedPainterForDetail}
+          onBack={() => setSelectedPainterForDetail(null)}
+          onEdit={(p) => {
+            setEditingPainter(p);
+            setShowPainterModal(true);
+          }}
+          onViewJobCard={(jc) => {
+            setSelectedJobCardForView(jc);
+            setShowJobCardModal(true);
+          }}
+        />
+
+        {/* Edit Painter Modal if triggered from profile view */}
+        <PainterConfigModal
+          isOpen={showPainterModal}
+          onClose={() => {
+            setShowPainterModal(false);
+            setEditingPainter(null);
+          }}
+          editingPainter={editingPainter}
+          availableBooths={paintingBooths}
+          onSave={(data) => {
+            addPainter(data);
+            setToastMessage(`✓ Added painter ${data.name} to technician fleet!`);
+            setTimeout(() => setToastMessage(null), 3500);
+          }}
+          onUpdate={(id, updates) => {
+            updatePainter(id, updates);
+            setSelectedPainterForDetail(prev => prev && prev.id === id ? { ...prev, ...updates } : prev);
+            setToastMessage(`✓ Updated painter ${updates.name || ''} profile`);
+            setTimeout(() => setToastMessage(null), 3500);
+          }}
+        />
+
+        {/* Job Card View/Edit Modal if triggered from profile ledger */}
+        <JobCardModal
+          isOpen={showJobCardModal}
+          onClose={() => {
+            setShowJobCardModal(false);
+            setSelectedJobCardForView(null);
+          }}
+          initialData={selectedJobCardForView}
+          isViewOnly={true}
+        />
+
+        {/* Floating Feedback Toast */}
+        {toastMessage && (
+          <div className="fixed bottom-6 right-6 z-50 bg-[#17191c] text-white px-5 py-3 rounded-full text-xs font-semibold shadow-2xl flex items-center gap-2 border border-[#c09748]/50 animate-in slide-in-from-bottom-5">
+            <CheckCircle2 className="w-4 h-4 text-[#c09748]" />
+            <span>{toastMessage}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -1021,7 +1112,7 @@ export const JobCardsView: React.FC = () => {
           }`}
         >
           <Settings className="w-3.5 h-3.5 text-[#c09748]" />
-          <span>Painting Lines & Spray Booth Fleet ({paintingLines.length})</span>
+          <span>Painting Lines & Spray Booth Fleet ({paintingBooths.length})</span>
         </button>
       </div>
 
@@ -1713,9 +1804,10 @@ export const JobCardsView: React.FC = () => {
         </div>
       ) : activeTab === 'BOOTH_FLEET' ? (
         /* ====================================================================== */
-        /* TAB 7: PAINTING LINES & SPRAY BOOTH FLEET DEDICATED VIEW               */
+        /* TAB 7: CENTRAL SPRAY BOOTH & PAINTER TECHNICIAN FLEET MANAGEMENT       */
         /* ====================================================================== */
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {/* SECTION 1: SPRAY BOOTHS & PAINTING LINES FLEET */}
           <div className="bg-white rounded-[24px] border border-[#ececec] p-4 sm:p-6 shadow-xs space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
               <div>
@@ -1725,73 +1817,335 @@ export const JobCardsView: React.FC = () => {
                     Operational Painting Lines & Spray Booth Fleet
                   </h3>
                   <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold">
-                    {paintingLines.filter(l => l.status === 'Active').length}/{paintingLines.length} Active Lines
+                    {paintingBooths.filter(b => b.status === 'Active').length}/{paintingBooths.length} Active Lines
                   </span>
                 </div>
                 <p className="text-xs text-[#777b86] mt-1">
-                  Production Manager har booth ke hisaab se Store se material demand (MRN) raise karta hai aur line throughput monitor karta hai.
+                  Configure shop floor spray booths and conveyor lines. Booths configured here appear across Job Card Point 3 allocation and Material Demands (MRN).
                 </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => setShowLineFleetModal(true)}
-                className="px-4 py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition self-start sm:self-auto"
+                onClick={() => {
+                  setEditingBooth(null);
+                  setShowBoothModal(true);
+                }}
+                className="px-4 py-2 rounded-full bg-[#17191c] hover:bg-[#23272f] text-[#c09748] font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition self-start sm:self-auto active:scale-95"
               >
                 <Plus className="w-3.5 h-3.5 text-[#c09748]" />
-                <span>+ Add / Configure Booths</span>
+                <span>+ Add Painting Booth</span>
               </button>
             </div>
 
             {/* Comprehensive Fleet Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {paintingLines.map(line => {
-                const isActive = line.status === 'Active';
+              {paintingBooths.map(booth => {
+                const isActive = booth.status === 'Active';
+                const isMaintenance = booth.status === 'Under Maintenance';
                 return (
                   <div
-                    key={line.id}
-                    className={`p-4 rounded-[20px] border transition flex flex-col justify-between gap-4 ${
+                    key={booth.id}
+                    className={`p-4 rounded-[20px] border transition flex flex-col justify-between gap-3.5 ${
                       isActive
                         ? 'border-[#f4e5be] bg-white hover:border-[#c09748] shadow-xs'
-                        : 'border-dashed border-gray-300 bg-gray-50/70 opacity-75'
+                        : isMaintenance
+                        ? 'border-amber-200 bg-amber-50/30'
+                        : 'border-purple-200 bg-purple-50/30'
                     }`}
                   >
                     <div>
                       <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="text-xs font-mono font-bold text-[#8a6521] px-2 py-0.5 rounded-md bg-[#faf3e0]">
-                          {line.id}
+                        <span className="text-[11px] font-mono font-bold text-[#8a6521] px-2 py-0.5 rounded-md bg-[#faf3e0] border border-[#f4e5be]">
+                          {booth.id}
                         </span>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          isActive ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
-                        }`}>
-                          {line.status}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleBoothStatus(booth.id)}
+                          title="Click to toggle booth operational status"
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition border ${
+                            isActive
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                              : isMaintenance
+                              ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                              : 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100'
+                          }`}
+                        >
+                          {isActive ? '● Active Line' : isMaintenance ? '⚠️ Maintenance' : '🔄 Changeover'}
+                        </button>
                       </div>
-                      <h4 className="font-bold text-sm text-[#17191c]">
-                        {line.name}
+
+                      <h4 className="font-bold text-sm text-[#17191c] leading-snug">
+                        {booth.name}
                       </h4>
-                      <div className="text-xs text-[#777b86] mt-1 font-mono">
-                        Tech: {line.type}
+                      <div className="text-xs text-[#777b86] mt-0.5 font-mono">
+                        {booth.type}
                       </div>
-                      <div className="text-[11px] text-[#8a6521] mt-2 p-2 rounded-[12px] bg-[#fafafb] border border-[#ececec]">
-                        Capacity: <strong>1,200 pcs / shift</strong> • Air Pressure: 4.2 Bar
+
+                      <div className="mt-3 p-2.5 rounded-[12px] bg-[#fafafb] border border-[#ececec] text-[11px] text-[#777b86] space-y-1">
+                        <div className="flex justify-between">
+                          <span>Capacity:</span>
+                          <strong className="text-[#17191c]">{(booth.capacityPerShift || 1000).toLocaleString()} pcs/shift</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Air Pressure:</span>
+                          <strong className="text-[#17191c]">{booth.airPressureBar || 4.0} Bar</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Curing Temp:</span>
+                          <strong className="text-[#17191c]">{booth.curingTempC || 60}°C</strong>
+                        </div>
+                        {booth.primaryPainterName && (
+                          <div className="flex justify-between pt-1 border-t border-[#ececec]">
+                            <span>Primary Tech:</span>
+                            <span className="font-semibold text-[#8a6521]">{booth.primaryPainterName}</span>
+                          </div>
+                        )}
                       </div>
+
+                      {booth.notes && (
+                        <p className="text-[10px] text-[#979799] italic mt-1.5 line-clamp-1">
+                          "{booth.notes}"
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-2 pt-2 border-t border-[#ececec]">
                       <button
                         type="button"
-                        onClick={() => handleOpenRequisitionModal(undefined, line.name)}
+                        onClick={() => handleOpenRequisitionModal(undefined, booth.name)}
                         disabled={isPlantDayClosed || !isActive}
-                        className={`w-full py-2 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
+                        className={`w-full py-1.5 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 transition ${
                           isActive && !isPlantDayClosed
-                            ? 'bg-[#17191c] hover:bg-black text-[#c09748] cursor-pointer shadow-2xs'
+                            ? 'bg-[#17191c] hover:bg-[#23272f] text-[#c09748] cursor-pointer shadow-2xs'
                             : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         }`}
                       >
                         <ArrowRightLeft className="w-3.5 h-3.5 text-[#c09748]" />
-                        <span>+ Demand Material (MRN)</span>
+                        <span>Demand Material (MRN)</span>
                       </button>
+
+                      <div className="flex items-center justify-between gap-2 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingBooth(booth);
+                            setShowBoothModal(true);
+                          }}
+                          className="flex-1 py-1 px-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold transition cursor-pointer flex items-center justify-center gap-1"
+                        >
+                          <Edit className="w-3 h-3 text-[#777b86]" />
+                          <span>Edit Booth</span>
+                        </button>
+
+                        {paintingBooths.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBooth(booth.id, booth.name)}
+                            className="p-1.5 rounded-full text-[#979799] hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                            title="Delete Booth"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* SECTION 2: FLOOR PAINTERS & COATING TECHNICIANS FLEET */}
+          <div className="bg-white rounded-[24px] border border-[#ececec] p-4 sm:p-6 shadow-xs space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#c09748] animate-pulse" />
+                  <h3 className="font-serif font-normal text-lg sm:text-2xl text-[#17191c]">
+                    Floor Painters & Coating Technicians Fleet
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold">
+                    {painters.length} Certified Painters
+                  </span>
+                </div>
+                <p className="text-xs text-[#777b86] mt-1">
+                  Yahan configure kiye gaye technicians hi Job Card creation me painter selection combobox me visible hote hain. Max 2 simultaneous job cards allowed per painter.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingPainter(null);
+                  setShowPainterModal(true);
+                }}
+                className="px-4 py-2 rounded-full bg-[#17191c] hover:bg-[#23272f] text-[#c09748] font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition self-start sm:self-auto active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>+ Add New Painter</span>
+              </button>
+            </div>
+
+            {/* Painters Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {painters.map(painter => {
+                const activeJobsCount = getPainterActiveJobCount(painter.name);
+                const isCapped = !canAssignPainter(painter.name);
+                const stats = getPainterPerformanceStats(painter.id);
+
+                const painterJobCards = jobCards.filter(jc => {
+                  const pName = painter.name.toLowerCase().trim();
+                  const firstName = pName.split(' ')[0];
+                  const pCode = painter.code?.toLowerCase().trim();
+                  const assigned = (jc.assignedPainterName || (jc as any).painterName || '').toLowerCase().trim();
+                  const assignedId = (jc.assignedPainterId || '').toLowerCase().trim();
+                  return (
+                    assignedId === painter.id.toLowerCase() ||
+                    (pCode && (assigned.includes(pCode) || assignedId === pCode)) ||
+                    assigned === pName ||
+                    assigned.includes(pName) ||
+                    (firstName && assigned.includes(firstName))
+                  );
+                });
+                const hasExistingJobs = painterJobCards.length > 0;
+
+                return (
+                  <div
+                    key={painter.id}
+                    className={`p-4 rounded-[20px] border transition flex flex-col justify-between gap-3.5 ${
+                      isCapped
+                        ? 'border-amber-200 bg-amber-50/20'
+                        : 'border-[#ececec] bg-white hover:border-[#c09748] shadow-xs'
+                    }`}
+                  >
+                    <div>
+                      {/* Top Bar: Code badge & Status */}
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold flex items-center justify-center font-mono text-xs">
+                            {painter.code}
+                          </span>
+                          <span className="text-[11px] font-mono text-[#777b86]">
+                            ID: {painter.id}
+                          </span>
+                          {hasExistingJobs && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-bold flex items-center gap-0.5" title="ERP Protected">
+                              <Lock className="w-2.5 h-2.5" />
+                              <span>{painterJobCards.length} Jobs</span>
+                            </span>
+                          )}
+                        </div>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-50 text-emerald-800 border-emerald-200">
+                          ● Active
+                        </span>
+                      </div>
+
+                      {/* Name & Specialization */}
+                      <h4 className="font-bold text-sm text-[#17191c]">
+                        {painter.name}
+                      </h4>
+                      <div className="text-xs text-[#c09748] font-medium mt-0.5">
+                        {painter.specialization || 'General Spray Coating'}
+                      </div>
+
+                      {/* Station details */}
+                      <div className="mt-2 text-[11px] text-[#777b86] space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5 text-[#979799]" />
+                          <span>Station: <strong className="text-[#17191c]">{painter.boothNo || 'Dynamic Allocation'}</strong></span>
+                        </div>
+                        {painter.phone && (
+                          <div className="text-[10px] text-[#979799] font-mono">
+                            ☎ {painter.phone}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Workload Meter (Max 2 Jobs) */}
+                      <div className="mt-3 p-2.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-semibold text-[#17191c]">Active Workload:</span>
+                          <span className={`font-mono font-bold ${
+                            isCapped ? 'text-amber-700' : 'text-emerald-700'
+                          }`}>
+                            {activeJobsCount} / 2 Slots
+                          </span>
+                        </div>
+
+                        {/* Visual 2-slot bars */}
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div className={`h-2 rounded-full transition ${
+                            activeJobsCount >= 1 ? 'bg-[#c09748]' : 'bg-[#e5e7eb]'
+                          }`} />
+                          <div className={`h-2 rounded-full transition ${
+                            activeJobsCount >= 2 ? 'bg-[#c09748]' : 'bg-[#e5e7eb]'
+                          }`} />
+                        </div>
+
+                        <div className="text-[10px] text-right font-medium">
+                          {isCapped ? (
+                            <span className="text-amber-700 font-semibold">⚠️ Floor Max Capacity (2/2)</span>
+                          ) : (
+                            <span className="text-emerald-700">✓ Ready to receive next Job Card</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Performance Quick Summary */}
+                      <div className="mt-2 pt-2 border-t border-[#ececec] flex items-center justify-between text-[10px] text-[#777b86]">
+                        <span>Done: <strong className="text-[#17191c]">{stats.completedJobs}</strong></span>
+                        <span>Pass Rate: <strong className="text-emerald-700">{stats.passRate}%</strong></span>
+                        <span>Rating: <strong className="text-[#8a6521]">★ {stats.rating}</strong></span>
+                      </div>
+                    </div>
+
+                    {/* Bottom Actions */}
+                    <div className="space-y-2 pt-2 border-t border-[#ececec]">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPainterForDetail(painter)}
+                        className="w-full py-2 px-3 rounded-full bg-[#17191c] hover:bg-[#23272f] text-[#c09748] text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs active:scale-95"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-[#c09748]" />
+                        <span>View Profile & Job History ({painterJobCards.length}) →</span>
+                      </button>
+
+                      <div className="flex items-center justify-between gap-2 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingPainter(painter);
+                            setShowPainterModal(true);
+                          }}
+                          className="flex-1 py-1.5 px-3 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+                        >
+                          <Edit className="w-3 h-3 text-[#777b86]" />
+                          <span>Edit Profile</span>
+                        </button>
+
+                        {hasExistingJobs ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              alert(`Cannot delete "${painter.name}": This technician has ${painterJobCards.length} Job Card(s) in system records. In order to preserve manufacturing audit trails and quality history, deletion is blocked. You can set their status to "On Leave" instead.`);
+                            }}
+                            className="p-1.5 rounded-full text-amber-700 bg-amber-50 hover:bg-amber-100 transition cursor-pointer border border-amber-300"
+                            title={`Protected: ${painterJobCards.length} Job Cards linked`}
+                          >
+                            <Lock className="w-3.5 h-3.5 text-amber-700" />
+                          </button>
+                        ) : painters.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePainter(painter.id, painter.name)}
+                            className="p-1.5 rounded-full text-[#979799] hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                            title="Delete Painter"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 );
@@ -2526,6 +2880,20 @@ export const JobCardsView: React.FC = () => {
                         <span>PDF Slip</span>
                       </button>
 
+                      {/* Balance Return to Store Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setJobCardForReturn(jc.jobCardNo);
+                          setShowReturnModal(true);
+                        }}
+                        className="px-3.5 py-2 rounded-full border border-[#f4e5be] bg-[#faf7ed] text-[#8a6521] hover:bg-[#faf3e0] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                        title="Return unused balance material or party substrate back to store batch"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 text-[#c09748]" />
+                        <span>Return Balance</span>
+                      </button>
+
                       {isMaster && hasChildren && (
                         <button
                           onClick={() => toggleMasterExpand(jc.jobCardNo)}
@@ -3016,9 +3384,9 @@ export const JobCardsView: React.FC = () => {
                   onChange={e => setTargetLineForReq(e.target.value)}
                   className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-semibold text-[#17191c] cursor-pointer"
                 >
-                  {paintingLines.map(line => (
-                    <option key={line.id} value={line.name}>
-                      {line.name} ({line.type}) {line.status !== 'Active' ? `[${line.status}]` : ''}
+                  {paintingBooths.map(booth => (
+                    <option key={booth.id} value={booth.name}>
+                      {booth.name} ({booth.type}) {booth.status !== 'Active' ? `[${booth.status}]` : ''}
                     </option>
                   ))}
                 </select>
@@ -3491,134 +3859,46 @@ export const JobCardsView: React.FC = () => {
         </div>
       )}
 
-      {/* Modal 7: Painting Lines & Spray Booth Fleet Management */}
-      {showLineFleetModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[24px] max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[90vh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
-              <div>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                  PLANT CONFIGURATION • BOOTH FLEET
-                </span>
-                <h3 className="text-base sm:text-lg font-serif font-normal text-[#17191c] mt-1">
-                  Manage Painting Lines & Spray Booth Fleet
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowLineFleetModal(false)}
-                className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base font-bold"
-              >
-                ✕
-              </button>
-            </div>
+      {/* Modal 7A: Painting Booth Fleet Configuration Modal */}
+      <BoothConfigModal
+        isOpen={showBoothModal}
+        onClose={() => {
+          setShowBoothModal(false);
+          setEditingBooth(null);
+        }}
+        editingBooth={editingBooth}
+        onSave={(data) => {
+          addPaintingBooth(data);
+          setToastMessage(`✓ Added ${data.name} to spray booth fleet!`);
+          setTimeout(() => setToastMessage(null), 3500);
+        }}
+        onUpdate={(id, updates) => {
+          updatePaintingBooth(id, updates);
+          setToastMessage(`✓ Updated booth specifications`);
+          setTimeout(() => setToastMessage(null), 3500);
+        }}
+      />
 
-            <p className="text-[#777b86] leading-relaxed">
-              Production Manager apne plant ke active spray booths, conveyor lines aur UV/hydrographic lines yahan configure kar sakte hain. Daily planning offline hoti hai aur line ke anusaar material demand kiya jata hai.
-            </p>
-
-            {/* List of current lines */}
-            <div className="space-y-2">
-              <label className="block text-[#17191c] font-semibold">Active Plant Booths ({paintingLines.length})</label>
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                {paintingLines.map(line => (
-                  <div
-                    key={line.id}
-                    className="p-3 rounded-[16px] border border-[#ececec] bg-[#fafafb] flex items-center justify-between gap-3"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-xs text-[#8a6521]">{line.id}</span>
-                        <span className="font-semibold text-xs text-[#17191c]">{line.name}</span>
-                      </div>
-                      <div className="text-[10px] text-[#777b86] mt-0.5">{line.type}</div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleLineStatus(line.id)}
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer transition border ${
-                          line.status === 'Active'
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                            : 'bg-amber-50 text-amber-800 border-amber-300'
-                        }`}
-                      >
-                        {line.status}
-                      </button>
-
-                      {paintingLines.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteLine(line.id)}
-                          className="p-1 rounded-full text-[#979799] hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                          title="Remove Line"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Form to add a new line */}
-            <form onSubmit={handleAddLine} className="p-3.5 rounded-[16px] border border-[#f4e5be] bg-[#faf7ed]/60 space-y-3">
-              <div className="font-bold text-xs text-[#8a6521] flex items-center gap-1.5">
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add New Painting Booth / Line</span>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-[#17191c] mb-1">Booth / Line Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Booth #5 (High Gloss Robotic PU Spray)"
-                  value={newLineName}
-                  onChange={e => setNewLineName(e.target.value)}
-                  className="w-full p-2 rounded-[10px] border border-[#ececec] bg-white text-xs text-[#17191c]"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-[#17191c] mb-1">Process Technology / Type</label>
-                <select
-                  value={newLineType}
-                  onChange={e => setNewLineType(e.target.value)}
-                  className="w-full p-2 rounded-[10px] border border-[#ececec] bg-white text-xs cursor-pointer text-[#17191c]"
-                >
-                  <option value="Conveyor Liquid PU">Conveyor Liquid PU</option>
-                  <option value="Dust-Free Cleanroom 2K">Dust-Free Cleanroom 2K</option>
-                  <option value="Water Transfer Hydrographic">Water Transfer Hydrographic (Dipping)</option>
-                  <option value="Direct Flatbed UV Plotter">Direct Flatbed UV Plotter</option>
-                  <option value="Manual Spray Booth">Manual Spray Booth</option>
-                  <option value="Thermoplastic Injection Molding">Thermoplastic Injection Molding</option>
-                  <option value="Thermal Curing Oven">Thermal Curing Oven</option>
-                </select>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition"
-              >
-                <Plus className="w-3.5 h-3.5 text-[#c09748]" />
-                <span>+ Register New Line into Fleet</span>
-              </button>
-            </form>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowLineFleetModal(false)}
-                className="px-5 py-2 rounded-full bg-[#17191c] text-white font-medium cursor-pointer text-xs"
-              >
-                Close Fleet Settings
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal 7B: Painter / Operator Fleet Configuration Modal */}
+      <PainterConfigModal
+        isOpen={showPainterModal}
+        onClose={() => {
+          setShowPainterModal(false);
+          setEditingPainter(null);
+        }}
+        editingPainter={editingPainter}
+        availableBooths={paintingBooths}
+        onSave={(data) => {
+          addPainter(data);
+          setToastMessage(`✓ Added painter ${data.name} to technician fleet!`);
+          setTimeout(() => setToastMessage(null), 3500);
+        }}
+        onUpdate={(id, updates) => {
+          updatePainter(id, updates);
+          setToastMessage(`✓ Updated painter ${updates.name || ''} profile`);
+          setTimeout(() => setToastMessage(null), 3500);
+        }}
+      />
 
       {/* ====================================================================== */}
       {/* MODAL 8: PAINTER FLOOR ASSIGNMENT WITH MAX-2 GUARDRAIL                 */}
@@ -4023,6 +4303,26 @@ export const JobCardsView: React.FC = () => {
         }}
         jobCard={selectedJcForIpqc}
       />
+
+      {/* ====================================================================== */}
+      {/* MODAL 13: BALANCE RETURN TO STORE MODAL                                */}
+      {/* ====================================================================== */}
+      {showReturnModal && (
+        <BalanceReturnModal
+          isOpen={showReturnModal}
+          onClose={() => {
+            setShowReturnModal(false);
+            setJobCardForReturn(undefined);
+          }}
+          preselectedJobCardNo={jobCardForReturn}
+          onSuccess={(rtnNo) => {
+            setShowReturnModal(false);
+            setJobCardForReturn(undefined);
+            setToastMessage(`Balance return slip ${rtnNo} generated & submitted to store.`);
+            setTimeout(() => setToastMessage(null), 4000);
+          }}
+        />
+      )}
 
       {/* Floating Feedback Toast */}
       {toastMessage && (

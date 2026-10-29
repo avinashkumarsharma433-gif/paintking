@@ -34,10 +34,14 @@ import {
   Unlock,
   Edit3,
   Tag,
-  Eye
+  Eye,
+  RotateCcw
 } from 'lucide-react';
 import { PaintkingDatePicker } from './PaintkingDatePicker';
+import { PaintkingDateTimePicker } from './PaintkingDateTimePicker';
+import { CustomCombobox, ComboboxOption } from './CustomCombobox';
 import { downloadStandardJobCardPdf } from '../utils/pdfStandardHeader';
+import { BalanceReturnModal } from './BalanceReturnModal';
 
 interface JobCardModalProps {
   isOpen: boolean;
@@ -197,10 +201,13 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     grnList, 
     jobCards, 
     painters, 
-    getPainterActiveJobCount 
+    paintingBooths,
+    getPainterActiveJobCount,
+    balanceReturnSlips
   } = usePortalStore();
 
   const [viewMode, setViewMode] = useState<'PORTAL' | 'PRINT'>('PORTAL');
+  const [showReturnModal, setShowReturnModal] = useState<boolean>(false);
 
   // Metadata
   const isExistingCard = Boolean(initialData?.jobCardNo && jobCards.some(j => j.jobCardNo === initialData.jobCardNo));
@@ -285,6 +292,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       {
         id: '1',
         itemDescription: `${initialData?.color || 'Monza Red Gloss'} 2K PU Basecoat Paint (PPG)`,
+        materialType: 'paint',
+        category: 'COMPANY_CONSUMABLE',
         qty: estPaintLitres,
         colour: initialData?.color || 'Monza Red Gloss',
         uom: 'Litres',
@@ -293,6 +302,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       {
         id: '2',
         itemDescription: 'PU Thinner 400 Solvent',
+        materialType: 'thinner',
+        category: 'COMPANY_CONSUMABLE',
         qty: Math.max(1, Math.ceil(estPaintLitres * 0.4)),
         colour: 'Clear',
         uom: 'Litres',
@@ -301,6 +312,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       {
         id: '3',
         itemDescription: '2K Scratch-Resistant Hardener',
+        materialType: 'hardener',
+        category: 'COMPANY_CONSUMABLE',
         qty: Math.max(1, Math.ceil(estPaintLitres * 0.25)),
         colour: 'Clear',
         uom: 'Litres',
@@ -309,6 +322,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       {
         id: '4',
         itemDescription: '2K Polyurethane Clear Lacquer Topcoat',
+        materialType: 'clear_coat',
+        category: 'COMPANY_CONSUMABLE',
         qty: Math.max(1, Math.ceil(basePcs / 200)),
         colour: 'Clear Gloss',
         uom: 'Litres',
@@ -369,6 +384,71 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     return historicalColors.filter(c => c.toLowerCase().includes(q));
   }, [batchColor, historicalColors]);
 
+  // Dynamic Booth Options mapped strictly from Central Booth Fleet
+  const boothOptions = useMemo<ComboboxOption[]>(() => {
+    const list: ComboboxOption[] = paintingBooths.map(b => {
+      const isMaintenance = b.status === 'Under Maintenance';
+      const isChangeover = b.status === 'Changeover';
+      return {
+        value: b.name,
+        label: b.name,
+        sublabel: `${b.type} • Cap: ${b.capacityPerShift?.toLocaleString('en-IN') || 1000} pcs/shift`,
+        badge: isMaintenance ? '⚠️ Maintenance' : isChangeover ? '🔄 Changeover' : 'Active Line',
+        badgeColor: isMaintenance 
+          ? 'bg-amber-50 text-amber-800 border border-amber-200' 
+          : isChangeover 
+          ? 'bg-blue-50 text-blue-800 border border-blue-200' 
+          : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+      };
+    });
+
+    if (dept && !list.some(b => b.value === dept)) {
+      list.unshift({
+        value: dept,
+        label: dept,
+        sublabel: 'Assigned Shop Line',
+        badge: 'Assigned Line',
+        badgeColor: 'bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be]'
+      });
+    }
+
+    return list;
+  }, [paintingBooths, dept]);
+
+  // Dynamic Painter Options mapped strictly from Central Painters Fleet
+  const painterOptions = useMemo<ComboboxOption[]>(() => {
+    const list: ComboboxOption[] = painters.map(p => {
+      const count = getPainterActiveJobCount ? getPainterActiveJobCount(p.name) : 0;
+      const isCap = count >= 2;
+      return {
+        value: p.name,
+        label: p.name,
+        sublabel: `${p.boothNo || 'Dynamic Allocation'} • ${p.specialization || 'Coating Specialist'}`,
+        badge: isCap 
+          ? '⚠️ 2/2 Jobs Capped' 
+          : `${count}/2 Active Jobs`,
+        badgeColor: isCap 
+          ? 'bg-rose-50 text-rose-700 border border-rose-200' 
+          : count === 1 
+          ? 'bg-amber-50 text-amber-700 border border-amber-200' 
+          : 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+        isCapped: isCap
+      };
+    });
+
+    if (painterName && !list.some(p => p.value === painterName)) {
+      list.unshift({
+        value: painterName,
+        label: painterName,
+        sublabel: 'Assigned Floor Operator',
+        badge: 'Assigned Operator',
+        badgeColor: 'bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be]'
+      });
+    }
+
+    return list;
+  }, [painters, getPainterActiveJobCount, painterName]);
+
   // Available Store GRN lots (Customer accepted lots)
   const availableGrnLots = useMemo(() => {
     return grnList.filter(g => {
@@ -379,28 +459,96 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     });
   }, [grnList]);
 
-  // Selected GRN details
+  // Selected GRN details with intelligent multi-priority lookup
   const selectedGrn = useMemo(() => {
+    // 1. Explicitly selected GRN
     if (selectedGrnNo) {
       const match = grnList.find(g => g.grnNo === selectedGrnNo);
       if (match) return match;
     }
+    // 2. Pre-filled source GRN from initialData
     if (initialData?.sourceGrnNo) {
       const match = grnList.find(g => g.grnNo === initialData.sourceGrnNo);
       if (match) return match;
     }
+    // 3. Match by Delivery Challan No / Work Order No
+    const challan = (wNo || initialData?.woNo || initialData?.wNo || '').trim().toLowerCase();
+    if (challan) {
+      const match = grnList.find(g => g.invoiceChallanNo && g.invoiceChallanNo.trim().toLowerCase() === challan);
+      if (match) return match;
+    }
+    // 4. Match by Part Code & Customer Name
+    const targetCustomer = (customer || initialData?.customer || '').trim().toLowerCase();
+    const targetPart = (partCode || initialData?.partCode || '').trim().toLowerCase();
+    if (targetCustomer && targetPart) {
+      const match = availableGrnLots.find(g => 
+        g.supplierCustomer?.trim().toLowerCase() === targetCustomer &&
+        (g.partCode?.trim().toLowerCase() === targetPart || g.items?.some(it => it.partCode?.trim().toLowerCase() === targetPart))
+      );
+      if (match) return match;
+    }
+    // 5. Match by Part Code alone
+    if (targetPart) {
+      const match = availableGrnLots.find(g => 
+        g.partCode?.trim().toLowerCase() === targetPart || g.items?.some(it => it.partCode?.trim().toLowerCase() === targetPart)
+      );
+      if (match) return match;
+    }
+    // 6. Match by Customer alone
+    if (targetCustomer) {
+      const match = availableGrnLots.find(g => g.supplierCustomer?.trim().toLowerCase() === targetCustomer);
+      if (match) return match;
+    }
+    // 7. Fallback to first available store lot
     return availableGrnLots[0] || grnList[0];
-  }, [selectedGrnNo, initialData, grnList, availableGrnLots]);
+  }, [selectedGrnNo, initialData, grnList, availableGrnLots, wNo, customer, partCode]);
+
+  // Sync selectedGrnNo state when selectedGrn is resolved
+  useEffect(() => {
+    if (selectedGrn?.grnNo && (!selectedGrnNo || selectedGrnNo !== selectedGrn.grnNo)) {
+      if (!initialData?.jobCardNo) {
+        setSelectedGrnNo(selectedGrn.grnNo);
+      }
+    }
+  }, [selectedGrn, selectedGrnNo, initialData]);
 
   // Available balance in selected GRN lot
   const availableStoreBalance = useMemo(() => {
-    if (!selectedGrn) return 1500;
-    const totalInward = selectedGrn.actualReceivedQty || selectedGrn.invoicedQty || 1500;
+    if (!selectedGrn) {
+      return initialData?.targetQty || 300;
+    }
+    const totalInward = Number(selectedGrn.actualReceivedQty) || Number(selectedGrn.invoicedQty) || Number(selectedGrn.totalQty) || 0;
+    
+    // Only deduct master / primary job cards to avoid double-counting child splits
     const inOtherCards = jobCards
-      .filter(jc => (jc.sourceGrnNo === selectedGrn.grnNo || jc.woNo === selectedGrn.invoiceChallanNo) && jc.jobCardNo !== initialData?.jobCardNo)
+      .filter(jc => {
+        const isMaster = jc.jobCardType === 'master' || (!jc.jobCardType && !jc.parentJobCardId);
+        if (!isMaster) return false;
+        if (jc.jobCardNo === (initialData?.jobCardNo || jobCardNo)) return false;
+        
+        const matchesGrn = jc.sourceGrnNo && jc.sourceGrnNo === selectedGrn.grnNo;
+        const matchesChallan = selectedGrn.invoiceChallanNo && (
+          (jc.woNo && jc.woNo.trim().toLowerCase() === selectedGrn.invoiceChallanNo.trim().toLowerCase()) ||
+          (jc.wNo && jc.wNo.trim().toLowerCase() === selectedGrn.invoiceChallanNo.trim().toLowerCase())
+        );
+        return matchesGrn || matchesChallan;
+      })
       .reduce((sum, jc) => sum + (Number(jc.targetQty) || 0), 0);
-    return Math.max(0, totalInward - inOtherCards);
-  }, [selectedGrn, jobCards, initialData]);
+
+    const balance = Math.max(0, totalInward - inOtherCards);
+    
+    // Safety check: if balance evaluates to 0 but this is a priority order or initialData with positive targetQty,
+    // and the selected GRN customer does not match the card customer, use initialData.targetQty
+    if (balance === 0 && initialData?.targetQty && !isExistingCard) {
+      const cardCust = (customer || initialData.customer || '').trim().toLowerCase();
+      const grnCust = (selectedGrn.supplierCustomer || '').trim().toLowerCase();
+      if (cardCust && grnCust && !grnCust.includes(cardCust) && !cardCust.includes(grnCust)) {
+        return initialData.targetQty;
+      }
+    }
+    
+    return balance;
+  }, [selectedGrn, jobCards, initialData, jobCardNo, isExistingCard, customer]);
 
   // Additional Material Issue on Existing Job Card
   const [showAddMaterialDrawer, setShowAddMaterialDrawer] = useState<boolean>(false);
@@ -521,7 +669,15 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       if (initialData.color) setBatchColor(initialData.color);
       if (initialData.woNo) setWNo(initialData.woNo);
       if (initialData.wNo) setWNo(initialData.wNo);
-      if (initialData.sourceGrnNo) setSelectedGrnNo(initialData.sourceGrnNo);
+      if (initialData.sourceGrnNo) {
+        setSelectedGrnNo(initialData.sourceGrnNo);
+      } else if (initialData.woNo || initialData.wNo) {
+        const challan = (initialData.woNo || initialData.wNo || '').trim().toLowerCase();
+        const matchingGrn = grnList.find(g => g.invoiceChallanNo && g.invoiceChallanNo.trim().toLowerCase() === challan);
+        if (matchingGrn) {
+          setSelectedGrnNo(matchingGrn.grnNo);
+        }
+      }
       if (initialData.assignedPainterName) setPainterName(initialData.assignedPainterName);
       if (initialData.dept) setDept(initialData.dept);
       if (initialData.goodQty !== undefined) setCurrentGoodQty(initialData.goodQty);
@@ -533,7 +689,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       if (initialData.deadlineDate) setDeadlineDate(initialData.deadlineDate);
       if (initialData.deadlineTime) setDeadlineTime(initialData.deadlineTime);
     }
-  }, [initialData, isOpen]);
+  }, [initialData, isOpen, grnList]);
 
   // Remaining pieces calculation
   const remainingQty = Math.max(0, targetQty - currentGoodQty - currentRejectQty);
@@ -625,9 +781,24 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   // Strict Deadline Date & Time Calculator
   const deadlineTimestamp = useMemo(() => {
     try {
-      const [year, month, day] = deadlineDate.includes('-') && deadlineDate.split('-')[0].length === 4
-        ? deadlineDate.split('-').map(Number)
-        : [new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate()];
+      let year = new Date().getFullYear();
+      let month = new Date().getMonth() + 1;
+      let day = new Date().getDate();
+
+      if (deadlineDate && deadlineDate.includes('-')) {
+        const parts = deadlineDate.split('-').map(Number);
+        if (parts[0] > 1000) {
+          // YYYY-MM-DD
+          year = parts[0];
+          month = parts[1];
+          day = parts[2];
+        } else if (parts[2] > 1000) {
+          // DD-MM-YYYY
+          day = parts[0];
+          month = parts[1];
+          year = parts[2];
+        }
+      }
       
       const d = new Date(year, (month || 1) - 1, day || 1);
       if (deadlineTime) {
@@ -741,7 +912,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       ...prev,
       {
         id: newId,
-        itemDescription: 'Additional Chemical / Thinner',
+        itemDescription: 'PU Thinner Medium',
+        materialType: 'thinner',
+        category: 'COMPANY_CONSUMABLE',
         qty: 1,
         colour: 'Clear',
         uom: 'Litres',
@@ -1061,7 +1234,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 {jobCardNo} • {docNo} • Plant: {activePlant}
               </span>
             </div>
-            <h1 className="text-base sm:text-xl font-serif text-[#17191c] font-normal leading-tight mt-0.5">
+            <h1 className="text-sm sm:text-base font-serif text-[#17191c] font-normal leading-tight mt-0.5">
               {isExistingCard 
                 ? `Job Card Execution Tracker • ${customer} (${jobCardNo})` 
                 : STEP_TITLES[currentStep - 1]}
@@ -1125,49 +1298,52 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       </header>
 
       {/* ========================================================================= */}
-      {/* CONNECTED PILL STEPPER (Shown when creating new Job Card)                 */}
+      {/* STANDARDIZED COMPACT CONNECTED PILL STEPPER (Shown when creating new Job Card) */}
       {/* ========================================================================= */}
       {!isExistingCard && viewMode === 'PORTAL' && (
-        <div className="bg-white border-b border-[#ececec] py-3 px-4 sm:px-8">
-          <div className="max-w-[1520px] mx-auto flex items-center justify-between gap-1 sm:gap-2">
+        <div className="bg-white border-b border-[#ececec] py-2 px-4">
+          <div className="flex items-center justify-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar">
             {[
-              { num: 1, label: 'Party & Work Order' },
-              { num: 2, label: 'Part, Pieces & Colour' },
-              { num: 3, label: 'Painter & Deadline' },
-              { num: 4, label: 'Issued Materials & Launch' }
-            ].map((st) => {
+              { num: 1, label: '1. Party & Work Order' },
+              { num: 2, label: '2. Substrate & Colour' },
+              { num: 3, label: '3. Painter & Deadline' },
+              { num: 4, label: '4. Materials & Launch' }
+            ].map((st, idx, arr) => {
               const isActive = currentStep === st.num;
               const isDone = currentStep > st.num;
               return (
-                <button
-                  key={st.num}
-                  type="button"
-                  onClick={() => {
-                    // Allow navigating back or forward if valid
-                    if (st.num < currentStep || validateCurrentStep(currentStep)) {
-                      setCurrentStep(st.num);
-                    }
-                  }}
-                  className={`flex-1 py-1.5 px-2 rounded-full text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 border ${
-                    isActive
-                      ? 'bg-[#faf3e0] text-[#8a6521] border-[#c09748]/50 shadow-2xs ring-1 ring-[#c09748]/20'
-                      : isDone
-                      ? 'bg-[#faf7ed] text-[#17191c] border-[#f4e5be]'
-                      : 'bg-[#fafafb] text-[#777b86] border-[#ececec] hover:bg-gray-100'
-                  }`}
-                >
-                  <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-mono font-bold ${
-                    isActive
-                      ? 'bg-[#c09748] text-white shadow-2xs'
-                      : isDone
-                      ? 'bg-[#8a6521] text-white'
-                      : 'bg-gray-200 text-[#777b86]'
-                  }`}>
-                    {isDone ? '✓' : st.num}
-                  </span>
-                  <span className="hidden md:inline truncate">{st.label}</span>
-                  <span className="md:hidden font-mono">P.{st.num}</span>
-                </button>
+                <React.Fragment key={st.num}>
+                  <button
+                    key={st.num}
+                    type="button"
+                    onClick={() => {
+                      if (st.num < currentStep || validateCurrentStep(currentStep)) {
+                        setCurrentStep(st.num);
+                      }
+                    }}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 border shrink-0 ${
+                      isActive
+                        ? 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be] shadow-2xs ring-1 ring-[#c09748]/20'
+                        : isDone
+                        ? 'bg-[#faf7ed] text-[#17191c] border-[#f4e5be]'
+                        : 'bg-white text-[#777b86] border-[#e5e7eb] hover:border-gray-400'
+                    }`}
+                  >
+                    <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-mono font-bold ${
+                      isActive
+                        ? 'bg-[#c09748] text-white shadow-2xs'
+                        : isDone
+                        ? 'bg-[#8a6521] text-white'
+                        : 'bg-gray-200 text-[#777b86]'
+                    }`}>
+                      {isDone ? '✓' : st.num}
+                    </span>
+                    <span>{st.label}</span>
+                  </button>
+                  {idx < arr.length - 1 && (
+                    <div className="w-4 sm:w-8 h-px bg-[#e5e7eb] shrink-0" />
+                  )}
+                </React.Fragment>
               );
             })}
           </div>
@@ -1339,14 +1515,24 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowAddMaterialDrawer(!showAddMaterialDrawer)}
-                  className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 self-start sm:self-auto"
-                >
-                  <Plus className="w-3.5 h-3.5 text-[#8a6521]" />
-                  <span>{showAddMaterialDrawer ? 'Cancel Additional Issue' : 'Issue Additional Material / Solvent'}</span>
-                </button>
+                <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setShowReturnModal(true)}
+                    className="px-4 py-2 rounded-full bg-[#faf7ed] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-[#c09748]" />
+                    <span>Return Balance to Store</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddMaterialDrawer(!showAddMaterialDrawer)}
+                    className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-[#8a6521]" />
+                    <span>{showAddMaterialDrawer ? 'Cancel Additional Issue' : 'Issue Additional Material'}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Add Additional Material Drawer */}
@@ -1457,6 +1643,68 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </tbody>
                 </table>
               </div>
+
+              {/* Reconciliation Card: Issued = Good + Reject + Returned + Variance */}
+              {(() => {
+                const jcReturnSlips = balanceReturnSlips.filter(r => r.jobCardNo === jobCardNo);
+                const totalReturned = jcReturnSlips
+                  .flatMap(r => r.lines)
+                  .reduce((sum, line) => sum + Number(line.storeCountedQty || line.returnedQtyClaimed || 0), 0);
+                const goodPieces = stageCounts.stage2.completed || initialData?.goodQty || 0;
+                const rejectPieces = stageCounts.stage2.rejects || initialData?.rejectQty || 0;
+                const totalAccounted = goodPieces + rejectPieces + totalReturned;
+                const variance = targetQty - totalAccounted;
+
+                return (
+                  <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec] space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <RotateCcw className="w-3.5 h-3.5 text-[#c09748]" />
+                        <span className="font-mono text-xs font-bold text-[#17191c] uppercase tracking-wide">
+                          Material & Output Reconciliation Rule
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono text-[#777b86]">
+                        {jcReturnSlips.length} Return Slip(s) Logged
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                      <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
+                        <span className="text-[10px] text-[#777b86] uppercase font-mono block">Target Demand</span>
+                        <span className="font-mono font-bold text-sm text-[#17191c]">{targetQty} Pcs</span>
+                      </div>
+                      <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
+                        <span className="text-[10px] text-emerald-700 uppercase font-mono block">Good Output</span>
+                        <span className="font-mono font-bold text-sm text-emerald-800">{goodPieces} Pcs</span>
+                      </div>
+                      <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
+                        <span className="text-[10px] text-rose-700 uppercase font-mono block">Rejection Scrap</span>
+                        <span className="font-mono font-bold text-sm text-rose-800">{rejectPieces} Pcs</span>
+                      </div>
+                      <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
+                        <span className="text-[10px] text-[#8a6521] uppercase font-mono block">Returned to Store</span>
+                        <span className="font-mono font-bold text-sm text-[#8a6521]">{totalReturned} Pcs</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] pt-1 border-t border-[#f2f2f3]">
+                      <span className="text-[#777b86]">
+                        Reconciliation: <strong className="font-mono">Issued ({targetQty}) = Good ({goodPieces}) + Reject ({rejectPieces}) + Returned ({totalReturned}) + Variance ({variance})</strong>
+                      </span>
+                      {variance === 0 ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
+                          ✓ 100% Balanced (0 Variance)
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-rose-50 text-rose-800 border border-rose-200 self-start sm:self-auto">
+                          ⚠ Discrepancy: {variance > 0 ? `+${variance}` : variance} Pcs Variance
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
                         {/* ================================================================= */}
@@ -2015,47 +2263,66 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
             {/* POINT 1: PARTY, WORK ORDER & BATCH IDENTIFICATION                     */}
             {/* ===================================================================== */}
             {!isExistingCard && currentStep === 1 && (
-              <div className="bg-white p-7 sm:p-9 rounded-[24px] border border-[#ececec] shadow-xs space-y-6">
+              <div className="bg-white p-6 sm:p-7 rounded-[24px] border border-[#ececec] shadow-xs space-y-5">
                 
-                {/* Header Strip with Title & Brand Theme Linked GRN Badge */}
-                <div className="pb-5 border-b border-[#ececec] flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] flex items-center justify-center font-bold font-mono text-[11px] shadow-2xs">
+                {/* Header Strip with Title & Job Card Tracing Badge */}
+                <div className="pb-3.5 border-b border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="w-6 h-6 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] flex items-center justify-center font-bold font-mono text-xs shadow-2xs">
                         1
                       </span>
-                      <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-[0.2em] font-mono">
-                        POINT 1: PARTY & WORK ORDER IDENTIFICATION
+                      <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono">
+                        Point 1: Party & Work Order Identification
                       </span>
                     </div>
-                    <h3 className="text-xl sm:text-2xl font-serif text-[#17191c] font-normal tracking-tight">
+                    <h3 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal">
                       Ham Painter ko kis party / customer ka kaam de rahe hain?
                     </h3>
-                    <p className="text-xs text-[#777b86] leading-relaxed">
+                    <p className="text-xs text-[#777b86] mt-0.5">
                       Customer account, delivery challan reference aur finishing process type confirm karein.
                     </p>
                   </div>
 
-                  {/* Identification Badges: System-Generated Job Card No & Linked GRN */}
-                  <div className="shrink-0 flex flex-wrap items-center gap-2.5 self-start md:self-auto">
-                    <div className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#faf7ed] border border-[#f4e5be] shadow-2xs">
-                      <Tag className="w-3.5 h-3.5 text-[#c09748]" />
-                      <span className="text-[10px] font-mono uppercase font-bold text-[#777b86]">Job Card No:</span>
-                      <span className="font-mono text-xs font-bold text-[#8a6521] tracking-tight">{jobCardNo}</span>
-                      <span className="text-[9.5px] font-sans font-semibold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] px-2 py-0.5 rounded-full uppercase">
-                        System Tracing ID
-                      </span>
-                    </div>
+                  {/* Identification Badge: Clean Job Card Tracing Pill */}
+                  <div className="shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#faf7ed] border border-[#f4e5be] shadow-2xs self-start sm:self-auto">
+                    <Tag className="w-3.5 h-3.5 text-[#c09748]" />
+                    <span className="text-[10px] font-mono uppercase font-bold text-[#777b86]">Job Card No:</span>
+                    <span className="font-mono text-xs font-bold text-[#8a6521] tracking-tight">{jobCardNo}</span>
+                    <span className="text-[9.5px] font-sans font-semibold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] px-2 py-0.5 rounded-full uppercase">
+                      System Generated
+                    </span>
+                  </div>
+                </div>
 
-                    <div className="flex items-center gap-2.5 px-4 py-2 rounded-full bg-[#faf7ed] border border-[#f4e5be] shadow-2xs whitespace-nowrap">
-                      <PackageCheck className="w-4 h-4 text-[#c09748] shrink-0" />
-                      <span className="font-mono text-xs font-bold text-[#17191c] tracking-tight">
-                        {selectedGrn?.grnNo || selectedGrnNo || 'PK-GRN-2026-5487'}
+                {/* Linked Store Inward Intake Lot Verification Strip */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2.5 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be]">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-full bg-[#f4e5be]/70 flex items-center justify-center shrink-0">
+                      <PackageCheck className="w-3.5 h-3.5 text-[#8a6521]" />
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap text-xs">
+                      <span className="text-[10px] font-mono uppercase font-bold text-[#8a6521] tracking-wide">
+                        Linked Store Inward GRN:
                       </span>
-                      <span className="text-[10px] font-sans font-semibold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                        Verified Auto-Linked
+                      <span className="font-mono font-bold text-[#17191c] bg-white px-2.5 py-0.5 rounded-full border border-[#f4e5be] shadow-2xs">
+                        {selectedGrn?.grnNo || selectedGrnNo || 'PK-GRN-2026-1250'}
+                      </span>
+                      <span className="text-[#a3a6af] font-normal">•</span>
+                      <span className="text-[#555863] font-sans font-semibold">
+                        {selectedGrn?.supplierCustomer || customer}
+                      </span>
+                      <span className="text-[#8a6521] font-mono text-[11px] font-normal">
+                        ({(selectedGrn?.actualReceivedQty || selectedGrn?.totalQty || 300).toLocaleString('en-IN')} Pcs Inward)
                       </span>
                     </div>
+                  </div>
+
+                  <div className="shrink-0 self-start sm:self-auto">
+                    <span className="text-[9.5px] font-sans font-semibold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#c09748]" />
+                      <span>Verified Auto-Linked</span>
+                    </span>
                   </div>
                 </div>
 
@@ -2366,7 +2633,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
             {/* POINT 3: PAINTER, BOOTH & STRICT DEADLINE                             */}
             {/* ===================================================================== */}
             {!isExistingCard && currentStep === 3 && (
-              <div className="bg-white p-6 sm:p-7 rounded-[24px] border border-[#ececec] shadow-xs space-y-5">
+              <div className="bg-white p-6 sm:p-7 rounded-[24px] border border-[#ececec] shadow-xs space-y-6">
                 <div className="pb-3 border-b border-[#ececec]">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="w-6 h-6 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] flex items-center justify-center font-bold font-mono text-xs">
@@ -2380,105 +2647,76 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     Kaun sa painter spray karega aur kis date/time ke andar kaam finish karna hoga?
                   </h3>
                   <p className="text-xs text-[#777b86] mt-0.5">
-                    Painter assignment with workload guardrail aur exact completion deadline set karein.
+                    Painter assignment with live workload status aur exact completion deadline set karein.
                   </p>
                 </div>
 
+                {/* 2-Column Responsive Form Fields for Booth & Painter */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Department / Spray Booth Line */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase font-mono mb-1.5">
-                      Department / Painting Line *
-                    </label>
-                    <select
-                      value={dept}
-                      onChange={e => setDept(e.target.value)}
-                      className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-white font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer shadow-2xs"
-                    >
-                      <option value="Booth #1 (Continuous Conveyor Line)">Booth #1 (Continuous Conveyor Line)</option>
-                      <option value="Booth #2 (Dust-Free Pressurized Cleanroom)">Booth #2 (Dust-Free Pressurized Cleanroom)</option>
-                      <option value="Booth #3 (Hydrographic Immersion & Dipping)">Booth #3 (Hydrographic Immersion & Dipping)</option>
-                      <option value="Booth #4 (Flatbed Industrial Direct UV Plotter)">Booth #4 (Flatbed Industrial Direct UV Plotter)</option>
-                    </select>
-                  </div>
+                  <CustomCombobox
+                    label="Department / Painting Line"
+                    required
+                    options={boothOptions}
+                    value={dept}
+                    onChange={(val) => setDept(val)}
+                    placeholder="Select or enter spray booth line..."
+                    searchPlaceholder="Search booth or type new booth name..."
+                    allowCustom={true}
+                    customTypePrompt="+ Add & Type Custom Spray Booth / Line"
+                  />
 
                   {/* Assign Painter */}
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase font-mono mb-1.5">
-                      Assign Floor Painter (Max 2 Jobs Limit) *
-                    </label>
-                    <select
-                      required
-                      value={painterName}
-                      onChange={e => {
-                        const selectedP = painters.find(p => p.name === e.target.value);
-                        setPainterName(e.target.value);
-                        if (selectedP) setAssignedPainterId(selectedP.id);
-                      }}
-                      className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-white font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer shadow-2xs"
-                    >
-                      {painters.map(p => {
-                        const count = getPainterActiveJobCount ? getPainterActiveJobCount(p.id) : 0;
-                        const isCap = count >= 2;
-                        return (
-                          <option key={p.id} value={p.name}>
-                            {p.name} ({count}/2 Active Jobs){isCap ? ' - ⚠️ CAP REACHED' : ' - Available'} • {p.boothNo}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
+                  <CustomCombobox
+                    label="Assign Floor Painter (Max 2 Jobs Limit)"
+                    required
+                    options={painterOptions}
+                    value={painterName}
+                    onChange={(val) => {
+                      setPainterName(val);
+                      const matched = painters.find(p => p.name === val);
+                      if (matched) {
+                        setAssignedPainterId(matched.id);
+                      } else {
+                        setAssignedPainterId(`PAINTER-${Date.now()}`);
+                      }
+                    }}
+                    placeholder="Select or enter painter name..."
+                    searchPlaceholder="Search painter or type new name..."
+                    allowCustom={true}
+                    customTypePrompt="+ Add & Type New Floor Painter Name"
+                  />
                 </div>
 
-                {/* Strict Deadline Box */}
-                <div className="p-4 bg-[#fafafb] rounded-[20px] border border-[#f4e5be] space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <label className="block text-[10.5px] font-bold text-[#8a6521] uppercase font-mono flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-[#8a6521]" />
-                        <span>Strict Completion Deadline (Uss date ke andar kaam finish karna hoga) *</span>
-                      </label>
-                      <p className="text-[11px] text-[#777b86]">
-                        Time limit for the painter. Delay hone par shop floor par alert trigger hota hai.
-                      </p>
+                {/* Combined Strict Deadline Box */}
+                <div className="p-4 sm:p-5 bg-[#fafafb] rounded-[22px] border border-[#f4e5be] space-y-3.5 shadow-2xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-[#f2f2f3]">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-[#8a6521]" />
+                      <span className="text-xs font-bold text-[#17191c] uppercase font-mono tracking-wide">
+                        Strict Completion Deadline (Date & Time Target) *
+                      </span>
                     </div>
 
-                    <div className={`px-3 py-1 rounded-full text-[11px] font-mono font-bold border ${deadlineStatus.badgeColor}`}>
+                    <div className={`px-3 py-1 rounded-full text-[10.5px] font-mono font-bold border self-start sm:self-auto ${deadlineStatus.badgeColor}`}>
                       {deadlineStatus.label}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
-                    <div>
-                      <label className="block text-[9.5px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                        Finish Deadline Date *
-                      </label>
-                      <PaintkingDatePicker
-                        value={deadlineDate}
-                        onChange={setDeadlineDate}
-                        placeholder="DD-MM-YYYY"
-                      />
-                    </div>
+                  {/* Unified Date & Time Picker */}
+                  <PaintkingDateTimePicker
+                    dateValue={deadlineDate}
+                    timeValue={deadlineTime}
+                    onChange={(newDate, newTime) => {
+                      setDeadlineDate(newDate);
+                      setDeadlineTime(newTime);
+                    }}
+                  />
 
-                    <div>
-                      <label className="block text-[9.5px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                        Finish Deadline Time *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={deadlineTime}
-                        onChange={e => setDeadlineTime(e.target.value)}
-                        className="w-full h-10 px-3 rounded-[12px] border border-[#dcdfe4] bg-white font-mono font-bold text-xs text-[#17191c]"
-                        placeholder="e.g. 05:30 PM"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Quick Preset Deadlines */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#ececec]">
+                  {/* Quick Preset Buttons */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#ececec]">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[10px] text-[#777b86] font-mono">Quick Deadlines:</span>
+                      <span className="text-[10px] text-[#777b86] font-mono font-medium">Quick Presets:</span>
                       {[
                         { hours: 2, label: '2h (Rush)' },
                         { hours: 4, label: '4h (Standard)' },
@@ -2490,7 +2728,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           key={preset.hours}
                           type="button"
                           onClick={() => handleApplyPresetDeadline(preset.hours)}
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-medium transition cursor-pointer ${
+                          className={`px-3 py-1 rounded-full text-[11px] font-mono transition cursor-pointer ${
                             slaHours === preset.hours
                               ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold shadow-2xs'
                               : 'bg-white text-[#777b86] border border-[#ececec] hover:bg-gray-100'
@@ -2502,7 +2740,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     </div>
 
                     <span className="text-[10.5px] text-[#777b86] font-mono">
-                      Target: <strong>{deadlineDate} {deadlineTime}</strong>
+                      Calculated Target: <strong className="text-[#17191c] font-sans">{deadlineDate} • {deadlineTime}</strong>
                     </span>
                   </div>
                 </div>
@@ -2577,21 +2815,45 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 text-xs">
-                        <div className="sm:col-span-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 text-xs items-end">
+                        {/* Material Type Dropdown */}
+                        <div className="sm:col-span-3">
                           <label className="block text-[9px] font-bold text-[#777b86] uppercase mb-0.5">
-                            Material / Chemical Description *
+                            Classification *
+                          </label>
+                          <select
+                            value={mat.materialType || 'paint'}
+                            onChange={e => handleUpdateMaterial(mat.id || '', 'materialType', e.target.value)}
+                            className="w-full h-8.5 px-2 rounded-[10px] border border-[#dcdfe4] bg-white text-xs font-semibold text-[#17191c]"
+                          >
+                            <option value="paint">Paint / Basecoat</option>
+                            <option value="thinner">Thinner / Reducer</option>
+                            <option value="hardener">Hardener / Catalyst</option>
+                            <option value="primer">Primer / Undercoat</option>
+                            <option value="clear_coat">Clear Coat / PU Lacquer</option>
+                            <option value="activator">Activator / Immersion</option>
+                            <option value="uv_ink">UV Ink / Printing</option>
+                            <option value="consumable">Other Consumable</option>
+                          </select>
+                        </div>
+
+                        {/* Description */}
+                        <div className="sm:col-span-4">
+                          <label className="block text-[9px] font-bold text-[#777b86] uppercase mb-0.5">
+                            Material / Chemical / Shade Description *
                           </label>
                           <input
                             type="text"
                             required
                             value={mat.itemDescription}
                             onChange={e => handleUpdateMaterial(mat.id || '', 'itemDescription', e.target.value)}
+                            placeholder={mat.materialType === 'thinner' ? 'e.g. PU Thinner Slow' : mat.materialType === 'hardener' ? 'e.g. MS Hardener Fast' : 'e.g. PPG Rosso Corsa 932'}
                             className="w-full h-8.5 px-2.5 rounded-[10px] border border-[#dcdfe4] bg-white text-xs font-semibold text-[#17191c]"
                           />
                         </div>
 
-                        <div>
+                        {/* Quantity & Unit */}
+                        <div className="sm:col-span-3">
                           <label className="block text-[9px] font-bold text-[#777b86] uppercase mb-0.5">
                             Issued Qty & Unit *
                           </label>
@@ -2618,9 +2880,10 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           </div>
                         </div>
 
-                        <div>
+                        {/* Remarks */}
+                        <div className="sm:col-span-2">
                           <label className="block text-[9px] font-bold text-[#777b86] uppercase mb-0.5">
-                            Remarks / Ratio
+                            Mix Ratio / Notes
                           </label>
                           <input
                             type="text"
@@ -2629,8 +2892,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                               handleUpdateMaterial(mat.id || '', 'colour', e.target.value);
                               handleUpdateMaterial(mat.id || '', 'remark', e.target.value);
                             }}
-                            placeholder="e.g. Ratio 4:1:1"
-                            className="w-full h-8.5 px-2.5 rounded-[10px] border border-[#dcdfe4] bg-white text-xs text-[#17191c]"
+                            placeholder="e.g. 4:1 Ratio"
+                            className="w-full h-8.5 px-2 rounded-[10px] border border-[#dcdfe4] bg-white text-xs text-[#17191c]"
                           />
                         </div>
                       </div>
@@ -3087,6 +3350,18 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
             </div>
           </div>
         </div>
+      )}
+
+      {/* Production Balance Return Modal */}
+      {showReturnModal && (
+        <BalanceReturnModal
+          isOpen={showReturnModal}
+          onClose={() => setShowReturnModal(false)}
+          preselectedJobCardNo={jobCardNo}
+          onSuccess={() => {
+            setShowReturnModal(false);
+          }}
+        />
       )}
     </div>
   );

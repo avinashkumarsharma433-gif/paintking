@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { Component, useState, useEffect, useRef } from 'react';
 import { PortalProvider, usePortalStore } from './context/PortalStoreContext';
 import { PortalHeader } from './components/PortalHeader';
 import { PortalSidebar, PortalTab, TAB_LABELS } from './components/PortalSidebar';
@@ -48,6 +48,7 @@ const TAB_ALLOWED_ROLES: Record<PortalTab, UserRole[]> = {
   dashboard: ['DIRECTOR', 'PLANT_HEAD'],
   jobcards: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'OPERATOR', 'DEPT_INCHARGE'],
   painter_desk: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'OPERATOR', 'DEPT_INCHARGE'],
+  handovers: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'STORES'],
   billing: ['DIRECTOR', 'PLANT_HEAD', 'BILLING'],
   stores: ['DIRECTOR', 'PLANT_HEAD', 'STORES'],
   paintmixing: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'OPERATOR'],
@@ -70,7 +71,10 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class PortalErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class PortalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  declare props: ErrorBoundaryProps;
+  declare state: ErrorBoundaryState;
+  declare setState: (update: Partial<ErrorBoundaryState> | ((prevState: ErrorBoundaryState) => Partial<ErrorBoundaryState>)) => void;
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };

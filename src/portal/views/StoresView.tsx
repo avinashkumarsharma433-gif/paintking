@@ -34,11 +34,18 @@ import {
   Sparkles,
   CheckSquare,
   User,
-  MapPin
+  MapPin,
+  RotateCcw
 } from 'lucide-react';
 import { CreateGRNModal } from '../components/CreateGRNModal';
-import { downloadStandardIQCPdf, downloadStandardGRNPdf, formatDateDDMMYYYY } from '../utils/pdfStandardHeader';
+import { downloadStandardIQCPdf, downloadStandardGRNPdf, formatDateDDMMYYYY, downloadStandardMINPdf } from '../utils/pdfStandardHeader';
 import { OfficialGRNDocument } from '../components/OfficialGRNDocument';
+import { BatchLedger } from '../components/BatchLedger';
+import { IssueWizardModal } from '../components/IssueWizardModal';
+import { BalanceReturnModal } from '../components/BalanceReturnModal';
+import { FifoCompliancePanel } from '../components/FifoCompliancePanel';
+import { calculateBatchShelfLife } from '../utils/stockEngine';
+import { MaterialRequisitionNote } from '../types/portalTypes';
 
 export const StoresView: React.FC = () => {
   const { 
@@ -49,6 +56,13 @@ export const StoresView: React.FC = () => {
     activePlant,
     materialRequisitions,
     issueMaterialRequisition,
+    stockBatches,
+    fifoOverrideLogs,
+    balanceReturnSlips,
+    acceptBalanceReturnSlip,
+    supervisorSignOffBalanceReturn,
+    plantShiftConfig,
+    executePlantClosingReconciliation,
     currentUser,
     activeSubTab,
     setActiveSubTab
@@ -58,25 +72,36 @@ export const StoresView: React.FC = () => {
   const [selectedGrnForView, setSelectedGrnForView] = useState<GoodsReceiptNote | null>(null);
   const [selectedPendingJobForView, setSelectedPendingJobForView] = useState<any | null>(null);
 
-  // 6 Clear Dedicated Tabs for Store Manager:
-  // 1. TRACKER: Live Material Inventory Ledger (Customer-wise stock, issued, balance)
+  // Dedicated Tabs for Store Role:
+  // 1. TRACKER: Batch-wise Inventory Ledger (FEFO/FIFO sorted, days left, balance)
   // 2. REQUISITIONS: Production Floor Material Demands (MRN Requests awaiting Issue)
-  // 3. ISSUED_SLIPS: Material Issue Slips (MIN) & Floor Dispatch History
-  // 4. SHELF_LIFE: Dedicated Shelf-Life & Perishables Aging Dashboard (Paints, Hardeners, Solvents)
+  // 3. ISSUED_SLIPS: Material Issue Slips (MIN) & Floor Dispatch History (with FIFO OK / Override badges & PDF)
+  // 4. RETURNS: Production Balance Return Slips (Discrepancy reconciliation & restock)
   // 5. PENDING: IQC Passed Inwards awaiting Store acceptance
   // 6. GRN_REGISTER: Official GRN Documents (DOC NO: 00) & PDF Prints
-  const [activeTab, setActiveTab] = useState<'TRACKER' | 'REQUISITIONS' | 'ISSUED_SLIPS' | 'SHELF_LIFE' | 'PENDING' | 'GRN_REGISTER'>('TRACKER');
+  // 7. FIFO_COMPLIANCE: Plant FIFO/FEFO Audit, Override Logs & Deviation Tracking
+  const [activeTab, setActiveTab] = useState<'TRACKER' | 'REQUISITIONS' | 'ISSUED_SLIPS' | 'RETURNS' | 'PENDING' | 'GRN_REGISTER' | 'FIFO_COMPLIANCE'>('TRACKER');
+
+  // Role Permissions
+  const isStoreIncharge = currentUser.role === 'STORES' || currentUser.role === 'PLANT_HEAD' || currentUser.role === 'DIRECTOR';
+  const canViewCompliance = currentUser.role === 'PLANT_HEAD' || currentUser.role === 'DIRECTOR' || currentUser.role === 'STORES';
+
+  // New Modals State
+  const [showIssueWizard, setShowIssueWizard] = useState<boolean>(false);
+  const [selectedMrnForWizard, setSelectedMrnForWizard] = useState<MaterialRequisitionNote | null>(null);
+  const [showReturnModal, setShowReturnModal] = useState<boolean>(false);
+  const [selectedJobForReturn, setSelectedJobForReturn] = useState<string | undefined>(undefined);
+  const [returnSubFilter, setReturnSubFilter] = useState<'ALL' | 'AUTO_CUTOFF' | 'PENDING' | 'ACCEPTED'>('ALL');
 
   // Synchronize when sidebar sub-item is clicked
   useEffect(() => {
-    if (activeSubTab === 'TRACKER' || activeSubTab === 'REQUISITIONS' || activeSubTab === 'ISSUED_SLIPS' || activeSubTab === 'SHELF_LIFE' || activeSubTab === 'PENDING' || activeSubTab === 'GRN_REGISTER') {
+    if (activeSubTab === 'TRACKER' || activeSubTab === 'REQUISITIONS' || activeSubTab === 'ISSUED_SLIPS' || activeSubTab === 'PENDING' || activeSubTab === 'GRN_REGISTER' || activeSubTab === 'RETURNS') {
       setActiveTab(activeSubTab);
     }
   }, [activeSubTab]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [clientFilter, setClientFilter] = useState<string>('ALL');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState<boolean>(false);
-  const [shelfHealthFilter, setShelfHealthFilter] = useState<'ALL' | 'AGING' | 'EXPIRED' | 'FRESH'>('ALL');
 
   // Selected Requisition to Issue from Store
   const [selectedMrnToFulfill, setSelectedMrnToFulfill] = useState<any | null>(null);
@@ -393,16 +418,35 @@ export const StoresView: React.FC = () => {
     return materialTrackerList.filter(m => m.isReorderAlert).length;
   }, [materialTrackerList]);
 
-  // Aging counts across ALL materials in company
-  const allAgingCount = useMemo(() => {
-    return materialTrackerList.filter(m => m.shelfHealth === 'AGING_WARNING').length;
-  }, [materialTrackerList]);
-
-  const allExpiredCount = useMemo(() => {
-    return materialTrackerList.filter(m => m.shelfHealth === 'EXPIRED').length;
-  }, [materialTrackerList]);
-
-  const totalShelfAlertCount = allAgingCount + allExpiredCount;
+  // Batch-wise Shelf-Life Calculation (Using REAL batch expiryDate from stockBatches)
+  const batchShelfLifeList = useMemo(() => {
+    const batches = stockBatches.filter(b => !activePlant || b.plant.toLowerCase() === activePlant.toLowerCase());
+    return batches.map(b => {
+      const life = calculateBatchShelfLife(b);
+      return {
+        batch: b,
+        batchId: b.batchId,
+        itemCode: b.itemCode || b.partCode || b.itemName,
+        itemName: b.itemName,
+        customer: b.customer || 'General Internal Stock',
+        supplierBatchNo: b.supplierBatchNo || b.batchId,
+        grnNo: b.grnNo,
+        category: b.category,
+        materialType: b.materialType,
+        receivedDate: b.receivedDate,
+        expiryDate: b.expiryDate,
+        daysInStore: life.daysSinceReceived,
+        daysRemaining: life.daysLeft,
+        shelfHealth: life.isExpired ? 'EXPIRED' : life.isNearExpiry ? 'AGING_WARNING' : 'FRESH',
+        balanceAvailable: Number(b.balanceQty || 0),
+        receivedQty: Number(b.receivedQty || 0),
+        uom: b.uom || 'Litre',
+        status: b.status,
+        shelfLifeDays: life.daysLeft !== null ? life.daysSinceReceived + life.daysLeft : 60,
+        materialCategory: b.category === 'PARTY_MATERIAL' ? 'Party Substrate' : `${b.materialType.toUpperCase()} Consumable`
+      };
+    });
+  }, [stockBatches, activePlant]);
 
   // Unique customers for dropdown filter
   const uniqueClients = useMemo(() => {
@@ -425,23 +469,6 @@ export const StoresView: React.FC = () => {
     });
   }, [materialTrackerList, clientFilter, searchQuery]);
 
-  // Filtered List for Dedicated Shelf-Life Dashboard (ALL Materials: Paints, Chemicals, and Substrates)
-  const filteredShelfLife = useMemo(() => {
-    return materialTrackerList.filter(item => {
-      if (shelfHealthFilter === 'AGING' && item.shelfHealth !== 'AGING_WARNING') return false;
-      if (shelfHealthFilter === 'EXPIRED' && item.shelfHealth !== 'EXPIRED') return false;
-      if (shelfHealthFilter === 'FRESH' && item.shelfHealth !== 'FRESH') return false;
-      if (!searchQuery.trim()) return true;
-      const q = searchQuery.toLowerCase();
-      return (
-        item.customer.toLowerCase().includes(q) ||
-        item.partCode.toLowerCase().includes(q) ||
-        item.partDesc.toLowerCase().includes(q) ||
-        item.materialCategory.toLowerCase().includes(q)
-      );
-    });
-  }, [materialTrackerList, shelfHealthFilter, searchQuery]);
-
   // High-signal aggregates
   const totalInwardPieces = materialTrackerList.reduce((acc, curr) => acc + curr.totalInward, 0);
   const totalIssuedPieces = materialTrackerList.reduce((acc, curr) => acc + curr.totalIssuedToFloor, 0);
@@ -461,10 +488,13 @@ export const StoresView: React.FC = () => {
     g.invoiceChallanNo.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Items qualifying for the Email Trigger (Days in Store >= Threshold Days AND balance > 0)
+  // Items qualifying for the Email Trigger (Days in Store >= Threshold Days AND balance > 0 OR Near Expiry/Expired)
   const itemsTriggeringEmail = useMemo(() => {
-    return materialTrackerList.filter(item => item.daysInStore >= emailThresholdDays && item.balanceAvailable > 0);
-  }, [materialTrackerList, emailThresholdDays]);
+    return batchShelfLifeList.filter(item => 
+      (item.daysInStore >= emailThresholdDays || item.shelfHealth === 'AGING_WARNING' || item.shelfHealth === 'EXPIRED') && 
+      item.balanceAvailable > 0
+    );
+  }, [batchShelfLifeList, emailThresholdDays]);
 
   // Handler to manually dispatch email notification or test trigger
   const handleSendEmailAlertNow = () => {
@@ -486,6 +516,78 @@ export const StoresView: React.FC = () => {
     setSelectedPendingJobForGrn(job);
     setShowGRNModal(true);
   };
+
+  // Unified List of Issued MIN Slips (Dispatched MRNs + Legacy Slips)
+  const allIssuedSlips = useMemo(() => {
+    // 1. From materialRequisitions that are dispatched or partially issued
+    const mrnIssued = materialRequisitions
+      .filter(r => r.issuedSlipNo || r.status === 'Dispatched by Store' || r.status === 'Partially Issued')
+      .map(r => {
+        const slipNo = r.issuedSlipNo || `MIN-2026-${r.mrnNo.replace('MRN-', '')}`;
+        const hasOverride = r.fifoStatus === 'FIFO Override' || fifoOverrideLogs.some(l => l.minNo === slipNo || l.mrnNo === r.mrnNo);
+        
+        let batchSummary = '';
+        if (r.issuedBatchLines && r.issuedBatchLines.length > 0) {
+          batchSummary = r.issuedBatchLines
+            .map(b => `${b.supplierBatchNo || b.batchId} (${b.issuedQty} ${r.uom})`)
+            .join(', ');
+        } else if (r.issuedMaterials && r.issuedMaterials.length > 0) {
+          batchSummary = r.issuedMaterials
+            .map(m => m.batchNo ? `${m.batchNo} (${m.qty} ${m.uom})` : `${m.itemDescription} (${m.qty} ${m.uom})`)
+            .join(', ');
+        } else {
+          batchSummary = `Lot-${r.sourceGrnNo?.slice(-4) || '2026'} (${r.issuedQty || r.requestedQty} ${r.uom})`;
+        }
+
+        return {
+          slipNo,
+          date: r.issuedDate || `${r.date} ${r.time}`,
+          grnNo: r.sourceGrnNo || r.issuedMaterials?.[0]?.grnNo || 'PK-GRN-2026-1252',
+          partCode: r.partCode,
+          partDescription: r.partDescription,
+          customer: r.customer,
+          qty: r.issuedQty || r.requestedQty,
+          uom: r.uom,
+          issuedTo: r.issuedTo || 'Line Supervisor',
+          jobCardId: r.jobCardNo,
+          remarks: r.issueRemarks || r.productionRemarks || 'Issued for coating line',
+          batchLines: r.issuedBatchLines || [],
+          materials: r.issuedMaterials || [],
+          hasOverride,
+          overrideReasonCode: r.overrideReasonCode,
+          overrideRemark: r.overrideRemark,
+          rawMrn: r
+        };
+      });
+
+    // 2. Custom issued records
+    const legacyIssued = customIssuedRecords
+      .filter(c => !mrnIssued.some(m => m.slipNo === c.slipNo))
+      .map(c => {
+        const hasOverride = fifoOverrideLogs.some(l => l.minNo === c.slipNo);
+        return {
+          ...c,
+          partDescription: c.partCode,
+          batchLines: [],
+          materials: [],
+          hasOverride,
+          overrideReasonCode: undefined,
+          overrideRemark: undefined,
+          rawMrn: null
+        };
+      });
+
+    const combined = [...mrnIssued, ...legacyIssued];
+    if (!searchQuery.trim()) return combined;
+    const q = searchQuery.toLowerCase();
+    return combined.filter(s =>
+      s.slipNo.toLowerCase().includes(q) ||
+      s.customer.toLowerCase().includes(q) ||
+      s.partCode.toLowerCase().includes(q) ||
+      s.jobCardId.toLowerCase().includes(q) ||
+      s.grnNo.toLowerCase().includes(q)
+    );
+  }, [materialRequisitions, customIssuedRecords, fifoOverrideLogs, searchQuery]);
 
   // Handlers for Material Issue Slip (MIN) and Return to Store
   const handleOpenIssueModal = (item: any) => {
@@ -550,6 +652,36 @@ export const StoresView: React.FC = () => {
           <p className="text-xs text-[#777b86] mt-1">
             Har customer ka kitna material aaya, kitna shop floor par issue hua, aur kitna balance bacha hai.
           </p>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            disabled={!isStoreIncharge}
+            title={!isStoreIncharge ? "Store Incharge persona required to accept returns" : undefined}
+            onClick={() => setShowReturnModal(true)}
+            className={`px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition active:scale-95 ${
+              isStoreIncharge
+                ? 'bg-[#faf7ed] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] cursor-pointer font-bold'
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+            }`}
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-[#c09748]" />
+            <span>Process Return to Store (RTN)</span>
+          </button>
+          <button
+            type="button"
+            disabled={!isStoreIncharge}
+            onClick={() => setShowGRNModal(true)}
+            className={`px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition active:scale-95 ${
+              isStoreIncharge
+                ? 'bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] cursor-pointer font-bold'
+                : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+            }`}
+          >
+            <Plus className="w-3.5 h-3.5 text-[#c09748]" />
+            <span>Create Inward GRN</span>
+          </button>
         </div>
       </div>
 
@@ -620,34 +752,30 @@ export const StoresView: React.FC = () => {
           <div className="text-[10px] sm:text-[11px] text-[#8a6521]/80 truncate">Available in warehouse</div>
         </div>
 
-        {/* Card 4: SHELF-LIFE WATCH (Clickable -> Shelf Life Watch Tab) */}
+        {/* Card 4: FLOOR DEMANDS (Clickable -> Floor Demands Tab) */}
         <div 
-          onClick={() => setActiveTab('SHELF_LIFE')}
+          onClick={() => setActiveTab('REQUISITIONS')}
           className={`p-4 rounded-[20px] border shadow-xs space-y-1 cursor-pointer transition hover:shadow-sm active:scale-[0.98] ${
-            activeTab === 'SHELF_LIFE' 
+            activeTab === 'REQUISITIONS' 
               ? 'border-amber-400 ring-1 ring-amber-300' 
-              : totalShelfAlertCount > 0 
+              : materialRequisitions.filter(r => r.status === 'Pending Store Issue').length > 0 
                 ? 'bg-amber-50/70 border-amber-300 hover:border-amber-400' 
                 : 'bg-white border-[#ececec] hover:border-[#c09748]/60'
           }`}
-          title="Click to inspect Shelf-Life Aging Watch"
+          title="Click to view Floor Demands (MRN)"
         >
-          <div className={`text-[10px] font-bold uppercase tracking-wider flex items-center justify-between font-mono ${
-            totalShelfAlertCount > 0 ? 'text-amber-800' : 'text-[#777b86]'
-          }`}>
+          <div className="text-[10px] font-bold uppercase tracking-wider flex items-center justify-between font-mono text-amber-800">
             <span className="flex items-center gap-1">
-              <Clock className={`w-3.5 h-3.5 ${totalShelfAlertCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`} />
-              SHELF-LIFE WATCH
+              <ArrowRightLeft className="w-3.5 h-3.5 text-amber-600" />
+              FLOOR DEMANDS
             </span>
-            <span className="text-[9px] uppercase tracking-normal underline text-[#8a6521]">View &rarr;</span>
+            <span className="text-[9px] uppercase tracking-normal underline text-[#8a6521]">View Demands &rarr;</span>
           </div>
-          <div className={`text-xl sm:text-2xl font-serif font-bold ${
-            totalShelfAlertCount > 0 ? 'text-amber-900' : 'text-emerald-900'
-          }`}>
-            {materialTrackerList.length} Lots Tracked
+          <div className="text-xl sm:text-2xl font-serif font-bold text-amber-900">
+            {materialRequisitions.filter(r => r.status === 'Pending Store Issue').length} Pending
           </div>
           <div className="text-[10px] sm:text-[11px] text-[#777b86] truncate">
-            {totalShelfAlertCount > 0 ? `${totalShelfAlertCount} material lots need rotation` : 'All materials fresh & compliant'}
+            {materialRequisitions.length} Total requisitions raised
           </div>
         </div>
       </div>
@@ -726,24 +854,6 @@ export const StoresView: React.FC = () => {
             </span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('SHELF_LIFE')}
-            className={`px-3.5 sm:px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold cursor-pointer transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95 ${
-              activeTab === 'SHELF_LIFE'
-                ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold shadow-2xs'
-                : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
-            }`}
-          >
-            <Clock className={`w-3.5 h-3.5 ${activeTab === 'SHELF_LIFE' ? 'text-[#8a6521]' : 'text-[#777b86]'}`} />
-            <span>Shelf-Life</span>
-            <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
-              totalShelfAlertCount > 0 
-                ? (activeTab === 'SHELF_LIFE' ? 'bg-[#f4e5be] text-[#8a6521]' : 'bg-amber-100 text-amber-900 border border-amber-300')
-                : 'bg-[#f2f2f3] text-[#777b86]'
-            }`}>
-              {totalShelfAlertCount}
-            </span>
-          </button>
 
           <button
             onClick={() => setActiveTab('GRN_REGISTER')}
@@ -761,6 +871,46 @@ export const StoresView: React.FC = () => {
               {grnList.length}
             </span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('RETURNS')}
+            className={`px-3.5 sm:px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold cursor-pointer transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95 ${
+              activeTab === 'RETURNS'
+                ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold shadow-2xs'
+                : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+            }`}
+          >
+            <RotateCcw className={`w-3.5 h-3.5 ${activeTab === 'RETURNS' ? 'text-[#8a6521]' : 'text-[#777b86]'}`} />
+            <span>Returns (RTN)</span>
+            <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
+              balanceReturnSlips.filter(r => r.status === 'Pending Store Verification').length > 0
+                ? (activeTab === 'RETURNS' ? 'bg-[#f4e5be] text-[#8a6521]' : 'bg-amber-100 text-amber-900 border border-amber-300')
+                : 'bg-[#f2f2f3] text-[#777b86]'
+            }`}>
+              {balanceReturnSlips.length}
+            </span>
+          </button>
+
+          {canViewCompliance && (
+            <button
+              onClick={() => setActiveTab('FIFO_COMPLIANCE')}
+              className={`px-3.5 sm:px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold cursor-pointer transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95 ${
+                activeTab === 'FIFO_COMPLIANCE'
+                  ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold shadow-2xs'
+                  : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+              }`}
+            >
+              <ShieldCheck className={`w-3.5 h-3.5 ${activeTab === 'FIFO_COMPLIANCE' ? 'text-[#8a6521]' : 'text-[#777b86]'}`} />
+              <span>FIFO Compliance</span>
+              <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
+                fifoOverrideLogs.length > 0
+                  ? (activeTab === 'FIFO_COMPLIANCE' ? 'bg-[#f4e5be] text-[#8a6521]' : 'bg-amber-100 text-amber-900 border border-amber-300')
+                  : 'bg-[#f2f2f3] text-[#777b86]'
+              }`}>
+                {fifoOverrideLogs.length > 0 ? `${fifoOverrideLogs.length} Dev` : '100%'}
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Inline Search Bar */}
@@ -792,6 +942,10 @@ export const StoresView: React.FC = () => {
       {/* TAB 1: MATERIAL STOCK TRACKER (CLEAN, FOCUSED STOCK LEDGER)            */}
       {/* ====================================================================== */}
       {activeTab === 'TRACKER' && (
+        <BatchLedger />
+      )}
+
+      {false && activeTab === 'TRACKER' && (
         <div className="space-y-4">
           <div className="bg-white rounded-[24px] border border-[#ececec] p-4 sm:p-5 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
@@ -1084,214 +1238,171 @@ export const StoresView: React.FC = () => {
               </div>
             </div>
 
-            {/* Desktop Table of Demands */}
-            <div className="hidden md:block overflow-x-auto border border-[#ececec] rounded-[16px]">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-[#fafafb] text-[#777b86] font-semibold uppercase text-[10px] tracking-wider border-b border-[#ececec]">
-                    <th className="p-3">MRN No & Date</th>
-                    <th className="p-3">Job Card & Part Code</th>
-                    <th className="p-3">Material Description</th>
-                    <th className="p-3 text-center">Requested Qty</th>
-                    <th className="p-3">Requested By / Urgency</th>
-                    <th className="p-3 text-center">Status</th>
-                    <th className="p-3 text-right">Store Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#ececec] text-[#17191c]">
-                  {materialRequisitions.map((req, idx) => {
-                    const isPending = req.status === 'Pending Store Issue';
-                    const isDispatched = req.status === 'Dispatched by Store';
-                    const isReceived = req.status === 'Received by Production';
-                    const isDiscrepant = req.status === 'Discrepancy Flagged';
+            {/* Executive Card Strips Architecture (Modern PK-OS Standard) */}
+            <div className="space-y-3">
+              {materialRequisitions.map((req, idx) => {
+                const isPending = req.status === 'Pending Store Issue';
+                const isDispatched = req.status === 'Dispatched by Store';
+                const isReceived = req.status === 'Received by Production';
+                const isDiscrepant = req.status === 'Discrepancy Flagged';
+                const isAutoGeneratedRemarks = req.productionRemarks?.startsWith('Auto-generated from Job Card creation');
 
-                    return (
-                      <tr key={idx} className="hover:bg-[#fafafb] transition">
-                        <td className="p-3">
-                          <div className="font-mono font-bold text-[#c09748]">{req.mrnNo}</div>
-                          <div className="text-[11px] text-[#777b86]">{req.date} {req.time}</div>
-                          <div className="text-[10px] font-mono text-gray-400">{req.plant}</div>
-                        </td>
-                        <td className="p-3">
-                          <div className="font-mono font-bold text-[#17191c]">{req.jobCardNo}</div>
-                          <div className="font-mono text-xs text-[#8a6521]">{req.partCode}</div>
-                          <div className="text-[10px] text-[#777b86]">{req.customer}</div>
-                        </td>
-                        <td className="p-3">
-                          <div className="font-semibold text-[#17191c]">{req.partDescription}</div>
-                          {req.colorName && (
-                            <div className="text-[11px] text-[#777b86]">Color: {req.colorName}</div>
-                          )}
-                          {req.productionRemarks && (
-                            <div className="text-[10px] text-[#8a6521] bg-[#faf7ed] border border-[#f4e5be] p-1 rounded-md mt-1 font-mono">
-                              {req.productionRemarks}
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-3 text-center font-mono font-bold text-sm bg-[#faf7ed]/60 text-[#8a6521]">
-                          {req.requestedQty.toLocaleString('en-IN')} {req.uom}
-                        </td>
-                        <td className="p-3">
-                          <div className="font-medium text-[#17191c]">{req.requestedBy}</div>
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                            req.urgency.includes('High') || req.urgency.includes('Urgent')
-                              ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                              : 'bg-gray-100 text-gray-700'
-                          }`}>
-                            {req.urgency}
+                return (
+                  <div
+                    key={idx}
+                    className={`rounded-[22px] border border-[#ececec] p-4 sm:p-5 shadow-2xs transition space-y-3 hover:border-[#c09748] ${
+                      isReceived ? 'bg-[#fafafb]/60' : 'bg-white'
+                    }`}
+                  >
+                    {/* Top Bar: MRN Ref + Job Card + Customer + Timestamp + Status */}
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-[#f2f2f3] pb-2.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-3 py-1 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-mono font-bold text-xs shadow-2xs">
+                          {req.mrnNo}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full bg-[#fafafb] text-[#17191c] border border-[#ececec] font-mono font-bold text-xs">
+                          {req.jobCardNo}
+                        </span>
+                        <span className="font-bold text-sm text-[#17191c]">
+                          {req.customer}
+                        </span>
+                        {req.partCode && (
+                          <span className="text-xs text-[#777b86]">
+                            • Part: <strong className="font-mono text-[#8a6521]">{req.partCode}</strong>
                           </span>
-                        </td>
-                        <td className="p-3 text-center">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                        )}
+                      </div>
+
+                      {/* Timestamp & Status Badge */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-mono text-[#a3a6af] hidden sm:inline">
+                          {req.date} • {req.time} ({req.plant})
+                        </span>
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs border ${
                             isPending
-                              ? 'bg-amber-50 text-amber-900 border-amber-300 animate-pulse'
+                              ? 'bg-amber-50 text-amber-900 border-amber-300'
                               : isDispatched
                                 ? 'bg-blue-50 text-blue-900 border-blue-200'
                                 : isReceived
                                   ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
                                   : 'bg-rose-50 text-rose-900 border-rose-300'
-                          }`}>
-                            {req.status}
-                          </span>
-                          {req.issuedSlipNo && (
-                            <div className="text-[10px] font-mono text-blue-700 mt-0.5">
-                              {req.issuedSlipNo}
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-3 text-right">
-                          {isPending ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const matchedTracker = materialTrackerList.find(m => m.partCode.toLowerCase() === req.partCode.toLowerCase());
-                                const grnToUse = matchedTracker?.grnNo || grnList[0]?.grnNo || 'PK-GRN-2026-1252';
-                                const slipNo = `MIN-2026-${String(customIssuedRecords.length + 1).padStart(3, '0')}`;
-                                issueMaterialRequisition(
-                                  req.mrnNo,
-                                  slipNo,
-                                  grnToUse,
-                                  req.requestedQty,
-                                  'Manoj Tiwari (Store Incharge)',
-                                  `Dispatched against Requisition ${req.mrnNo}`
-                                );
-                                // Log in customIssuedRecords
-                                setCustomIssuedRecords(prev => [
-                                  {
-                                    slipNo,
-                                    date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-                                    grnNo: grnToUse,
-                                    partCode: req.partCode,
-                                    customer: req.customer,
-                                    qty: req.requestedQty,
-                                    uom: req.uom,
-                                    issuedTo: req.requestedBy,
-                                    jobCardId: req.jobCardNo,
-                                    remarks: `Issued for MRN ${req.mrnNo}`
-                                  },
-                                  ...prev
-                                ]);
-                                setEmailSentToast(`✓ MIN Slip ${slipNo} Issued! Transferred ${req.requestedQty} ${req.uom} to Floor.`);
-                                setTimeout(() => setEmailSentToast(null), 5000);
-                              }}
-                              className="px-3.5 py-1.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] text-xs font-bold transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
-                            >
-                              <ArrowRightLeft className="w-3.5 h-3.5 text-[#c09748]" />
-                              <span>Fulfill & Issue MIN</span>
-                            </button>
-                          ) : (
-                            <span className="text-[11px] text-gray-500 font-mono">
-                              ✓ Dispatched ({req.issuedQty} {req.uom})
+                          }`}
+                        >
+                          {isPending && <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />}
+                          {isReceived && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+                          <span>{req.status}</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Middle Section: Material Details & Requisition Items vs Action Area */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
+                      <div className="lg:col-span-8 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-semibold text-sm text-[#17191c]">{req.partDescription}</h4>
+                          {req.colorName && (
+                            <span className="text-xs text-[#777b86] font-medium">
+                              • Shade: <strong className="text-[#17191c]">{req.colorName}</strong>
                             </span>
                           )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {materialRequisitions.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="p-8 text-center text-[#777b86]">
-                        Koi pending material requisition nahi hai.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                        </div>
 
-            {/* Mobile View for Requisitions */}
-            <div className="grid grid-cols-1 gap-3 md:hidden">
-              {materialRequisitions.map((req, idx) => (
-                <div key={idx} className="p-4 rounded-[18px] border border-[#ececec] bg-white shadow-2xs space-y-2.5">
-                  <div className="flex items-start justify-between gap-2 border-b border-[#f2f2f3] pb-2">
-                    <div>
-                      <div className="font-mono font-bold text-xs text-[#c09748]">{req.mrnNo}</div>
-                      <div className="font-bold text-sm text-[#17191c]">{req.jobCardNo} • {req.partCode}</div>
-                      <div className="text-[11px] text-[#777b86]">{req.customer}</div>
-                    </div>
-                    <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be]">
-                      {req.requestedQty} {req.uom}
-                    </span>
-                  </div>
+                        {/* Breakdown Chips */}
+                        {req.requisitionLines && req.requisitionLines.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] font-mono font-bold text-[#777b86] uppercase tracking-wider">Required:</span>
+                            {req.requisitionLines.map((l, i) => (
+                              <span
+                                key={i}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-mono border shadow-2xs ${
+                                  l.category === 'COMPANY_CONSUMABLE'
+                                    ? 'bg-blue-50/50 border-blue-100 text-blue-900'
+                                    : 'bg-[#fafafb] border-[#ececec] text-[#17191c]'
+                                }`}
+                              >
+                                {l.itemName}: <strong className={l.category === 'COMPANY_CONSUMABLE' ? 'text-blue-900' : 'text-[#8a6521]'}>{l.requestedQty} {l.uom}</strong>
+                              </span>
+                            ))}
+                          </div>
+                        )}
 
-                  <div className="text-xs space-y-1 bg-[#fafafb] p-2.5 rounded-[12px]">
-                    <div className="text-[11px] text-[#17191c] font-medium">{req.partDescription}</div>
-                    {req.productionRemarks && (
-                      <div className="text-[10px] text-[#8a6521] bg-[#faf7ed] border border-[#f4e5be] p-1.5 rounded-md font-mono">
-                        {req.productionRemarks}
+                        {/* Store Issue Verification or Floor Status */}
+                        {req.issuedSlipNo && (
+                          <div className="text-[11px] font-mono text-emerald-800 bg-emerald-50/60 border border-emerald-100 px-2.5 py-1 rounded-lg w-fit flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Store MIN Slip: <strong>{req.issuedSlipNo}</strong> ({req.issuedQty || req.requestedQty} {req.uom})</span>
+                          </div>
+                        )}
+
+                        {!isAutoGeneratedRemarks && req.productionRemarks && (
+                          <div className="text-[11px] text-[#8a6521] italic bg-[#faf7ed] border border-[#f4e5be] px-2.5 py-1 rounded-lg w-fit">
+                            {req.productionRemarks}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    <div className="flex justify-between text-[#777b86]">
-                      <span>Requested By:</span>
-                      <span className="text-[#17191c] font-medium">{req.requestedBy}</span>
+
+                      {/* Right Area: Demanded Stat & Store Action Button */}
+                      <div className="lg:col-span-4 flex items-center justify-between lg:justify-end gap-3 pt-2 lg:pt-0 border-t lg:border-t-0 border-[#f2f2f3]">
+                        <div className="text-left lg:text-right">
+                          <div className="text-[10px] font-mono uppercase text-[#777b86]">Demanded Qty</div>
+                          <div className="font-mono font-bold text-base text-[#17191c]">
+                            {req.requestedQty.toLocaleString('en-IN')} {req.uom}
+                          </div>
+                        </div>
+
+                        {(isPending || req.status === 'Partially Issued') ? (
+                          <button
+                            type="button"
+                            disabled={!isStoreIncharge}
+                            title={!isStoreIncharge ? "Store Incharge persona required to issue stock" : undefined}
+                            onClick={() => {
+                              setSelectedMrnForWizard(req);
+                              setShowIssueWizard(true);
+                            }}
+                            className={`px-5 py-2.5 rounded-full text-xs font-bold transition inline-flex items-center gap-2 shadow-2xs whitespace-nowrap active:scale-95 border ${
+                              isStoreIncharge
+                                ? 'bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border-[#f4e5be] cursor-pointer'
+                                : 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'
+                            }`}
+                          >
+                            <ArrowRightLeft className="w-4 h-4 text-[#c09748]" />
+                            <span>{req.status === 'Partially Issued' ? 'Issue Balance' : 'Review & Issue Material'}</span>
+                          </button>
+                        ) : (
+                          <span className="px-4 py-2 rounded-full text-xs font-mono font-semibold bg-[#f2f2f3] text-[#777b86] border border-[#dcdfe4] inline-flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Issued ({req.issuedQty || req.requestedQty} {req.uom})</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex justify-between text-[#777b86]">
-                      <span>Status:</span>
-                      <span className="font-bold text-[#17191c]">{req.status}</span>
+
+                    {/* Footer Info Strip: Urgency + Supervisor Handshake */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#777b86] pt-2 border-t border-[#f8f8f9]">
+                      <div className="flex items-center gap-2">
+                        <span>Raised By: <strong className="text-[#17191c]">{req.requestedBy}</strong></span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          req.urgency.includes('High') || req.urgency.includes('Urgent')
+                            ? 'bg-rose-50 text-rose-800 border border-rose-200'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {req.urgency}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono text-[#a3a6af]">
+                        Plant: {req.plant} • {req.date}
+                      </span>
                     </div>
                   </div>
+                );
+              })}
 
-                  {req.status === 'Pending Store Issue' && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const matchedTracker = materialTrackerList.find(m => m.partCode.toLowerCase() === req.partCode.toLowerCase());
-                        const grnToUse = matchedTracker?.grnNo || grnList[0]?.grnNo || 'PK-GRN-2026-1252';
-                        const slipNo = `MIN-2026-${String(customIssuedRecords.length + 1).padStart(3, '0')}`;
-                        issueMaterialRequisition(
-                          req.mrnNo,
-                          slipNo,
-                          grnToUse,
-                          req.requestedQty,
-                          'Manoj Tiwari (Store Incharge)',
-                          `Dispatched against Requisition ${req.mrnNo}`
-                        );
-                        setCustomIssuedRecords(prev => [
-                          {
-                            slipNo,
-                            date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-                            grnNo: grnToUse,
-                            partCode: req.partCode,
-                            customer: req.customer,
-                            qty: req.requestedQty,
-                            uom: req.uom,
-                            issuedTo: req.requestedBy,
-                            jobCardId: req.jobCardNo,
-                            remarks: `Issued for MRN ${req.mrnNo}`
-                          },
-                          ...prev
-                        ]);
-                        setEmailSentToast(`✓ MIN Slip ${slipNo} Issued!`);
-                        setTimeout(() => setEmailSentToast(null), 5000);
-                      }}
-                      className="w-full py-2 rounded-full bg-[#17191c] text-[#c09748] text-xs font-bold flex items-center justify-center gap-1 shadow-2xs"
-                    >
-                      <ArrowRightLeft className="w-3.5 h-3.5 text-[#c09748]" />
-                      <span>Fulfill & Issue MIN Slip</span>
-                    </button>
-                  )}
+              {materialRequisitions.length === 0 && (
+                <div className="bg-white rounded-[22px] border border-[#ececec] p-12 text-center text-[#777b86]">
+                  Koi pending material requisition nahi hai.
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>
@@ -1319,58 +1430,121 @@ export const StoresView: React.FC = () => {
               </div>
             </div>
 
-            {/* Desktop Table View of Issued Slips */}
+            {/* Desktop Table View of Issued Slips - 4 Column Standard */}
             <div className="hidden md:block overflow-x-auto border border-[#ececec] rounded-[16px]">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-[#fafafb] text-[#777b86] font-semibold uppercase text-[10px] tracking-wider border-b border-[#ececec]">
                     <th className="p-3">MIN Slip No & Date</th>
                     <th className="p-3">Customer & Part Details</th>
-                    <th className="p-3 text-center">Quantity Issued</th>
-                    <th className="p-3">Target Job Card</th>
-                    <th className="p-3">Received By (Floor Incharge)</th>
-                    <th className="p-3 text-right">Action</th>
+                    <th className="p-3">Material & Qty (Batch Summary)</th>
+                    <th className="p-3 text-center">FIFO / FEFO Status</th>
+                    <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#ececec] text-[#17191c]">
-                  {customIssuedRecords.map((slip, idx) => (
-                    <tr key={idx} className="hover:bg-[#fafafb] transition">
-                      <td className="p-3">
-                        <div className="font-mono font-bold text-[#c09748]">{slip.slipNo}</div>
-                        <div className="text-[11px] text-[#777b86]">{slip.date}</div>
-                        <div className="text-[10px] text-[#a3a6af] font-mono">GRN: {slip.grnNo}</div>
-                      </td>
-                      <td className="p-3">
-                        <div className="font-bold text-[#17191c]">{slip.customer}</div>
-                        <div className="font-mono font-bold text-xs text-[#8a6521]">{slip.partCode}</div>
-                        <div className="text-[11px] text-[#777b86] line-clamp-1">{slip.remarks || 'Issued for coating line'}</div>
-                      </td>
-                      <td className="p-3 text-center font-mono font-bold text-sm bg-blue-50/30 text-blue-900">
-                        {slip.qty.toLocaleString('en-IN')} {slip.uom}
-                      </td>
-                      <td className="p-3">
-                        <div className="font-mono font-bold text-[#17191c]">{slip.jobCardId}</div>
-                        <div className="text-[10px] text-[#777b86]">Production Line Work Order</div>
-                      </td>
-                      <td className="p-3">
-                        <div className="font-medium text-[#17191c]">{slip.issuedTo}</div>
-                        <div className="text-[10px] text-emerald-700">✓ Signed Custody</div>
-                      </td>
-                      <td className="p-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedIssueSlipForPrint(slip)}
-                          className="px-3.5 py-1.5 rounded-full border border-[#ececec] bg-white text-[#17191c] hover:bg-gray-50 text-[11px] font-semibold transition inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                        >
-                          <Printer className="w-3.5 h-3.5 text-[#c09748]" />
-                          <span>View & Print Slip</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {customIssuedRecords.length === 0 && (
+                  {allIssuedSlips.map((slip, idx) => {
+                    const batchSummaryStr = slip.batchLines && slip.batchLines.length > 0
+                      ? slip.batchLines.map(b => `${b.supplierBatchNo || b.batchId} (${b.issuedQty} ${slip.uom})`).join(', ')
+                      : slip.remarks || `Lot-${slip.grnNo?.slice(-4) || '2026'}`;
+
+                    return (
+                      <tr key={idx} className="hover:bg-[#fafafb] transition">
+                        <td className="p-3">
+                          <div className="font-mono font-bold text-[#c09748]">{slip.slipNo}</div>
+                          <div className="text-[11px] text-[#777b86]">{slip.date}</div>
+                          <div className="text-[10px] text-[#a3a6af] font-mono mt-0.5">
+                            GRN: {slip.grnNo} • {slip.jobCardId}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="font-bold text-[#17191c]">{slip.customer}</div>
+                          <div className="font-mono font-bold text-xs text-[#8a6521]">{slip.partCode}</div>
+                          <div className="text-[10px] text-[#777b86]">To: {slip.issuedTo}</div>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-bold text-sm bg-blue-50/50 text-blue-900 px-2 py-0.5 rounded-md border border-blue-100">
+                              {slip.qty.toLocaleString('en-IN')} {slip.uom}
+                            </span>
+                            <span className="text-xs text-[#17191c] font-medium">{slip.partDescription}</span>
+                          </div>
+                          <div className="mt-1">
+                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-mono bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be]">
+                              Batches: {batchSummaryStr}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="p-3 text-center">
+                          {slip.hasOverride ? (
+                            <div>
+                              <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-amber-50 text-amber-900 border border-amber-300 inline-flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                <span>FIFO Override</span>
+                              </span>
+                              {slip.overrideReasonCode && (
+                                <div className="text-[9px] font-mono text-amber-800 mt-0.5">
+                                  {slip.overrideReasonCode}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-emerald-50 text-emerald-900 border border-emerald-300 inline-flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>FIFO OK</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedIssueSlipForPrint(slip)}
+                              className="px-3 py-1.5 rounded-full border border-[#ececec] bg-white text-[#17191c] hover:bg-gray-50 text-[11px] font-semibold transition inline-flex items-center gap-1 cursor-pointer shadow-2xs"
+                              title="View & Print MIN Document"
+                            >
+                              <Printer className="w-3.5 h-3.5 text-[#c09748]" />
+                              <span>Print</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const mrnForPdf: MaterialRequisitionNote = slip.rawMrn || {
+                                  mrnNo: `MRN-${slip.slipNo.replace('MIN-', '')}`,
+                                  jobCardNo: slip.jobCardId,
+                                  date: slip.date,
+                                  plant: activePlant,
+                                  customer: slip.customer,
+                                  partCode: slip.partCode,
+                                  partDescription: slip.partDescription || slip.partCode,
+                                  requestedQty: slip.qty,
+                                  issuedQty: slip.qty,
+                                  uom: slip.uom,
+                                  status: 'Dispatched by Store',
+                                  urgency: 'Normal',
+                                  requestedBy: slip.issuedTo,
+                                  issuedSlipNo: slip.slipNo,
+                                  sourceGrnNo: slip.grnNo,
+                                  fifoStatus: slip.hasOverride ? 'FIFO Override' : 'FIFO Compliant',
+                                  issuedBatchLines: slip.batchLines || [],
+                                  issuedMaterials: slip.materials || []
+                                };
+                                downloadStandardMINPdf(mrnForPdf);
+                              }}
+                              className="px-3 py-1.5 rounded-full border border-[#ececec] bg-[#faf7ed] text-[#8a6521] hover:bg-[#f4e5be] text-[11px] font-semibold transition inline-flex items-center gap-1 cursor-pointer shadow-2xs"
+                              title="Download Universal Standard MIN PDF"
+                            >
+                              <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                              <span>PDF</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {allIssuedSlips.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-[#777b86]">
+                      <td colSpan={5} className="p-8 text-center text-[#777b86]">
                         Abhi tak koi material floor par issue nahi kiya gaya hai.
                       </td>
                     </tr>
@@ -1379,9 +1553,9 @@ export const StoresView: React.FC = () => {
               </table>
             </div>
 
-            {/* Mobile Responsive Cards of Issued Slips */}
+            {/* Mobile Responsive Cards of Issued Slips - 3 Row Standard */}
             <div className="grid grid-cols-1 gap-3 md:hidden">
-              {customIssuedRecords.map((slip, idx) => (
+              {allIssuedSlips.map((slip, idx) => (
                 <div key={idx} className="p-4 rounded-[18px] border border-[#ececec] bg-white shadow-2xs space-y-2.5">
                   <div className="flex items-start justify-between gap-2 border-b border-[#f2f2f3] pb-2">
                     <div>
@@ -1403,27 +1577,64 @@ export const StoresView: React.FC = () => {
                       <span className="text-[#777b86]">Issued To:</span>
                       <span className="font-medium text-[#17191c]">{slip.issuedTo}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#777b86]">Issue Date:</span>
-                      <span className="text-[#17191c]">{slip.date}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#777b86]">FIFO Status:</span>
+                      {slip.hasOverride ? (
+                        <span className="px-2 py-0.2 rounded-full text-[9px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                          ⚠ Override
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.2 rounded-full text-[9px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                          ✓ FIFO OK
+                        </span>
+                      )}
                     </div>
-                    {slip.remarks && (
-                      <div className="text-[11px] text-[#777b86] pt-1 border-t border-[#ececec]">
-                        Note: {slip.remarks}
-                      </div>
-                    )}
                   </div>
 
-                  <div className="flex items-center justify-between pt-1">
-                    <span className="text-[10px] font-mono text-[#a3a6af]">Source: {slip.grnNo}</span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedIssueSlipForPrint(slip)}
-                      className="px-3 py-1 rounded-full bg-[#17191c] text-[#c09748] text-xs font-bold flex items-center gap-1 shadow-2xs"
-                    >
-                      <Printer className="w-3 h-3 text-[#c09748]" />
-                      <span>Print MIN Slip</span>
-                    </button>
+                  <div className="flex items-center justify-between pt-1 gap-2">
+                    <span className="text-[10px] font-mono text-[#a3a6af] truncate max-w-[120px]">
+                      GRN: {slip.grnNo}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedIssueSlipForPrint(slip)}
+                        className="px-3 py-1 rounded-full bg-[#17191c] text-[#c09748] text-xs font-bold flex items-center gap-1 shadow-2xs"
+                      >
+                        <Printer className="w-3 h-3 text-[#c09748]" />
+                        <span>Print</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const mrnForPdf: MaterialRequisitionNote = slip.rawMrn || {
+                            mrnNo: `MRN-${slip.slipNo.replace('MIN-', '')}`,
+                            jobCardNo: slip.jobCardId,
+                            date: slip.date,
+                            plant: activePlant,
+                            customer: slip.customer,
+                            partCode: slip.partCode,
+                            partDescription: slip.partDescription || slip.partCode,
+                            requestedQty: slip.qty,
+                            issuedQty: slip.qty,
+                            uom: slip.uom,
+                            status: 'Dispatched by Store',
+                            urgency: 'Normal',
+                            requestedBy: slip.issuedTo,
+                            issuedSlipNo: slip.slipNo,
+                            sourceGrnNo: slip.grnNo,
+                            fifoStatus: slip.hasOverride ? 'FIFO Override' : 'FIFO Compliant',
+                            issuedBatchLines: slip.batchLines || [],
+                            issuedMaterials: slip.materials || []
+                          };
+                          downloadStandardMINPdf(mrnForPdf);
+                        }}
+                        className="px-3 py-1 rounded-full bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be] text-xs font-bold flex items-center gap-1 shadow-2xs"
+                      >
+                        <Download className="w-3 h-3 text-[#c09748]" />
+                        <span>PDF</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1449,261 +1660,6 @@ export const StoresView: React.FC = () => {
           >
             ✕
           </button>
-        </div>
-      )}
-
-      {/* ====================================================================== */}
-      {/* TAB 2: DEDICATED SHELF-LIFE & MATERIAL AGING DASHBOARD (ALL MATERIALS)  */}
-      {/* ====================================================================== */}
-      {activeTab === 'SHELF_LIFE' && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-[24px] border border-[#ececec] p-4 sm:p-5 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-serif font-normal text-lg sm:text-xl text-[#17191c]">
-                    Material Shelf-Life & Aging Tracker (All Stock)
-                  </h3>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf7ed] border border-[#f4e5be] text-[#8a6521]">
-                    FIFO Auto-Watch
-                  </span>
-                  {/* Email trigger indicator pill */}
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold inline-flex items-center gap-1 ${
-                    emailTriggersEnabled 
-                      ? 'bg-blue-50 text-blue-800 border border-blue-200' 
-                      : 'bg-gray-100 text-gray-600 border border-gray-200'
-                  }`}>
-                    <Mail className="w-3 h-3 text-blue-600" />
-                    <span>Auto-Email: {emailTriggersEnabled ? `>= ${emailThresholdDays} Days ON` : 'OFF'}</span>
-                  </span>
-                </div>
-                <p className="text-xs text-[#777b86] mt-0.5">
-                  Har material ka inward timestamp aur age tracker. Agar koi bhi part {emailThresholdDays} din se zyada store me rehta hai toh automated email alert trigger hota hai.
-                </p>
-              </div>
-
-              {/* Action Buttons: Configure Email Alert & Status Filters */}
-              <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
-                <button
-                  type="button"
-                  onClick={() => setShowEmailConfigModal(true)}
-                  className="px-3.5 py-1.5 rounded-full border border-[#ececec] bg-white hover:bg-gray-50 text-[#17191c] text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs transition"
-                >
-                  <Settings className="w-3.5 h-3.5 text-[#c09748]" />
-                  <span>Configure Email ({emailThresholdDays}d Alert)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSendEmailAlertNow}
-                  className="px-4 py-1.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition active:scale-95"
-                  title="Send immediate aging email notification to Purchase, Stores, and Production"
-                >
-                  <Send className="w-3.5 h-3.5 text-[#c09748]" />
-                  <span>Send Email Alert Now ({itemsTriggeringEmail.length})</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Filter Pills Strip */}
-            <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
-              <div className="flex items-center gap-1 bg-[#fafafb] p-1 rounded-full border border-[#ececec]">
-                <button
-                  type="button"
-                  onClick={() => setShelfHealthFilter('ALL')}
-                  className={`px-3 py-1 rounded-full text-[11px] font-bold cursor-pointer transition ${
-                    shelfHealthFilter === 'ALL' ? 'bg-[#17191c] text-[#c09748]' : 'text-[#777b86] hover:text-[#17191c]'
-                  }`}
-                >
-                  All ({materialTrackerList.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShelfHealthFilter('AGING')}
-                  className={`px-3 py-1 rounded-full text-[11px] font-bold cursor-pointer transition ${
-                    shelfHealthFilter === 'AGING' ? 'bg-amber-500 text-white' : 'text-amber-800 hover:text-amber-900'
-                  }`}
-                >
-                  ⚠ Aging ({allAgingCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShelfHealthFilter('EXPIRED')}
-                  className={`px-3 py-1 rounded-full text-[11px] font-bold cursor-pointer transition ${
-                    shelfHealthFilter === 'EXPIRED' ? 'bg-red-600 text-white' : 'text-red-700 hover:text-red-800'
-                  }`}
-                >
-                  ⛔ Exceeded ({allExpiredCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShelfHealthFilter('FRESH')}
-                  className={`px-3 py-1 rounded-full text-[11px] font-bold cursor-pointer transition ${
-                    shelfHealthFilter === 'FRESH' ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:text-emerald-800'
-                  }`}
-                >
-                  ✓ Fresh
-                </button>
-              </div>
-
-              {/* Email Trigger Banner Pill */}
-              <div className="text-[11px] font-mono text-[#777b86] flex items-center gap-1.5">
-                <Bell className="w-3.5 h-3.5 text-blue-600" />
-                <span>
-                  <strong>{itemsTriggeringEmail.length} items</strong> qualify for {emailThresholdDays}-Day Email Trigger
-                </span>
-              </div>
-            </div>
-
-            {/* Standard Shelf-Life & Rotation Reference Banner */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-xs">
-              <div className="p-2 bg-white rounded-[12px] border border-[#ececec]">
-                <span className="text-[10px] font-mono font-bold text-[#777b86] uppercase block">2K PU Hardener</span>
-                <span className="font-bold text-sm text-[#17191c]">Max 20 Days</span>
-                <span className="text-[10px] text-amber-700 block mt-0.5">Alert at Day 14</span>
-              </div>
-              <div className="p-2 bg-white rounded-[12px] border border-[#ececec]">
-                <span className="text-[10px] font-mono font-bold text-[#777b86] uppercase block">PU Basecoat Paint</span>
-                <span className="font-bold text-sm text-[#17191c]">Max 30 Days</span>
-                <span className="text-[10px] text-amber-700 block mt-0.5">Alert at Day 20</span>
-              </div>
-              <div className="p-2 bg-white rounded-[12px] border border-[#ececec]">
-                <span className="text-[10px] font-mono font-bold text-[#777b86] uppercase block">High Gloss Clear</span>
-                <span className="font-bold text-sm text-[#17191c]">Max 45 Days</span>
-                <span className="text-[10px] text-amber-700 block mt-0.5">Alert at Day 30</span>
-              </div>
-              <div className="p-2 bg-white rounded-[12px] border border-[#ececec]">
-                <span className="text-[10px] font-mono font-bold text-[#777b86] uppercase block">PU Solvents / Thinners</span>
-                <span className="font-bold text-sm text-[#17191c]">Max 60 Days</span>
-                <span className="text-[10px] text-amber-700 block mt-0.5">Alert at Day 45</span>
-              </div>
-              <div className="p-2 bg-white rounded-[12px] border border-[#ececec]">
-                <span className="text-[10px] font-mono font-bold text-[#777b86] uppercase block">Substrates (ABS/PC)</span>
-                <span className="font-bold text-sm text-[#17191c]">Max 90 Days</span>
-                <span className="text-[10px] text-amber-700 block mt-0.5">Rotation at Day 60</span>
-              </div>
-            </div>
-
-            {/* Shelf-Life Lots Desktop Table */}
-            <div className="hidden md:block overflow-x-auto border border-[#ececec] rounded-[16px]">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-[#fafafb] text-[#777b86] font-semibold uppercase text-[10px] tracking-wider border-b border-[#ececec]">
-                    <th className="p-3">Material Category & Part</th>
-                    <th className="p-3 text-center">Days In Store</th>
-                    <th className="p-3 text-center">Shelf-Life Status</th>
-                    <th className="p-3 text-center">Available Stock</th>
-                    <th className="p-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#ececec] text-[#17191c]">
-                  {filteredShelfLife.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-[#fafafb] transition">
-                      <td className="p-3">
-                        <div className="font-semibold text-sm text-[#17191c]">{item.materialCategory}</div>
-                        <div className="font-mono text-xs text-[#c09748] font-bold">{item.partCode}</div>
-                        <div className="text-[11px] text-[#777b86]">{item.customer}</div>
-                      </td>
-                      <td className="p-3 text-center font-mono">
-                        <span className="font-bold text-xs text-[#17191c]">
-                          {item.daysInStore} Days
-                        </span>
-                        <div className="text-[10px] text-[#777b86]">
-                          Max: {item.shelfLifeDays}d
-                        </div>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${
-                          item.shelfHealth === 'FRESH'
-                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                            : item.shelfHealth === 'AGING_WARNING'
-                              ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
-                              : 'bg-red-100 text-red-800 border border-red-300'
-                        }`}>
-                          {item.shelfHealth === 'FRESH' && `✓ Safe (${item.daysRemaining}d left)`}
-                          {item.shelfHealth === 'AGING_WARNING' && `⚠ Aging (${item.daysRemaining}d left • Use FIFO)`}
-                          {item.shelfHealth === 'EXPIRED' && '⛔ Shelf-Life Exceeded'}
-                        </span>
-                      </td>
-                      <td className="p-3 text-center font-mono font-bold text-sm bg-[#faf7ed]/60 text-[#8a6521]">
-                        {item.balanceAvailable.toLocaleString('en-IN')} {item.uom}
-                      </td>
-                      <td className="p-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedGrnForView(item.rawGrn)}
-                          className="px-3.5 py-1.5 rounded-full border border-[#ececec] bg-white text-[#17191c] text-[11px] font-semibold hover:bg-gray-50 transition inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-[#c09748]" />
-                          <span>View GRN</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredShelfLife.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="p-8 text-center text-[#777b86]">
-                        Koi chemical / paint record match nahi hua.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Responsive Cards for Shelf-Life */}
-            <div className="grid grid-cols-1 gap-3 md:hidden">
-              {filteredShelfLife.map((item, idx) => (
-                <div key={idx} className="p-4 rounded-[18px] border border-[#ececec] bg-white shadow-2xs space-y-3">
-                  <div className="flex items-start justify-between gap-2 border-b border-[#f2f2f3] pb-2">
-                    <div>
-                      <div className="font-bold text-sm text-[#17191c]">{item.materialCategory}</div>
-                      <div className="font-mono text-xs font-bold text-[#c09748]">{item.partCode}</div>
-                      <div className="text-[11px] text-[#777b86]">{item.customer}</div>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
-                      item.shelfHealth === 'FRESH'
-                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                        : item.shelfHealth === 'AGING_WARNING'
-                          ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
-                          : 'bg-red-100 text-red-800 border border-red-300'
-                    }`}>
-                      {item.shelfHealth === 'FRESH' && '✓ Fresh'}
-                      {item.shelfHealth === 'AGING_WARNING' && '⚠ Use FIFO'}
-                      {item.shelfHealth === 'EXPIRED' && '⛔ Exceeded'}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 text-center py-1 bg-[#fafafb] rounded-[12px] p-2">
-                    <div>
-                      <span className="text-[9px] uppercase font-mono text-[#777b86] block">In Store</span>
-                      <span className="font-mono font-bold text-xs text-[#17191c]">{item.daysInStore} Days</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase font-mono text-amber-800 block">Remaining</span>
-                      <span className="font-mono font-bold text-xs text-amber-900">{item.daysRemaining}d</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] uppercase font-mono text-[#8a6521] block">Stock</span>
-                      <span className="font-mono font-bold text-xs text-[#8a6521]">{item.balanceAvailable} {item.uom}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px] text-[#777b86] pt-1">
-                    <span className="font-mono">Inward: {item.receivedDate}</span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedGrnForView(item.rawGrn)}
-                      className="px-3 py-1 rounded-full border border-[#ececec] bg-white text-[#17191c] font-semibold flex items-center gap-1 shadow-2xs"
-                    >
-                      <Eye className="w-3 h-3 text-[#c09748]" />
-                      <span>View GRN</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 
@@ -2045,6 +2001,381 @@ export const StoresView: React.FC = () => {
         </div>
       )}
 
+      {/* ====================================================================== */}
+      {/* TAB 7: PRODUCTION BALANCE RETURN SLIPS (RTN) & RECONCILIATION          */}
+      {/* ====================================================================== */}
+      {activeTab === 'RETURNS' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-[24px] border border-[#ececec] p-4 sm:p-5 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-serif font-normal text-lg sm:text-xl text-[#17191c]">
+                    Production Balance Return Slips (RTN) & Floor Restock
+                  </h3>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be]">
+                    Exact Batch Restock
+                  </span>
+                </div>
+                <p className="text-xs text-[#777b86] mt-0.5">
+                  Job card complete hone ke baad bacha hua unused chemical/parts physical count verify karke original batch me wapas credit karein.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const res = executePlantClosingReconciliation();
+                    if (res.reconciledCount > 0) {
+                      setEmailSentToast(`✓ 20:45 Cutoff: Generated ${res.reconciledCount} Auto-Return Slips for unconsumed floor materials!`);
+                    } else {
+                      setEmailSentToast(`All active Job Cards are fully balanced or already have return slips generated.`);
+                    }
+                    setTimeout(() => setEmailSentToast(null), 5000);
+                  }}
+                  className="px-3.5 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span>Reconcile 20:45 Cutoff Now</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={!isStoreIncharge}
+                  onClick={() => setShowReturnModal(true)}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border flex items-center gap-1.5 shadow-2xs transition active:scale-95 ${
+                    isStoreIncharge
+                      ? 'bg-white hover:bg-gray-50 text-[#17191c] border-[#dcdfe4] cursor-pointer'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'
+                  }`}
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#8a6521]" />
+                  <span>Manual Return (RTN)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Shift Cutoff & 15-Minute Floor Transit Notification Strip */}
+            <div className="bg-[#faf7ed] border border-[#f4e5be] rounded-[18px] p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-white border border-[#f4e5be] flex items-center justify-center shrink-0 text-[#8a6521]">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-xs sm:text-sm text-[#17191c]">Factory Closing: 21:00 (9:00 PM)</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                      Floor Cutoff: 20:45 (8:45 PM)
+                    </span>
+                    <span className="text-[11px] text-[#777b86]">
+                      • 15-Minute Floor Transit Window
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#777b86] mt-0.5">
+                    Job card me bache hue unconsumed pieces ka return slip 8:45 PM ko auto-generate hota hai taaki 15 min me material physically store me utar kar restock ho sake.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Sub-Filter Tabs */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+              <button
+                type="button"
+                onClick={() => setReturnSubFilter('ALL')}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition flex items-center gap-1.5 shrink-0 ${
+                  returnSubFilter === 'ALL'
+                    ? 'bg-[#17191c] text-white shadow-2xs'
+                    : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                }`}
+              >
+                <span>All Return Slips</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 font-mono">{balanceReturnSlips.length}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setReturnSubFilter('AUTO_CUTOFF')}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition flex items-center gap-1.5 shrink-0 ${
+                  returnSubFilter === 'AUTO_CUTOFF'
+                    ? 'bg-[#8a6521] text-white shadow-2xs'
+                    : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                }`}
+              >
+                <span>Auto 20:45 Cutoff</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-100 text-amber-900 border border-amber-300 font-mono font-bold">
+                  {balanceReturnSlips.filter(s => s.isAutoGenerated || s.generationType === 'PLANT_CLOSING_AUTO').length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setReturnSubFilter('PENDING')}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition flex items-center gap-1.5 shrink-0 ${
+                  returnSubFilter === 'PENDING'
+                    ? 'bg-amber-700 text-white shadow-2xs'
+                    : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                }`}
+              >
+                <span>Pending Verification</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-100 text-amber-900 border border-amber-300 font-mono font-bold">
+                  {balanceReturnSlips.filter(s => s.status === 'Pending Store Verification').length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setReturnSubFilter('ACCEPTED')}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition flex items-center gap-1.5 shrink-0 ${
+                  returnSubFilter === 'ACCEPTED'
+                    ? 'bg-emerald-700 text-white shadow-2xs'
+                    : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                }`}
+              >
+                <span>Restocked to Batch</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-mono font-bold">
+                  {balanceReturnSlips.filter(s => s.status === 'Accepted' || s.status === 'Closed with Supervisor Sign-off').length}
+                </span>
+              </button>
+            </div>
+
+            {/* Desktop Table of Balance Return Slips */}
+            <div className="hidden md:block overflow-x-auto border border-[#ececec] rounded-[16px]">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-[#fafafb] text-[#777b86] font-semibold uppercase text-[10px] tracking-wider border-b border-[#ececec]">
+                    <th className="p-3">RTN Slip No & Date</th>
+                    <th className="p-3">Job Card & MIN Reference</th>
+                    <th className="p-3">Returned Materials & Physical Count</th>
+                    <th className="p-3 text-center">Status & Reconciliation</th>
+                    <th className="p-3 text-right">Store Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#ececec] text-[#17191c]">
+                  {balanceReturnSlips
+                    .filter(slip => {
+                      if (returnSubFilter === 'AUTO_CUTOFF') return slip.isAutoGenerated || slip.generationType === 'PLANT_CLOSING_AUTO';
+                      if (returnSubFilter === 'PENDING') return slip.status === 'Pending Store Verification';
+                      if (returnSubFilter === 'ACCEPTED') return slip.status === 'Accepted' || slip.status === 'Closed with Supervisor Sign-off';
+                      return true;
+                    })
+                    .map((slip, idx) => {
+                    const isPending = slip.status === 'Pending Store Verification';
+                    const isDiscrepant = slip.status === 'Discrepancy Flagged';
+                    const isAccepted = slip.status === 'Accepted' || slip.status === 'Closed with Supervisor Sign-off';
+                    const isAuto = slip.isAutoGenerated || slip.generationType === 'PLANT_CLOSING_AUTO';
+
+                    return (
+                      <tr key={idx} className="hover:bg-[#fafafb] transition">
+                        <td className="p-3">
+                          <div className="font-mono font-bold text-[#c09748]">{slip.rtnNo}</div>
+                          <div className="text-[11px] text-[#777b86]">{slip.date} {slip.time}</div>
+                          <div className="text-[10px] font-mono text-gray-400">{slip.plant} Plant</div>
+                          {isAuto && (
+                            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                              Auto 20:45 Cutoff • 15m Window
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <div className="font-mono font-bold text-[#17191c]">{slip.jobCardNo}</div>
+                          <div className="text-[11px] text-[#8a6521] font-mono">MIN: {slip.minNo}</div>
+                          <div className="text-[10px] text-[#777b86]">{slip.returnedBy}</div>
+                        </td>
+                        <td className="p-3">
+                          <div className="space-y-1.5">
+                            {slip.lines.map((line, lIdx) => (
+                              <div key={lIdx} className="p-2 rounded-[10px] bg-[#fafafb] border border-[#ececec] text-[11px]">
+                                <div className="flex justify-between font-medium text-[#17191c]">
+                                  <span>{line.itemName}</span>
+                                  <span className="font-mono font-bold text-[#8a6521]">
+                                    Count: {line.storeCountedQty} {line.uom}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] text-[#777b86] mt-0.5">
+                                  <span>Batch: <strong className="font-mono text-[#17191c]">{line.supplierBatchNo || line.batchId}</strong></span>
+                                  <span>• Claimed: {line.returnedQtyClaimed}</span>
+                                  {line.variance !== 0 && (
+                                    <span className="text-rose-700 font-bold font-mono">
+                                      Var: {line.variance > 0 ? `+${line.variance}` : line.variance} {line.uom}
+                                    </span>
+                                  )}
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] bg-white border border-[#ececec]">
+                                    {line.condition}
+                                  </span>
+                                </div>
+                                {isAuto && (
+                                  <div className="flex items-center gap-1.5 text-[10px] font-mono mt-1.5 pt-1 border-t border-[#ececec] text-[#777b86]">
+                                    <span className="px-1.5 py-0.2 rounded bg-gray-100 text-gray-700">Issued: {line.issuedQty} {line.uom}</span>
+                                    <span>➔</span>
+                                    <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-800">Processed: {line.processedQty} {line.uom}</span>
+                                    <span>➔</span>
+                                    <span className="px-1.5 py-0.2 rounded bg-amber-50 text-amber-900 border border-amber-200 font-bold">Return: {line.returnedQtyClaimed} {line.uom}</span>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="p-3 text-center">
+                          <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                            isAccepted
+                              ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                              : isDiscrepant
+                                ? 'bg-rose-50 text-rose-900 border-rose-300'
+                                : 'bg-amber-50 text-amber-900 border-amber-300 animate-pulse'
+                          }`}>
+                            {slip.status}
+                          </span>
+                          {slip.supervisorSignOff && (
+                            <div className="text-[9px] font-mono text-blue-700 mt-1">
+                              ✓ {typeof slip.supervisorSignOff === 'object'
+                                ? `Signed by ${slip.supervisorSignOff.signedBy || 'Supervisor'}`
+                                : slip.supervisorSignOff}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-3 text-right">
+                          {isPending && isStoreIncharge && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                acceptBalanceReturnSlip(slip.rtnNo, currentUser.name, 'Store counted and restocked to batch');
+                                setEmailSentToast(`✓ RTN ${slip.rtnNo} verified & restocked into exact batch balances!`);
+                                setTimeout(() => setEmailSentToast(null), 5000);
+                              }}
+                              className="px-3.5 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1.5 active:scale-95"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Verify & Restock</span>
+                            </button>
+                          )}
+                          {isDiscrepant && canViewCompliance && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                supervisorSignOffBalanceReturn(slip.rtnNo, currentUser.name, 'Discrepancy reconciled and approved by supervisor');
+                                setEmailSentToast(`✓ RTN ${slip.rtnNo} discrepancy signed off!`);
+                                setTimeout(() => setEmailSentToast(null), 5000);
+                              }}
+                              className="px-3 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-300 text-[11px] font-bold transition inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <ShieldAlert className="w-3 h-3 text-rose-700" />
+                              <span>Supervisor Sign-Off</span>
+                            </button>
+                          )}
+                          {isAccepted && (
+                            <span className="text-[11px] text-emerald-700 font-mono font-bold">
+                              ✓ Restocked
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {balanceReturnSlips.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-[#777b86]">
+                        Koi balance return record nahi mila.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile View for Balance Return Slips */}
+            <div className="grid grid-cols-1 gap-3 md:hidden">
+              {balanceReturnSlips
+                .filter(slip => {
+                  if (returnSubFilter === 'AUTO_CUTOFF') return slip.isAutoGenerated || slip.generationType === 'PLANT_CLOSING_AUTO';
+                  if (returnSubFilter === 'PENDING') return slip.status === 'Pending Store Verification';
+                  if (returnSubFilter === 'ACCEPTED') return slip.status === 'Accepted' || slip.status === 'Closed with Supervisor Sign-off';
+                  return true;
+                })
+                .map((slip, idx) => {
+                const isAuto = slip.isAutoGenerated || slip.generationType === 'PLANT_CLOSING_AUTO';
+
+                return (
+                  <div key={idx} className="p-4 rounded-[18px] border border-[#ececec] bg-white shadow-2xs space-y-2.5">
+                    <div className="flex items-start justify-between gap-2 border-b border-[#f2f2f3] pb-2">
+                      <div>
+                        <div className="font-mono font-bold text-xs text-[#c09748]">{slip.rtnNo}</div>
+                        <div className="font-bold text-sm text-[#17191c]">{slip.jobCardNo}</div>
+                        <div className="text-[11px] text-[#777b86]">MIN: {slip.minNo}</div>
+                        {isAuto && (
+                          <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                            Auto 20:45 Cutoff • 15m Window
+                          </span>
+                        )}
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border ${
+                        slip.status === 'Accepted'
+                          ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                          : slip.status === 'Discrepancy Flagged'
+                            ? 'bg-rose-50 text-rose-900 border-rose-300'
+                            : 'bg-amber-50 text-amber-900 border-amber-300'
+                      }`}>
+                        {slip.status}
+                      </span>
+                    </div>
+
+                    <div className="text-xs space-y-2 bg-[#fafafb] p-3 rounded-[14px]">
+                      {slip.lines.map((line, lIdx) => (
+                        <div key={lIdx} className="border-b border-gray-100 last:border-0 pb-1.5 space-y-1">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <span className="font-medium text-[#17191c] block">{line.itemName}</span>
+                              <span className="text-[10px] text-[#777b86] font-mono">Batch: {line.supplierBatchNo || line.batchId}</span>
+                            </div>
+                            <div className="text-right font-mono">
+                              <span className="font-bold text-[#8a6521] block">{line.storeCountedQty} {line.uom}</span>
+                              <span className="text-[9px] text-[#777b86]">{line.condition}</span>
+                            </div>
+                          </div>
+                          {isAuto && (
+                            <div className="flex items-center gap-1.5 text-[9px] font-mono text-[#777b86] pt-1">
+                              <span className="px-1.5 py-0.2 rounded bg-gray-100 text-gray-700">Issued: {line.issuedQty}</span>
+                              <span>➔</span>
+                              <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-800">Processed: {line.processedQty}</span>
+                              <span>➔</span>
+                              <span className="px-1.5 py-0.2 rounded bg-amber-50 text-amber-900 border border-amber-200 font-bold">Return: {line.returnedQtyClaimed}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {slip.status === 'Pending Store Verification' && isStoreIncharge && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          acceptBalanceReturnSlip(slip.rtnNo, currentUser.name, 'Store counted and restocked to batch');
+                          setEmailSentToast(`✓ RTN ${slip.rtnNo} verified & restocked!`);
+                          setTimeout(() => setEmailSentToast(null), 5000);
+                        }}
+                        className="w-full py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold flex items-center justify-center gap-1.5 shadow-2xs transition active:scale-95 cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Verify & Restock to Batch</span>
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====================================================================== */}
+      {/* TAB 8: FIFO / FEFO COMPLIANCE DASHBOARD & AUDIT OVERRIDE LOGS          */}
+      {/* ====================================================================== */}
+      {activeTab === 'FIFO_COMPLIANCE' && (
+        <FifoCompliancePanel />
+      )}
+
       {/* Modals */}
       <CreateGRNModal
         isOpen={showGRNModal}
@@ -2301,7 +2632,7 @@ export const StoresView: React.FC = () => {
                   </span>
                 </div>
                 <div className="text-sm font-bold text-[#17191c]">{selectedItemForIssue.customer}</div>
-                <div className="font-mono font-bold text-[#c09748]">{selectedItemForIssue.partCode} — {selectedItemForIssue.partDesc}</div>
+                <div className="font-mono font-bold text-[#c09748]">{selectedItemForIssue.partCode} - {selectedItemForIssue.partDesc}</div>
                 <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[#f4e5be]/70 text-[#8a6521]">
                   <span>Available Store Balance:</span>
                   <span className="font-bold font-mono text-sm">{selectedItemForIssue.balanceAvailable} {selectedItemForIssue.uom}</span>
@@ -2343,7 +2674,7 @@ export const StoresView: React.FC = () => {
                 >
                   {jobCards.map(jc => (
                     <option key={jc.jobCardId} value={jc.jobCardId}>
-                      {jc.jobCardId} — {jc.partCode || 'Part'} (Target: {jc.targetQty || 0} pcs)
+                      {jc.jobCardId} - {jc.partCode || 'Part'} (Target: {jc.targetQty || 0} pcs)
                     </option>
                   ))}
                   <option value="GENERAL_PRODUCTION">Line Setup / General Batch</option>
@@ -2403,9 +2734,37 @@ export const StoresView: React.FC = () => {
 
       {/* ====================================================================== */}
       {/* MODAL 2: RETURN TO STORE (LEFTOVER / UNUSED STOCK RESTOCK)              */}
-
-
       {/* ====================================================================== */}
+      <BalanceReturnModal
+        isOpen={showReturnModal}
+        onClose={() => {
+          setShowReturnModal(false);
+          setSelectedJobForReturn(undefined);
+        }}
+        preselectedJobCardNo={selectedJobForReturn}
+        onSuccess={(rtnNo) => {
+          setShowReturnModal(false);
+          setSelectedJobForReturn(undefined);
+          setEmailSentToast(`✓ Balance Return Slip ${rtnNo} processed & restocked to batch!`);
+          setTimeout(() => setEmailSentToast(null), 5000);
+        }}
+      />
+
+      {/* ISSUE WIZARD MODAL (FIFO/FEFO ENFORCED MULTI-BATCH ISSUE) */}
+      <IssueWizardModal
+        isOpen={showIssueWizard}
+        mrn={selectedMrnForWizard}
+        onClose={() => {
+          setShowIssueWizard(false);
+          setSelectedMrnForWizard(null);
+        }}
+        onSuccess={(minNo) => {
+          setShowIssueWizard(false);
+          setSelectedMrnForWizard(null);
+          setEmailSentToast(`✓ Material Issue Note ${minNo} generated & dispatched!`);
+          setTimeout(() => setEmailSentToast(null), 5000);
+        }}
+      />
       {/* MODAL 3: OFFICIAL PRINTABLE MATERIAL ISSUE NOTE (MIN SLIP)              */}
       {/* ====================================================================== */}
       {selectedIssueSlipForPrint && (
@@ -2420,6 +2779,37 @@ export const StoresView: React.FC = () => {
                 </span>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const mrnForPdf: MaterialRequisitionNote = selectedIssueSlipForPrint.rawMrn || {
+                      mrnNo: `MRN-${selectedIssueSlipForPrint.slipNo.replace('MIN-', '')}`,
+                      jobCardNo: selectedIssueSlipForPrint.jobCardId,
+                      date: selectedIssueSlipForPrint.date,
+                      plant: activePlant,
+                      customer: selectedIssueSlipForPrint.customer,
+                      partCode: selectedIssueSlipForPrint.partCode,
+                      partDescription: selectedIssueSlipForPrint.partDescription || selectedIssueSlipForPrint.partCode,
+                      requestedQty: selectedIssueSlipForPrint.qty,
+                      issuedQty: selectedIssueSlipForPrint.qty,
+                      uom: selectedIssueSlipForPrint.uom,
+                      status: 'Dispatched by Store',
+                      urgency: 'Normal',
+                      requestedBy: selectedIssueSlipForPrint.issuedTo,
+                      issuedSlipNo: selectedIssueSlipForPrint.slipNo,
+                      sourceGrnNo: selectedIssueSlipForPrint.grnNo,
+                      fifoStatus: selectedIssueSlipForPrint.hasOverride ? 'FIFO Override' : 'FIFO Compliant',
+                      issuedBatchLines: selectedIssueSlipForPrint.batchLines || [],
+                      issuedMaterials: selectedIssueSlipForPrint.materials || []
+                    };
+                    downloadStandardMINPdf(mrnForPdf);
+                  }}
+                  className="px-3 py-1 rounded-full bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be] text-xs font-bold flex items-center gap-1 cursor-pointer shadow-2xs hover:bg-[#f4e5be]"
+                  title="Download Universal Standard MIN PDF"
+                >
+                  <Download className="w-3 h-3 text-[#c09748]" />
+                  <span>Download PDF</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => window.print()}
@@ -2463,6 +2853,19 @@ export const StoresView: React.FC = () => {
                   <div className="text-[10px] text-[#777b86] mt-1">Source GRN:</div>
                   <div className="font-mono">{selectedIssueSlipForPrint.grnNo}</div>
                 </div>
+
+                <div className="col-span-2 pt-2 border-t border-[#ececec] flex items-center justify-between">
+                  <span className="text-[10px] text-[#777b86]">FIFO / FEFO Enforcement:</span>
+                  {selectedIssueSlipForPrint.hasOverride ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-300">
+                      ⚠ Override ({selectedIssueSlipForPrint.overrideReasonCode || 'Authorized Floor Deviation'})
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                      ✓ FIFO / FEFO Compliant
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Table of Issued Materials */}
@@ -2470,21 +2873,37 @@ export const StoresView: React.FC = () => {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#fafafb] text-[#777b86] border-b border-[#ececec] font-mono text-[10px]">
                     <tr>
-                      <th className="p-2.5">Part Code</th>
-                      <th className="p-2.5">Customer / Account</th>
-                      <th className="p-2.5 text-center">Quantity Issued</th>
-                      <th className="p-2.5">Purpose / Remarks</th>
+                      <th className="p-2.5">Item Description</th>
+                      <th className="p-2.5">Batch / Supplier No</th>
+                      <th className="p-2.5">Source GRN</th>
+                      <th className="p-2.5">Expiry Date</th>
+                      <th className="p-2.5 text-center">Issued Qty</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    <tr>
-                      <td className="p-2.5 font-mono font-bold text-[#c09748]">{selectedIssueSlipForPrint.partCode}</td>
-                      <td className="p-2.5 font-semibold text-[#17191c]">{selectedIssueSlipForPrint.customer}</td>
-                      <td className="p-2.5 text-center font-mono font-bold text-sm text-[#17191c] bg-[#faf7ed]">
-                        {selectedIssueSlipForPrint.qty} {selectedIssueSlipForPrint.uom}
-                      </td>
-                      <td className="p-2.5 text-[#777b86]">{selectedIssueSlipForPrint.remarks || 'Issued for coating line'}</td>
-                    </tr>
+                  <tbody className="divide-y divide-[#ececec]">
+                    {selectedIssueSlipForPrint.batchLines && selectedIssueSlipForPrint.batchLines.length > 0 ? (
+                      selectedIssueSlipForPrint.batchLines.map((line: any, bIdx: number) => (
+                        <tr key={bIdx}>
+                          <td className="p-2.5 font-semibold text-[#17191c]">{selectedIssueSlipForPrint.partDescription || selectedIssueSlipForPrint.partCode}</td>
+                          <td className="p-2.5 font-mono font-bold text-[#c09748]">{line.supplierBatchNo || line.batchId}</td>
+                          <td className="p-2.5 font-mono text-[#777b86]">{line.grnNo || selectedIssueSlipForPrint.grnNo}</td>
+                          <td className="p-2.5 font-mono text-[#777b86]">{line.expiryDate || 'N/A (Substrate)'}</td>
+                          <td className="p-2.5 text-center font-mono font-bold text-sm text-[#17191c] bg-[#faf7ed]">
+                            {line.issuedQty} {selectedIssueSlipForPrint.uom}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td className="p-2.5 font-mono font-bold text-[#c09748]">{selectedIssueSlipForPrint.partCode}</td>
+                        <td className="p-2.5 font-semibold text-[#17191c]">{selectedIssueSlipForPrint.customer}</td>
+                        <td className="p-2.5 font-mono text-[#777b86]">{selectedIssueSlipForPrint.grnNo}</td>
+                        <td className="p-2.5 font-mono text-[#777b86]">Standard Batch</td>
+                        <td className="p-2.5 text-center font-mono font-bold text-sm text-[#17191c] bg-[#faf7ed]">
+                          {selectedIssueSlipForPrint.qty} {selectedIssueSlipForPrint.uom}
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

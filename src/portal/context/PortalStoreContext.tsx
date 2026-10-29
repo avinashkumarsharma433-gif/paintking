@@ -41,8 +41,27 @@ import {
   JobCardNature,
   SamplingRecipeSheet,
   SamplingPartyApproval,
-  JobCardProductionProgressLog
+  JobCardProductionProgressLog,
+  PaintingBooth,
+  ProcessStageCount,
+  StockCategory,
+  StockMaterialType,
+  StockBatch,
+  BatchIssueLine,
+  FifoOverrideLog,
+  FifoOverrideReasonCode,
+  BalanceReturnSlip,
+  BalanceReturnLine,
+  BalanceReturnCondition,
+  RequisitionLineItem,
+  PlantShiftConfig
 } from '../types/portalTypes';
+import {
+  applyIssueToBatches,
+  validateIssue,
+  applyReturn,
+  isChemicalConsumable
+} from '../utils/stockEngine';
 import {
   INITIAL_USER_PROFILES,
   INITIAL_UNIVERSAL_JOBS,
@@ -69,8 +88,12 @@ import {
   INITIAL_MNC_AUDIT_QUESTIONS,
   INITIAL_DAY_END_CLOSURES,
   INITIAL_PAINTERS,
+  INITIAL_PAINTING_BOOTHS,
   INITIAL_REQUISITIONS,
-  INITIAL_PLANT_HEAD_PRIORITIES
+  INITIAL_PLANT_HEAD_PRIORITIES,
+  INITIAL_STOCK_BATCHES,
+  INITIAL_FIFO_OVERRIDE_LOGS,
+  INITIAL_BALANCE_RETURN_SLIPS
 } from '../data/mockInitialData';
 
 
@@ -92,7 +115,20 @@ interface PortalContextType {
   handovers: CustodyHandover[];
   jobCards: JobCard[];
   painters: PainterProfile[];
+  paintingBooths: PaintingBooth[];
   pendingVerificationJobsCount: number;
+
+  // Painting Lines & Spray Booth Fleet Management
+  addPaintingBooth: (booth: Omit<PaintingBooth, 'id'>) => void;
+  updatePaintingBooth: (id: string, updates: Partial<PaintingBooth>) => void;
+  deletePaintingBooth: (id: string) => void;
+  toggleBoothStatus: (id: string) => void;
+
+  // Floor Painters Fleet CRUD Management
+  addPainter: (painter: Omit<PainterProfile, 'id'>) => void;
+  updatePainter: (id: string, updates: Partial<PainterProfile>) => void;
+  deletePainter: (id: string) => void;
+  togglePainterStatus: (id: string) => void;
 
   // Plant Head Production Scheduling & Priority Desk
   plantHeadPriorities: PlantHeadPriorityAssignment[];
@@ -132,6 +168,61 @@ interface PortalContextType {
   materialOutwardLogs: MaterialOutwardRecord[];
   defects: DefectItem[];
   materialRequisitions: MaterialRequisitionNote[];
+
+  // Store Role Upgrade: Batch-Wise Stock, FIFO/FEFO & Balance Returns (PK-OS Upgrade)
+  stockBatches: StockBatch[];
+  fifoOverrideLogs: FifoOverrideLog[];
+  balanceReturnSlips: BalanceReturnSlip[];
+  addStockBatch: (batch: StockBatch) => void;
+  updateStockBatch: (batchId: string, updates: Partial<StockBatch>) => void;
+  issueMaterialRequisitionWithBatches: (params: {
+    mrnNo: string;
+    issuedSlipNo?: string;
+    storeInchargeName: string;
+    storeRemarks?: string;
+    lineAllocations: Array<{
+      requisitionLineId?: string;
+      itemName: string;
+      batchLines: BatchIssueLine[];
+    }>;
+    fifoStatus?: 'FIFO OK' | 'FIFO Override';
+    overrideReasonCode?: FifoOverrideReasonCode;
+    overrideRemark?: string;
+  }) => { success: boolean; error?: string; minNo: string };
+  createBalanceReturnSlip: (slip: Omit<BalanceReturnSlip, 'rtnNo' | 'status'>) => BalanceReturnSlip;
+  acceptBalanceReturnSlip: (
+    rtnNo: string,
+    verifiedLinesOrReceivedBy?: Array<{
+      lineId: string;
+      storeCountedQty: number;
+      condition: BalanceReturnCondition;
+      remarks?: string;
+    }> | string,
+    receivedByStoreOrDecision?: string,
+    supervisorDecision?: string
+  ) => void;
+  plantShiftConfig: PlantShiftConfig;
+  updatePlantShiftConfig: (updates: Partial<PlantShiftConfig>) => void;
+  executePlantClosingReconciliation: (overrideDate?: string) => {
+    reconciledCount: number;
+    generatedSlips: BalanceReturnSlip[];
+  };
+  flagBalanceReturnDiscrepancy: (
+    rtnNo: string,
+    discrepancyLines: Array<{
+      lineId: string;
+      storeCountedQty: number;
+      condition: BalanceReturnCondition;
+      remarks?: string;
+    }>,
+    remarks?: string
+  ) => void;
+  supervisorSignOffBalanceReturn: (
+    rtnNo: string,
+    supervisorName: string,
+    decision: string,
+    notes?: string
+  ) => void;
 
   // Store <-> Production Material Handshake Engine
   createMaterialRequisition: (req: Omit<MaterialRequisitionNote, 'mrnNo' | 'status' | 'date' | 'time'>) => void;
@@ -387,6 +478,70 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return mergeByUniqueKey(localStorage.getItem('pk_universal_jobs'), INITIAL_UNIVERSAL_JOBS, 'jobId');
   });
 
+  const PK_STORAGE_VERSION = '2.0.0';
+
+  const [stockBatches, setStockBatches] = useState<StockBatch[]>(() => {
+    return mergeByUniqueKey(localStorage.getItem('pk_stock_batches'), INITIAL_STOCK_BATCHES, 'batchId');
+  });
+
+  const [fifoOverrideLogs, setFifoOverrideLogs] = useState<FifoOverrideLog[]>(() => {
+    return mergeByUniqueKey(localStorage.getItem('pk_fifo_override_logs'), INITIAL_FIFO_OVERRIDE_LOGS, 'id');
+  });
+
+  const [balanceReturnSlips, setBalanceReturnSlips] = useState<BalanceReturnSlip[]>(() => {
+    return mergeByUniqueKey(localStorage.getItem('pk_balance_return_slips'), INITIAL_BALANCE_RETURN_SLIPS, 'rtnNo');
+  });
+
+  useEffect(() => {
+    const curVer = localStorage.getItem('pk_storage_version');
+    if (curVer !== PK_STORAGE_VERSION) {
+      if (!localStorage.getItem('pk_stock_batches')) {
+        localStorage.setItem('pk_stock_batches', JSON.stringify(INITIAL_STOCK_BATCHES));
+      }
+      localStorage.setItem('pk_storage_version', PK_STORAGE_VERSION);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('pk_stock_batches', JSON.stringify(stockBatches));
+  }, [stockBatches]);
+
+  useEffect(() => {
+    localStorage.setItem('pk_fifo_override_logs', JSON.stringify(fifoOverrideLogs));
+  }, [fifoOverrideLogs]);
+
+  useEffect(() => {
+    localStorage.setItem('pk_balance_return_slips', JSON.stringify(balanceReturnSlips));
+  }, [balanceReturnSlips]);
+
+  // Plant Shift & 20:45 Floor Return Cutoff Configuration (9 PM Factory Closing)
+  const DEFAULT_PLANT_SHIFT_CONFIG: PlantShiftConfig = {
+    shiftName: 'General Production Day Shift',
+    startTime: '08:30',
+    closingTime: '21:00', // 9:00 PM Factory Closing
+    floorCutoffTime: '20:45', // 8:45 PM Floor Return Cutoff (15-min transit window)
+    transitWindowMinutes: 15,
+    autoReconcileEnabled: true,
+  };
+
+  const [plantShiftConfig, setPlantShiftConfig] = useState<PlantShiftConfig>(() => {
+    try {
+      const saved = localStorage.getItem('pk_plant_shift_config');
+      if (saved) return { ...DEFAULT_PLANT_SHIFT_CONFIG, ...JSON.parse(saved) };
+    } catch {
+      // ignore
+    }
+    return DEFAULT_PLANT_SHIFT_CONFIG;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('pk_plant_shift_config', JSON.stringify(plantShiftConfig));
+  }, [plantShiftConfig]);
+
+  const updatePlantShiftConfig = (updates: Partial<PlantShiftConfig>) => {
+    setPlantShiftConfig(prev => ({ ...prev, ...updates }));
+  };
+
   const [grnList, setGrnList] = useState<GoodsReceiptNote[]>(() => {
     return mergeByUniqueKey(localStorage.getItem('pk_grn_data'), INITIAL_GRN_DATA, 'grnNo');
   });
@@ -398,6 +553,249 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     localStorage.setItem('pk_material_requisitions', JSON.stringify(materialRequisitions));
   }, [materialRequisitions]);
+
+  // Store Role Upgrade: Batch-Wise Stock Management & Returns Engine
+  const addStockBatch = (batch: StockBatch) => {
+    setStockBatches(prev => [batch, ...prev]);
+  };
+
+  const updateStockBatch = (batchId: string, updates: Partial<StockBatch>) => {
+    setStockBatches(prev => prev.map(b => b.batchId === batchId ? { ...b, ...updates } : b));
+  };
+
+  const issueMaterialRequisitionWithBatches = (params: {
+    mrnNo: string;
+    issuedSlipNo?: string;
+    storeInchargeName: string;
+    storeRemarks?: string;
+    lineAllocations: Array<{
+      requisitionLineId?: string;
+      itemName: string;
+      batchLines: BatchIssueLine[];
+    }>;
+    fifoStatus?: 'FIFO OK' | 'FIFO Override';
+    overrideReasonCode?: FifoOverrideReasonCode;
+    overrideRemark?: string;
+  }): { success: boolean; error?: string; minNo: string } => {
+    const allIssueLines: BatchIssueLine[] = [];
+    params.lineAllocations.forEach(la => {
+      la.batchLines.forEach(bl => {
+        allIssueLines.push(bl);
+      });
+    });
+
+    // 1. Strict validation with pure engine
+    const validation = validateIssue(allIssueLines, stockBatches);
+    if (!validation.isValid) {
+      return { success: false, error: validation.errors.join(' | '), minNo: '' };
+    }
+
+    // 2. Atomically deduct balances
+    const updatedBatches = applyIssueToBatches(allIssueLines, stockBatches);
+    setStockBatches(updatedBatches);
+
+    // 3. Generate MIN slip number
+    const minNo = params.issuedSlipNo || `MIN-2026-${String(materialRequisitions.length + 1).padStart(3, '0')}`;
+    const timestamp = `${new Date().toISOString().split('T')[0]} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+
+    // 4. Update MRN status & batch allocations
+    setMaterialRequisitions(prev => prev.map(req => {
+      if (req.mrnNo !== params.mrnNo) return req;
+
+      const totalIssued = allIssueLines.reduce((acc, l) => acc + Number(l.issuedQty || 0), 0);
+      const isPartial = totalIssued < req.requestedQty;
+      const pendingQty = Math.max(0, req.requestedQty - totalIssued);
+
+      const grnSummary = Array.from(new Set(allIssueLines.map(l => l.grnNo).filter(Boolean))).join(', ');
+
+      const updatedReqLines = (req.requisitionLines || []).map(rLine => {
+        const alloc = params.lineAllocations.find(la => la.requisitionLineId === rLine.id || la.itemName === rLine.itemName);
+        if (!alloc) return rLine;
+        const lineIssuedQty = alloc.batchLines.reduce((acc, bl) => acc + bl.issuedQty, 0);
+        const linePendingQty = Math.max(0, rLine.requestedQty - lineIssuedQty);
+        return {
+          ...rLine,
+          issuedQty: lineIssuedQty,
+          issuedLines: alloc.batchLines,
+          pendingQty: linePendingQty,
+          status: (linePendingQty === 0 ? 'Fully Issued' : 'Partially Issued') as 'Fully Issued' | 'Partially Issued'
+        };
+      });
+
+      return {
+        ...req,
+        status: isPartial ? 'Partially Issued' : 'Dispatched by Store',
+        issuedSlipNo: minNo,
+        minNo,
+        sourceGrnNo: grnSummary || req.sourceGrnNo,
+        issuedQty: totalIssued,
+        pendingQty,
+        storeInchargeName: params.storeInchargeName,
+        storeIssuedTimestamp: timestamp,
+        storeRemarks: params.storeRemarks,
+        fifoStatus: params.fifoStatus || 'FIFO OK',
+        overrideReasonCode: params.overrideReasonCode,
+        overrideRemark: params.overrideRemark,
+        batchLines: allIssueLines,
+        requisitionLines: updatedReqLines.length > 0 ? updatedReqLines : req.requisitionLines
+      };
+    }));
+
+    // 5. Audit override if logged
+    if (params.fifoStatus === 'FIFO Override' && params.overrideReasonCode) {
+      const overrideLog: FifoOverrideLog = {
+        id: `OVR-2026-${String(fifoOverrideLogs.length + 1).padStart(3, '0')}`,
+        mrnNo: params.mrnNo,
+        minNo,
+        itemName: params.lineAllocations[0]?.itemName || 'Consumable Item',
+        suggestedBatchId: 'FEFO/FIFO-SUGGESTION',
+        issuedBatchId: allIssueLines[0]?.batchId || '',
+        reasonCode: params.overrideReasonCode,
+        remark: params.overrideRemark || 'Manual storekeeper override logged.',
+        issuedBy: params.storeInchargeName,
+        timestamp,
+        plant: activePlant
+      };
+      setFifoOverrideLogs(prev => [overrideLog, ...prev]);
+    }
+
+    return { success: true, minNo };
+  };
+
+  const createBalanceReturnSlip = (slip: Omit<BalanceReturnSlip, 'rtnNo' | 'status'>): BalanceReturnSlip => {
+    const rtnNo = `RTN-2026-${String(balanceReturnSlips.length + 1).padStart(3, '0')}`;
+    const newSlip: BalanceReturnSlip = {
+      ...slip,
+      rtnNo,
+      date: slip.date || new Date().toISOString().split('T')[0],
+      time: slip.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      plant: slip.plant || activePlant,
+      status: 'Pending Store Verification'
+    };
+    setBalanceReturnSlips(prev => [newSlip, ...prev]);
+    return newSlip;
+  };
+
+  const acceptBalanceReturnSlip = (
+    rtnNo: string,
+    verifiedLinesOrReceivedBy?: Array<{
+      lineId: string;
+      storeCountedQty: number;
+      condition: BalanceReturnCondition;
+      remarks?: string;
+    }> | string,
+    receivedByStoreOrDecision?: string,
+    supervisorDecision?: string
+  ) => {
+    setBalanceReturnSlips(prev => prev.map(slip => {
+      if (slip.rtnNo !== rtnNo) return slip;
+
+      let updatedLines = slip.lines;
+      let receiver = currentUser?.name || 'Manoj Tiwari (Stores)';
+      let decision = supervisorDecision;
+
+      if (Array.isArray(verifiedLinesOrReceivedBy)) {
+        updatedLines = slip.lines.map(line => {
+          const v = verifiedLinesOrReceivedBy.find(vl => vl.lineId === line.id);
+          if (!v) return line;
+          const counted = Number(v.storeCountedQty);
+          return {
+            ...line,
+            storeCountedQty: counted,
+            condition: v.condition,
+            variance: line.returnedQtyClaimed - counted,
+            remarks: v.remarks || line.remarks
+          };
+        });
+        if (typeof receivedByStoreOrDecision === 'string') {
+          receiver = receivedByStoreOrDecision;
+        }
+      } else if (typeof verifiedLinesOrReceivedBy === 'string') {
+        receiver = verifiedLinesOrReceivedBy;
+        if (typeof receivedByStoreOrDecision === 'string') {
+          decision = receivedByStoreOrDecision;
+        }
+        updatedLines = slip.lines.map(line => ({
+          ...line,
+          storeCountedQty: line.storeCountedQty > 0 ? line.storeCountedQty : line.returnedQtyClaimed,
+          variance: 0
+        }));
+      }
+
+      const updatedSlip: BalanceReturnSlip = {
+        ...slip,
+        lines: updatedLines,
+        receivedByStore: receiver,
+        status: 'Accepted',
+        supervisorSignOff: decision ? {
+          signedBy: currentUser?.name || receiver,
+          timestamp: `${new Date().toISOString().split('T')[0]} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+          decision: decision
+        } : slip.supervisorSignOff
+      };
+
+      setStockBatches(currBatches => applyReturn(updatedSlip, currBatches));
+      return updatedSlip;
+    }));
+  };
+
+  const flagBalanceReturnDiscrepancy = (
+    rtnNo: string,
+    discrepancyLines: Array<{
+      lineId: string;
+      storeCountedQty: number;
+      condition: BalanceReturnCondition;
+      remarks?: string;
+    }>,
+    remarks?: string
+  ) => {
+    setBalanceReturnSlips(prev => prev.map(slip => {
+      if (slip.rtnNo !== rtnNo) return slip;
+
+      const updatedLines = slip.lines.map(line => {
+        const d = discrepancyLines.find(dl => dl.lineId === line.id);
+        if (!d) return line;
+        const counted = Number(d.storeCountedQty);
+        return {
+          ...line,
+          storeCountedQty: counted,
+          condition: d.condition,
+          variance: line.returnedQtyClaimed - counted,
+          remarks: d.remarks || line.remarks
+        };
+      });
+
+      return {
+        ...slip,
+        lines: updatedLines,
+        status: 'Discrepancy Flagged',
+        remarks: remarks || slip.remarks
+      };
+    }));
+  };
+
+  const supervisorSignOffBalanceReturn = (
+    rtnNo: string,
+    supervisorName: string,
+    decision: string,
+    notes?: string
+  ) => {
+    setBalanceReturnSlips(prev => prev.map(slip => {
+      if (slip.rtnNo !== rtnNo) return slip;
+      const updatedSlip: BalanceReturnSlip = {
+        ...slip,
+        status: 'Closed with Supervisor Sign-off',
+        supervisorSignOff: {
+          signedBy: supervisorName,
+          timestamp: `${new Date().toISOString().split('T')[0]} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+          decision,
+          notes
+        }
+      };
+      setStockBatches(currBatches => applyReturn(updatedSlip, currBatches));
+      return updatedSlip;
+    }));
+  };
 
   // Store <-> Production Material Handshake Handlers
   const createMaterialRequisition = (req: Omit<MaterialRequisitionNote, 'mrnNo' | 'status' | 'date' | 'time'>) => {
@@ -560,6 +958,104 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [painters, setPainters] = useState<PainterProfile[]>(() => {
     return mergeByUniqueKey(localStorage.getItem('pk_painters'), INITIAL_PAINTERS, 'id');
   });
+
+  const [paintingBooths, setPaintingBooths] = useState<PaintingBooth[]>(() => {
+    return mergeByUniqueKey(localStorage.getItem('pk_painting_booths'), INITIAL_PAINTING_BOOTHS, 'id');
+  });
+
+  useEffect(() => {
+    localStorage.setItem('pk_painting_booths', JSON.stringify(paintingBooths));
+  }, [paintingBooths]);
+
+  // Painting Lines & Spray Booth Fleet Handlers
+  const addPaintingBooth = (boothData: Omit<PaintingBooth, 'id'>) => {
+    const nextId = `LINE-${paintingBooths.length + 1}`;
+    const newBooth: PaintingBooth = {
+      ...boothData,
+      id: nextId
+    };
+    setPaintingBooths(prev => [...prev, newBooth]);
+  };
+
+  const updatePaintingBooth = (id: string, updates: Partial<PaintingBooth>) => {
+    setPaintingBooths(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
+  };
+
+  const deletePaintingBooth = (id: string) => {
+    if (paintingBooths.length <= 1) {
+      alert('At least one painting line/booth must remain in the fleet.');
+      return;
+    }
+    setPaintingBooths(prev => prev.filter(b => b.id !== id));
+  };
+
+  const toggleBoothStatus = (id: string) => {
+    setPaintingBooths(prev => prev.map(b => {
+      if (b.id === id) {
+        const nextStatus = b.status === 'Active' ? 'Under Maintenance' : 'Active';
+        return { ...b, status: nextStatus };
+      }
+      return b;
+    }));
+  };
+
+  // Floor Painters Fleet CRUD Handlers
+  const addPainter = (painterData: Omit<PainterProfile, 'id'>) => {
+    const nextNum = painters.length + 1;
+    const nextId = `ptr_${nextNum}_${Date.now()}`;
+    const newPainter: PainterProfile = {
+      ...painterData,
+      id: nextId,
+      avatar: painterData.avatar || `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80`,
+      code: painterData.code || `P${nextNum}`,
+      status: painterData.status || 'Active',
+      onTimeJobsCount: 0,
+      delayedJobsCount: 0
+    };
+    setPainters(prev => [...prev, newPainter]);
+  };
+
+  const updatePainter = (id: string, updates: Partial<PainterProfile>) => {
+    setPainters(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+  };
+
+  const deletePainter = (id: string) => {
+    if (painters.length <= 1) {
+      alert('At least one painter must remain in the fleet.');
+      return;
+    }
+    const target = painters.find(p => p.id === id);
+    if (target) {
+      const pName = target.name.toLowerCase().trim();
+      const pCode = target.code?.toLowerCase().trim();
+      const hasExistingJobs = jobCards.some(jc => {
+        const assigned = (jc.assignedPainterName || (jc as any).painterName || '').toLowerCase().trim();
+        const assignedId = (jc.assignedPainterId || '').toLowerCase().trim();
+        return (
+          assignedId === id.toLowerCase() ||
+          (pCode && (assigned.includes(pCode) || assignedId === pCode)) ||
+          assigned === pName ||
+          assigned.includes(pName)
+        );
+      });
+
+      if (hasExistingJobs) {
+        alert(`Cannot delete "${target.name}": This technician has active or historical Job Cards in system records. In order to preserve manufacturing audit trails and quality history, this painter cannot be deleted. You can mark their status as "On Leave" instead.`);
+        return;
+      }
+    }
+    setPainters(prev => prev.filter(p => p.id !== id));
+  };
+
+  const togglePainterStatus = (id: string) => {
+    setPainters(prev => prev.map(p => {
+      if (p.id === id) {
+        const nextStatus = p.status === 'Active' ? 'On Leave' : 'Active';
+        return { ...p, status: nextStatus };
+      }
+      return p;
+    }));
+  };
 
   const [preProductionReports, setPreProductionReports] = useState<PreProductionInspectionRecord[]>(() => {
     return mergeByUniqueKey(localStorage.getItem('pk_pir_data'), INITIAL_PRE_PRODUCTION_REPORTS, 'reportNo');
@@ -732,6 +1228,150 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem('pk_hr_leaves', JSON.stringify(hrLeaves));
   }, [hrLeaves]);
 
+  // 20:45 Cutoff Automated Floor Reconciliation Engine (15m before 21:00 Factory Closing)
+  const executePlantClosingReconciliation = (overrideDate?: string): {
+    reconciledCount: number;
+    generatedSlips: BalanceReturnSlip[];
+  } => {
+    const todayStr = overrideDate || new Date().toISOString().split('T')[0];
+    const generatedSlips: BalanceReturnSlip[] = [];
+
+    // Filter active / in-progress job cards
+    const activeJobs = jobCards.filter(jc => 
+      jc.status !== 'Closed' && 
+      jc.status !== 'Completed' &&
+      (!activePlant || !jc.plant || jc.plant.toLowerCase() === activePlant.toLowerCase())
+    );
+
+    activeJobs.forEach((jc) => {
+      // 1. Determine issued substrate pieces to floor
+      const linkedMrn = materialRequisitions.find(m => m.jobCardNo === jc.jobCardNo);
+      
+      let issuedPieces = 0;
+      let linkedBatchId = '';
+      let linkedGrn = jc.sourceGrnNo || '';
+      let partDesc = jc.partDescription || `${jc.partCode || 'Part'} Substrates`;
+
+      if (linkedMrn && linkedMrn.requisitionLines && linkedMrn.requisitionLines.length > 0) {
+        const substrateLine = linkedMrn.requisitionLines.find(l => 
+          l.category === 'PARTY_MATERIAL' || 
+          l.materialType === 'substrate' ||
+          l.itemName.toLowerCase().includes('substrate') ||
+          (l.uom && l.uom.toLowerCase() === 'pcs')
+        ) || linkedMrn.requisitionLines[0];
+
+        if (substrateLine) {
+          issuedPieces = Number(substrateLine.issuedQty || substrateLine.requestedQty || 0);
+          partDesc = substrateLine.itemName;
+          if (substrateLine.issuedLines && substrateLine.issuedLines.length > 0) {
+            linkedBatchId = substrateLine.issuedLines[0].batchId || '';
+            linkedGrn = substrateLine.issuedLines[0].grnNo || linkedGrn;
+          }
+        }
+      }
+
+      if (issuedPieces === 0) {
+        if (jc.issuedMaterials && jc.issuedMaterials.length > 0) {
+          const subMat = jc.issuedMaterials.find(m => m.materialType === 'substrate' || m.uom === 'Pcs') || jc.issuedMaterials[0];
+          issuedPieces = Number(subMat.qty || 0);
+          linkedBatchId = subMat.batchNo || linkedBatchId;
+          linkedGrn = subMat.grnNo || linkedGrn;
+        } else {
+          issuedPieces = Number(jc.targetQty || 0);
+        }
+      }
+
+      // 2. Determine processed / sprayed pieces
+      const processedPieces = Math.min(
+        issuedPieces,
+        Number(jc.sprayedQty || (jc.goodQty + (jc.rejectQty || 0)) || 0)
+      );
+
+      // 3. Compute unconsumed floor balance
+      const unconsumedBalance = Math.max(0, issuedPieces - processedPieces);
+
+      if (unconsumedBalance > 0) {
+        // Prevent duplicate return slip for this Job Card today
+        const alreadyExists = balanceReturnSlips.some(s => 
+          s.jobCardNo === jc.jobCardNo &&
+          s.date === todayStr &&
+          (s.status === 'Pending Store Verification' || s.generationType === 'PLANT_CLOSING_AUTO')
+        );
+
+        if (!alreadyExists) {
+          const slipIndex = balanceReturnSlips.length + generatedSlips.length + 1;
+          const rtnNo = `RTN-2026-${String(slipIndex).padStart(3, '0')}`;
+          
+          const newSlip: BalanceReturnSlip = {
+            rtnNo,
+            date: todayStr,
+            time: '08:45 PM',
+            plant: (jc.plant as PlantLocation) || activePlant || 'Haridwar',
+            jobCardNo: jc.jobCardNo,
+            mrnNo: linkedMrn?.mrnNo || 'MRN-AUTO',
+            minNo: linkedMrn?.minNo || linkedMrn?.issuedSlipNo || 'MIN-FLOOR',
+            returnedBy: 'Floor Supervisor (20:45 Cutoff - 15m to 21:00 Close)',
+            receivedByStore: 'Manoj Tiwari (Store Incharge)',
+            status: 'Pending Store Verification',
+            isAutoGenerated: true,
+            generationType: 'PLANT_CLOSING_AUTO',
+            floorCutoffTime: '20:45',
+            transitWindowMinutes: 15,
+            lines: [
+              {
+                id: `rtn_line_${Date.now()}_${slipIndex}`,
+                itemName: partDesc,
+                batchId: linkedBatchId || `LOT-${jc.partCode || 'SUB'}-${jc.jobCardNo}`,
+                grnNo: linkedGrn || 'PK-GRN-RETURN',
+                supplierBatchNo: linkedBatchId || `LOT-${jc.partCode || 'SUB'}`,
+                category: 'PARTY_MATERIAL',
+                materialType: 'substrate',
+                issuedQty: issuedPieces,
+                processedQty: processedPieces,
+                returnedQtyClaimed: unconsumedBalance,
+                storeCountedQty: unconsumedBalance,
+                uom: 'Pcs',
+                condition: 'Unopened / Intact',
+                variance: 0,
+                remarks: `Auto-reconciled at 20:45 cutoff. Target/Issued ${issuedPieces} Pcs - Sprayed ${processedPieces} Pcs = ${unconsumedBalance} Pcs unconsumed floor return.`
+              }
+            ],
+            remarks: `Factory closes at 21:00 (9 PM). Auto-generated at 20:45 floor cutoff with 15-minute window for physical transit down to stores.`
+          };
+
+          generatedSlips.push(newSlip);
+        }
+      }
+    });
+
+    if (generatedSlips.length > 0) {
+      setBalanceReturnSlips(prev => [...generatedSlips, ...prev]);
+      setPlantShiftConfig(prev => ({ ...prev, lastReconciledDate: todayStr }));
+    }
+
+    return {
+      reconciledCount: generatedSlips.length,
+      generatedSlips
+    };
+  };
+
+  // Automated background check for 20:45 cutoff
+  useEffect(() => {
+    if (!plantShiftConfig.autoReconcileEnabled) return;
+    const interval = setInterval(() => {
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const currentTime = `${hours}:${minutes}`;
+      const today = now.toISOString().split('T')[0];
+
+      if (currentTime >= plantShiftConfig.floorCutoffTime && plantShiftConfig.lastReconciledDate !== today) {
+        executePlantClosingReconciliation();
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [plantShiftConfig, jobCards, balanceReturnSlips]);
+
   useEffect(() => {
     localStorage.setItem('pk_calibration_list', JSON.stringify(calibrationList));
   }, [calibrationList]);
@@ -796,6 +1436,42 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ? formattedJc.issuedMaterials.map(m => `${m.itemDescription} (${m.qty} ${m.uom})`).join(', ')
       : `${formattedJc.partDescription} (${formattedJc.targetQty} Pcs)`;
 
+    const reqLines: RequisitionLineItem[] = [];
+
+    // 1. Substrate Party Material Line
+    if (formattedJc.targetQty > 0) {
+      reqLines.push({
+        id: `rl_sub_${Date.now()}`,
+        itemCode: formattedJc.partCode || 'SUBSTRATE',
+        itemName: formattedJc.partDescription || 'Component Substrate',
+        category: 'PARTY_MATERIAL',
+        materialType: 'substrate',
+        requestedQty: formattedJc.targetQty,
+        uom: 'Pcs',
+        customer: formattedJc.customer,
+        partCode: formattedJc.partCode,
+        colour: formattedJc.color,
+        status: 'Pending'
+      });
+    }
+
+    // 2. Company Consumable Chemical Lines (Paint, Thinner, Hardener, Primer, Clear Coat)
+    if (formattedJc.issuedMaterials && formattedJc.issuedMaterials.length > 0) {
+      formattedJc.issuedMaterials.forEach((m, idx) => {
+        reqLines.push({
+          id: `rl_chem_${idx}_${Date.now()}`,
+          itemCode: m.itemDescription.slice(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, ''),
+          itemName: m.itemDescription,
+          category: 'COMPANY_CONSUMABLE',
+          materialType: m.materialType || 'paint',
+          requestedQty: Number(m.qty),
+          uom: m.uom || 'Litres',
+          colour: m.colour || formattedJc.color,
+          status: 'Pending'
+        });
+      });
+    }
+
     const autoMrn: MaterialRequisitionNote = {
       mrnNo: `MRN-2026-${String(materialRequisitions.length + 1).padStart(3, '0')}`,
       date: formattedJc.issueDate || new Date().toISOString().split('T')[0],
@@ -813,6 +1489,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       requestedBy: formattedJc.prodSupervisor || currentUser.name || 'Production Manager',
       urgency: 'High (Line Stoppage Risk)',
       status: 'Pending Store Issue',
+      requisitionLines: reqLines.length > 0 ? reqLines : undefined,
       productionRemarks: `Auto-generated from Job Card creation for Painter [${formattedJc.painterName}]. Store to release: ${itemsSummary}`
     };
 
@@ -999,6 +1676,13 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const autoMrn: MaterialRequisitionNote = {
       mrnNo: `MRN-2026-${String(materialRequisitions.length + 1).padStart(3, '0')}`,
+      date: parentData.issueDate || new Date().toISOString().split('T')[0],
+      time: parentData.issueTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      partDescription: parentData.partDescription || 'Component Substrate',
+      requestedQty: parentData.targetQty || 0,
+      uom: parentData.issuedMaterials?.[0]?.uom || 'Pcs',
+      requiredShift: activeShift || 'General Day Shift (08:30 - 18:30)',
+      urgency: parentData.targetQty > 500 ? 'High (Line Stoppage Risk)' : 'Normal',
       jobCardNo: parentData.jobCardNo,
       woNo: parentData.woNo,
       customer: parentData.customer,
@@ -1024,6 +1708,73 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const addGRN = (grn: GoodsReceiptNote) => {
     if (!grn || !grn.grnNo) return;
     setGrnList(prev => [grn, ...prev]);
+
+    // Auto-create StockBatch records from GRN lines (Store Role Stock Inward)
+    const newStockBatches: StockBatch[] = [];
+    if (grn.items && grn.items.length > 0) {
+      grn.items.forEach((item, idx) => {
+        const isChemical = isChemicalConsumable(item.materialType, item.category, item.partDescription);
+        const isParty = item.category === 'PARTY_MATERIAL' || (
+          !isChemical && 
+          grn.supplierCustomer && 
+          !grn.supplierCustomer.toLowerCase().includes('asian') && 
+          !grn.supplierCustomer.toLowerCase().includes('ppg') && 
+          !grn.supplierCustomer.toLowerCase().includes('berger')
+        );
+
+        const category: StockCategory = item.category || (isParty ? 'PARTY_MATERIAL' : 'COMPANY_CONSUMABLE');
+        const materialType: StockMaterialType = item.materialType || (isChemical ? 'paint' : 'substrate');
+
+        newStockBatches.push({
+          batchId: `SB-${grn.grnNo}-${item.partCode || idx + 1}`,
+          itemCode: item.partCode || 'ITEM-01',
+          itemName: item.partDescription,
+          category,
+          materialType,
+          supplierBatchNo: item.supplierBatchNo || grn.batchNo || `LOT-${grn.grnNo.slice(-4)}`,
+          grnNo: grn.grnNo,
+          plant: grn.plant,
+          customer: grn.supplierCustomer,
+          partCode: item.partCode,
+          receivedDate: grn.receivedDate || grn.date,
+          mfgDate: item.mfgDate || grn.mfgDate,
+          expiryDate: item.expiryDate || grn.expiryDate,
+          uom: 'Pcs',
+          receivedQty: Number(item.actualReceivedQty || item.invoicedQty || 0),
+          balanceQty: Number(item.actualReceivedQty || item.invoicedQty || 0),
+          status: 'Available',
+          storageLocation: 'Stores Intake Bay'
+        });
+      });
+    } else {
+      const isChemical = isChemicalConsumable(undefined, undefined, grn.description);
+      const isParty = !isChemical && grn.supplierCustomer && !grn.supplierCustomer.toLowerCase().includes('asian') && !grn.supplierCustomer.toLowerCase().includes('ppg');
+
+      newStockBatches.push({
+        batchId: `SB-${grn.grnNo}-MAIN`,
+        itemCode: grn.partCode || 'ITEM-01',
+        itemName: grn.description || 'Inward Material Lot',
+        category: isParty ? 'PARTY_MATERIAL' : 'COMPANY_CONSUMABLE',
+        materialType: isChemical ? 'paint' : 'substrate',
+        supplierBatchNo: grn.batchNo || `LOT-${grn.grnNo.slice(-4)}`,
+        grnNo: grn.grnNo,
+        plant: grn.plant,
+        customer: grn.supplierCustomer,
+        partCode: grn.partCode,
+        receivedDate: grn.receivedDate || grn.date,
+        mfgDate: grn.mfgDate,
+        expiryDate: grn.expiryDate,
+        uom: 'Pcs',
+        receivedQty: Number(grn.actualReceivedQty || grn.invoicedQty || 0),
+        balanceQty: Number(grn.actualReceivedQty || grn.invoicedQty || 0),
+        status: 'Available',
+        storageLocation: 'Stores Intake Bay'
+      });
+    }
+
+    if (newStockBatches.length > 0) {
+      setStockBatches(prev => [...newStockBatches, ...prev]);
+    }
 
     // Update matching Material Inward Log so it is marked as GRN Created
     setMaterialInwardLogs(prev => prev.map(inw => {
@@ -2020,6 +2771,15 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         handovers,
         jobCards,
         painters,
+        paintingBooths,
+        addPaintingBooth,
+        updatePaintingBooth,
+        deletePaintingBooth,
+        toggleBoothStatus,
+        addPainter,
+        updatePainter,
+        deletePainter,
+        togglePainterStatus,
         pendingVerificationJobsCount,
         getPainterActiveJobCount,
         canAssignPainter,
@@ -2120,7 +2880,22 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         assignProductionPriority,
         updatePriorityStatus,
         activeSubTab,
-        setActiveSubTab
+        setActiveSubTab,
+
+        // Store Role Upgrade: Batch-Wise Stock, FIFO/FEFO & Balance Returns (PK-OS Upgrade)
+        stockBatches,
+        fifoOverrideLogs,
+        balanceReturnSlips,
+        addStockBatch,
+        updateStockBatch,
+        issueMaterialRequisitionWithBatches,
+        createBalanceReturnSlip,
+        acceptBalanceReturnSlip,
+        flagBalanceReturnDiscrepancy,
+        supervisorSignOffBalanceReturn,
+        plantShiftConfig,
+        updatePlantShiftConfig,
+        executePlantClosingReconciliation
       }}
     >
       {children}

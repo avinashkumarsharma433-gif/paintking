@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { GoodsReceiptNote, OrderColorSplit } from '../types/portalTypes';
+import { GoodsReceiptNote, OrderColorSplit, GRNLineItem, MATERIAL_TYPE_OPTIONS, StockMaterialType } from '../types/portalTypes';
 import { Boxes, Plus, Trash2, CheckCircle2, ArrowRight, ShieldCheck } from 'lucide-react';
+import { isChemicalConsumable } from '../utils/stockEngine';
 
 interface QuickInwardModalProps {
   isOpen: boolean;
@@ -22,6 +23,10 @@ export const QuickInwardModal: React.FC<QuickInwardModalProps> = ({
   const [partName, setPartName] = useState('Auto AC Center Vent Bezel Substrates');
   const [partCode, setPartCode] = useState('RP-8841');
   const [totalQty, setTotalQty] = useState<number>(1000);
+  const [batchNo, setBatchNo] = useState<string>(`B-ROO-${Date.now().toString().slice(-4)}`);
+  const [materialType, setMaterialType] = useState<StockMaterialType>('substrate');
+  const [mfgDate, setMfgDate] = useState<string>('');
+  const [expiryDate, setExpiryDate] = useState<string>('');
 
   // Dynamic Color Breakdown Rows
   const [colorRows, setColorRows] = useState<Array<{ name: string; code: string; qty: number; rate: number }>>([
@@ -72,6 +77,25 @@ export const QuickInwardModal: React.FC<QuickInwardModalProps> = ({
       status: 'Pending'
     }));
 
+    const isChemical = isChemicalConsumable(undefined, undefined, partName);
+    const finalBatchNo = batchNo.trim() || `B-${customer.slice(0, 3)}-${Date.now().toString().slice(-4)}`;
+
+    const lineItem: GRNLineItem = {
+      id: '1',
+      partCode,
+      partDescription: partName,
+      invoicedQty: Number(totalQty),
+      actualReceivedQty: Number(totalQty),
+      shortExcessQty: 0,
+      okByIqcQty: Number(totalQty),
+      rejectionQty: 0,
+      supplierBatchNo: finalBatchNo,
+      mfgDate: mfgDate || undefined,
+      expiryDate: expiryDate || undefined,
+      category: materialType === 'substrate' ? 'PARTY_MATERIAL' : 'COMPANY_CONSUMABLE',
+      materialType: materialType
+    };
+
     const newGRN: GoodsReceiptNote = {
       grnNo,
       date: new Date().toISOString().split('T')[0],
@@ -83,7 +107,10 @@ export const QuickInwardModal: React.FC<QuickInwardModalProps> = ({
       transporter: 'VRL LOGISTICS',
       partCode,
       description: partName,
-      batchNo: `B-${customer.slice(0, 3)}-${Date.now().toString().slice(-4)}`,
+      batchNo: finalBatchNo,
+      mfgDate: mfgDate || undefined,
+      expiryDate: expiryDate || undefined,
+      items: [lineItem],
       invoicedQty: Number(totalQty),
       actualReceivedQty: Number(totalQty),
       colorSplits: splits,
@@ -257,23 +284,37 @@ export const QuickInwardModal: React.FC<QuickInwardModalProps> = ({
                   Step 2: Component & Total Quantity Received
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#777b86] mb-1">
+                      Material Classification *
+                    </label>
+                    <select
+                      value={materialType}
+                      onChange={e => setMaterialType(e.target.value as StockMaterialType)}
+                      className="w-full px-3 py-2.5 rounded-[16px] bg-[#f4f4f6] font-semibold text-[#17191c] border border-transparent focus:border-[#c09748] text-xs transition-all outline-none"
+                    >
+                      {MATERIAL_TYPE_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div className="md:col-span-2">
                     <label className="block text-[11px] font-semibold text-[#777b86] mb-1">
-                      Part / Substrate Description <span className="text-rose-500">*</span>
+                      Part / Material Description <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={partName}
                       onChange={e => setPartName(e.target.value)}
-                      placeholder="e.g. Car AC Center Vent Bezel Substrates"
+                      placeholder="e.g. PPG Rosso Corsa 932 / Vent Bezel"
                       className="w-full px-3.5 py-2.5 rounded-[16px] bg-[#f4f4f6] hover:bg-[#ececee] focus:bg-white font-medium text-[#17191c] border border-transparent focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/20 text-xs transition-all outline-none"
                       required
                     />
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-[#777b86] mb-1">
-                      Total Pieces <span className="text-rose-500">*</span>
+                      Total Quantity <span className="text-rose-500">*</span>
                     </label>
                     <input
                       type="number"
@@ -282,6 +323,50 @@ export const QuickInwardModal: React.FC<QuickInwardModalProps> = ({
                       className="w-full px-3.5 py-2 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be] focus:bg-white font-serif text-base font-bold text-[#8a6521] focus:outline-none focus:ring-2 focus:ring-[#c09748]/20 transition-all"
                       min={1}
                       required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* STEP 2.5: BATCH TRACEABILITY & EXPIRY (PK-OS STORE UPGRADE) */}
+              <div className="p-4 bg-[#fafafb] rounded-[20px] border border-[#ececec] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="text-[11px] font-bold text-[#c09748] uppercase tracking-[0.16em]">
+                    Batch Traceability & Shelf-Life
+                  </div>
+                  {isChemicalConsumable(undefined, undefined, partName) ? (
+                    <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                      FEFO Mandatory *
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-[#777b86]">Standard Batch Tag</span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#777b86] mb-1">
+                      Batch / Lot No {isChemicalConsumable(undefined, undefined, partName) && <span className="text-rose-500">*</span>}
+                    </label>
+                    <input
+                      type="text"
+                      value={batchNo}
+                      onChange={e => setBatchNo(e.target.value)}
+                      placeholder="e.g. B-ROO-9912"
+                      required={isChemicalConsumable(undefined, undefined, partName)}
+                      className="w-full px-3.5 py-2.5 rounded-[16px] bg-[#f4f4f6] hover:bg-[#ececee] focus:bg-white font-mono font-bold text-[#17191c] border border-transparent focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/20 text-xs transition-all outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-[#777b86] mb-1">
+                      Mfg Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={mfgDate}
+                      onChange={e => setMfgDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-[16px] bg-[#f4f4f6] hover:bg-[#ececee] focus:bg-white font-mono text-[#17191c] border border-transparent focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/20 text-xs transition-all outline-none"
                     />
                   </div>
                 </div>

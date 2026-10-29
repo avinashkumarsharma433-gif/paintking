@@ -25,10 +25,62 @@ import {
   MaterialRequisitionNote,
   PainterProfile,
   PreProductionInspectionRecord,
-  PlantHeadPriorityAssignment
+  PlantHeadPriorityAssignment,
+  PaintingBooth,
+  StockBatch,
+  FifoOverrideLog,
+  BalanceReturnSlip,
+  RequisitionLineItem
 } from '../types/portalTypes';
 import { INITIAL_MNC_AUDIT_QUESTIONS } from './mncAuditQuestionsData';
 export { INITIAL_MNC_AUDIT_QUESTIONS };
+
+export const INITIAL_PAINTING_BOOTHS: PaintingBooth[] = [
+  {
+    id: 'LINE-1',
+    name: 'Booth #1 (Continuous Conveyor Line)',
+    type: 'Conveyor Liquid PU',
+    status: 'Active',
+    capacityPerShift: 1200,
+    airPressureBar: 4.2,
+    curingTempC: 65,
+    plant: 'Haridwar',
+    notes: 'Robotic Spindle Liquid Coating with IR Pre-Heating & Curing Oven'
+  },
+  {
+    id: 'LINE-2',
+    name: 'Booth #2 (Dust-Free Pressurized Cleanroom)',
+    type: 'Dust-Free Cleanroom 2K',
+    status: 'Active',
+    capacityPerShift: 800,
+    airPressureBar: 3.8,
+    curingTempC: 60,
+    plant: 'Haridwar',
+    notes: 'Class 10,000 Enclosed Cleanroom for High Gloss Piano Black & Metallic'
+  },
+  {
+    id: 'LINE-3',
+    name: 'Booth #3 (Hydrographic Immersion & Dipping)',
+    type: 'Water Transfer Hydrographic',
+    status: 'Active',
+    capacityPerShift: 600,
+    airPressureBar: 3.5,
+    curingTempC: 55,
+    plant: 'Haridwar',
+    notes: '3D Water Immersion PVA Dipping Tank, Automated Activator & Multi-Stage Wash'
+  },
+  {
+    id: 'LINE-4',
+    name: 'Booth #4 (Flatbed Industrial Direct UV Plotter)',
+    type: 'Direct Flatbed UV Plotter',
+    status: 'Active',
+    capacityPerShift: 1500,
+    airPressureBar: 2.5,
+    curingTempC: 45,
+    plant: 'Haridwar',
+    notes: '1440 DPI Multi-Substrate Flatbed LED-UV Instant Curing Station'
+  }
+];
 
 export const INITIAL_PAINTERS: PainterProfile[] = [
   {
@@ -36,54 +88,66 @@ export const INITIAL_PAINTERS: PainterProfile[] = [
     name: 'Ramesh Kumar (P1)',
     code: 'P1',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-    boothNo: 'Booth #1 (Automotive Robotic Line)',
+    boothNo: 'Booth #1 (Continuous Conveyor Line)',
     shift: 'General Day Shift (08:30 - 18:30)',
-    specialization: 'High Gloss Metallic Red & Basecoat'
+    specialization: 'High Gloss Metallic Red & Basecoat',
+    status: 'Active',
+    phone: '+91 98765 43210'
   },
   {
     id: 'ptr_2',
     name: 'Suresh Verma (P2)',
     code: 'P2',
     avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80',
-    boothNo: 'Booth #2 (Hydrographic & Dipping Line)',
+    boothNo: 'Booth #2 (Dust-Free Pressurized Cleanroom)',
     shift: 'General Day Shift (08:30 - 18:30)',
-    specialization: 'Carbon Fiber PVA Film Dipping & Base'
+    specialization: 'Carbon Fiber PVA Film Dipping & Base',
+    status: 'Active',
+    phone: '+91 98765 43211'
   },
   {
     id: 'ptr_3',
     name: 'Mahesh Sharma (P3)',
     code: 'P3',
     avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80',
-    boothNo: 'Booth #3 (UV Flatbed & Digital Coater)',
+    boothNo: 'Booth #3 (Hydrographic Immersion & Dipping)',
     shift: 'General Day Shift (08:30 - 18:30)',
-    specialization: 'UV Digital Primer & Anti-Scratch Topcoat'
+    specialization: 'UV Digital Primer & Anti-Scratch Topcoat',
+    status: 'Active',
+    phone: '+91 98765 43212'
   },
   {
     id: 'ptr_4',
     name: 'Kailash Yadav (Senior Coating Tech)',
     code: 'P4',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-    boothNo: 'Booth #1 (Automotive Robotic Line)',
+    boothNo: 'Booth #1 (Continuous Conveyor Line)',
     shift: 'General Day Shift (08:30 - 18:30)',
-    specialization: '2K Polyurethane Satin & Matte Jet Black'
+    specialization: '2K Polyurethane Satin & Matte Jet Black',
+    status: 'Active',
+    phone: '+91 98765 43213'
   },
   {
     id: 'ptr_5',
     name: 'Imran Khan (Specialty Finishing Tech)',
     code: 'P5',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
-    boothNo: 'Booth #4 (Manual Cleanroom Precision)',
+    boothNo: 'Booth #4 (Flatbed Industrial Direct UV Plotter)',
     shift: 'Day 12H',
-    specialization: 'Soft-Touch Velvet Feel & Dual-Tone'
+    specialization: 'Soft-Touch Velvet Feel & Dual-Tone',
+    status: 'Active',
+    phone: '+91 98765 43214'
   },
   {
     id: 'ptr_6',
     name: 'Raju Painter (Booth Specialist)',
     code: 'P6',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80',
-    boothNo: 'Booth #2 (Hydrographic & Dipping Line)',
+    boothNo: 'Booth #2 (Dust-Free Pressurized Cleanroom)',
     shift: 'Night 12H',
-    specialization: 'Automotive Clear Lacquer Topcoat 2K'
+    specialization: 'Automotive Clear Lacquer Topcoat 2K',
+    status: 'Active',
+    phone: '+91 98765 43215'
   }
 ];
 
@@ -320,6 +384,106 @@ export const INITIAL_UNIVERSAL_JOBS: UniversalJobRecord[] = [
 
 // Ground Problem 1 Scenario Data: Roop Polymers AC Bezel (1000 pcs: 250 Red + 750 Black)
 export const INITIAL_GRN_DATA: GoodsReceiptNote[] = [
+  {
+    docNo: 'DOC NO: 00',
+    revNo: '00',
+    revDate: '2026-08-01',
+    grnNo: 'PK-GRN-2026-1250',
+    sourceIqcReportNo: 'IQC-2026-1020-ET01',
+    date: '2026-10-20',
+    plant: 'Haridwar',
+    vehicleNo: 'UK-08-ET-9941',
+    supplierCustomer: 'ENDURANCE TECHNOLOGIES',
+    invoiceChallanNo: 'ET/CH/7741',
+    invoiceDate: '2026-10-19',
+    receivedDate: '2026-10-20',
+    transporter: 'TCI FREIGHT',
+    items: [
+      {
+        id: 'grn_item_et_1',
+        partCode: 'ET-7721',
+        partDescription: 'Two-Wheeler Grab Handle Substrates (Nylon-6 GF)',
+        invoicedQty: 300,
+        actualReceivedQty: 300,
+        shortExcessQty: 0,
+        okByIqcQty: 300,
+        rejectionQty: 0,
+        remark: '100% compliant with visual, dimension and cross-hatch adhesion tests'
+      }
+    ],
+    totalQty: 300,
+    iqcStatus: 'Accepted',
+    storeIncharge: 'Manoj Tiwari',
+    qualityApprovedBy: 'Amit Verma (QA)',
+    approvedBy: 'Satish Sharma (Plant Head)',
+    remarks: 'Nylon-6 GF substrates verified. 100% passed for Satin Metallic Silver finishing.',
+    partCode: 'ET-7721',
+    description: 'Two-Wheeler Grab Handle Substrates (Nylon-6 GF)',
+    invoicedQty: 300,
+    actualReceivedQty: 300,
+    colorSplits: [
+      {
+        colorName: 'Satin Metallic Silver',
+        colorCode: 'ET-SLV-01',
+        orderedQty: 300,
+        unitRate: 45.00,
+        paintedQty: 0,
+        passedQty: 0,
+        billableQty: 0,
+        status: 'In-Production'
+      }
+    ]
+  },
+  {
+    docNo: 'DOC NO: 00',
+    revNo: '00',
+    revDate: '2026-08-01',
+    grnNo: 'PK-GRN-2026-1252',
+    sourceIqcReportNo: 'IQC-2026-1020-TAT01',
+    date: '2026-10-20',
+    plant: 'Haridwar',
+    vehicleNo: 'MH-12-TA-8812',
+    supplierCustomer: 'TATA AUTOCOMP SYSTEMS',
+    invoiceChallanNo: 'TAT/PUN/8841',
+    invoiceDate: '2026-10-19',
+    receivedDate: '2026-10-20',
+    transporter: 'VRL LOGISTICS',
+    items: [
+      {
+        id: 'grn_item_tat_1',
+        partCode: 'RP-8841',
+        partDescription: 'Automotive Instrument Panel Bezel Substrates (ABS)',
+        invoicedQty: 10000,
+        actualReceivedQty: 10000,
+        shortExcessQty: 0,
+        okByIqcQty: 10000,
+        rejectionQty: 0,
+        remark: '100% passed IQC dimensional & substrate check'
+      }
+    ],
+    totalQty: 10000,
+    iqcStatus: 'Accepted',
+    storeIncharge: 'Manoj Tiwari',
+    qualityApprovedBy: 'Amit Verma (QA)',
+    approvedBy: 'Satish Sharma (Plant Head)',
+    remarks: 'Critical OEM line inward. Cleared for high-speed robotic line.',
+    partCode: 'RP-8841',
+    description: 'Automotive Instrument Panel Bezel Substrates (ABS)',
+    invoicedQty: 10000,
+    actualReceivedQty: 10000,
+    colorSplits: [
+      {
+        colorName: 'Monza Red Gloss',
+        colorCode: 'RD-01',
+        orderedQty: 10000,
+        unitRate: 35.00,
+        paintedQty: 0,
+        passedQty: 0,
+        billableQty: 0,
+        status: 'In-Production'
+      }
+    ]
+  },
   {
     docNo: 'DOC NO: 00',
     revNo: '00',
@@ -2044,6 +2208,58 @@ export const MASTER_DEFECTS: DefectItem[] = [
 // Security Gate Inward Register Mock Data (12 Fields + Multi-Item Dynamic Rows)
 export const INITIAL_MATERIAL_INWARD: MaterialInwardRecord[] = [
   {
+    srNo: 'INW-2026-ET-01',
+    date: '2026-10-20',
+    challanNo: 'ET/CH/7741',
+    challanDate: '2026-10-19',
+    receivingDate: '2026-10-20',
+    grnNo: 'PK-GRN-2026-1250',
+    inTime: '08:15 AM',
+    vehicleNo: 'UK-08-ET-9941',
+    partyName: 'ENDURANCE TECHNOLOGIES',
+    items: [
+      { id: 'item_et_1', materialName: 'Two-Wheeler Grab Handle Substrates (Nylon-6 GF)', quantity: 300, unit: 'Pcs' }
+    ],
+    descriptionOfMaterial: 'Two-Wheeler Grab Handle Substrates (Nylon-6 GF) - 300 Pcs in 6 Crates',
+    quantity: 300,
+    unit: 'Pcs',
+    totalQuantity: 300,
+    materialCategory: 'Party Material',
+    receivedBy: 'Ram Singh (Gate Security)',
+    securitySignature: 'RAM_SINGH_VERIFIED',
+    remarks: 'Received 300 pcs intact in 6 strapped crates. Handed to Stores Manoj Tiwari for IQC.',
+    plant: 'Haridwar',
+    status: 'Handed to Stores',
+    iqcStatus: 'Passed',
+    iqcReportNo: 'IQC-2026-1020-ET01'
+  },
+  {
+    srNo: 'INW-2026-TAT-01',
+    date: '2026-10-20',
+    challanNo: 'TAT/PUN/8841',
+    challanDate: '2026-10-19',
+    receivingDate: '2026-10-20',
+    grnNo: 'PK-GRN-2026-1252',
+    inTime: '08:45 AM',
+    vehicleNo: 'MH-12-TA-8812',
+    partyName: 'TATA AUTOCOMP SYSTEMS',
+    items: [
+      { id: 'item_tat_1', materialName: 'Automotive Instrument Panel Bezel Substrates (ABS)', quantity: 10000, unit: 'Pcs' }
+    ],
+    descriptionOfMaterial: 'Automotive Instrument Panel Bezel Substrates (ABS) - 10,000 Pcs in 200 Crates',
+    quantity: 10000,
+    unit: 'Pcs',
+    totalQuantity: 10000,
+    materialCategory: 'Party Material',
+    receivedBy: 'Ram Singh (Gate Security)',
+    securitySignature: 'RAM_SINGH_VERIFIED',
+    remarks: 'Critical OEM shipment. 10,000 pcs intact. Handed to Stores Manoj Tiwari for urgent clearance.',
+    plant: 'Haridwar',
+    status: 'Handed to Stores',
+    iqcStatus: 'Passed',
+    iqcReportNo: 'IQC-2026-1020-TAT01'
+  },
+  {
     srNo: 'INW-2026-AVINASH-01',
     date: '2026-10-06',
     challanNo: 'AS/CH/2026-881',
@@ -2489,6 +2705,46 @@ export const INITIAL_DAY_END_CLOSURES: PlantDayEndClosure[] = [
 
 export const INITIAL_REQUISITIONS: MaterialRequisitionNote[] = [
   {
+    mrnNo: 'MRN-2026-DEMAND-01',
+    date: '2026-10-28',
+    time: '09:00 AM',
+    plant: 'Haridwar',
+    jobCardNo: 'JC-1042-RED',
+    woNo: 'WO-1042',
+    customer: 'ROOP POLYMERS LTD',
+    partCode: 'RP-8841',
+    partDescription: 'Auto AC Center Vent Bezel Substrates (ABS)',
+    colorName: 'Monza Red Gloss',
+    requestedQty: 10,
+    uom: 'Litres',
+    requiredShift: 'General Day Shift (08:30 - 18:30)',
+    requestedBy: 'Vikram Patel (Production Supervisor)',
+    urgency: 'High (Line Stoppage Risk)',
+    status: 'Pending Store Issue',
+    requisitionLines: [
+      {
+        id: 'req_line_paint',
+        itemCode: 'PT-PPG-RD',
+        itemName: 'PPG 2K PU Monza Red Gloss Basecoat',
+        category: 'COMPANY_CONSUMABLE',
+        materialType: 'paint',
+        requestedQty: 10,
+        uom: 'Litres',
+        status: 'Pending'
+      },
+      {
+        id: 'req_line_thinner',
+        itemCode: 'THN-PU-400',
+        itemName: 'Slow Drying PU Thinner 400',
+        category: 'COMPANY_CONSUMABLE',
+        materialType: 'thinner',
+        requestedQty: 5,
+        uom: 'Litres',
+        status: 'Pending'
+      }
+    ]
+  },
+  {
     mrnNo: 'MRN-2026-AVINASH-01',
     date: '2026-10-06',
     time: '08:30 AM',
@@ -2637,5 +2893,271 @@ export const INITIAL_PLANT_HEAD_PRIORITIES: PlantHeadPriorityAssignment[] = [
     assignedAt: '2026-10-20 11:00 AM',
     status: 'Priority Assigned',
     plant: 'Haridwar'
+  }
+];
+
+// =========================================================================
+// STORE ROLE & BATCH-WISE STOCK ENGINE INITIAL DATA (PK-OS STORE UPGRADE)
+// =========================================================================
+
+export const INITIAL_STOCK_BATCHES: StockBatch[] = [
+  // Chemical Consumables: Monza Red 2K PU Basecoat
+  // Test Case 1 & 2: Batch B arrived later (20-Oct) but expires earlier (05-Nov) than Batch A (10-Nov)!
+  {
+    batchId: 'BAT-PPG-2610-A',
+    itemCode: 'PT-PPG-RD',
+    itemName: 'PPG 2K PU Monza Red Gloss Basecoat',
+    category: 'COMPANY_CONSUMABLE',
+    materialType: 'paint',
+    supplierBatchNo: 'PPG-RD-2610-A',
+    grnNo: 'PK-GRN-2026-1010',
+    plant: 'Haridwar',
+    receivedDate: '2026-10-10',
+    mfgDate: '2026-09-15',
+    expiryDate: '2026-11-10',
+    uom: 'Litres',
+    receivedQty: 10,
+    balanceQty: 8,
+    status: 'Available',
+    storageLocation: 'Flammable Vault Bay C-1',
+    unitRate: 480
+  },
+  {
+    batchId: 'BAT-PPG-2610-B',
+    itemCode: 'PT-PPG-RD',
+    itemName: 'PPG 2K PU Monza Red Gloss Basecoat',
+    category: 'COMPANY_CONSUMABLE',
+    materialType: 'paint',
+    supplierBatchNo: 'PPG-RD-2610-B',
+    grnNo: 'PK-GRN-2026-1020',
+    plant: 'Haridwar',
+    receivedDate: '2026-10-20',
+    mfgDate: '2026-08-01',
+    expiryDate: '2026-11-05', // Earlier expiry! Must be suggested first by FEFO
+    uom: 'Litres',
+    receivedQty: 10,
+    balanceQty: 6,
+    status: 'Available',
+    storageLocation: 'Flammable Vault Bay C-1',
+    unitRate: 480
+  },
+  {
+    batchId: 'BAT-PPG-2608-EXP',
+    itemCode: 'PT-PPG-RD',
+    itemName: 'PPG 2K PU Monza Red Gloss Basecoat',
+    category: 'COMPANY_CONSUMABLE',
+    materialType: 'paint',
+    supplierBatchNo: 'PPG-RD-2608-X',
+    grnNo: 'PK-GRN-2026-0815',
+    plant: 'Haridwar',
+    receivedDate: '2026-08-15',
+    mfgDate: '2026-03-01',
+    expiryDate: '2026-09-30', // Strictly expired
+    uom: 'Litres',
+    receivedQty: 15,
+    balanceQty: 5,
+    status: 'Expired',
+    storageLocation: 'Quarantine Red Rack Q-2',
+    unitRate: 480
+  },
+
+  // Thinners & Solvents
+  {
+    batchId: 'BAT-THN-2610-01',
+    itemCode: 'THN-PU-400',
+    itemName: 'Slow Drying PU Thinner 400',
+    category: 'COMPANY_CONSUMABLE',
+    materialType: 'thinner',
+    supplierBatchNo: 'THN-400-9941',
+    grnNo: 'PK-GRN-2026-1012',
+    plant: 'Haridwar',
+    receivedDate: '2026-10-12',
+    mfgDate: '2026-09-01',
+    expiryDate: '2027-04-12',
+    uom: 'Litres',
+    receivedQty: 50,
+    balanceQty: 42,
+    status: 'Available',
+    storageLocation: 'Drum Bay D-2',
+    unitRate: 140
+  },
+  {
+    batchId: 'BAT-THN-2610-02',
+    itemCode: 'THN-PU-400',
+    itemName: 'Slow Drying PU Thinner 400',
+    category: 'COMPANY_CONSUMABLE',
+    materialType: 'thinner',
+    supplierBatchNo: 'THN-400-9942',
+    grnNo: 'PK-GRN-2026-1018',
+    plant: 'Haridwar',
+    receivedDate: '2026-10-18',
+    mfgDate: '2026-08-15',
+    expiryDate: '2027-02-15',
+    uom: 'Litres',
+    receivedQty: 25,
+    balanceQty: 18,
+    status: 'Available',
+    storageLocation: 'Drum Bay D-2',
+    unitRate: 140
+  },
+
+  // Hardeners
+  {
+    batchId: 'BAT-HDN-2610-01',
+    itemCode: 'HDN-2K-80',
+    itemName: 'Isocyanate 2K PU Hardener',
+    category: 'COMPANY_CONSUMABLE',
+    materialType: 'hardener',
+    supplierBatchNo: 'ISO-80-4421',
+    grnNo: 'PK-GRN-2026-1014',
+    plant: 'Haridwar',
+    receivedDate: '2026-10-14',
+    mfgDate: '2026-08-01',
+    expiryDate: '2026-12-15',
+    uom: 'Litres',
+    receivedQty: 20,
+    balanceQty: 18,
+    status: 'Available',
+    storageLocation: 'Dry Vault Bay C-3',
+    unitRate: 620
+  },
+
+  // Clear Topcoat
+  {
+    batchId: 'BAT-CLR-2610-01',
+    itemCode: 'CLR-PU-90',
+    itemName: 'High Solids Scratch Resistant Clear Lacquer',
+    category: 'COMPANY_CONSUMABLE',
+    materialType: 'paint',
+    supplierBatchNo: 'CLR-90-8812',
+    grnNo: 'PK-GRN-2026-1015',
+    plant: 'Haridwar',
+    receivedDate: '2026-10-15',
+    mfgDate: '2026-09-01',
+    expiryDate: '2027-01-20',
+    uom: 'Litres',
+    receivedQty: 30,
+    balanceQty: 25,
+    status: 'Available',
+    storageLocation: 'Flammable Vault Bay C-2',
+    unitRate: 550
+  },
+
+  // Party Materials / Substrates (FIFO Enforcement)
+  {
+    batchId: 'BAT-RP-8841-01',
+    itemCode: 'RP-8841',
+    itemName: 'Auto AC Center Vent Bezel Substrates (ABS)',
+    category: 'PARTY_MATERIAL',
+    materialType: 'substrate',
+    supplierBatchNo: 'RP-LOT-8841',
+    grnNo: 'PK-GRN-2026-8841',
+    plant: 'Haridwar',
+    customer: 'ROOP POLYMERS LTD',
+    partCode: 'RP-8841',
+    colour: 'Monza Red Gloss',
+    receivedDate: '2026-10-08',
+    uom: 'Pcs',
+    receivedQty: 1000,
+    balanceQty: 750,
+    status: 'Available',
+    storageLocation: 'Substrate Bay A-1',
+    unitRate: 25
+  },
+  {
+    batchId: 'BAT-AS-9901-01',
+    itemCode: 'AS-9901',
+    itemName: 'EV Touchscreen Instrument Bezel Substrates (ABS-PC Premium)',
+    category: 'PARTY_MATERIAL',
+    materialType: 'substrate',
+    supplierBatchNo: 'AS-LOT-9901',
+    grnNo: 'PK-GRN-2026-AVINASH',
+    plant: 'Haridwar',
+    customer: 'AVINASH SHARMA',
+    partCode: 'AS-9901',
+    colour: 'Piano Jet Black Gloss & Royal Gold Accent',
+    receivedDate: '2026-10-05',
+    uom: 'Pcs',
+    receivedQty: 500,
+    balanceQty: 500,
+    status: 'Available',
+    storageLocation: 'Substrate Bay A-2',
+    unitRate: 35
+  },
+  {
+    batchId: 'BAT-ET-7721-01',
+    itemCode: 'ET-7721',
+    itemName: 'Two-Wheeler Grab Handle Substrates (Nylon-6 GF)',
+    category: 'PARTY_MATERIAL',
+    materialType: 'substrate',
+    supplierBatchNo: 'ET-LOT-7721',
+    grnNo: 'PK-GRN-2026-1250',
+    plant: 'Haridwar',
+    customer: 'ENDURANCE TECHNOLOGIES',
+    partCode: 'ET-7721',
+    colour: 'Gloss Silver',
+    receivedDate: '2026-10-20',
+    uom: 'Pcs',
+    receivedQty: 300,
+    balanceQty: 300,
+    status: 'Available',
+    storageLocation: 'Substrate Bay B-1',
+    unitRate: 40
+  }
+];
+
+export const INITIAL_FIFO_OVERRIDE_LOGS: FifoOverrideLog[] = [
+  {
+    id: 'OVR-2026-001',
+    mrnNo: 'MRN-2026-001',
+    minNo: 'MIN-2026-001',
+    itemName: 'PPG 2K PU Monza Red Gloss Basecoat',
+    suggestedBatchId: 'BAT-PPG-2610-B',
+    issuedBatchId: 'BAT-PPG-2610-A',
+    reasonCode: 'Older batch quantity insufficient',
+    remark: 'Trial run required unbroken single 8L container from Batch A for high gloss finish.',
+    issuedBy: 'Manoj Tiwari (Store Incharge)',
+    timestamp: '2026-10-24 10:15 AM',
+    plant: 'Haridwar'
+  }
+];
+
+export const INITIAL_BALANCE_RETURN_SLIPS: BalanceReturnSlip[] = [
+  {
+    rtnNo: 'RTN-2026-001',
+    date: '2026-10-26',
+    time: '04:30 PM',
+    plant: 'Haridwar',
+    jobCardNo: 'JC-1042-RED',
+    mrnNo: 'MRN-2026-002',
+    minNo: 'MIN-2026-002',
+    returnedBy: 'Ramesh Kumar (Line 1 Painter)',
+    receivedByStore: 'Manoj Tiwari (Store Incharge)',
+    status: 'Accepted',
+    lines: [
+      {
+        id: 'rtn_line_1',
+        itemName: 'PPG 2K PU Monza Red Gloss Basecoat',
+        batchId: 'BAT-PPG-2610-A',
+        grnNo: 'PK-GRN-2026-1010',
+        supplierBatchNo: 'PPG-RD-2610-A',
+        category: 'COMPANY_CONSUMABLE',
+        materialType: 'paint',
+        issuedQty: 8,
+        processedQty: 6,
+        returnedQtyClaimed: 2,
+        storeCountedQty: 2,
+        uom: 'Litres',
+        condition: 'Opened - Usable',
+        variance: 0,
+        remarks: 'Sealed drum lid checked. Viscosity intact.'
+      }
+    ],
+    supervisorSignOff: {
+      signedBy: 'Satish Sharma (Plant Head)',
+      timestamp: '2026-10-26 05:00 PM',
+      decision: 'Restocked to Active Stock'
+    },
+    remarks: 'Reconciliation verified: 8 L Issued = 6 L Used + 2 L Returned.'
   }
 ];

@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 interface ScrollRemainingToastProps {
-  containerRef: React.RefObject<HTMLElement | null>;
+  containerRef?: React.RefObject<HTMLElement | null>;
+  targetRef?: React.RefObject<HTMLElement | null>;
   totalCount?: number;
+  maxVisibleCount?: number;
   label?: string; // Optional custom text, defaults to "MORE ITEMS BELOW"
   className?: string;
   position?: 'top' | 'bottom';
@@ -11,6 +13,7 @@ interface ScrollRemainingToastProps {
 
 export const ScrollRemainingToast: React.FC<ScrollRemainingToastProps> = ({
   containerRef,
+  targetRef,
   totalCount,
   label = 'MORE ITEMS BELOW',
   className = '',
@@ -18,9 +21,10 @@ export const ScrollRemainingToast: React.FC<ScrollRemainingToastProps> = ({
 }) => {
   const [showToast, setShowToast] = useState(false);
   const [estimatedBelow, setEstimatedBelow] = useState<number>(0);
+  const activeRef = containerRef || targetRef;
 
   useEffect(() => {
-    const el = containerRef.current;
+    const el = activeRef?.current;
     if (!el) return;
 
     const checkScroll = () => {
@@ -59,13 +63,13 @@ export const ScrollRemainingToast: React.FC<ScrollRemainingToastProps> = ({
       window.removeEventListener('resize', checkScroll);
       observer.disconnect();
     };
-  }, [containerRef, totalCount]);
+  }, [activeRef, totalCount]);
 
   if (!showToast) return null;
 
   const handleScrollDown = () => {
-    if (containerRef.current) {
-      containerRef.current.scrollBy({
+    if (activeRef?.current) {
+      activeRef.current.scrollBy({
         top: 140,
         behavior: 'smooth',
       });

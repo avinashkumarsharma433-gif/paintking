@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
 import { JobCard, FPARecord, FPAVisualCheckRow, FPADeltaValueRow, FPAMasterLab } from '../types/portalTypes';
 import { 
@@ -35,7 +35,24 @@ export const FPAModal: React.FC<FPAModalProps> = ({
   jobCard,
   onSuccess
 }) => {
-  const { createFPARecord, activePlant, currentUser } = usePortalStore();
+  const { createFPARecord, activePlant, currentUser, materialRequisitions } = usePortalStore();
+
+  const matchingRequisition = useMemo(() => {
+    if (!jobCard) return null;
+    return materialRequisitions.find(r => r.jobCardNo === jobCard.jobCardNo);
+  }, [materialRequisitions, jobCard]);
+
+  const isMaterialIssued = useMemo(() => {
+    if (!jobCard) return false;
+    if (matchingRequisition && (matchingRequisition.issuedSlipNo || matchingRequisition.status === 'Dispatched by Store' || matchingRequisition.status === 'Partially Issued' || (matchingRequisition.issuedBatchLines && matchingRequisition.issuedBatchLines.length > 0))) {
+      return true;
+    }
+    if (jobCard.linkedMinNo || jobCard.paintBatch) return true;
+    if (jobCard.issuedMaterials && jobCard.issuedMaterials.some(m => m.batchNo || (m.batchLines && m.batchLines.length > 0))) {
+      return true;
+    }
+    return false;
+  }, [jobCard, matchingRequisition]);
 
   // Wizard Step State (1: Identification, 2: Visual 5 Samples, 3: Adhesion & Delta-E, 4: Sign-offs)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
@@ -50,8 +67,8 @@ export const FPAModal: React.FC<FPAModalProps> = ({
   const [family, setFamily] = useState<string>('Switch Bezel Family (Mould-04)');
   const [color, setColor] = useState<string>('Monza Red Gloss');
   const [paintDescription, setPaintDescription] = useState<string>('PPG 2K PU Monza Red Gloss Topcoat');
-  const [paintBatch, setPaintBatch] = useState<string>('BAT-PPG-2609-R4');
-  const [thinnerBatch, setThinnerBatch] = useState<string>('THN-2609-02');
+  const [paintBatch, setPaintBatch] = useState<string>('');
+  const [thinnerBatch, setThinnerBatch] = useState<string>('');
   const [painter, setPainter] = useState<string>('Ramesh Kumar (P1)');
   const [booth, setBooth] = useState<string>('Booth #1 (Enclosed)');
   const [startupTime, setStartupTime] = useState<string>('08:30 AM');
@@ -117,8 +134,33 @@ export const FPAModal: React.FC<FPAModalProps> = ({
       setFamily(jobCard.family || `${jobCard.partDescription || jobCard.partCode || 'Auto'} Family (Mould-01)`);
       setColor(jobCard.color || 'Monza Red Gloss');
       setPaintDescription(jobCard.paintDescription || `${jobCard.color || '2K PU'} Industrial Basecoat`);
-      setPaintBatch(jobCard.paintBatch || (jobCard.issuedMaterials?.[1]?.batchNo) || 'BAT-PPG-2609-R4');
-      setThinnerBatch(jobCard.thinnerBatch || (jobCard.issuedMaterials?.[2]?.batchNo) || 'THN-2609-02');
+      const paintMat = jobCard.issuedMaterials?.find(m => 
+        m.materialType === 'paint' || 
+        (m.category === 'COMPANY_CONSUMABLE' && /paint|basecoat|topcoat|pu/i.test(m.itemDescription)) ||
+        /paint|basecoat|topcoat/i.test(m.itemDescription)
+      ) || jobCard.issuedMaterials?.[1];
+
+      const thinnerMat = jobCard.issuedMaterials?.find(m => 
+        m.materialType === 'thinner' || 
+        /thinner|solvent|reducer/i.test(m.itemDescription)
+      ) || jobCard.issuedMaterials?.[2];
+
+      const resolvedPaintBatch = 
+        jobCard.paintBatch || 
+        matchingRequisition?.issuedBatchLines?.find(b => !/thinner|solvent|reducer/i.test(b.supplierBatchNo || ''))?.supplierBatchNo ||
+        paintMat?.batchNo || 
+        paintMat?.batchLines?.[0]?.supplierBatchNo || 
+        '';
+
+      const resolvedThinnerBatch = 
+        jobCard.thinnerBatch || 
+        matchingRequisition?.issuedBatchLines?.find(b => /thinner|solvent|reducer/i.test(b.supplierBatchNo || ''))?.supplierBatchNo ||
+        thinnerMat?.batchNo || 
+        thinnerMat?.batchLines?.[0]?.supplierBatchNo || 
+        '';
+
+      setPaintBatch(resolvedPaintBatch);
+      setThinnerBatch(resolvedThinnerBatch);
       const assignedPainter = jobCard.assignedPainterName || jobCard.painterName || 'Ramesh Kumar (P1)';
       setPainter(assignedPainter);
       setAcceptancePainter(assignedPainter);
@@ -166,7 +208,7 @@ export const FPAModal: React.FC<FPAModalProps> = ({
   // Validation
   const isDeltaEPass = deltaSamples.deltaE.every(d => Number(d) <= (deltaToleranceLimit || 0.70));
   const isAdhesionPass = adhesionPercent === 100 && crossCutTest === 'Pass' && tapeTest === 'Pass';
-  const isAllVisualPass = Object.values(visualChecks).every(row => row.every(val => val === 'Pass'));
+  const isAllVisualPass = Object.values(visualChecks).every((row: any) => Array.isArray(row) && row.every((val: any) => val === 'Pass'));
   const isEligibleForApproval = isDeltaEPass && isAdhesionPass && isAllVisualPass;
 
   const handleDownloadPdf = (record: FPARecord) => {
@@ -358,6 +400,35 @@ export const FPAModal: React.FC<FPAModalProps> = ({
               </button>
             </div>
           </div>
+        ) : !isMaterialIssued ? (
+          <div className="p-8 bg-[#fafafb] border-2 border-dashed border-rose-300 rounded-[24px] text-center space-y-4 my-4 animate-in fade-in duration-200">
+            <div className="w-14 h-14 rounded-full bg-rose-50 border border-rose-200 text-rose-700 flex items-center justify-center mx-auto shadow-xs">
+              <AlertTriangle className="w-7 h-7 text-rose-600" />
+            </div>
+            <div className="space-y-1">
+              <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-rose-100 text-rose-900 border border-rose-300 uppercase">
+                GATE 2 FPA QUALITY LOCK
+              </span>
+              <h3 className="text-xl font-serif font-bold text-[#17191c] pt-1">
+                Material Issue Verification Required
+              </h3>
+              <p className="text-sm font-semibold text-rose-700 max-w-lg mx-auto">
+                Cannot perform First Part Approval: no material issued to this job card yet.
+              </p>
+            </div>
+            <p className="text-xs text-[#777b86] max-w-md mx-auto leading-relaxed">
+              PaintKing QA protocol strictly prohibits spraying or approving FPA without an official Material Issue Note (MIN) and verified chemical batches from the Store Desk.
+            </p>
+            <div className="pt-2 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs cursor-pointer shadow-xs transition active:scale-95"
+              >
+                Return to Floor Operations
+              </button>
+            </div>
+          </div>
         ) : (
           /* ========================================================================= */
           /* VIEW 2: MULTI-STEP WIZARD (PARTS KE ANDAR FILL KARNA)                     */
@@ -487,22 +558,34 @@ export const FPAModal: React.FC<FPAModalProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Paint Batch Number</label>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <label className="block text-[10px] font-semibold text-[#777b86]">Paint Batch Number</label>
+                      <span className="text-[9px] font-mono font-bold text-[#8a6521] bg-[#faf7ed] border border-[#f4e5be] px-1.5 py-0.2 rounded">
+                        ✓ MIN Batch
+                      </span>
+                    </div>
                     <input
                       type="text"
                       value={paintBatch}
                       onChange={e => setPaintBatch(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono text-[#17191c] outline-none"
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
+                      placeholder="e.g. BATCH-PPG-RED-001"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Thinner Batch Number</label>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <label className="block text-[10px] font-semibold text-[#777b86]">Thinner Batch Number</label>
+                      <span className="text-[9px] font-mono font-bold text-[#8a6521] bg-[#faf7ed] border border-[#f4e5be] px-1.5 py-0.2 rounded">
+                        ✓ MIN Batch
+                      </span>
+                    </div>
                     <input
                       type="text"
                       value={thinnerBatch}
                       onChange={e => setThinnerBatch(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono text-[#17191c] outline-none"
+                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
+                      placeholder="e.g. BATCH-THN-PU-001"
                       required
                     />
                   </div>

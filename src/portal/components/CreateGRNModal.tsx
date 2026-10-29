@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { GoodsReceiptNote, GRNLineItem, OrderColorSplit } from '../types/portalTypes';
+import { GoodsReceiptNote, GRNLineItem, OrderColorSplit, MATERIAL_TYPE_OPTIONS, StockMaterialType } from '../types/portalTypes';
+import { isChemicalConsumable } from '../utils/stockEngine';
 import { 
   CheckCircle2, 
   Truck, 
@@ -115,7 +116,12 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
               okByIqcQty: okQ,
               rejectionQty: rejQ,
               sampleCheckedQty: Number(it.sampleSize || it.passQty || pendingJob.aqlSampleChecked || 0),
-              remark: it.defectDetail || it.notes || 'IQC Cleared'
+              remark: it.defectDetail || it.notes || 'IQC Cleared',
+              supplierBatchNo: it.supplierBatchNo || (pendingJob ? pendingJob.batchNo || `LOT-${Date.now().toString().slice(-4)}` : ''),
+              mfgDate: it.mfgDate || '',
+              expiryDate: it.expiryDate || '',
+              materialType: it.materialType || (pendingJob.materialCategory === 'Internal Company' ? 'paint' : 'substrate'),
+              category: pendingJob.materialCategory === 'Internal Company' ? 'COMPANY_CONSUMABLE' : 'PARTY_MATERIAL'
             };
           });
 
@@ -140,7 +146,10 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
             okByIqcQty: actQ,
             rejectionQty: rejQ,
             sampleCheckedQty: Number(pendingJob.aqlSampleChecked || pendingJob.iqcRecord?.passQty || 0),
-            remark: 'IQC Cleared'
+            remark: 'IQC Cleared',
+            supplierBatchNo: pendingJob.batchNo || `LOT-${Date.now().toString().slice(-4)}`,
+            mfgDate: '',
+            expiryDate: ''
           }]);
 
           setColorSplits([
@@ -188,6 +197,10 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
     }));
   };
 
+  const handleUpdateItemField = (id: string, field: keyof GRNLineItem, val: any) => {
+    setItems(prev => prev.map(it => it.id === id ? { ...it, [field]: val } : it));
+  };
+
   // Preview object matching GoodsReceiptNote
   const previewGRN: GoodsReceiptNote = {
     docNo: 'Doc No:00',
@@ -213,6 +226,9 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
     colorSplits,
     partCode: items[0]?.partCode || 'SUBSTRATE',
     description: items[0]?.partDescription || 'Raw Parts',
+    batchNo: items[0]?.supplierBatchNo || `LOT-${grnNo.slice(-4)}`,
+    mfgDate: items[0]?.mfgDate || '',
+    expiryDate: items[0]?.expiryDate || '',
     invoicedQty: totalInvoicedQty,
     actualReceivedQty: totalActualReceivedQty
   };
@@ -416,13 +432,23 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                     
                     {/* Header Row: Part Code + Description + Status Badges */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-[#ececec]">
-                      <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
                         <span className="font-mono text-xs font-bold text-[#8a6521] px-2.5 py-1 rounded-full bg-[#faf3e0] border border-[#f4e5be] shrink-0">
                           {item.partCode}
                         </span>
-                        <div className="font-semibold text-xs sm:text-sm text-[#17191c] truncate" title={item.partDescription}>
+                        <div className="font-semibold text-xs sm:text-sm text-[#17191c] truncate max-w-[200px]" title={item.partDescription}>
                           {item.partDescription}
                         </div>
+                        <select
+                          value={item.materialType || 'substrate'}
+                          onChange={e => handleUpdateItemField(item.id!, 'materialType', e.target.value)}
+                          className="h-7 px-2 rounded-[8px] border border-[#dcdfe4] bg-white text-[11px] font-semibold text-[#17191c] shrink-0"
+                          title="Select exact chemical / substrate classification"
+                        >
+                          {MATERIAL_TYPE_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0">
@@ -496,6 +522,35 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                           onChange={e => setStoreBayLocation(e.target.value)}
                           placeholder="e.g. Bay A-1 (Substrates Rack)"
                           className="w-full h-10 px-3.5 rounded-[12px] border border-[#dcdfe4] text-xs text-[#17191c] font-medium bg-white focus:outline-none focus:ring-2 focus:ring-[#c09748]/20 focus:border-[#c09748] transition shadow-2xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Batch Traceability & FEFO Shelf-Life (PK-OS Store Upgrade) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-[#ececec]">
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-semibold text-[#777b86] uppercase font-mono">
+                          Batch / Lot No {isChemicalConsumable(item.materialType, item.category, item.partDescription) && <span className="text-red-600 font-bold">*</span>}
+                        </label>
+                        <input
+                          type="text"
+                          required={isChemicalConsumable(item.materialType, item.category, item.partDescription)}
+                          value={item.supplierBatchNo || ''}
+                          onChange={e => handleUpdateItemField(item.id!, 'supplierBatchNo', e.target.value)}
+                          placeholder="e.g. PPG-RD-2610-A"
+                          className="w-full h-9.5 px-3 rounded-[12px] border border-[#dcdfe4] font-mono font-bold text-xs text-[#17191c] bg-white focus:outline-none focus:ring-2 focus:ring-[#c09748]/20 focus:border-[#c09748] transition shadow-2xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-semibold text-[#777b86] uppercase font-mono">
+                          Mfg Date (Optional)
+                        </label>
+                        <input
+                          type="date"
+                          value={item.mfgDate || ''}
+                          onChange={e => handleUpdateItemField(item.id!, 'mfgDate', e.target.value)}
+                          className="w-full h-9.5 px-3 rounded-[12px] border border-[#dcdfe4] font-mono text-xs text-[#17191c] bg-white focus:outline-none focus:ring-2 focus:ring-[#c09748]/20 focus:border-[#c09748] transition shadow-2xs"
                         />
                       </div>
                     </div>

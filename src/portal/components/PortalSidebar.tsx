@@ -73,6 +73,7 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
     unresolvedHandoversCount, 
     openOverrunCount, 
     pendingVerificationJobsCount,
+    balanceReturnSlips,
     activePlant, 
     isPlantDayClosed,
     activeSubTab,
@@ -180,14 +181,17 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       subtitle: 'Stock Balances & Material Demands',
       docCode: 'PK-STR-GRN-001',
       icon: Boxes,
-      badge: null,
+      badge: (balanceReturnSlips?.filter(r => r.status === 'Pending Store Verification').length || 0) > 0 
+        ? `${balanceReturnSlips.filter(r => r.status === 'Pending Store Verification').length} Returns` 
+        : null,
+      badgeColor: 'bg-amber-100 border border-amber-300 text-amber-800',
       roles: ['DIRECTOR', 'PLANT_HEAD', 'STORES'],
       subItems: [
         { label: '1. Material Stock Tracker', subTab: 'TRACKER' },
         { label: '2. Production Demands (MRN)', subTab: 'REQUISITIONS' },
         { label: '3. Issued Slips (MIN History)', subTab: 'ISSUED_SLIPS' },
-        { label: '4. Shelf-Life & Aging Watch', subTab: 'SHELF_LIFE' },
-        { label: '5. Pending Inwards (Awaiting GRN)', subTab: 'PENDING' }
+        { label: '4. Pending Inwards (Awaiting GRN)', subTab: 'PENDING' },
+        { label: '5. Floor Material Returns (RTN)', subTab: 'RETURNS' }
       ]
     },
     {

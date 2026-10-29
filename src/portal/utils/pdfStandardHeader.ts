@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { JobCard, BillingInvoice, MaterialInwardRecord, MaterialOutwardRecord, IQCInspectionRecord, GoodsReceiptNote, FPARecord, IPQCRecord, PreProductionInspectionRecord } from '../types/portalTypes';
+import { JobCard, BillingInvoice, MaterialInwardRecord, MaterialOutwardRecord, IQCInspectionRecord, GoodsReceiptNote, FPARecord, IPQCRecord, PreProductionInspectionRecord, MaterialRequisitionNote } from '../types/portalTypes';
 import { PAINTKING_LOGO_BASE64 } from './paintkingLogoBase64';
 
 export const TABLE_BORDER_COLOR = [180, 185, 195] as const;
@@ -334,10 +334,13 @@ export const downloadStandardGateInwardPdf = (item: MaterialInwardRecord): void 
   drawMetaField('NAME OF PARTY / VENDOR', item.partyName || '-', metaCol2X, metaY + 18.5, metaY + 24.0, 54);
   drawMetaField('TRANSPORTER NAME', item.transporter || 'Direct Delivery', metaCol3X, metaY + 18.5, metaY + 24.0, 48);
 
-  // Row 3: VEHICLE NUMBER | DRIVER PHONE NO. | GST E-WAY BILL NO.
+  // Row 3: VEHICLE NUMBER | MATERIAL TYPE / CATEGORY | PLANT LOCATION
+  const matCategoryLabel = item.materialCategory === 'Internal Company' || item.items?.some(i => i.category === 'COMPANY_CONSUMABLE' || i.materialType === 'paint')
+    ? 'Internal Company Material'
+    : 'Party Material';
   drawMetaField('VEHICLE NUMBER', item.vehicleNo || '-', metaCol1X, metaY + 31.5, metaY + 37.0, 54);
-  drawMetaField('DRIVER PHONE NO.', item.driverPhone || '-', metaCol2X, metaY + 31.5, metaY + 37.0, 54);
-  drawMetaField('GST E-WAY BILL NO.', item.ewayBillNo || '-', metaCol3X, metaY + 31.5, metaY + 37.0, 48);
+  drawMetaField('MATERIAL TYPE / CATEGORY', matCategoryLabel, metaCol2X, metaY + 31.5, metaY + 37.0, 54);
+  drawMetaField('PLANT LOCATION', item.plant || 'Vapi Main Plant', metaCol3X, metaY + 31.5, metaY + 37.0, 48);
 
   // Section 2: Material Line Items Table (Adaptive Column Widths & Dynamic Multi-Line Row Heights)
   let currentPage = 1;
@@ -4037,3 +4040,334 @@ export const downloadStandardJobCardPdf = (jobCard: JobCard): void => {
 
   doc.save(`PaintKing_JobCard_${jobCard.jobCardNo}.pdf`);
 };
+
+/**
+ * Generates and downloads the Official Material Issue Note (MIN Slip) PDF
+ * Formatted with PaintKing's official Editorial Industrial Luxury design system & Universal Table Rules
+ */
+export const downloadStandardMINPdf = (mrn: MaterialRequisitionNote): void => {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const MARGIN_X = 14;
+  const PAGE_WIDTH = 210;
+  const FOOTER_RESERVED_Y = 265;
+  const HEADER_HEIGHT = 8.5;
+  const ROW_HEIGHT = 7.5;
+
+  // 1. Standard Header with official Logo & Company Details
+  const startY = drawStandardPdfHeader(doc);
+
+  // 2. Document Title & Control Strip
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(23, 25, 28);
+  doc.text('MATERIAL ISSUE NOTE (MIN) • STORE TO PRODUCTION', MARGIN_X, startY + 5);
+
+  const minSlipNo = mrn.issuedSlipNo || mrn.minNo || 'MIN-2026-001';
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(119, 123, 134);
+  doc.text(`Doc Ref: PK-STR-MIN-001  |  Rev: 00  |  MIN No: ${minSlipNo}`, PAGE_WIDTH - MARGIN_X, startY + 5, { align: 'right' });
+
+  // 3. Section 1: Requisition & Handshake Metadata Grid (3 Structured Rows)
+  const metaY = startY + 8;
+  doc.setDrawColor(220, 222, 228);
+  doc.setFillColor(250, 250, 251);
+  doc.roundedRect(MARGIN_X, metaY, 182, 44, 3, 3, 'FD');
+
+  const metaCol1X = 20;
+  const metaCol2X = 80;
+  const metaCol3X = 140;
+
+  const drawMetaField = (
+    label: string,
+    value: string,
+    x: number,
+    labelY: number,
+    valueY: number,
+    maxWidth: number = 52
+  ) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.0);
+    doc.setTextColor(23, 25, 28);
+    doc.text(label, x, labelY);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(55, 60, 70);
+    const splitLines = doc.splitTextToSize(value || 'N/A', maxWidth);
+    doc.text(splitLines[0] || 'N/A', x, valueY);
+  };
+
+  // Row 1 (y: metaY + 5.5, valueY: metaY + 9.5)
+  drawMetaField('MIN SLIP NUMBER:', minSlipNo, metaCol1X, metaY + 5.5, metaY + 9.5);
+  drawMetaField('ISSUE DATE & TIME:', `${mrn.date} ${mrn.time || ''}`, metaCol2X, metaY + 5.5, metaY + 9.5);
+  drawMetaField('PLANT LOCATION:', `${mrn.plant || 'Haridwar'} Unit`, metaCol3X, metaY + 5.5, metaY + 9.5);
+
+  // Row 2 (y: metaY + 18.0, valueY: metaY + 22.0)
+  drawMetaField('TARGET JOB CARD:', mrn.jobCardNo || 'JC-OPEN', metaCol1X, metaY + 18.0, metaY + 22.0);
+  drawMetaField('CUSTOMER / PARTY:', mrn.customer || 'ROOP POLYMERS LTD', metaCol2X, metaY + 18.0, metaY + 22.0);
+  drawMetaField('REQUESTED BY (PROD):', mrn.requestedBy || 'Production Supervisor', metaCol3X, metaY + 18.0, metaY + 22.0);
+
+  // Row 3 (y: metaY + 30.5, valueY: metaY + 34.5)
+  const fifoBadge = mrn.fifoStatus === 'FIFO Override' 
+    ? `DEVIATION: ${mrn.overrideReasonCode || 'Authorized'}` 
+    : 'COMPLIANT (FEFO / FIFO)';
+  drawMetaField('FIFO / FEFO STATUS:', fifoBadge, metaCol1X, metaY + 30.5, metaY + 34.5);
+  drawMetaField('STORE INCHARGE:', mrn.storeInchargeName || 'Manoj Tiwari (Stores)', metaCol2X, metaY + 30.5, metaY + 34.5);
+  drawMetaField('RECEIVED BY (FLOOR):', mrn.receivedBy || 'Line Supervisor / Painter', metaCol3X, metaY + 30.5, metaY + 34.5);
+
+  let currentY = metaY + 50;
+
+  // 4. Section 2: Table of Issued Batches
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(23, 25, 28);
+  doc.text('BATCH-WISE ISSUED MATERIALS (FIFO / FEFO ENFORCED ALLOCATION)', MARGIN_X, currentY);
+
+  currentY += 3.5;
+  const pageTableStartY = currentY;
+
+  // Draw Table Header
+  const drawMinTableHeader = (y: number) => {
+    // MANDATORY LIGHT GREY HEADER BACKGROUND
+    doc.setFillColor(242, 242, 243);
+    doc.rect(MARGIN_X, y, 182, HEADER_HEIGHT, 'F');
+
+    doc.setDrawColor(...TABLE_BORDER_COLOR);
+    doc.setLineWidth(TABLE_LINE_WIDTH);
+    doc.rect(MARGIN_X, y, 182, HEADER_HEIGHT, 'S');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.0);
+    doc.setTextColor(23, 25, 28);
+
+    doc.text('#', MARGIN_X + 4, y + 5.2, { align: 'center' });
+    doc.text('MATERIAL DESCRIPTION', MARGIN_X + 11, y + 5.2);
+    doc.text('BATCH / LOT NO', 78, y + 5.2);
+    doc.text('INWARD GRN', 114, y + 5.2);
+    doc.text('EXPIRY DATE', 142, y + 5.2);
+    doc.text('ISSUED QTY', 168, y + 5.2, { align: 'right' });
+    doc.text('RULE', 188, y + 5.2, { align: 'center' });
+  };
+
+  const drawMinTableVerticalLines = (sY: number, eY: number) => {
+    doc.setDrawColor(...TABLE_BORDER_COLOR);
+    doc.setLineWidth(TABLE_LINE_WIDTH);
+
+    doc.line(MARGIN_X, sY, MARGIN_X, eY);
+    doc.line(PAGE_WIDTH - MARGIN_X, sY, PAGE_WIDTH - MARGIN_X, eY);
+
+    // Column dividers
+    [22, 75, 110, 138, 172].forEach(x => {
+      doc.line(x, sY, x, eY);
+    });
+  };
+
+  drawMinTableHeader(currentY);
+  currentY += HEADER_HEIGHT;
+
+  // Compile lines from batchLines or requisitionLines or single fallback
+  const rawLines: Array<{
+    description: string;
+    batchNo: string;
+    grnNo: string;
+    expiryDate: string;
+    qty: number;
+    uom: string;
+    rule: string;
+  }> = [];
+
+  if (mrn.batchLines && mrn.batchLines.length > 0) {
+    mrn.batchLines.forEach(bl => {
+      rawLines.push({
+        description: mrn.partDescription || 'Component Substrate',
+        batchNo: bl.supplierBatchNo || bl.batchId,
+        grnNo: bl.grnNo || mrn.sourceGrnNo || 'PK-GRN-STOCK',
+        expiryDate: bl.expiryDate || 'N/A',
+        qty: Number(bl.issuedQty),
+        uom: bl.uom || mrn.uom || 'Pcs',
+        rule: mrn.fifoStatus === 'FIFO Override' ? 'Override' : 'FEFO/FIFO'
+      });
+    });
+  } else if (mrn.requisitionLines && mrn.requisitionLines.length > 0) {
+    mrn.requisitionLines.forEach(rl => {
+      if (rl.issuedLines && rl.issuedLines.length > 0) {
+        rl.issuedLines.forEach(il => {
+          rawLines.push({
+            description: rl.itemName,
+            batchNo: il.supplierBatchNo || il.batchId,
+            grnNo: il.grnNo || 'PK-GRN-STOCK',
+            expiryDate: il.expiryDate || 'N/A',
+            qty: Number(il.issuedQty),
+            uom: rl.uom,
+            rule: mrn.fifoStatus === 'FIFO Override' ? 'Override' : 'FEFO/FIFO'
+          });
+        });
+      } else {
+        rawLines.push({
+          description: rl.itemName,
+          batchNo: mrn.sourceGrnNo ? `LOT-${mrn.sourceGrnNo.slice(-4)}` : 'LOT-STOCK',
+          grnNo: mrn.sourceGrnNo || 'PK-GRN-STOCK',
+          expiryDate: 'N/A',
+          qty: Number(rl.issuedQty || rl.requestedQty),
+          uom: rl.uom,
+          rule: 'FIFO OK'
+        });
+      }
+    });
+  } else {
+    rawLines.push({
+      description: mrn.partDescription || 'Raw Material Consumable',
+      batchNo: mrn.sourceGrnNo ? `LOT-${mrn.sourceGrnNo.slice(-4)}` : 'LOT-STOCK',
+      grnNo: mrn.sourceGrnNo || 'PK-GRN-STOCK',
+      expiryDate: 'N/A',
+      qty: Number(mrn.issuedQty || mrn.requestedQty || 0),
+      uom: mrn.uom || 'Pcs',
+      rule: mrn.fifoStatus || 'FIFO OK'
+    });
+  }
+
+  let totalIssuedQty = 0;
+
+  rawLines.forEach((item, idx) => {
+    totalIssuedQty += item.qty;
+
+    // Zebra striping
+    doc.setFillColor(idx % 2 === 0 ? 255 : 250, idx % 2 === 0 ? 255 : 250, idx % 2 === 0 ? 255 : 251);
+    doc.rect(MARGIN_X, currentY, 182, ROW_HEIGHT, 'F');
+
+    doc.setDrawColor(...TABLE_BORDER_COLOR);
+    doc.setLineWidth(TABLE_LINE_WIDTH);
+    doc.line(MARGIN_X, currentY + ROW_HEIGHT, PAGE_WIDTH - MARGIN_X, currentY + ROW_HEIGHT);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.0);
+    doc.setTextColor(23, 25, 28);
+
+    doc.text(String(idx + 1), MARGIN_X + 4, currentY + 4.8, { align: 'center' });
+    
+    // Description (truncate if long)
+    const descText = doc.splitTextToSize(item.description, 50);
+    doc.text(descText[0] || item.description, MARGIN_X + 11, currentY + 4.8);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(item.batchNo, 78, currentY + 4.8);
+
+    doc.setFont('helvetica', 'normal');
+    doc.text(item.grnNo, 114, currentY + 4.8);
+    doc.text(item.expiryDate, 142, currentY + 4.8);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${item.qty} ${item.uom}`, 168, currentY + 4.8, { align: 'right' });
+
+    doc.setFont('helvetica', item.rule.includes('Override') ? 'bold' : 'normal');
+    doc.setTextColor(item.rule.includes('Override') ? 180 : 23, item.rule.includes('Override') ? 50 : 25, item.rule.includes('Override') ? 50 : 28);
+    doc.text(item.rule, 188, currentY + 4.8, { align: 'center' });
+
+    currentY += ROW_HEIGHT;
+  });
+
+  // Total Summary Bar (Mandatory Light Grey Solid Bar)
+  const totalRowStartY = currentY;
+  doc.setFillColor(242, 242, 243);
+  doc.rect(MARGIN_X, currentY, 182, ROW_HEIGHT + 1, 'F');
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.rect(MARGIN_X, currentY, 182, ROW_HEIGHT + 1, 'S');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text('TOTAL MATERIAL ISSUED TO FLOOR:', 78, currentY + 5.2);
+  doc.text(`${totalIssuedQty.toLocaleString('en-IN')} ${rawLines[0]?.uom || 'Units'}`, 168, currentY + 5.2, { align: 'right' });
+
+  currentY += ROW_HEIGHT + 1;
+  drawMinTableVerticalLines(pageTableStartY, currentY);
+
+  // 5. Remarks Strip
+  currentY += 4;
+  if (mrn.storeRemarks || mrn.overrideRemark) {
+    doc.setFillColor(250, 250, 251);
+    doc.setDrawColor(220, 222, 228);
+    doc.roundedRect(MARGIN_X, currentY, 182, 12, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(23, 25, 28);
+    doc.text('STORE & AUDIT REMARKS:', MARGIN_X + 3, currentY + 4.5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.0);
+    doc.setTextColor(70, 75, 85);
+    const rmk = [mrn.storeRemarks, mrn.overrideRemark ? `[Deviation Note: ${mrn.overrideRemark}]` : null].filter(Boolean).join(' | ');
+    doc.text(rmk || 'Standard floor issue verified.', MARGIN_X + 3, currentY + 8.5);
+
+    currentY += 15;
+  } else {
+    currentY += 4;
+  }
+
+  // 6. Custody Handshake Sign-offs (2 Signatures)
+  const sigColW = 86;
+  const sigH = 22;
+
+  // Sig 1: Store Incharge
+  doc.setFillColor(250, 250, 251);
+  doc.setDrawColor(220, 222, 228);
+  doc.roundedRect(MARGIN_X, currentY, sigColW, sigH, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(23, 25, 28);
+  doc.text('ISSUED & DISPATCHED BY (STORE INCHARGE)', MARGIN_X + 3, currentY + 5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.0);
+  doc.setTextColor(23, 25, 28);
+  doc.text(mrn.storeInchargeName || 'Manoj Tiwari (Stores)', MARGIN_X + 3, currentY + 13);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(70, 75, 85);
+  doc.text(`Timestamp: ${mrn.storeIssuedTimestamp || mrn.date}`, MARGIN_X + 3, currentY + 17);
+
+  // Sig 2: Production Floor Receiver
+  const sig2X = MARGIN_X + sigColW + 10;
+  doc.setFillColor(250, 250, 251);
+  doc.setDrawColor(220, 222, 228);
+  doc.roundedRect(sig2X, currentY, sigColW, sigH, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(23, 25, 28);
+  doc.text('RECEIVED & COUNT VERIFIED (PRODUCTION)', sig2X + 3, currentY + 5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.0);
+  doc.setTextColor(23, 25, 28);
+  doc.text(mrn.receivedBy || 'Line Supervisor / Painter', sig2X + 3, currentY + 13);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(70, 75, 85);
+  doc.text(mrn.receivedTimestamp ? `Received At: ${mrn.receivedTimestamp}` : 'Pending Physical Floor Verification', sig2X + 3, currentY + 17);
+
+  // 7. Standard ISO Certified Footer
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(130, 135, 145);
+  doc.text(`Official Material Issue Note generated via PaintKing Surface OS on ${dateStr} at ${timeStr} IST • ISO 9001:2015 Certified Plant`, MARGIN_X, 287);
+  doc.text(`Doc Ref: PK-STR-MIN-001 | MIN: ${minSlipNo} | Page 1 of 1`, PAGE_WIDTH - MARGIN_X, 287, { align: 'right' });
+
+  doc.save(`PaintKing_MIN_${minSlipNo}.pdf`);
+};
+

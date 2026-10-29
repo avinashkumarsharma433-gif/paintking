@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { downloadStandardGateInwardPdf, downloadStandardGateOutwardPdf, formatUnitBreakdown, formatDateDDMMYYYY } from '../utils/pdfStandardHeader';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { GatePassRecord, MaterialInwardRecord, MaterialOutwardRecord, InwardMaterialLineItem } from '../types/portalTypes';
+import { GatePassRecord, MaterialInwardRecord, MaterialOutwardRecord, InwardMaterialLineItem, MATERIAL_TYPE_OPTIONS, StockMaterialType } from '../types/portalTypes';
 import { 
   ArrowDownLeft, 
   ArrowUpRight, 
@@ -25,7 +25,11 @@ import {
   Download,
   Printer,
   FileText,
-  Mail
+  Mail,
+  Building2,
+  Calendar,
+  PackageCheck,
+  Layers
 } from 'lucide-react';
 import { UniversalJobModal } from '../components/UniversalJobModal';
 import { PaintkingDatePicker } from '../components/PaintkingDatePicker';
@@ -152,15 +156,26 @@ export const GatePassView: React.FC = () => {
       remarks: 'Boxes intact, physical seal verified at gate.'
     });
     setInwardItems([
-      { id: `item_${Date.now()}`, itemCode: '', materialName: '', quantity: 100, unit: 'Pcs', batchNo: '', rawSubstrate: '' }
+      { id: `item_${Date.now()}`, itemCode: '', materialName: '', materialType: 'substrate', quantity: 100, unit: 'Pcs', batchNo: '', expiryDate: '', rawSubstrate: '' }
     ]);
     setShowInwardModal(true);
   };
 
   const handleAddItemRow = () => {
+    const isCompany = inwardHeader.materialCategory === 'Internal Company';
     setInwardItems(prev => [
       ...prev,
-      { id: `item_${Date.now()}_${prev.length + 1}`, itemCode: '', materialName: '', quantity: 100, unit: 'Pcs', batchNo: '', rawSubstrate: '' }
+      {
+        id: `item_${Date.now()}_${prev.length + 1}`,
+        itemCode: '',
+        materialName: '',
+        materialType: isCompany ? 'paint' : 'substrate',
+        quantity: 100,
+        unit: isCompany ? 'Litres' : 'Pcs',
+        batchNo: '',
+        expiryDate: '',
+        rawSubstrate: ''
+      }
     ]);
   };
 
@@ -196,6 +211,15 @@ export const GatePassView: React.FC = () => {
       return;
     }
 
+    // For Internal Company Material, validate Supplier Batch No
+    if (inwardHeader.materialCategory === 'Internal Company') {
+      const missingBatch = inwardItems.find(i => !i.batchNo?.trim());
+      if (missingBatch) {
+        setFormError('Company Material ke liye sabhi rows me Supplier Batch No bharna zaroori hai!');
+        return;
+      }
+    }
+
     const currentYear = new Date().getFullYear();
     const newSrNo = `INW-${currentYear}-${Math.floor(100 + Math.random() * 900)}`;
 
@@ -228,9 +252,12 @@ export const GatePassView: React.FC = () => {
         id: i.id,
         itemCode: i.itemCode?.trim() || undefined,
         materialName: i.materialName.trim(),
+        materialType: i.materialType || (inwardHeader.materialCategory === 'Internal Company' ? 'paint' : 'substrate'),
         quantity: Number(i.quantity) || 1,
         unit: i.unit,
         batchNo: i.batchNo?.trim() || undefined,
+        expiryDate: i.expiryDate || undefined,
+        category: inwardHeader.materialCategory === 'Internal Company' ? 'COMPANY_CONSUMABLE' : 'PARTY_MATERIAL',
         rawSubstrate: i.rawSubstrate?.trim() || undefined
       })),
       totalQuantity: totalQty,
@@ -1537,502 +1564,784 @@ export const GatePassView: React.FC = () => {
       )}
 
       {/* -------------------------------------------------------------------------- */}
-      {/* MODAL 1: CLEAN & PLAIN GUIDED MATERIAL INWARD FORM (Reference Inspired)    */}
+      {/* FULL-PAGE DEDICATED MATERIAL INWARD VIEW (JobCardModal 1520px Canvas)      */}
       {/* -------------------------------------------------------------------------- */}
       {showInwardModal && (
-        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-5 overflow-y-auto">
-          <div className="bg-white rounded-[18px] sm:rounded-[20px] max-w-2xl w-full p-4 sm:p-7 md:p-8 shadow-2xl border border-[#ececec] flex flex-col justify-between max-h-[92vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150 relative">
-            
-            {/* Top Close Button */}
-            <button 
-              onClick={() => setShowInwardModal(false)}
-              className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition z-10"
-              title="Close Form"
-            >
-              <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
+        <div className="fixed inset-0 z-50 bg-[#fafafb] overflow-y-auto w-screen h-screen min-h-screen flex flex-col font-sans antialiased text-[#17191c]">
+          
+          {/* 1. STICKY TOP HEADER (Max width 1520px matching JobCardModal) */}
+          <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#ececec] px-4 sm:px-8 lg:px-10 py-3.5 shadow-2xs">
+            <div className="max-w-[1520px] mx-auto w-full flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowInwardModal(false)}
+                  className="p-2 sm:px-3 sm:py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] transition cursor-pointer active:scale-95 flex items-center gap-1.5 text-xs font-semibold"
+                  title="Return to Gate Pass Register"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline">Back to Gate Pass</span>
+                </button>
 
-            {/* Form Title & Guided Subtitle */}
-            <div className="text-center space-y-1 pb-3 sm:pb-4 pr-6 sm:pr-0">
-              <h2 className="text-lg sm:text-2xl font-bold text-[#17191c] tracking-tight">
-                Material Inward Entry
-              </h2>
-              <p className="text-[11px] sm:text-xs text-[#777b86]">
-                Create inward entry for arriving supplier challans with this guided process
-              </p>
-            </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold uppercase tracking-wider">
+                      INWARD ENTRY • PART {inwardStep} OF 2
+                    </span>
+                    <span className="text-[11px] font-mono text-[#777b86]">
+                      Plant: {activePlant} • {inwardHeader.materialCategory}
+                    </span>
+                  </div>
+                  <h1 className="text-sm sm:text-base font-serif text-[#17191c] font-normal leading-tight mt-0.5">
+                    {inwardStep === 1 
+                      ? 'Part 1: General & Logistics Information' 
+                      : `Part 2: Material Line Items Breakdown (${inwardItems.length} Items)`}
+                  </h1>
+                </div>
+              </div>
 
-            {/* Step Stepper Indicator (Plain & Simple Connected Pills - Fully Mobile Responsive) */}
-            <div className="flex items-center justify-center gap-1.5 sm:gap-3 py-2 border-b border-[#f0f0f2] mb-4 sm:mb-5">
-              {/* Step 1 Pill */}
-              <button
+              {/* Close Button */}
+              <button 
                 type="button"
-                onClick={() => setInwardStep(1)}
-                className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 sm:gap-2 border shrink-0 ${
-                  inwardStep === 1
-                    ? 'border-[#17191c] text-[#17191c] bg-[#fafafb] shadow-2xs'
-                    : 'border-[#e5e7eb] text-[#777b86] hover:border-gray-400'
-                }`}
+                onClick={() => setShowInwardModal(false)}
+                className="w-8 h-8 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition active:scale-95"
+                title="Close Form"
               >
-                <span className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full text-[9px] sm:text-[10px] font-bold flex items-center justify-center ${
-                  inwardStep === 1 ? 'bg-[#17191c] text-white' : 'bg-gray-200 text-[#777b86]'
-                }`}>
-                  1
-                </span>
-                <span>General Info</span>
-              </button>
-
-              <div className="w-4 sm:w-8 h-px bg-[#e5e7eb] shrink-0" />
-
-              {/* Step 2 Pill */}
-              <button
-                type="button"
-                onClick={handleStep1Next}
-                className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 sm:gap-2 border shrink-0 ${
-                  inwardStep === 2
-                    ? 'border-[#17191c] text-[#17191c] bg-[#fafafb] shadow-2xs'
-                    : 'border-[#e5e7eb] text-[#777b86] hover:border-gray-400'
-                }`}
-              >
-                <span className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full text-[9px] sm:text-[10px] font-bold flex items-center justify-center ${
-                  inwardStep === 2 ? 'bg-[#17191c] text-white' : 'bg-gray-200 text-[#777b86]'
-                }`}>
-                  2
-                </span>
-                <span>Materials ({inwardItems.length})</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
+          </header>
 
+          {/* 2. STANDARDIZED COMPACT CONNECTED PILL STEPPER */}
+          <div className="bg-white border-b border-[#ececec] py-2 px-4">
+            <div className="flex items-center justify-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar">
+              {[
+                { num: 1, label: '1. General & Logistics' },
+                { num: 2, label: `2. Material Items (${inwardItems.length})` }
+              ].map((st, idx, arr) => {
+                const isActive = inwardStep === st.num;
+                const isDone = inwardStep > st.num;
+                return (
+                  <React.Fragment key={st.num}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (st.num === 1) setInwardStep(1);
+                        else handleStep1Next();
+                      }}
+                      className={`px-4 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-2 border shrink-0 ${
+                        isActive
+                          ? 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be] shadow-2xs ring-1 ring-[#c09748]/20'
+                          : isDone
+                          ? 'bg-[#faf7ed] text-[#17191c] border-[#f4e5be]'
+                          : 'bg-white text-[#777b86] border-[#e5e7eb] hover:border-gray-400'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-mono font-bold ${
+                        isActive
+                          ? 'bg-[#c09748] text-white shadow-2xs'
+                          : isDone
+                          ? 'bg-[#8a6521] text-white'
+                          : 'bg-gray-200 text-[#777b86]'
+                      }`}>
+                        {isDone ? '✓' : st.num}
+                      </span>
+                      <span>{st.label}</span>
+                    </button>
+                    {idx < arr.length - 1 && (
+                      <div className="w-6 sm:w-10 h-px bg-[#e5e7eb] shrink-0" />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 3. MAIN FORM CANVAS (Full 1520px width matching JobCardModal) */}
+          <main className="flex-1 max-w-[1520px] mx-auto w-full px-4 sm:px-8 lg:px-10 py-6 space-y-6 pb-24">
             {/* Validation Error Banner */}
             {formError && (
-              <div className="p-2.5 sm:p-3 rounded-[10px] bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 mb-3 sm:mb-4">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                <span>{formError}</span>
+              <div className="p-4 rounded-[20px] bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-3 shadow-2xs animate-in fade-in duration-150">
+                <AlertCircle className="w-5 h-5 shrink-0 text-rose-600" />
+                <span className="font-semibold">{formError}</span>
               </div>
             )}
 
-            <form onSubmit={handleInwardSubmit} className="space-y-4 sm:space-y-5">
+            <form onSubmit={handleInwardSubmit} className="space-y-6">
               {/* ================================================================ */}
-              {/* STEP 1: GENERAL INFO (Clean, Plain, Spacious Form)              */}
+              {/* PART 1: GENERAL & LOGISTICS INFORMATION                         */}
               {/* ================================================================ */}
               {inwardStep === 1 && (
-                <div className="space-y-3.5 sm:space-y-4 animate-in fade-in duration-100">
-                  {/* Step Title Header */}
-                  <div>
-                    <span className="text-[10px] sm:text-[11px] font-medium text-[#777b86] block">Step 1</span>
-                    <h3 className="text-xs sm:text-sm font-bold text-[#17191c]">General & Logistics Info</h3>
+                <div className="space-y-6 animate-in fade-in duration-150">
+                  
+                  {/* Top Live Security Gate Inward Strip */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 rounded-[24px] bg-[#faf7ed] border border-[#f4e5be] shadow-2xs">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-9 h-9 rounded-full bg-[#f4e5be]/70 flex items-center justify-center shrink-0">
+                        <Truck className="w-4 h-4 text-[#8a6521]" />
+                      </div>
+                      <div className="text-xs">
+                        <span className="font-mono uppercase font-bold text-[#8a6521] tracking-wide mr-2">
+                          GATE SECURITY INWARD DESK:
+                        </span>
+                        <span className="text-[#555863]">
+                          Log incoming vehicle, verify supplier delivery challan, check package seal, and route for Store verification.
+                        </span>
+                      </div>
+                    </div>
+                    <div className="shrink-0 flex items-center gap-2 self-start sm:self-auto">
+                      <span className="text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] px-3.5 py-1 rounded-full uppercase tracking-wider shadow-2xs">
+                        Plant: {activePlant} • Gate Verification
+                      </span>
+                    </div>
                   </div>
 
-                  {/* 1. Material Category (Clean Radio Option Tiles - Responsive Grid) */}
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-[#17191c]">
-                      Material Type
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                  {/* Section 1: Inward Material Category Selection */}
+                  <div className="bg-white p-5 sm:p-6 rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
+                    <div className="pb-3 border-b border-[#ececec] flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-6 h-6 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] flex items-center justify-center font-bold font-mono text-xs shadow-2xs">
+                          1
+                        </span>
+                        <div>
+                          <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono block">
+                            Point 1: Inward Material Classification
+                          </span>
+                          <h3 className="text-sm sm:text-base font-serif text-[#17191c] font-normal">
+                            Select Material Category
+                          </h3>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      {/* Option 1: Party Material */}
                       <button
                         type="button"
-                        onClick={() => setInwardHeader({ ...inwardHeader, materialCategory: 'Party Material' })}
-                        className={`p-2.5 sm:p-3 rounded-[10px] border text-left transition cursor-pointer flex items-center justify-between ${
+                        onClick={() => {
+                          setInwardHeader({ ...inwardHeader, materialCategory: 'Party Material' });
+                          setInwardItems(prev => prev.map(item => ({
+                            ...item,
+                            materialType: 'substrate',
+                            unit: item.unit === 'Litres' ? 'Pcs' : item.unit
+                          })));
+                        }}
+                        className={`p-4 sm:p-4.5 rounded-[18px] border text-left transition-all cursor-pointer flex items-center justify-between gap-4 ${
                           inwardHeader.materialCategory === 'Party Material'
-                            ? 'border-[#17191c] bg-[#fafafb] ring-1 ring-[#17191c]'
-                            : 'border-[#e5e7eb] bg-white hover:border-gray-300'
+                            ? 'border-[#17191c] bg-[#fafafb] ring-2 ring-[#17191c]/15 shadow-2xs'
+                            : 'border-[#e5e7eb] bg-white hover:border-gray-300 hover:bg-[#fafafb]/50'
                         }`}
                       >
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-[#17191c]">Party Material</span>
-                          <span className="text-[10px] sm:text-[11px] text-[#777b86]">Customer Raw Substrates</span>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-center shrink-0">
+                            <Layers className="w-4.5 h-4.5 text-[#8a6521]" />
+                          </div>
+                          <div className="text-sm sm:text-base font-semibold text-[#17191c] font-sans">
+                            Party Material
+                          </div>
                         </div>
-                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
                           inwardHeader.materialCategory === 'Party Material' ? 'border-[#17191c] bg-[#17191c]' : 'border-gray-300'
-                        }`}>
+                        }`}
+                        >
                           {inwardHeader.materialCategory === 'Party Material' && (
-                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                            <div className="w-2 h-2 rounded-full bg-white" />
                           )}
                         </div>
                       </button>
 
+                      {/* Option 2: Internal Company Material */}
                       <button
                         type="button"
-                        onClick={() => setInwardHeader({ ...inwardHeader, materialCategory: 'Internal Company' })}
-                        className={`p-2.5 sm:p-3 rounded-[10px] border text-left transition cursor-pointer flex items-center justify-between ${
+                        onClick={() => {
+                          setInwardHeader({ ...inwardHeader, materialCategory: 'Internal Company' });
+                          setInwardItems(prev => prev.map(item => ({
+                            ...item,
+                            materialType: item.materialType === 'substrate' ? 'paint' : item.materialType,
+                            unit: item.unit === 'Pcs' ? 'Litres' : item.unit
+                          })));
+                        }}
+                        className={`p-4 sm:p-4.5 rounded-[18px] border text-left transition-all cursor-pointer flex items-center justify-between gap-4 ${
                           inwardHeader.materialCategory === 'Internal Company'
-                            ? 'border-[#17191c] bg-[#fafafb] ring-1 ring-[#17191c]'
-                            : 'border-[#e5e7eb] bg-white hover:border-gray-300'
+                            ? 'border-[#17191c] bg-[#fafafb] ring-2 ring-[#17191c]/15 shadow-2xs'
+                            : 'border-[#e5e7eb] bg-white hover:border-gray-300 hover:bg-[#fafafb]/50'
                         }`}
                       >
-                        <div className="flex flex-col">
-                          <span className="text-xs font-bold text-[#17191c]">Internal Company</span>
-                          <span className="text-[10px] sm:text-[11px] text-[#777b86]">Paints, Solvents & Consumables</span>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-[#faf7ed] border border-[#f4e5be] flex items-center justify-center shrink-0">
+                            <Sparkles className="w-4.5 h-4.5 text-[#8a6521]" />
+                          </div>
+                          <div className="text-sm sm:text-base font-semibold text-[#17191c] font-sans">
+                            Internal Company Material
+                          </div>
                         </div>
-                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
                           inwardHeader.materialCategory === 'Internal Company' ? 'border-[#17191c] bg-[#17191c]' : 'border-gray-300'
-                        }`}>
+                        }`}
+                        >
                           {inwardHeader.materialCategory === 'Internal Company' && (
-                            <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                            <div className="w-2 h-2 rounded-full bg-white" />
                           )}
                         </div>
                       </button>
                     </div>
                   </div>
 
-                  {/* 1. Row 1: Challan Date & Receiving Date */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
-                    <div>
-                      <label className="block text-xs font-medium text-[#17191c] mb-1">
-                        Challan Date <span className="text-gray-400 font-normal">(on document)</span>
-                      </label>
-                      <PaintkingDatePicker
-                        value={inwardHeader.challanDate}
-                        onChange={val => setInwardHeader({ ...inwardHeader, challanDate: val })}
-                        placeholder="DD-MM-YYYY"
-                      />
+
+                  {/* Section 2: Supplier Challan & Dispatch Logistics */}
+                  <div className="bg-white p-6 sm:p-8 rounded-[24px] border border-[#ececec] shadow-xs space-y-6">
+                    <div className="pb-3.5 border-b border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-6 h-6 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] flex items-center justify-center font-bold font-mono text-xs shadow-2xs">
+                          2
+                        </span>
+                        <div>
+                          <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono block">
+                            Point 2: Supplier Challan & Vehicle Logistics
+                          </span>
+                          <h3 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal">
+                            Delivery Challan details aur gaadi ke documents confirm karein
+                          </h3>
+                        </div>
+                      </div>
+                      <div className="text-xs text-[#777b86]">
+                        Fields with <span className="text-rose-500 font-bold">*</span> are required
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-medium text-[#17191c] mb-1">
-                        Receiving Date <span className="text-gray-400 font-normal">(Gate Inward)</span>
-                      </label>
-                      <PaintkingDatePicker
-                        value={inwardHeader.receivingDate}
-                        onChange={val => setInwardHeader({ ...inwardHeader, receivingDate: val })}
-                        placeholder="DD-MM-YYYY"
-                      />
+                    {/* Row 1: Document Reference & Dates (3 columns) */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
+                          <FileText className="w-3.5 h-3.5 text-[#c09748]" />
+                          <span>1. Challan / DC Number</span>
+                          <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={inwardHeader.challanNo}
+                          onChange={e => {
+                            setInwardHeader({ ...inwardHeader, challanNo: e.target.value });
+                            if (formError) setFormError(null);
+                          }}
+                          placeholder="e.g. CH-88219"
+                          className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white font-mono font-bold text-xs text-[#17191c] focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
+                          <Calendar className="w-3.5 h-3.5 text-[#c09748]" />
+                          <span>2. Challan Date</span>
+                          <span className="text-[#777b86] font-normal text-[10px]">(on document)</span>
+                        </label>
+                        <PaintkingDatePicker
+                          value={inwardHeader.challanDate}
+                          onChange={val => setInwardHeader({ ...inwardHeader, challanDate: val })}
+                          placeholder="DD-MM-YYYY"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
+                          <Clock className="w-3.5 h-3.5 text-[#c09748]" />
+                          <span>3. Receiving Date</span>
+                          <span className="text-[#777b86] font-normal text-[10px]">(Gate Inward)</span>
+                        </label>
+                        <PaintkingDatePicker
+                          value={inwardHeader.receivingDate}
+                          onChange={val => setInwardHeader({ ...inwardHeader, receivingDate: val })}
+                          placeholder="DD-MM-YYYY"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 2: Supplier, Transporter & Vehicle (3 columns) */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
+                          <Building2 className="w-3.5 h-3.5 text-[#c09748]" />
+                          <span>4. Name of Party / Supplier</span>
+                          <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={inwardHeader.partyName}
+                          onChange={e => {
+                            setInwardHeader({ ...inwardHeader, partyName: e.target.value });
+                            if (formError) setFormError(null);
+                          }}
+                          placeholder="e.g. Roop Polymers Ltd / Asian Paints Ltd"
+                          className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
+                          <Truck className="w-3.5 h-3.5 text-[#c09748]" />
+                          <span>5. Transporter Name</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={inwardHeader.transporter}
+                          onChange={e => setInwardHeader({ ...inwardHeader, transporter: e.target.value })}
+                          placeholder="e.g. VRL Logistics / Direct Delivery"
+                          className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
+                          <Truck className="w-3.5 h-3.5 text-[#c09748]" />
+                          <span>6. Vehicle Number</span>
+                          <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={inwardHeader.vehicleNo}
+                          onChange={e => {
+                            setInwardHeader({ ...inwardHeader, vehicleNo: e.target.value });
+                            if (formError) setFormError(null);
+                          }}
+                          placeholder="e.g. MH-04-AB-1234"
+                          className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white font-mono font-bold text-xs text-[#17191c] uppercase focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs"
+                        />
+                      </div>
                     </div>
                   </div>
 
-                  {/* 2. Row 2: Challan Number & Party Name */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
-                    <div>
-                      <label className="block text-xs font-medium text-[#17191c] mb-1">
-                        Challan / DC Number <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={inwardHeader.challanNo}
-                        onChange={e => {
-                          setInwardHeader({ ...inwardHeader, challanNo: e.target.value });
-                          if (formError) setFormError(null);
-                        }}
-                        placeholder="e.g. CH-88219"
-                        className="w-full h-9 px-3 rounded-[8px] border border-[#dcdfe4] bg-white text-xs text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#17191c] transition-colors"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-[#17191c] mb-1">
-                        Name of Party / Vendor <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={inwardHeader.partyName}
-                        onChange={e => {
-                          setInwardHeader({ ...inwardHeader, partyName: e.target.value });
-                          if (formError) setFormError(null);
-                        }}
-                        placeholder="e.g. Roop Polymers Ltd / Asian Paints"
-                        className="w-full h-9 px-3 rounded-[8px] border border-[#dcdfe4] bg-white text-xs text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#17191c] transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  {/* 3. Row 3: Transporter Name & Vehicle Number */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
-                    <div>
-                      <label className="block text-xs font-medium text-[#17191c] mb-1">
-                        Transporter Name
-                      </label>
-                      <input
-                        type="text"
-                        value={inwardHeader.transporter}
-                        onChange={e => setInwardHeader({ ...inwardHeader, transporter: e.target.value })}
-                        placeholder="e.g. VRL Logistics / Direct Delivery"
-                        className="w-full h-9 px-3 rounded-[8px] border border-[#dcdfe4] bg-white text-xs text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#17191c] transition-colors"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-[#17191c] mb-1">
-                        Vehicle Number <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={inwardHeader.vehicleNo}
-                        onChange={e => {
-                          setInwardHeader({ ...inwardHeader, vehicleNo: e.target.value });
-                          if (formError) setFormError(null);
-                        }}
-                        placeholder="e.g. MH-04-AB-1234"
-                        className="w-full h-9 px-3 rounded-[8px] border border-[#dcdfe4] bg-white font-mono text-xs text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#17191c] transition-colors uppercase"
-                      />
-                    </div>
-                  </div>
-
-                  {/* 4. Row 4: Driver Phone Number & GST E-Way Bill Number */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
-                    <div>
-                      <label className="block text-xs font-medium text-[#17191c] mb-1">
-                        Driver Phone No.
-                      </label>
-                      <input
-                        type="tel"
-                        value={inwardHeader.driverPhone}
-                        onChange={e => setInwardHeader({ ...inwardHeader, driverPhone: e.target.value })}
-                        placeholder="e.g. 9876543210"
-                        className="w-full h-9 px-3 rounded-[8px] border border-[#dcdfe4] bg-white text-xs text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#17191c] transition-colors"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-[#17191c] mb-1">
-                        GST E-Way Bill No.
-                      </label>
-                      <input
-                        type="text"
-                        value={inwardHeader.ewayBillNo}
-                        onChange={e => setInwardHeader({ ...inwardHeader, ewayBillNo: e.target.value })}
-                        placeholder="e.g. 541298401923"
-                        className="w-full h-9 px-3 rounded-[8px] border border-[#dcdfe4] bg-white font-mono text-xs text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#17191c] transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Step 1 Footer Navigation */}
-                  <div className="flex items-center justify-between pt-3 sm:pt-4 border-t border-[#ececec]">
+                  {/* Step 1 Action Bar */}
+                  <div className="bg-white p-5 rounded-[24px] border border-[#ececec] shadow-xs flex items-center justify-between">
                     <button
                       type="button"
                       onClick={() => setShowInwardModal(false)}
-                      className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#dcdfe4] text-xs font-medium text-[#777b86] hover:bg-gray-50 cursor-pointer transition"
+                      className="px-5 py-2.5 rounded-full border border-[#dcdfe4] text-xs font-semibold text-[#777b86] hover:bg-white hover:text-[#17191c] cursor-pointer transition active:scale-95"
                     >
-                      Cancel
+                      Cancel & Discard
                     </button>
 
                     <button
                       type="button"
                       onClick={handleStep1Next}
-                      className="px-4 sm:px-6 py-1.5 sm:py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-1.5 sm:gap-2"
+                      className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-2 active:scale-95"
                     >
-                      <span>Continue to Materials (Step 2)</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-[#c09748]" />
+                      <span>Continue to Material Line Items (Part 2)</span>
+                      <ChevronRight className="w-4 h-4 text-[#c09748]" />
                     </button>
                   </div>
                 </div>
               )}
 
               {/* ================================================================ */}
-              {/* STEP 2: MATERIAL LINE ITEMS & RECEIVING CONFIRMATION             */}
+              {/* PART 2: MATERIAL LINE ITEMS & RECEIVING CONFIRMATION             */}
               {/* ================================================================ */}
               {inwardStep === 2 && (
-                <div className="space-y-3.5 sm:space-y-4 animate-in fade-in duration-100">
-                  {/* Step Header */}
-                  <div className="flex items-center justify-between">
+                <div className="space-y-6 animate-in fade-in duration-150">
+                  
+                  {/* Top Bar with Mode Banner & Add Row Action */}
+                  <div className="bg-white p-6 sm:p-7 rounded-[24px] border border-[#ececec] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
-                      <span className="text-[10px] sm:text-[11px] font-medium text-[#777b86] block">Step 2</span>
-                      <h3 className="text-xs sm:text-sm font-bold text-[#17191c]">Material Line Items Breakdown</h3>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="w-6 h-6 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] flex items-center justify-center font-bold font-mono text-xs shadow-2xs">
+                          2
+                        </span>
+                        <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono">
+                          {inwardHeader.materialCategory === 'Party Material' ? 'Party Customer Substrates' : 'Internal Paints & Chemicals'}
+                        </span>
+                        <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be]">
+                          {inwardItems.length} {inwardItems.length === 1 ? 'Line Item' : 'Line Items'}
+                        </span>
+                      </div>
+                      <h3 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal">
+                        Challan me mention sabhi materials aur unki quantities enter karein
+                      </h3>
+                      <p className="text-xs text-[#777b86] mt-0.5">
+                        Challan: <strong className="font-mono text-[#17191c]">{inwardHeader.challanNo}</strong> • Party: <strong className="text-[#17191c]">{inwardHeader.partyName}</strong> • Vehicle: <strong className="font-mono text-[#17191c]">{inwardHeader.vehicleNo}</strong>
+                      </p>
                     </div>
+
                     <button
                       type="button"
                       onClick={handleAddItemRow}
-                      className="px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-full border border-[#dcdfe4] bg-white hover:bg-gray-50 text-xs font-semibold text-[#17191c] transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                      className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 self-start sm:self-auto"
                     >
-                      <Plus className="w-3.5 h-3.5 text-[#c09748]" />
-                      <span>Add Row</span>
+                      <Plus className="w-4 h-4 text-[#8a6521]" />
+                      <span>+ Add Material Row</span>
                     </button>
                   </div>
 
-                  {/* Compact Header for Desktop */}
-                  <div className="hidden sm:grid sm:grid-cols-12 sm:gap-2 sm:items-center px-3 py-1.5 rounded-[6px] bg-[#fafafb] border border-[#ececec] text-[11px] font-semibold text-[#777b86]">
-                    <div className="col-span-3">Item / Part Code</div>
-                    <div className="col-span-4">Material Description *</div>
-                    <div className="col-span-2 text-center">Quantity *</div>
-                    <div className="col-span-2">Unit</div>
-                    <div className="col-span-1 text-center">Action</div>
-                  </div>
+                  {/* DUAL MODE: 1. Party Material (Clean Wide 12-Column Table) vs 2. Company Material (Full-Width Cards) */}
+                  {inwardHeader.materialCategory === 'Party Material' ? (
+                    <div className="bg-white p-6 sm:p-8 rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
+                      {/* Desktop Table Header */}
+                      <div className="hidden sm:grid sm:grid-cols-12 sm:gap-4 sm:items-center px-4 py-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-xs font-bold text-[#777b86] uppercase tracking-wider font-mono">
+                        <div className="col-span-1 text-center">#</div>
+                        <div className="col-span-3">Item / Part Code (Optional)</div>
+                        <div className="col-span-4">Material Description *</div>
+                        <div className="col-span-2 text-center">Quantity *</div>
+                        <div className="col-span-2">Packaging Unit</div>
+                      </div>
 
-                  {/* Dynamic Items List with Mobile Support */}
-                  <div className="relative">
-                    <div 
-                      ref={materialListRef}
-                      className="space-y-2.5 sm:space-y-2 max-h-[195px] sm:max-h-[165px] overflow-y-auto no-scrollbar p-1"
-                    >
-                      {inwardItems.map((item, idx) => (
-                        <div
-                          key={item.id}
-                          className="p-3 sm:p-0 rounded-[10px] bg-[#fafafb] sm:bg-transparent border border-[#ececec] sm:border-0 sm:grid sm:grid-cols-12 sm:gap-2 sm:items-center space-y-2.5 sm:space-y-0"
+                      {/* Line Items List */}
+                      <div className="relative">
+                        <div 
+                          ref={materialListRef}
+                          className="space-y-3 max-h-[520px] overflow-y-auto no-scrollbar p-1"
                         >
-                          {/* Part Code */}
-                          <div className="sm:col-span-3">
-                            <label className="block text-[10px] font-medium text-[#777b86] mb-1 sm:hidden">
-                              {idx + 1}. Item / Part Code (Optional)
-                            </label>
-                            <input
-                              type="text"
-                              value={item.itemCode || ''}
-                              onChange={e => handleItemChange(item.id, 'itemCode', e.target.value)}
-                              placeholder="e.g. PK-V01"
-                              className="w-full h-8.5 px-2.5 rounded-[8px] border border-[#dcdfe4] bg-white font-mono text-xs text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#17191c] focus:ring-1 focus:ring-[#17191c] transition-colors"
-                            />
-                          </div>
+                          {inwardItems.map((item, idx) => (
+                            <div
+                              key={item.id}
+                              className="p-4 sm:p-0 rounded-[18px] bg-[#fafafb] sm:bg-transparent border border-[#ececec] sm:border-0 sm:grid sm:grid-cols-12 sm:gap-4 sm:items-center space-y-3 sm:space-y-0"
+                            >
+                              {/* Item # */}
+                              <div className="sm:col-span-1 flex items-center justify-start sm:justify-center">
+                                <span className="w-7 h-7 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] flex items-center justify-center font-bold text-xs font-mono shadow-2xs">
+                                  {idx + 1}
+                                </span>
+                              </div>
 
-                          {/* Material Description */}
-                          <div className="sm:col-span-4">
-                            <label className="block text-[10px] font-medium text-[#777b86] mb-1 sm:hidden">
-                              Material Description *
-                            </label>
-                            <input
-                              type="text"
-                              required
-                              value={item.materialName}
-                              onChange={e => {
-                                handleItemChange(item.id, 'materialName', e.target.value);
-                                if (formError) setFormError(null);
-                              }}
-                              placeholder="e.g. ABS Car AC Vent Bezels"
-                              className="w-full h-8.5 px-3 rounded-[8px] border border-[#dcdfe4] bg-white text-xs text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#17191c] focus:ring-1 focus:ring-[#17191c] transition-colors"
-                            />
-                          </div>
+                              {/* Part Code */}
+                              <div className="sm:col-span-3">
+                                <label className="block text-[10px] font-bold text-[#777b86] mb-1 sm:hidden">
+                                  Part Code (Optional)
+                                </label>
+                                <input
+                                  type="text"
+                                  value={item.itemCode || ''}
+                                  onChange={e => handleItemChange(item.id, 'itemCode', e.target.value)}
+                                  placeholder="e.g. PK-VENT-01"
+                                  className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-white font-mono text-xs text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 transition shadow-2xs"
+                                />
+                              </div>
 
-                          {/* Quantity & Unit Row on Mobile */}
-                          <div className="grid grid-cols-2 gap-2 sm:contents">
-                            {/* Quantity */}
-                            <div className="sm:col-span-2">
-                              <label className="block text-[10px] font-medium text-[#777b86] mb-1 sm:hidden">
-                                Qty *
-                              </label>
-                              <input
-                                type="number"
-                                min="1"
-                                required
-                                value={item.quantity}
-                                onChange={e => handleItemChange(item.id, 'quantity', Number(e.target.value))}
-                                placeholder="100"
-                                className="w-full h-8.5 px-2 rounded-[8px] border border-[#dcdfe4] bg-white font-mono text-xs text-[#17191c] text-center font-bold focus:outline-none focus:border-[#17191c] focus:ring-1 focus:ring-[#17191c] transition-colors"
-                              />
+                              {/* Material Description */}
+                              <div className="sm:col-span-4">
+                                <label className="block text-[10px] font-bold text-[#777b86] mb-1 sm:hidden">
+                                  Material Description *
+                                </label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={item.materialName}
+                                  onChange={e => {
+                                    handleItemChange(item.id, 'materialName', e.target.value);
+                                    if (formError) setFormError(null);
+                                  }}
+                                  placeholder="e.g. ABS Car AC Vent Bezels"
+                                  className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-white text-xs font-semibold text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 transition shadow-2xs"
+                                />
+                              </div>
+
+                              {/* Quantity */}
+                              <div className="sm:col-span-2">
+                                <label className="block text-[10px] font-bold text-[#777b86] mb-1 sm:hidden">
+                                  Quantity *
+                                </label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  required
+                                  value={item.quantity}
+                                  onChange={e => handleItemChange(item.id, 'quantity', Number(e.target.value))}
+                                  placeholder="100"
+                                  className="w-full h-11 px-3 rounded-[16px] border border-[#dcdfe4] bg-white font-mono text-xs text-[#17191c] text-center font-bold focus:outline-none focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 transition shadow-2xs"
+                                />
+                              </div>
+
+                              {/* Packaging Unit & Delete Action */}
+                              <div className="sm:col-span-2 flex items-center gap-2">
+                                <div className="flex-1">
+                                  <label className="block text-[10px] font-bold text-[#777b86] mb-1 sm:hidden">
+                                    Packaging Unit
+                                  </label>
+                                  <CenteredSelectModal
+                                    title="Select Packaging Unit"
+                                    value={item.unit}
+                                    onChange={val => handleItemChange(item.id, 'unit', val)}
+                                    options={['Pcs', 'Boxes', 'Drums', 'Litres', 'Kg', 'Rolls', 'Packets']}
+                                    placeholder="Unit"
+                                    className="h-11 rounded-[16px] bg-white border border-[#dcdfe4] text-xs font-semibold text-[#17191c]"
+                                  />
+                                </div>
+
+                                {inwardItems.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveItemRow(item.id)}
+                                    className="h-11 w-11 rounded-[14px] text-[#777b86] hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 flex items-center justify-center transition cursor-pointer shrink-0"
+                                    title="Delete Line Item"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
-
-                            {/* Unit */}
-                            <div className="sm:col-span-2">
-                              <label className="block text-[10px] font-medium text-[#777b86] mb-1 sm:hidden">
-                                Unit
-                              </label>
-                              <CenteredSelectModal
-                                title="Select Packaging Unit"
-                                value={item.unit}
-                                onChange={val => handleItemChange(item.id, 'unit', val)}
-                                options={['Pcs', 'Boxes', 'Drums', 'Litres', 'Kg', 'Rolls', 'Packets']}
-                                placeholder="Unit"
-                              />
-                            </div>
-
-                            {/* Action Delete Button */}
-                            <div className="col-span-2 sm:col-span-1 flex items-center justify-center">
-                              {inwardItems.length > 1 ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveItemRow(item.id)}
-                                  className="h-8.5 w-8 rounded-[8px] text-[#777b86] hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 flex items-center justify-center transition cursor-pointer shrink-0"
-                                  title="Delete Row"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              ) : (
-                                <div className="w-8 h-8.5" />
-                              )}
-                            </div>
-                          </div>
+                          ))}
                         </div>
-                      ))}
+
+                        <ScrollRemainingToast 
+                          totalCount={inwardItems.length}
+                          containerRef={materialListRef}
+                          label="MORE MATERIALS BELOW"
+                          position="bottom"
+                        />
+                      </div>
+
+                      {/* Total Quantities Summary Strip */}
+                      <div className="pt-3 border-t border-[#ececec] flex flex-wrap items-center justify-between text-xs font-mono">
+                        <span className="text-[#777b86]">
+                          Total Line Items: <strong className="text-[#17191c]">{inwardItems.length}</strong>
+                        </span>
+                        <span className="font-bold text-[#8a6521] bg-[#faf3e0] px-3.5 py-1.5 rounded-full border border-[#f4e5be]">
+                          Cumulative Substrate Pieces: {inwardItems.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0).toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    /* 2. Company Material Cards Layout (Paints, Thinners, Hardeners & Consumables) */
+                    <div className="space-y-4">
+                      <div className="relative">
+                        <div 
+                          ref={materialListRef}
+                          className="space-y-4 max-h-[560px] overflow-y-auto no-scrollbar p-1"
+                        >
+                          {inwardItems.map((item, idx) => (
+                            <div
+                              key={item.id}
+                              className="bg-white rounded-[24px] border border-[#ececec] p-6 sm:p-7 shadow-xs space-y-4 relative hover:border-[#c09748] transition"
+                            >
+                              {/* Card Header */}
+                              <div className="flex items-center justify-between pb-3.5 border-b border-[#ececec]">
+                                <div className="flex items-center gap-3">
+                                  <span className="w-7 h-7 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] flex items-center justify-center font-bold text-xs font-mono shadow-2xs">
+                                    {idx + 1}
+                                  </span>
+                                  <div>
+                                    <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-[#17191c] font-mono">
+                                      Company Material #{idx + 1}
+                                    </span>
+                                    <span className="ml-2.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be]">
+                                      Batch Tracked (FIFO)
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {inwardItems.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveItemRow(item.id)}
+                                    className="text-[#777b86] hover:text-rose-600 hover:bg-rose-50 p-2 rounded-full transition cursor-pointer"
+                                    title="Delete Item"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* 5 Dedicated Form Fields in Order: Classification -> Batch No -> Description -> Quantity -> Unit */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 sm:gap-5">
+                                {/* 1. Classification / Type */}
+                                <div className="sm:col-span-1 lg:col-span-3 space-y-2">
+                                  <label className="block text-[11px] font-bold text-[#777b86] uppercase font-mono">
+                                    Classification / Type <span className="text-rose-500">*</span>
+                                  </label>
+                                  <CenteredSelectModal
+                                    title="Select Chemical Classification"
+                                    value={item.materialType || 'paint'}
+                                    onChange={val => {
+                                      const newType = val as StockMaterialType;
+                                      handleItemChange(item.id, 'materialType', newType);
+                                      if (['paint', 'thinner', 'hardener', 'primer', 'clear_coat', 'activator'].includes(newType) && item.unit === 'Pcs') {
+                                        handleItemChange(item.id, 'unit', 'Litres');
+                                      }
+                                    }}
+                                    options={MATERIAL_TYPE_OPTIONS.filter(o => o.value !== 'substrate').map(opt => ({
+                                      value: opt.value,
+                                      label: opt.label
+                                    }))}
+                                    placeholder="Select Classification"
+                                    className="h-11 rounded-[16px] bg-white border border-[#dcdfe4] text-xs font-semibold text-[#17191c]"
+                                  />
+                                </div>
+
+                                {/* 2. Supplier Batch No (Moved directly after Classification) */}
+                                <div className="sm:col-span-1 lg:col-span-2 space-y-2">
+                                  <label className="block text-[11px] font-bold text-[#777b86] uppercase font-mono">
+                                    Supplier Batch No <span className="text-rose-500">*</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    required
+                                    value={item.batchNo || ''}
+                                    onChange={e => handleItemChange(item.id, 'batchNo', e.target.value)}
+                                    placeholder="e.g. BAT-2610-01"
+                                    className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-white font-mono text-xs font-bold text-[#17191c] focus:outline-none focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 transition shadow-2xs"
+                                  />
+                                </div>
+
+                                {/* 3. Chemical / Shade Description */}
+                                <div className="sm:col-span-2 lg:col-span-3 space-y-2">
+                                  <label className="block text-[11px] font-bold text-[#777b86] uppercase font-mono">
+                                    Chemical / Shade Description <span className="text-rose-500">*</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    required
+                                    value={item.materialName}
+                                    onChange={e => {
+                                      handleItemChange(item.id, 'materialName', e.target.value);
+                                      if (formError) setFormError(null);
+                                    }}
+                                    placeholder={
+                                      item.materialType === 'paint' 
+                                        ? 'e.g. PPG Rosso Corsa 932 Basecoat' 
+                                        : item.materialType === 'thinner' 
+                                        ? 'e.g. PU Thinner Medium 400' 
+                                        : item.materialType === 'hardener' 
+                                        ? 'e.g. 2K Fast Hardener' 
+                                        : 'e.g. Chemical / Consumable Name'
+                                    }
+                                    className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-white text-xs font-semibold text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 transition shadow-2xs"
+                                  />
+                                </div>
+
+                                {/* 4. Quantity (Dedicated Title) */}
+                                <div className="sm:col-span-1 lg:col-span-2 space-y-2">
+                                  <label className="block text-[11px] font-bold text-[#777b86] uppercase font-mono">
+                                    Quantity <span className="text-rose-500">*</span>
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="0.1"
+                                    step="any"
+                                    required
+                                    value={item.quantity}
+                                    onChange={e => handleItemChange(item.id, 'quantity', Number(e.target.value))}
+                                    placeholder="100"
+                                    className="w-full h-11 px-3.5 rounded-[16px] border border-[#dcdfe4] bg-white font-mono text-xs font-bold text-[#17191c] text-center focus:outline-none focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 transition shadow-2xs"
+                                  />
+                                </div>
+
+                                {/* 5. Unit (Dedicated Title) */}
+                                <div className="sm:col-span-1 lg:col-span-2 space-y-2">
+                                  <label className="block text-[11px] font-bold text-[#777b86] uppercase font-mono">
+                                    Unit <span className="text-rose-500">*</span>
+                                  </label>
+                                  <CenteredSelectModal
+                                    title="Select Packaging Unit"
+                                    value={item.unit}
+                                    onChange={val => handleItemChange(item.id, 'unit', val)}
+                                    options={['Litres', 'Kg', 'Drums', 'Boxes', 'Pcs', 'Packets']}
+                                    placeholder="Unit"
+                                    className="h-11 rounded-[16px] bg-white border border-[#dcdfe4] text-xs font-semibold text-[#17191c]"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <ScrollRemainingToast 
+                          totalCount={inwardItems.length}
+                          containerRef={materialListRef}
+                          label="MORE MATERIALS BELOW"
+                          position="bottom"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section 3: Signatures & Gate Physical Verification Notes */}
+                  <div className="bg-white p-6 sm:p-8 rounded-[24px] border border-[#ececec] shadow-xs space-y-5">
+                    <div className="pb-3.5 border-b border-[#ececec]">
+                      <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#c09748] block">
+                        Section 3 • Physical Inspection & Verification
+                      </span>
+                      <h3 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal mt-0.5">
+                        Physical Status Notes & Store Officer Handover
+                      </h3>
                     </div>
 
-                    {/* Floating Bottom Center Indicator inside Materials Box */}
-                    <ScrollRemainingToast
-                      containerRef={materialListRef}
-                      totalCount={inwardItems.length}
-                      label="MORE MATERIALS BELOW"
-                      position="bottom"
-                    />
-                  </div>
-
-                  {/* Signatures & Message-Type Remarks / Notes */}
-                  <div className="space-y-3 pt-2.5 border-t border-[#ececec]">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
-                      <div>
-                        <label className="block text-xs font-medium text-[#17191c] mb-1">
-                          Security Officer / Logged By
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
+                          <ShieldCheck className="w-3.5 h-3.5 text-[#c09748]" />
+                          <span>Security Officer / Logged By</span>
                         </label>
                         <input
                           type="text"
                           value={inwardHeader.securitySignature}
                           onChange={e => setInwardHeader({ ...inwardHeader, securitySignature: e.target.value })}
                           placeholder="e.g. Ram Singh (Gate Security)"
-                          className="w-full h-9 px-3 rounded-[8px] border border-[#dcdfe4] bg-white text-xs text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#17191c] transition-colors"
+                          className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs"
                         />
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-medium text-[#17191c] mb-1">
-                          Received By (Store Dept)
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
+                          <PackageCheck className="w-3.5 h-3.5 text-[#c09748]" />
+                          <span>Received By (Store Dept)</span>
                         </label>
                         <input
                           type="text"
                           value={inwardHeader.receivedBy}
                           onChange={e => setInwardHeader({ ...inwardHeader, receivedBy: e.target.value })}
                           placeholder="e.g. Manoj Tiwari (Store Dept)"
-                          className="w-full h-9 px-3 rounded-[8px] border border-[#dcdfe4] bg-white text-xs text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#17191c] transition-colors"
+                          className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs"
                         />
                       </div>
                     </div>
 
-                    {/* Message / Remarks Box */}
-                    <div>
-                      <label className="block text-xs font-medium text-[#17191c] mb-1 flex items-center justify-between">
-                        <span>Gate Physical Inspection Remarks & Notes</span>
-                        <span className="text-[10px] text-[#777b86] font-normal">Physical status, damages, driver comments</span>
+                    <div className="space-y-2">
+                      <label className="flex items-center justify-between text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
+                        <span>Gate Physical Inspection Remarks & Discrepancy Notes</span>
+                        <span className="text-[10px] text-[#777b86] font-normal font-sans">Box seal condition, damages, driver comments</span>
                       </label>
                       <textarea
-                        rows={2}
+                        rows={3}
                         value={inwardHeader.remarks}
                         onChange={e => setInwardHeader({ ...inwardHeader, remarks: e.target.value })}
-                        placeholder="Type remarks, gate physical verification notes, box condition, or discrepancy details here..."
-                        className="w-full p-2.5 rounded-[10px] border border-[#dcdfe4] bg-white text-xs text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#17191c] transition-colors resize-none leading-relaxed"
+                        placeholder="Type remarks, gate physical verification notes, drum seal condition, or any discrepancy details here..."
+                        className="w-full p-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs text-[#17191c] placeholder:text-gray-400 focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs resize-none leading-relaxed"
                       />
                     </div>
                   </div>
 
-                  {/* Step 2 Action Footer */}
-                  <div className="flex items-center justify-between pt-3 sm:pt-4 border-t border-[#ececec]">
+                  {/* Step 2 Action Bar */}
+                  <div className="bg-white p-5 rounded-[24px] border border-[#ececec] shadow-xs flex items-center justify-between">
                     <button
                       type="button"
                       onClick={() => setInwardStep(1)}
-                      className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#dcdfe4] text-xs font-medium text-[#777b86] hover:bg-gray-50 cursor-pointer transition flex items-center gap-1.5"
+                      className="px-5 py-2.5 rounded-full border border-[#dcdfe4] text-xs font-semibold text-[#777b86] hover:bg-white hover:text-[#17191c] cursor-pointer transition flex items-center gap-1.5 active:scale-95"
                     >
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                      <span>Back</span>
+                      <ArrowLeft className="w-4 h-4" />
+                      <span>Back to General Info (Part 1)</span>
                     </button>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       <button
                         type="button"
                         onClick={() => setShowInwardModal(false)}
-                        className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#dcdfe4] text-xs font-medium text-[#777b86] hover:bg-gray-50 cursor-pointer transition"
+                        className="px-5 py-2.5 rounded-full border border-[#dcdfe4] text-xs font-semibold text-[#777b86] hover:bg-white hover:text-[#17191c] cursor-pointer transition active:scale-95"
                       >
-                        Cancel
+                        Cancel & Discard
                       </button>
                       <button
                         type="submit"
-                        className="px-4 sm:px-6 py-1.5 sm:py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                        className="px-6 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-2 active:scale-95"
                       >
-                        <Check className="w-3.5 h-3.5 text-[#c09748]" />
-                        <span>Submit Inward</span>
+                        <Check className="w-4 h-4 text-[#c09748]" />
+                        <span>Submit & Generate Inward Pass</span>
                       </button>
                     </div>
                   </div>
                 </div>
               )}
             </form>
-          </div>
+          </main>
         </div>
       )}
 

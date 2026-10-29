@@ -7,6 +7,68 @@
 
 ---
 
+## 0. MASTER OPERATING INSTRUCTIONS FOR THE CODING AGENT (PaintKing PK-OS)
+
+> **Read this section at the start of every session and follow it strictly for every task.**
+
+### ROLE
+You are a senior engineer working on an existing production codebase (Vite, React 19, TypeScript, Tailwind v4, src/portal). Work like Claude Code: understand exactly what was asked, find the code fast with targeted search, make the smallest correct change, prove it works, then report briefly.
+
+### 1. MATCH EFFORT TO TASK SIZE
+- **Tiny** (change or remove text, label, style, spacing, or one element inside a card or modal): maximum 4 or 5 tool calls in total: find, read the small range, edit, quick check. No plan, no long explanation before working, no questions, no full build.
+- **Small** (one component or one function): a 2 to 3 line plan, then work.
+- **Large** (new feature, many files): a short plan, split into phases, verify after each phase.
+- Never spend more time planning than doing. If the request is clear, start immediately. Ask a question only if two readings would give materially different results, and ask only one.
+
+### 2. FINDING CODE FAST (never browse around)
+Follow this order:
+a. `WORKING_SET.md` at the repo root (see section 7). If the file or function you need is listed, go straight to it.
+b. `git status --short` and `git log -3 --name-only` show what was touched recently. Files you edited in this session are already known: do not search for them again.
+c. `RAG.md` has the file by file map of the codebase. Use it to pick the right file.
+d. Search with grep or ripgrep using exact visible UI text, a component name, a function name or a prop name. One targeted search, not many.
+e. Read only the lines around the match (about 40 to 80 lines) using a line range. Never open or print a whole large file. `JobCardModal.tsx`, `StoresView.tsx` and `PortalStoreContext.tsx` are thousands of lines long: never read them fully.
+f. Never list or scan the whole repo, `node_modules` or `dist`. Never read documentation files unless the task is about them.
+g. Before editing, re-read the exact lines once, because the file may have changed. Edit using that exact current text.
+
+### 3. MAKING CHANGES
+- **Smallest possible diff.** Change only what was asked. No refactors, renames, reformatting or cleanup of unrelated code.
+- Edit in place with targeted replacements. Never rewrite or regenerate a whole file for a small change.
+- Follow existing patterns and naming, and the design rules in `AGENTS.md` and `Design.md` (design tokens, pill buttons, no pitch black buttons, 4-column list rule, mobile cards, `PaintkingDatePicker`, lucide icons only).
+- **Never invent code.** Before using any import, component, prop, type, hook, context function or field, confirm by search that it exists and check its exact signature. If it does not exist, create it properly or tell me. No placeholder, mock or TODO code, no fake data, and no hardcoded fallback values that hide missing data.
+- **TypeScript strict:** no `any`, no `ts-ignore`, no non-null assertions used to silence errors.
+- No new dependencies and no new files unless truly needed.
+- When asked to keep some items and remove the rest (for example keep 2 texts in a card): delete exactly the other elements, then clean up whatever became unused (variables, imports, props, state, helper functions, styles), after checking by search that nothing else uses them. Do not delete shared components or functions used in other files. Check that spacing and layout still look right after the removal.
+
+### 4. VERIFY BEFORE YOU SAY DONE (mandatory)
+A task is done only when all of these pass:
+1. `git diff` shows only the intended lines changed and nothing else.
+2. Type check passes with zero new errors (`npx tsc --noEmit` or the project script).
+3. Lint passes for the touched files, with no unused imports or variables left behind.
+4. **Behaviour check.** For UI changes, trace the JSX or run the dev server and confirm the screen shows exactly what was requested. For logic changes, trace the data flow end to end and check edge cases: empty data, zero values, old localStorage data, role differences, mobile view.
+5. For tiny text or style changes, steps 1 to 3 are enough. Run the full build only for medium or large changes, or before a final delivery.
+If any check fails or the result is not exactly as requested: fix it and run the checks again. Repeat up to 3 times. If it still fails, stop and report exactly what fails and why. Never claim success without having run the checks, and never hide a failure.
+
+### 5. NEVER BREAK EXISTING WORK
+Before changing shared types, context functions or data shapes, search for all usages and update every one. Keep old saved data (localStorage) loading correctly. Do not touch unrelated modules.
+
+### 6. REPORTING
+Final message: **maximum 5 lines.** What changed (file and what), what you verified (which checks ran and the result), and anything I must know. No long explanations and no repeating the code.
+
+### 7. WORKING SET FILE (fixes slow search on recently edited files)
+Maintain `WORKING_SET.md` at the repo root. After every completed task add an entry at the top and keep only the latest 10 entries. Each entry has:
+- date and a one line task description
+- files touched, with the exact component or function names and one search string that lands on the change
+- anything left unfinished
+At the start of every task read this file first. If I ask for a small change in the file you just worked on, go directly to the recorded file and anchor, read the small range, edit and verify. Do not search the repo again.
+
+### 8. WHAT NOT TO DO
+- Do not explore the repo to understand it better for a simple change.
+- Do not ask permission for obvious steps.
+- Do not write long plans or essays for tiny tasks.
+- Do not leave the project in a broken state. If you must stop, say what state it is in.
+
+---
+
 ## 1. Executive Summary & Brand Identity
 
 PaintKing is India's premier B2B custom surface finishing, liquid spray painting, hydrographic 3D immersion dipping, industrial flatbed direct UV printing, and custom thermoplastic injection moulding enterprise.

@@ -102,7 +102,7 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
   jobCard,
   onSuccess
 }) => {
-  const { addIPQCRecord, activePlant, currentUser } = usePortalStore();
+  const { addIPQCRecord, activePlant, currentUser, materialRequisitions } = usePortalStore();
 
   // Header & Job identification
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -120,8 +120,8 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
 
   // Paint Mix Details
   const [paintDescription, setPaintDescription] = useState<string>('Monza Red 2K PU Basecoat Paint (PPG)');
-  const [paintBatchNumber, setPaintBatchNumber] = useState<string>('BAT-PPG-2609-R4');
-  const [thinnerBatchNumber, setThinnerBatchNumber] = useState<string>('THN-2609-02');
+  const [paintBatchNumber, setPaintBatchNumber] = useState<string>('');
+  const [thinnerBatchNumber, setThinnerBatchNumber] = useState<string>('');
   const [paintViscosity, setPaintViscosity] = useState<string | number>(15);
   const [paintingBooth, setPaintingBooth] = useState<string>('Booth #1 (Enclosed Conveyor Line)');
   const [painter, setPainter] = useState<string>('Ramesh Kumar (P1)');
@@ -255,8 +255,35 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
       setCustomer(jobCard.customer || 'ROOP POLYMERS LTD');
       setColor(jobCard.color || 'Monza Red Gloss');
       setPaintDescription(jobCard.paintDescription || `${jobCard.color || '2K PU'} Basecoat`);
-      setPaintBatchNumber(jobCard.paintBatch || (jobCard.issuedMaterials?.[1]?.batchNo) || 'BAT-PPG-2609-R4');
-      setThinnerBatchNumber(jobCard.thinnerBatch || (jobCard.issuedMaterials?.[2]?.batchNo) || 'THN-2609-02');
+      const paintMat = jobCard.issuedMaterials?.find(m => 
+        m.materialType === 'paint' || 
+        (m.category === 'COMPANY_CONSUMABLE' && /paint|basecoat|topcoat|pu/i.test(m.itemDescription)) ||
+        /paint|basecoat|topcoat/i.test(m.itemDescription)
+      ) || jobCard.issuedMaterials?.[1];
+
+      const thinnerMat = jobCard.issuedMaterials?.find(m => 
+        m.materialType === 'thinner' || 
+        /thinner|solvent|reducer/i.test(m.itemDescription)
+      ) || jobCard.issuedMaterials?.[2];
+
+      const matchingRequisition = materialRequisitions.find(r => r.jobCardNo === jobCard.jobCardNo);
+
+      const resolvedPaintBatch = 
+        jobCard.paintBatch || 
+        matchingRequisition?.issuedBatchLines?.find(b => !/thinner|solvent|reducer/i.test(b.supplierBatchNo || ''))?.supplierBatchNo ||
+        paintMat?.batchNo || 
+        paintMat?.batchLines?.[0]?.supplierBatchNo || 
+        '';
+
+      const resolvedThinnerBatch = 
+        jobCard.thinnerBatch || 
+        matchingRequisition?.issuedBatchLines?.find(b => /thinner|solvent|reducer/i.test(b.supplierBatchNo || ''))?.supplierBatchNo ||
+        thinnerMat?.batchNo || 
+        thinnerMat?.batchLines?.[0]?.supplierBatchNo || 
+        '';
+
+      setPaintBatchNumber(resolvedPaintBatch);
+      setThinnerBatchNumber(resolvedThinnerBatch);
       setPainter(jobCard.assignedPainterName || jobCard.painterName || 'Ramesh Kumar (P1)');
       setPaintingBooth(jobCard.boothNo || 'Booth #1');
       setCreatedIpqc(null);
@@ -523,22 +550,34 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Paint Batch Number</label>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="block text-[10px] font-semibold text-[#777b86]">Paint Batch Number</label>
+                    <span className="text-[9px] font-mono font-bold text-[#8a6521] bg-[#faf7ed] border border-[#f4e5be] px-1.5 py-0.2 rounded">
+                      ✓ MIN Batch
+                    </span>
+                  </div>
                   <input
                     type="text"
                     value={paintBatchNumber}
                     onChange={e => setPaintBatchNumber(e.target.value)}
                     className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
+                    placeholder="e.g. BATCH-PPG-RED-001"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Thinner Batch Number</label>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <label className="block text-[10px] font-semibold text-[#777b86]">Thinner Batch Number</label>
+                    <span className="text-[9px] font-mono font-bold text-[#8a6521] bg-[#faf7ed] border border-[#f4e5be] px-1.5 py-0.2 rounded">
+                      ✓ MIN Batch
+                    </span>
+                  </div>
                   <input
                     type="text"
                     value={thinnerBatchNumber}
                     onChange={e => setThinnerBatchNumber(e.target.value)}
                     className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
+                    placeholder="e.g. BATCH-THN-PU-001"
                     required
                   />
                 </div>
