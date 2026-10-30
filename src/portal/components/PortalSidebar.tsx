@@ -137,10 +137,7 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       badgeColor: 'bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521]',
       roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION'],
       subItems: [
-        { label: 'All Job Cards (Master & Child)', subTab: 'ALL' },
-        { label: 'Master Batches (Doc No: 001)', subTab: 'MASTER' },
-        { label: '3-Painter Splits (P1 / P2 / P3)', subTab: 'PAINTERS' },
-        { label: 'Rework & Salvage Recovery', subTab: 'REWORK' },
+        { label: 'All Job Cards', subTab: 'ALL' },
         { label: 'Store Demands & Arriving (MRN)', subTab: 'REQUISITIONS' },
         { label: 'Painting Lines & Spray Booth Fleet', subTab: 'BOOTH_FLEET' }
       ]
@@ -391,10 +388,10 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
                       )}
                     </div>
                     {/* Clear, dedicated subtitle row - never cluttered */}
-                    <div className="text-[10px] text-[#777b86] font-mono leading-tight mt-0.5 truncate">
+                    <div className="text-[10px] text-[#777b86] font-mono leading-tight mt-0.5 truncate flex items-center gap-1">
                       <span className="font-semibold text-[#8a6521]">{item.docCode}</span>
-                      <span className="mx-1 text-gray-300">•</span>
-                      <span>{item.subtitle}</span>
+                      <span className="inline-block w-1 h-1 rounded-full bg-gray-300 shrink-0" />
+                      <span className="truncate">{item.subtitle}</span>
                     </div>
                   </div>
                 </div>
@@ -470,11 +467,15 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       {/* ISO QMS Standard Footer in Sidebar */}
       <div className="p-3.5 border-t border-[#ececec] bg-[#fafafb] text-[10px] text-[#777b86] font-mono space-y-1">
         <div className="flex items-center justify-between">
-          <span className="text-[#17191c] font-semibold">Controlled QMS • Rev 00</span>
+          <span className="text-[#17191c] font-semibold flex items-center gap-1.5">
+            <span>Controlled QMS</span>
+            <span className="inline-block w-1 h-1 rounded-full bg-gray-300 shrink-0" />
+            <span>Rev 00</span>
+          </span>
           <span className="text-[#c09748] font-bold">{activePlant}</span>
         </div>
         <div className="flex items-center justify-between text-[9px]">
-          <span className="text-[#777b86]">Day Shift (08:30–18:30)</span>
+          <span className="text-[#777b86]">Day Shift (08:30 - 18:30)</span>
           <span className={`px-1.5 py-0.2 rounded-full font-bold ${
             isPlantDayClosed ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-800'
           }`}>

@@ -4,6 +4,101 @@
 
 ---
 
+### [2026-10-30] Removed Redundant 'Rework & Salvage' Tab & Sidebar Sub-Item
+- **Task:** Removed 'Rework & Salvage' tab from JobCardsView.tsx and sub-item from PortalSidebar.tsx. Direct shop-floor rework is performed directly without generating separate child paperwork, simplifying the production header tabs.
+- **Files Touched:**
+  - `src/portal/views/JobCardsView.tsx` (Component: `JobCardsView`) | Anchor: `activeTab === 'ALL'`
+  - `src/portal/components/PortalSidebar.tsx` (Component: `PortalSidebar`) | Anchor: `Store Demands & Arriving (MRN)`
+- **Unfinished:** None.
+
+---
+
+### [2026-10-30] Removed Redundant '3-Painter Splits' Tab & Sidebar Sub-Item
+- **Task:** Removed '3-Painter Splits' tab from JobCardsView.tsx and sub-item from PortalSidebar.tsx. Since painters and target quantities are planned directly at Job Card creation time, individual painter splits are redundant.
+- **Files Touched:**
+  - `src/portal/views/JobCardsView.tsx` (Component: `JobCardsView`) | Anchor: `handleSelectTab`
+  - `src/portal/components/PortalSidebar.tsx` (Component: `PortalSidebar`) | Anchor: `Rework & Salvage Recovery`
+- **Unfinished:** None.
+
+---
+
+### [2026-10-30] Moved 'Showing X of Y Cards' Count to Top-Right of Job Cards List
+- **Task:** Repositioned the 'Showing X of Y Cards' indicator to the top right of the Job Cards list grid header alongside the 'Reset Filters' trigger. Converted the filter bar into a clean single-row search & dropdown toolbar.
+- **Files Touched:**
+  - `src/portal/views/JobCardsView.tsx` (Component: `JobCardsView`) | Anchor: `Showing <strong className="text-[#17191c] font-mono font-bold">{filteredCards.length}</strong>`
+- **Unfinished:** None.
+
+---
+
+### [2026-10-30] Removal of Redundant 'Master Batches' Tab & Header Button Cleanup
+- **Task:** Removed the redundant 'Master Batches' tab from `JobCardsView.tsx` and `PortalSidebar.tsx`. Plant Head Priorities tab already handles master order priorities and job card creation/allocation. Simplified header button from '+ Create Master Job Card (Doc No: 001)' to '+ Create Job Card'.
+- **Files Touched:**
+  - `src/portal/views/JobCardsView.tsx` (Component: `JobCardsView`) | Anchor: `activeTab === 'ALL'`
+  - `src/portal/components/PortalSidebar.tsx` (Component: `PortalSidebar`) | Anchor: `All Job Cards`
+- **Unfinished:** None.
+
+---
+
+### [2026-10-30] Minimalist Job Card List Redesign (Anti-Clutter / Cognitive Ease)
+- **Task:** Transformed heavy ~1,000-line per-card list view in `JobCardsView.tsx` into a high-scannability, minimal card. Removed embedded redundant ledgers, 10+ sub-buttons, and stage receipts from the card preview while keeping high-level order & painter metrics, shift/PO progress, PIR/FPA gate badges, and prominent gold-pill 'View Job Card' trigger opening the full-page modal (`JobCardModal.tsx`).
+- **Files Touched:**
+  - `src/portal/views/JobCardsView.tsx` (Component: `JobCardsView`) | Anchor: `minimal_job_card_list_view`
+- **Unfinished:** None.
+
+---
+
+### [2026-10-30] Floor-to-Store Balance Material Return Slips (RTN) Handshake Verification
+- **Task:** Verified and connected full Floor-to-Store material return workflow: painters/supervisors can return unpainted customer pieces (`Pcs`) and leftover chemicals (`Litres`) from `BalanceReturnModal.tsx` into a Return Slip (`RTN-2026-xxx`) with status `Pending Store Verification`. The slip appears directly in `StoresView.tsx` under the 'Returns (RTN)' desk with 1-click 'Verify & Restock' into origin batches.
+- **Files Touched:**
+  - `src/portal/components/BalanceReturnModal.tsx` (Component: `BalanceReturnModal`) | Anchor: `rtn_substrate_line`
+  - `src/portal/context/PortalStoreContext.tsx` (Context: `createBalanceReturnSlip`) | Anchor: `createBalanceReturnSlip`
+- **Unfinished:** None.
+
+---
+
+### [2026-10-30] Strictly Company Chemical Consumables in Job Card Materials Table
+- **Task:** Purged Party Substrate pieces (`Pcs`) from Company Issued Materials table across `JobCardModal.tsx`, `JobCardsView.tsx`, and `mockInitialData.ts`. The table now exclusively tracks Company Consumables (Paints, Thinners, Hardeners, Clear Coats in Litres/Kgs), while customer pieces are tracked stage-by-stage in the Process Output Tracker.
+- **Files Touched:**
+  - `src/portal/components/JobCardModal.tsx` (Component: `JobCardModal`) | Anchor: `sanitizeCompanyMaterials`
+  - `src/portal/views/JobCardsView.tsx` (Component: `JobCardsView`) | Anchor: `handleRequestFromSpecificStock`
+  - `src/portal/data/mockInitialData.ts` (Mock data) | Anchor: `mat_smp_2`
+- **Unfinished:** None.
+
+---
+
+### [2026-10-30] Full-Page Job Card Modal: Date Filter & Daily Material Issue/Usage Tracking
+- **Task:** Upgraded full-page Job Card detail modal (`JobCardModal.tsx`): added interactive Working Date & Shift Filter (`ALL` and individual dates), Day's shift production summary, upgraded materials table displaying Store Issued, Actual Consumed, and Floor Balance, and added direct 'Update Usage' action modal to log chemical consumption on the floor.
+- **Files Touched:**
+  - `src/portal/components/JobCardModal.tsx` (Component: `JobCardModal`) | Anchor: `Production Date & Shift Filter`
+- **Unfinished:** None.
+
+---
+
+### [2026-10-30] Always-Visible Daily Target & Company Consumables Chemical Tracking
+- **Task:** Added always-visible Daily Target Quota section across all Job Cards and implemented comprehensive Company Consumables Floor Usage Ledger (2K Basecoat Paint, PU Thinner, Hardener, Clear Lacquer) tracking Issued, Consumed, Floor Balance, and batch usage logging.
+- **Files Touched:**
+  - `src/portal/types/portalTypes.ts` (Interface: `IssuedMaterialItem`) | Anchor: `consumedQty?: number`
+  - `src/portal/data/mockInitialData.ts` (Mock: `INITIAL_JOB_CARDS`) | Anchor: `dailyTargetQty: 1000`
+  - `src/portal/context/PortalStoreContext.tsx` (Context: `updateJobCardProgress`) | Anchor: `consumablesUsage`
+  - `src/portal/views/JobCardsView.tsx` (Component: `JobCardsView`) | Anchor: `Company Consumables Floor Usage Ledger`
+- **Unfinished:** None.
+
+---
+
+### [2026-10-30] Daily Production Target & Multi-Day Quota Issuance + Mojibake Encoding Fix
+- **Task:** 100% completed Daily Production Target system: separated Total PO Target from Today's Shift Quota, auto-calculated daily company consumables (paints/thinners), zero rework tracking (rejection is strictly permanent dead scrap), dual-progress metrics, Next Day Quota Requisition modal, and eliminated all character encoding mojibake (`ÃfÂ¢...` & `â€¢`) using pure CSS indicator dots.
+- **Files Touched:**
+  - `src/portal/types/portalTypes.ts` (Interface: `JobCardDailyTargetRecord`, `JobCard`) | Anchor: `dailyTargetQty?: number`
+  - `src/portal/components/JobCardModal.tsx` (Component: `JobCardModal`) | Anchor: `Today's Production Target (Shift Quota)`
+  - `src/portal/context/PortalStoreContext.tsx` (Context: `PortalStoreContext`) | Anchor: `requestNextDayTarget`
+  - `src/portal/views/JobCardsView.tsx` (Component: `JobCardsView`) | Anchor: `Request Next Day Quota`
+  - `src/portal/views/StoresView.tsx` (Component: `StoresView`) | Anchor: `PK-STR-GRN-001 | STORES & INWARD DESK`
+  - `src/portal/components/PortalSidebar.tsx` (Component: `PortalSidebar`) | Anchor: `item.docCode`
+  - `index.html` (Title meta) | Anchor: `PaintKing | Premium Industrial Coating`
+- **Unfinished:** None.
+
+---
+
 ### [2026-10-29] Automated 20:45 Floor Cutoff Material Return Slips (RTN)
 - **Task:** Implemented 20:45 floor cutoff return auto-reconciliation (15-min transit before 21:00 plant close); calculates unconsumed pieces (Issued - Sprayed) and generates RTN slips with 1-click 'Verify & Restock' in Stores Returns.
 - **Files Touched:**
@@ -76,15 +171,6 @@
 - **Task:** Removed Driver Phone No, GST E-Way Bill No, Purchase Order (PO), and Total Packages / Boxes from Inward Gate Pass Part 1.
 - **Files Touched:**
   - `src/portal/views/GatePassView.tsx` (Component: `GatePassView`) | Anchor: `Point 2: Supplier Challan & Vehicle Logistics`
-- **Unfinished:** None.
-
----
-
-### [2026-10-29] Master Operating Instructions Integration
-- **Task:** Added Master Operating Instructions (PK-OS) to `AGENTS.md` and initialized `WORKING_SET.md`.
-- **Files Touched:**
-  - `AGENTS.md` (Section `## 0. MASTER OPERATING INSTRUCTIONS`) | Anchor: `MASTER OPERATING INSTRUCTIONS FOR THE CODING AGENT`
-  - `WORKING_SET.md` (Repo root tracker)
 - **Unfinished:** None.
 
 

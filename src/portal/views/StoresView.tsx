@@ -635,7 +635,7 @@ export const StoresView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
             <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-              PK-STR-GRN-001 • STORES & INWARD DESK
+              PK-STR-GRN-001 | STORES & INWARD DESK
             </span>
             <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#17191c] text-[10px] font-semibold flex items-center gap-1">
               <User className="w-3 h-3 text-[#777b86]" />
@@ -1267,16 +1267,19 @@ export const StoresView: React.FC = () => {
                           {req.customer}
                         </span>
                         {req.partCode && (
-                          <span className="text-xs text-[#777b86]">
-                            • Part: <strong className="font-mono text-[#8a6521]">{req.partCode}</strong>
+                          <span className="text-xs text-[#777b86] inline-flex items-center gap-1.5">
+                            <span className="inline-block w-1 h-1 rounded-full bg-gray-400 shrink-0" />
+                            <span>Part: <strong className="font-mono text-[#8a6521]">{req.partCode}</strong></span>
                           </span>
                         )}
                       </div>
 
                       {/* Timestamp & Status Badge */}
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-mono text-[#a3a6af] hidden sm:inline">
-                          {req.date} • {req.time} ({req.plant})
+                        <span className="text-[11px] font-mono text-[#a3a6af] hidden sm:inline-flex items-center gap-1.5">
+                          <span>{req.date}</span>
+                          <span className="inline-block w-1 h-1 rounded-full bg-gray-300 shrink-0" />
+                          <span>{req.time} ({req.plant})</span>
                         </span>
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs border ${
@@ -1302,8 +1305,9 @@ export const StoresView: React.FC = () => {
                         <div className="flex flex-wrap items-center gap-2">
                           <h4 className="font-semibold text-sm text-[#17191c]">{req.partDescription}</h4>
                           {req.colorName && (
-                            <span className="text-xs text-[#777b86] font-medium">
-                              • Shade: <strong className="text-[#17191c]">{req.colorName}</strong>
+                            <span className="text-xs text-[#777b86] font-medium inline-flex items-center gap-1.5">
+                              <span className="inline-block w-1 h-1 rounded-full bg-gray-400 shrink-0" />
+                              <span>Shade: <strong className="text-[#17191c]">{req.colorName}</strong></span>
                             </span>
                           )}
                         </div>
@@ -1390,8 +1394,10 @@ export const StoresView: React.FC = () => {
                           {req.urgency}
                         </span>
                       </div>
-                      <span className="text-[11px] font-mono text-[#a3a6af]">
-                        Plant: {req.plant} • {req.date}
+                      <span className="text-[11px] font-mono text-[#a3a6af] inline-flex items-center gap-1.5">
+                        <span>Plant: {req.plant}</span>
+                        <span className="inline-block w-1 h-1 rounded-full bg-gray-300 shrink-0" />
+                        <span>{req.date}</span>
                       </span>
                     </div>
                   </div>
@@ -1453,8 +1459,10 @@ export const StoresView: React.FC = () => {
                         <td className="p-3">
                           <div className="font-mono font-bold text-[#c09748]">{slip.slipNo}</div>
                           <div className="text-[11px] text-[#777b86]">{slip.date}</div>
-                          <div className="text-[10px] text-[#a3a6af] font-mono mt-0.5">
-                            GRN: {slip.grnNo} • {slip.jobCardId}
+                          <div className="text-[10px] text-[#a3a6af] font-mono mt-0.5 flex items-center gap-1.5">
+                            <span>GRN: {slip.grnNo}</span>
+                            <span className="inline-block w-1 h-1 rounded-full bg-gray-300 shrink-0" />
+                            <span>{slip.jobCardId}</span>
                           </div>
                         </td>
                         <td className="p-3">
@@ -1672,8 +1680,10 @@ export const StoresView: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#f2f2f3]">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase font-bold tracking-wider">
-                    IQC PASSED • AWAITING STORE INTAKE
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase font-bold tracking-wider flex items-center gap-1.5">
+                    <span>IQC PASSED</span>
+                    <span className="inline-block w-1 h-1 rounded-full bg-[#c09748] shrink-0" />
+                    <span>AWAITING STORE INTAKE</span>
                   </span>
                   <span className="text-xs text-[#777b86]">
                     Quality passed lots ready for official store intake & GRN generation
@@ -1964,7 +1974,7 @@ export const StoresView: React.FC = () => {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-[#ececec]">
                   <div className="flex items-center gap-2 text-xs text-[#777b86] flex-wrap">
                     <span>Store Incharge: <strong className="text-[#17191c]">{grn.storeIncharge}</strong></span>
-                    <span>•</span>
+                    <span className="inline-block w-1 h-1 rounded-full bg-gray-300 shrink-0" />
                     <span>Quality Approved: <strong className="text-emerald-800">{grn.qualityApprovedBy || 'Amit Verma (QA)'}</strong></span>
                   </div>
 
@@ -2068,8 +2078,9 @@ export const StoresView: React.FC = () => {
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
                       Floor Cutoff: 20:45 (8:45 PM)
                     </span>
-                    <span className="text-[11px] text-[#777b86]">
-                      • 15-Minute Floor Transit Window
+                    <span className="text-[11px] text-[#777b86] flex items-center gap-1">
+                      <span className="inline-block w-1 h-1 rounded-full bg-gray-400 shrink-0" />
+                      <span>15-Minute Floor Transit Window</span>
                     </span>
                   </div>
                   <p className="text-[11px] text-[#777b86] mt-0.5">
@@ -2173,8 +2184,10 @@ export const StoresView: React.FC = () => {
                           <div className="text-[11px] text-[#777b86]">{slip.date} {slip.time}</div>
                           <div className="text-[10px] font-mono text-gray-400">{slip.plant} Plant</div>
                           {isAuto && (
-                            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
-                              Auto 20:45 Cutoff • 15m Window
+                            <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                              <span>Auto 20:45 Cutoff</span>
+                              <span className="inline-block w-1 h-1 rounded-full bg-[#c09748] shrink-0" />
+                              <span>15m Window</span>
                             </span>
                           )}
                         </td>
@@ -2195,7 +2208,8 @@ export const StoresView: React.FC = () => {
                                 </div>
                                 <div className="flex items-center gap-2 text-[10px] text-[#777b86] mt-0.5">
                                   <span>Batch: <strong className="font-mono text-[#17191c]">{line.supplierBatchNo || line.batchId}</strong></span>
-                                  <span>• Claimed: {line.returnedQtyClaimed}</span>
+                                  <span className="inline-block w-1 h-1 rounded-full bg-gray-300 shrink-0" />
+                                  <span>Claimed: {line.returnedQtyClaimed}</span>
                                   {line.variance !== 0 && (
                                     <span className="text-rose-700 font-bold font-mono">
                                       Var: {line.variance > 0 ? `+${line.variance}` : line.variance} {line.uom}
@@ -2305,8 +2319,10 @@ export const StoresView: React.FC = () => {
                         <div className="font-bold text-sm text-[#17191c]">{slip.jobCardNo}</div>
                         <div className="text-[11px] text-[#777b86]">MIN: {slip.minNo}</div>
                         {isAuto && (
-                          <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
-                            Auto 20:45 Cutoff • 15m Window
+                          <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                            <span>Auto 20:45 Cutoff</span>
+                            <span className="inline-block w-1 h-1 rounded-full bg-[#c09748] shrink-0" />
+                            <span>15m Window</span>
                           </span>
                         )}
                       </div>
@@ -3019,8 +3035,10 @@ export const StoresView: React.FC = () => {
               {/* Card 6 */}
               <div className="p-3.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] space-y-1">
                 <span className="text-[10px] font-semibold text-[#777b86] uppercase tracking-wider block">20% AQL Sampling</span>
-                <div className="font-mono font-bold text-xs text-emerald-800">
-                  {selectedPendingJobForView.aqlSampleChecked || 50} Sampled • 0 Defect
+                <div className="font-mono font-bold text-xs text-emerald-800 flex items-center gap-1.5">
+                  <span>{selectedPendingJobForView.aqlSampleChecked || 50} Sampled</span>
+                  <span className="inline-block w-1 h-1 rounded-full bg-emerald-600 shrink-0" />
+                  <span>0 Defect</span>
                 </div>
                 <div className="text-[11px] text-emerald-700 font-medium">Within IATF Standard Norms</div>
               </div>
@@ -3081,8 +3099,12 @@ export const StoresView: React.FC = () => {
                                 {itQty} {item.unit || selectedPendingJobForView.uom}
                               </td>
                               <td className="p-3 text-center">
-                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                  {sSize} Sampled • {rQty} Defect • Pass
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1.5">
+                                  <span>{sSize} Sampled</span>
+                                  <span className="inline-block w-1 h-1 rounded-full bg-emerald-600 shrink-0" />
+                                  <span>{rQty} Defect</span>
+                                  <span className="inline-block w-1 h-1 rounded-full bg-emerald-600 shrink-0" />
+                                  <span>Pass</span>
                                 </span>
                               </td>
                               <td className="p-3 text-right text-[11px] text-[#777b86]">

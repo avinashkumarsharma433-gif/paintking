@@ -242,6 +242,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     initialData?.partDescription || 'Auto AC Center Vent Bezel Substrate (ABS)'
   );
   const [targetQty, setTargetQty] = useState<number>(initialData?.targetQty || 250);
+  const [dailyTargetQty, setDailyTargetQty] = useState<number>(() => {
+    if (initialData?.dailyTargetQty) return initialData.dailyTargetQty;
+    const t = initialData?.targetQty || 250;
+    return t > 1000 ? Math.min(2000, t) : t;
+  });
   const [batchColor, setBatchColor] = useState<string>(initialData?.color || 'Monza Red Gloss');
 
   // =========================================================================
@@ -282,9 +287,31 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   // =========================================================================
   // POINT 4: Company Issued Materials Table (Paints & Thinners)
   // =========================================================================
+  // Helper to extract strictly company consumables (excluding party raw substrates)
+  const sanitizeCompanyMaterials = (items?: IssuedMaterialItem[], targetSubstrateDesc?: string) => {
+    if (!items || items.length === 0) return [];
+    const partDescLower = (targetSubstrateDesc || '').toLowerCase().trim();
+    return items.filter(item => {
+      const uomLower = (item.uom || '').toLowerCase().trim();
+      const descLower = (item.itemDescription || '').toLowerCase().trim();
+      const isParty = 
+        item.category === 'PARTY_MATERIAL' || 
+        item.materialType === 'substrate' || 
+        uomLower === 'pcs' || 
+        uomLower === 'pieces' || 
+        uomLower === 'nos' ||
+        (partDescLower && descLower.includes(partDescLower)) ||
+        (descLower.includes('substrate') && !descLower.includes('paint') && !descLower.includes('primer')) ||
+        (descLower.includes('bezel') && !descLower.includes('paint') && !descLower.includes('primer'));
+      return !isParty;
+    });
+  };
+
   const [issuedMaterials, setIssuedMaterials] = useState<IssuedMaterialItem[]>(() => {
-    if (initialData?.issuedMaterials && initialData.issuedMaterials.length > 0) {
-      return initialData.issuedMaterials;
+    const rawList = initialData?.issuedMaterials;
+    const sanitized = sanitizeCompanyMaterials(rawList, initialData?.partDescription);
+    if (sanitized.length > 0) {
+      return sanitized;
     }
     const basePcs = initialData?.targetQty || 250;
     const estPaintLitres = Math.max(1, Math.ceil((basePcs / 500) * 8));
@@ -295,6 +322,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
         materialType: 'paint',
         category: 'COMPANY_CONSUMABLE',
         qty: estPaintLitres,
+        consumedQty: 0,
+        floorBalanceQty: estPaintLitres,
         colour: initialData?.color || 'Monza Red Gloss',
         uom: 'Litres',
         remark: 'Mix ratio 4:1:1'
@@ -305,6 +334,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
         materialType: 'thinner',
         category: 'COMPANY_CONSUMABLE',
         qty: Math.max(1, Math.ceil(estPaintLitres * 0.4)),
+        consumedQty: 0,
+        floorBalanceQty: Math.max(1, Math.ceil(estPaintLitres * 0.4)),
         colour: 'Clear',
         uom: 'Litres',
         remark: 'Viscosity control solvent'
@@ -315,6 +346,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
         materialType: 'hardener',
         category: 'COMPANY_CONSUMABLE',
         qty: Math.max(1, Math.ceil(estPaintLitres * 0.25)),
+        consumedQty: 0,
+        floorBalanceQty: Math.max(1, Math.ceil(estPaintLitres * 0.25)),
         colour: 'Clear',
         uom: 'Litres',
         remark: 'Reaction curing agent'
@@ -325,6 +358,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
         materialType: 'clear_coat',
         category: 'COMPANY_CONSUMABLE',
         qty: Math.max(1, Math.ceil(basePcs / 200)),
+        consumedQty: 0,
+        floorBalanceQty: Math.max(1, Math.ceil(basePcs / 200)),
         colour: 'Clear Gloss',
         uom: 'Litres',
         remark: 'Protective topcoat layer'
@@ -353,6 +388,16 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
 
   // Dedicated Audit Trail Popup Modal state
   const [showAuditLogsModal, setShowAuditLogsModal] = useState<boolean>(false);
+
+  // =========================================================================
+  // DAILY PRODUCTION TRACKING & CONSUMABLES USAGE STATE
+  // =========================================================================
+  const [selectedProductionDate, setSelectedProductionDate] = useState<string>('ALL');
+  const [selectedMatForUsage, setSelectedMatForUsage] = useState<IssuedMaterialItem | null>(null);
+  const [usageConsumedInput, setUsageConsumedInput] = useState<number>(0);
+  const [usageRemarkInput, setUsageRemarkInput] = useState<string>('');
+  const [showUsageModal, setShowUsageModal] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Previously used shades from system history + standard factory tones
   const historicalColors = useMemo(() => {
@@ -569,6 +614,10 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       itemDescription: newMatDesc.trim(),
       qty: newMatQty,
       uom: newMatUom,
+      category: 'COMPANY_CONSUMABLE',
+      materialType: 'consumable',
+      consumedQty: 0,
+      floorBalanceQty: newMatQty,
       colour: newMatColour.trim() || 'Clear',
       remark: newMatRemark.trim() || 'Additional floor issue to painter'
     };
@@ -636,6 +685,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       partDescription,
       color: batchColor,
       targetQty,
+      dailyTargetQty,
+      dailyIssuedQty: dailyTargetQty,
       sprayedQty: currentGoodQty + currentRejectQty,
       goodQty: currentGoodQty,
       rejectQty: currentRejectQty,
@@ -665,7 +716,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       if (initialData.customer) setCustomer(initialData.customer);
       if (initialData.partCode) setPartCode(initialData.partCode);
       if (initialData.partDescription) setPartDescription(initialData.partDescription);
-      if (initialData.targetQty) setTargetQty(initialData.targetQty);
+      if (initialData.targetQty) {
+        setTargetQty(initialData.targetQty);
+        setDailyTargetQty(initialData.dailyTargetQty || (initialData.targetQty > 1000 ? Math.min(2000, initialData.targetQty) : initialData.targetQty));
+      }
+      if (initialData.dailyTargetQty) setDailyTargetQty(initialData.dailyTargetQty);
       if (initialData.color) setBatchColor(initialData.color);
       if (initialData.woNo) setWNo(initialData.woNo);
       if (initialData.wNo) setWNo(initialData.wNo);
@@ -684,7 +739,10 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       if (initialData.rejectQty !== undefined) setCurrentRejectQty(initialData.rejectQty);
       if (initialData.progressLogs) setLiveProgressLogs(initialData.progressLogs);
       if (initialData.issuedMaterials && initialData.issuedMaterials.length > 0) {
-        setIssuedMaterials(initialData.issuedMaterials);
+        const sanitized = sanitizeCompanyMaterials(initialData.issuedMaterials, initialData.partDescription);
+        if (sanitized.length > 0) {
+          setIssuedMaterials(sanitized);
+        }
       }
       if (initialData.deadlineDate) setDeadlineDate(initialData.deadlineDate);
       if (initialData.deadlineTime) setDeadlineTime(initialData.deadlineTime);
@@ -865,6 +923,151 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     const target = new Date(Date.now() + presetHours * 3600000);
     setDeadlineDate(target.toISOString().split('T')[0]);
     setDeadlineTime(target.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  };
+
+  // Extract all distinct working dates for this Job Card (for Date Filter)
+  const productionDates = useMemo(() => {
+    const dates = new Set<string>();
+    if (initialData?.issueDate) dates.add(initialData.issueDate);
+    if (initialData?.createdAt) dates.add(initialData.createdAt.split('T')[0]);
+    if (liveProgressLogs && liveProgressLogs.length > 0) {
+      liveProgressLogs.forEach(l => {
+        if (l.dateLabel) dates.add(l.dateLabel);
+        else if (l.timestamp) dates.add(l.timestamp.split('T')[0]);
+      });
+    }
+    if (initialData?.dailyProductionHistory && initialData.dailyProductionHistory.length > 0) {
+      initialData.dailyProductionHistory.forEach(d => {
+        if (d.date) dates.add(d.date);
+      });
+    }
+    const todayStr = new Date().toISOString().split('T')[0];
+    dates.add(todayStr);
+    return Array.from(dates).filter(Boolean).sort().reverse();
+  }, [initialData, liveProgressLogs]);
+
+  // Selected Date Breakdown Summary
+  const selectedDateSummary = useMemo(() => {
+    if (selectedProductionDate === 'ALL') return null;
+    const dateLogs = liveProgressLogs.filter(l => 
+      l.dateLabel === selectedProductionDate || 
+      (l.timestamp && l.timestamp.startsWith(selectedProductionDate))
+    );
+    const dayHistory = initialData?.dailyProductionHistory?.find(d => d.date === selectedProductionDate);
+    const dayCompleted = dateLogs.reduce((s, l) => s + (l.piecesCompleted || 0), 0) || dayHistory?.goodPieces || 0;
+    const dayRejects = dateLogs.reduce((s, l) => s + (l.reworkPieces || 0) + (l.scrapPieces || 0), 0) || dayHistory?.scrapPieces || 0;
+    const dayTarget = dayHistory?.dailyTarget || dailyTargetQty || (targetQty <= 1000 ? targetQty : 1000);
+    const dayReturned = dayHistory?.returnedPieces || 0;
+
+    return {
+      date: selectedProductionDate,
+      target: dayTarget,
+      completed: dayCompleted,
+      rejects: dayRejects,
+      returned: dayReturned,
+      achievement: dayTarget > 0 ? Math.min(100, Math.round((dayCompleted / dayTarget) * 100)) : 0
+    };
+  }, [selectedProductionDate, liveProgressLogs, initialData, dailyTargetQty, targetQty]);
+
+  // Only Company Consumables (Paints, Thinners, Hardeners, Clear Lacquers)
+  // Party Substrate components are tracked separately stage-by-stage in the live process tracker below
+  const companyMaterials = useMemo(() => {
+    const filtered = sanitizeCompanyMaterials(issuedMaterials, initialData?.partDescription || partDescription);
+    if (filtered.length > 0) return filtered;
+    // Default fallback if initialData only had raw substrate parts
+    const basePcs = targetQty || 250;
+    const estPaintLitres = Math.max(1, Math.ceil((basePcs / 500) * 8));
+    return [
+      {
+        id: 'mat_gen_paint',
+        itemDescription: `${batchColor} 2K PU Basecoat Paint (PPG)`,
+        qty: estPaintLitres,
+        colour: batchColor,
+        uom: 'Litres',
+        category: 'COMPANY_CONSUMABLE' as const,
+        materialType: 'paint' as const,
+        consumedQty: 0,
+        floorBalanceQty: estPaintLitres,
+        remark: 'Mix ratio 4:1:1'
+      },
+      {
+        id: 'mat_gen_thinner',
+        itemDescription: 'PU Thinner 400 Solvent',
+        qty: Math.max(1, Math.ceil(estPaintLitres * 0.4)),
+        colour: 'Clear',
+        uom: 'Litres',
+        category: 'COMPANY_CONSUMABLE' as const,
+        materialType: 'thinner' as const,
+        consumedQty: 0,
+        floorBalanceQty: Math.max(1, Math.ceil(estPaintLitres * 0.4)),
+        remark: 'Viscosity control solvent'
+      },
+      {
+        id: 'mat_gen_hardener',
+        itemDescription: '2K Scratch-Resistant Hardener',
+        qty: Math.max(1, Math.ceil(estPaintLitres * 0.25)),
+        colour: 'Clear',
+        uom: 'Litres',
+        category: 'COMPANY_CONSUMABLE' as const,
+        materialType: 'hardener' as const,
+        consumedQty: 0,
+        floorBalanceQty: Math.max(1, Math.ceil(estPaintLitres * 0.25)),
+        remark: 'Reaction curing agent'
+      }
+    ];
+  }, [issuedMaterials, targetQty, batchColor, initialData, partDescription]);
+
+  // Handle Update Material Usage on Floor
+  const handleOpenUpdateUsage = (mat: IssuedMaterialItem) => {
+    setSelectedMatForUsage(mat);
+    setUsageConsumedInput(mat.consumedQty !== undefined ? mat.consumedQty : 0);
+    setUsageRemarkInput(mat.remark || '');
+    setShowUsageModal(true);
+  };
+
+  const handleSaveMaterialUsage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedMatForUsage) return;
+    const newConsumed = Math.max(0, Number(usageConsumedInput));
+    const exists = issuedMaterials.some(m => m.id === selectedMatForUsage.id || m.itemDescription === selectedMatForUsage.itemDescription);
+    let updated: IssuedMaterialItem[];
+    if (exists) {
+      updated = issuedMaterials.map(m => {
+        if (m.id === selectedMatForUsage.id || m.itemDescription === selectedMatForUsage.itemDescription) {
+          return {
+            ...m,
+            consumedQty: newConsumed,
+            floorBalanceQty: Math.max(0, Number((m.qty - newConsumed).toFixed(2))),
+            remark: usageRemarkInput || m.remark
+          };
+        }
+        return m;
+      });
+    } else {
+      updated = [
+        ...issuedMaterials,
+        {
+          ...selectedMatForUsage,
+          consumedQty: newConsumed,
+          floorBalanceQty: Math.max(0, Number((selectedMatForUsage.qty - newConsumed).toFixed(2))),
+          remark: usageRemarkInput || selectedMatForUsage.remark
+        }
+      ];
+    }
+
+    setIssuedMaterials(updated);
+
+    if (initialData?.jobCardNo) {
+      updateJobCard({
+        ...initialData,
+        issuedMaterials: updated
+      });
+    }
+
+    setToastMessage(`✓ Material usage updated: ${selectedMatForUsage.itemDescription} (${newConsumed} ${selectedMatForUsage.uom} used on floor)`);
+    setTimeout(() => setToastMessage(null), 4000);
+    setShowUsageModal(false);
+    setSelectedMatForUsage(null);
   };
 
   const handleRecalculateMaterials = (newTarget: number) => {
@@ -1161,6 +1364,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       partDescription,
       color: batchColor,
       targetQty,
+      dailyTargetQty,
+      dailyIssuedQty: dailyTargetQty,
       sprayedQty: currentGoodQty + currentRejectQty,
       goodQty: currentGoodQty,
       rejectQty: currentRejectQty,
@@ -1451,14 +1656,20 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </div>
                 </div>
 
-                <div className="pt-2.5 border-t border-[#f2f2f3] space-y-2 text-xs">
-                  <div className="flex justify-between items-center h-6">
-                    <span className="text-[#777b86]">Target Pieces:</span>
+                <div className="pt-2.5 border-t border-[#f2f2f3] space-y-1.5 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#777b86]">Total PO Target:</span>
                     <span className="font-mono font-bold text-xs text-[#17191c]">
                       {targetQty.toLocaleString('en-IN')} Pieces
                     </span>
                   </div>
-                  <div className="flex justify-between items-center h-6">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#8a6521] font-semibold">Today's Shift Quota:</span>
+                    <span className="font-mono font-bold text-xs text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
+                      {(dailyTargetQty || (targetQty <= 1000 ? targetQty : 1000)).toLocaleString('en-IN')} Pcs/Day
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
                     <span className="text-[#777b86]">Target Colour:</span>
                     <span className="font-bold text-[11px] text-[#8a6521] bg-[#faf3e0] px-2.5 py-0.5 rounded-full border border-[#f4e5be] truncate max-w-[170px]">
                       {batchColor}
@@ -1500,7 +1711,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               </div>
             </div>
 
-            {/* 2. Company Issued Materials Table (with "+ Issue Additional Paint / Consumable") */}
+            {/* 2. Company Issued Materials Table (with Daily Target & Usage Tracking) */}
             <div className="bg-white p-6 sm:p-7 rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
                 <div>
@@ -1509,9 +1720,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     <h3 className="font-serif font-normal text-lg sm:text-xl text-[#17191c]">
                       Company Issued Paints & Consumables
                     </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                      Daily Shift Tracking
+                    </span>
                   </div>
                   <p className="text-xs text-[#777b86] mt-0.5">
-                    Materials handed over to the painter for this job. You can issue additional paints or solvents below.
+                    Materials handed over to painter. Track daily store issues, actual floor usage & returnable floor balances.
                   </p>
                 </div>
 
@@ -1534,6 +1748,91 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </button>
                 </div>
               </div>
+
+              {/* Daily Working Dates & Shift Filter Bar */}
+              <div className="p-3.5 bg-[#faf7ed] rounded-[20px] border border-[#f4e5be] flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 shrink-0">
+                  <Calendar className="w-4 h-4 text-[#8a6521]" />
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#8a6521] font-mono block">
+                      Production Date & Shift Filter
+                    </span>
+                    <span className="text-[11px] text-[#777b86]">
+                      Select working date to inspect that shift's material issue vs consumption
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProductionDate('ALL')}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs ${
+                      selectedProductionDate === 'ALL'
+                        ? 'bg-[#17191c] text-white'
+                        : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                    }`}
+                  >
+                    <span>All Working Dates (Cumulative)</span>
+                  </button>
+                  {productionDates.map(date => {
+                    const isToday = date === new Date().toISOString().split('T')[0];
+                    return (
+                      <button
+                        key={date}
+                        type="button"
+                        onClick={() => setSelectedProductionDate(date)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs ${
+                          selectedProductionDate === date
+                            ? 'bg-[#8a6521] text-white'
+                            : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                        }`}
+                      >
+                        <span>{date}</span>
+                        {isToday && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-emerald-100 text-emerald-800 font-sans font-semibold">
+                            Today
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Selected Date Shift Summary Milestone */}
+              {selectedDateSummary && (
+                <div className="p-4 bg-white rounded-[18px] border border-[#ececec] space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-[#17191c] font-mono flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-[#c09748]" />
+                      <span>Shift Production Summary for Working Date: <strong className="text-[#8a6521]">{selectedDateSummary.date}</strong></span>
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                      Target Achievement: {selectedDateSummary.achievement}%
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                    <div className="bg-[#fafafb] p-2.5 rounded-[12px] border border-[#ececec]">
+                      <span className="text-[10px] text-[#777b86] uppercase font-mono block">Shift Quota Target</span>
+                      <span className="font-mono font-bold text-sm text-[#17191c]">{selectedDateSummary.target} Pcs</span>
+                    </div>
+                    <div className="bg-emerald-50/60 p-2.5 rounded-[12px] border border-emerald-100">
+                      <span className="text-[10px] text-emerald-800 uppercase font-mono block">Shift Good Output</span>
+                      <span className="font-mono font-bold text-sm text-emerald-700">{selectedDateSummary.completed} Pcs</span>
+                    </div>
+                    <div className="bg-rose-50/60 p-2.5 rounded-[12px] border border-rose-100">
+                      <span className="text-[10px] text-rose-800 uppercase font-mono block">Dead Scrap Pieces</span>
+                      <span className="font-mono font-bold text-sm text-rose-700">{selectedDateSummary.rejects} Pcs</span>
+                    </div>
+                    <div className="bg-amber-50/60 p-2.5 rounded-[12px] border border-amber-100">
+                      <span className="text-[10px] text-amber-800 uppercase font-mono block">Unconsumed / Return</span>
+                      <span className="font-mono font-bold text-sm text-amber-900">{selectedDateSummary.returned || Math.max(0, selectedDateSummary.target - selectedDateSummary.completed)} Pcs</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Add Additional Material Drawer */}
               {showAddMaterialDrawer && (
@@ -1580,7 +1879,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       >
                         <option value="Litres">Litres</option>
                         <option value="Kgs">Kgs</option>
-                        <option value="Pcs">Pcs</option>
                         <option value="Cans">Cans</option>
                         <option value="Rolls">Rolls</option>
                       </select>
@@ -1616,32 +1914,89 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 </div>
               )}
 
-              {/* Materials Table (Read-Only Table) */}
-              <div className="border border-[#ececec] rounded-[18px] overflow-hidden">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-[#f2f2f3] text-[#17191c] font-mono border-b border-[#ececec]">
-                      <th className="py-2.5 px-4 font-bold w-12 text-center">#</th>
-                      <th className="py-2.5 px-4 font-bold">Material Description</th>
-                      <th className="py-2.5 px-4 font-bold text-center">Qty</th>
-                      <th className="py-2.5 px-4 font-bold text-center">UOM</th>
-                      <th className="py-2.5 px-4 font-bold">Shade / Grade</th>
-                      <th className="py-2.5 px-4 font-bold">Floor Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#ececec]">
-                    {issuedMaterials.map((item, idx) => (
-                      <tr key={item.id} className={idx % 2 === 1 ? 'bg-[#fafafb]' : 'bg-white'}>
-                        <td className="py-2.5 px-4 text-center font-mono text-[#777b86] font-semibold">{idx + 1}</td>
-                        <td className="py-2.5 px-4 font-semibold text-[#17191c]">{item.itemDescription}</td>
-                        <td className="py-2.5 px-4 text-center font-mono font-bold text-[#17191c]">{item.qty}</td>
-                        <td className="py-2.5 px-4 text-center font-mono text-[#777b86]">{item.uom}</td>
-                        <td className="py-2.5 px-4 font-mono text-[#777b86]">{item.colour || '-'}</td>
-                        <td className="py-2.5 px-4 text-[#777b86]">{item.remark || '-'}</td>
+              {/* Upgraded Materials Table (Tracks Issued vs Actual Consumed vs Floor Balance + Update Usage Button) */}
+              <div className="border border-[#ececec] rounded-[18px] overflow-hidden bg-white shadow-2xs">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-[#f2f2f3] text-[#17191c] font-mono border-b border-[#ececec]">
+                        <th className="py-2.5 px-3 font-bold w-10 text-center">#</th>
+                        <th className="py-2.5 px-4 font-bold min-w-[200px]">Material Description</th>
+                        <th className="py-2.5 px-3 font-bold text-center whitespace-nowrap">Store Issued</th>
+                        <th className="py-2.5 px-3 font-bold text-center text-[#8a6521] whitespace-nowrap">Actual Consumed</th>
+                        <th className="py-2.5 px-3 font-bold text-center text-emerald-800 whitespace-nowrap">Floor Balance</th>
+                        <th className="py-2.5 px-2 font-bold text-center">UOM</th>
+                        <th className="py-2.5 px-3 font-bold whitespace-nowrap">Shade / Batch</th>
+                        <th className="py-2.5 px-3 font-bold min-w-[150px]">Floor Remarks</th>
+                        <th className="py-2.5 px-4 font-bold text-right whitespace-nowrap">Floor Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-[#ececec]">
+                      {companyMaterials.map((item, idx) => {
+                        const consumed = item.consumedQty !== undefined ? item.consumedQty : 0;
+                        const balance = item.floorBalanceQty !== undefined ? item.floorBalanceQty : Math.max(0, Number((item.qty - consumed).toFixed(2)));
+                        const usagePct = item.qty > 0 ? Math.min(100, Math.round((consumed / item.qty) * 100)) : 0;
+
+                        return (
+                          <tr key={item.id || idx} className={idx % 2 === 1 ? 'bg-[#fafafb]' : 'bg-white'}>
+                            <td className="py-3 px-3 text-center font-mono text-[#777b86] font-semibold">{idx + 1}</td>
+                            <td className="py-3 px-4">
+                              <div className="font-semibold text-[#17191c]">{item.itemDescription}</div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="px-2 py-0.2 rounded-full text-[9px] font-mono font-bold bg-blue-50 text-blue-900 border border-blue-200">
+                                  Company Consumable
+                                </span>
+                                {item.materialType && (
+                                  <span className="text-[10px] text-[#777b86] uppercase font-mono">
+                                    • {item.materialType}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono font-bold text-[#17191c]">
+                              {item.qty}
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <div className="font-mono font-bold text-sm text-[#8a6521]">
+                                {consumed}
+                              </div>
+                              <div className="w-16 bg-[#f2f2f3] rounded-full h-1 mx-auto mt-1 overflow-hidden">
+                                <div
+                                  className="h-full rounded-full bg-[#c09748]"
+                                  style={{ width: `${usagePct}%` }}
+                                />
+                              </div>
+                              <span className="text-[9px] text-[#777b86] font-mono block mt-0.5">{usagePct}% Used</span>
+                            </td>
+                            <td className="py-3 px-3 text-center font-mono font-bold text-emerald-800 bg-emerald-50/20">
+                              {balance}
+                            </td>
+                            <td className="py-3 px-2 text-center font-mono text-[#777b86]">{item.uom}</td>
+                            <td className="py-3 px-3 font-mono text-xs text-[#777b86]">
+                              <div>{item.colour || '-'}</div>
+                              {item.batchNo && (
+                                <div className="text-[10px] text-[#8a6521] font-semibold">Lot: {item.batchNo}</div>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-[#777b86] text-xs max-w-[180px] truncate" title={item.remark}>
+                              {item.remark || '-'}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenUpdateUsage(item)}
+                                className="px-3.5 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition inline-flex items-center gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap active:scale-95"
+                              >
+                                <Edit3 className="w-3.5 h-3.5 text-[#8a6521]" />
+                                <span>Update Usage</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* Reconciliation Card: Issued = Good + Reject + Returned + Variance */}
@@ -2473,85 +2828,165 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Left Column: Pieces to Spray (Quantity Allocation) */}
-                    <div className="space-y-3">
-                      <label className="block text-[11px] font-bold text-[#17191c] uppercase font-mono">
-                        Pieces to Spray (Target Quantity) *
-                      </label>
+                    <div className="space-y-4">
+                      {/* Overall Order Target */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-[11px] font-bold text-[#17191c] uppercase font-mono">
+                            Total Order Quantity (Target Cap) *
+                          </label>
+                          <span className="text-[10px] text-[#777b86]">Total Customer Work Order</span>
+                        </div>
 
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <input
-                          type="number"
-                          min="1"
-                          max={availableStoreBalance > 0 ? availableStoreBalance : undefined}
-                          required
-                          value={targetQty}
-                          onChange={e => {
-                            const raw = Number(e.target.value);
-                            if (isNaN(raw)) return;
-                            const val = Math.max(1, raw);
-                            const clamped = availableStoreBalance > 0 ? Math.min(availableStoreBalance, val) : val;
-                            setTargetQty(clamped);
-                            handleRecalculateMaterials(clamped);
-                          }}
-                          className="w-36 h-11 px-3.5 rounded-[14px] border border-[#c09748] font-mono font-bold text-base bg-white text-[#17191c] focus:outline-none shadow-2xs"
-                        />
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <input
+                            type="number"
+                            min="1"
+                            max={availableStoreBalance > 0 ? availableStoreBalance : undefined}
+                            required
+                            value={targetQty}
+                            onChange={e => {
+                              const raw = Number(e.target.value);
+                              if (isNaN(raw)) return;
+                              const val = Math.max(1, raw);
+                              const clamped = availableStoreBalance > 0 ? Math.min(availableStoreBalance, val) : val;
+                              setTargetQty(clamped);
+                              const newDaily = Math.min(dailyTargetQty, clamped);
+                              setDailyTargetQty(newDaily);
+                              handleRecalculateMaterials(newDaily);
+                            }}
+                            className="w-36 h-11 px-3.5 rounded-[14px] border border-[#c09748] font-mono font-bold text-base bg-white text-[#17191c] focus:outline-none shadow-2xs"
+                          />
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTargetQty(availableStoreBalance);
-                            handleRecalculateMaterials(availableStoreBalance);
-                          }}
-                          className="px-3 py-2.5 rounded-[12px] bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition cursor-pointer active:scale-95 shadow-2xs"
-                        >
-                          All ({availableStoreBalance})
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTargetQty(availableStoreBalance);
+                              const newDaily = Math.min(dailyTargetQty, availableStoreBalance);
+                              setDailyTargetQty(newDaily);
+                              handleRecalculateMaterials(newDaily);
+                            }}
+                            className="px-3 py-2.5 rounded-[12px] bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition cursor-pointer active:scale-95 shadow-2xs"
+                          >
+                            All ({availableStoreBalance})
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const half = Math.floor(availableStoreBalance / 2);
-                            setTargetQty(half);
-                            handleRecalculateMaterials(half);
-                          }}
-                          className="px-3 py-2.5 rounded-[12px] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
-                        >
-                          50%
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const half = Math.floor(availableStoreBalance / 2);
+                              setTargetQty(half);
+                              const newDaily = Math.min(dailyTargetQty, half);
+                              setDailyTargetQty(newDaily);
+                              handleRecalculateMaterials(newDaily);
+                            }}
+                            className="px-3 py-2.5 rounded-[12px] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
+                          >
+                            50%
+                          </button>
 
-                        {[100, 250, 500, 1000].map(cnt => (
-                          cnt <= availableStoreBalance && (
-                            <button
-                              key={cnt}
-                              type="button"
-                              onClick={() => {
-                                setTargetQty(cnt);
-                                handleRecalculateMaterials(cnt);
-                              }}
-                              className={`px-3 py-2.5 rounded-[12px] text-xs font-mono transition cursor-pointer shadow-2xs ${
-                                targetQty === cnt
-                                  ? 'bg-[#17191c] text-[#c09748] font-bold'
-                                  : 'bg-white border border-[#ececec] text-[#777b86] hover:bg-gray-50'
-                              }`}
-                            >
-                              {cnt}
-                            </button>
-                          )
-                        ))}
+                          {[100, 250, 500, 1000].map(cnt => (
+                            cnt <= availableStoreBalance && (
+                              <button
+                                key={cnt}
+                                type="button"
+                                onClick={() => {
+                                  setTargetQty(cnt);
+                                  const newDaily = Math.min(dailyTargetQty, cnt);
+                                  setDailyTargetQty(newDaily);
+                                  handleRecalculateMaterials(newDaily);
+                                }}
+                                className={`px-3 py-2.5 rounded-[12px] text-xs font-mono transition cursor-pointer shadow-2xs ${
+                                  targetQty === cnt
+                                    ? 'bg-[#17191c] text-[#c09748] font-bold'
+                                    : 'bg-white border border-[#ececec] text-[#777b86] hover:bg-gray-50'
+                                }`}
+                              >
+                                {cnt}
+                              </button>
+                            )
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Today's Shift Quota (Daily Target) */}
+                      <div className="p-3.5 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be] space-y-2 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-[11px] font-bold text-[#8a6521] uppercase font-mono flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-[#c09748]" />
+                            <span>Today's Production Target (Shift Quota) *</span>
+                          </label>
+                          <span className="text-[10px] font-bold text-[#8a6521] font-mono bg-white px-2 py-0.5 rounded-full border border-[#f4e5be]">
+                            Floor Issuance Cap
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <input
+                            type="number"
+                            min="1"
+                            max={targetQty}
+                            required
+                            value={dailyTargetQty}
+                            onChange={e => {
+                              const raw = Number(e.target.value);
+                              if (isNaN(raw)) return;
+                              const val = Math.min(targetQty, Math.max(1, raw));
+                              setDailyTargetQty(val);
+                              handleRecalculateMaterials(val);
+                            }}
+                            className="w-32 h-10 px-3 rounded-[12px] border border-[#8a6521] font-mono font-bold text-base bg-white text-[#17191c] focus:outline-none shadow-2xs"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDailyTargetQty(targetQty);
+                              handleRecalculateMaterials(targetQty);
+                            }}
+                            className="px-2.5 py-2 rounded-[10px] bg-white hover:bg-gray-50 text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
+                          >
+                            Full Order ({targetQty})
+                          </button>
+
+                          {[500, 1000, 1500, 2000].map(cnt => (
+                            cnt <= targetQty && (
+                              <button
+                                key={cnt}
+                                type="button"
+                                onClick={() => {
+                                  setDailyTargetQty(cnt);
+                                  handleRecalculateMaterials(cnt);
+                                }}
+                                className={`px-2.5 py-2 rounded-[10px] text-xs font-mono transition cursor-pointer shadow-2xs ${
+                                  dailyTargetQty === cnt
+                                    ? 'bg-[#8a6521] text-white font-bold'
+                                    : 'bg-white border border-[#f4e5be] text-[#8a6521] hover:bg-[#faf3e0]'
+                                }`}
+                              >
+                                {cnt}
+                              </button>
+                            )
+                          ))}
+                        </div>
+
+                        <p className="text-[10px] text-[#777b86] leading-tight">
+                          Store sirf aaj ke target (<strong className="text-[#17191c]">{dailyTargetQty} Pcs</strong>) ke barabar substrates aur chemicals issue karega. Bacha hua material store me safe rahega.
+                        </p>
                       </div>
 
                       {/* Live Allocation Summary Bar */}
                       <div className="space-y-1.5 pt-1 text-[11px] font-mono text-[#777b86]">
                         <div className="flex justify-between">
-                          <span>Assigning: <strong className="text-[#17191c]">{targetQty.toLocaleString('en-IN')}</strong> of {availableStoreBalance.toLocaleString('en-IN')} Pcs</span>
+                          <span>Today's Quota: <strong className="text-[#17191c]">{dailyTargetQty.toLocaleString('en-IN')}</strong> of {targetQty.toLocaleString('en-IN')} Total Pcs</span>
                           <span className="font-bold text-[#8a6521]">
-                            {availableStoreBalance > 0 ? Math.round((targetQty / availableStoreBalance) * 100) : 100}% Allocated
+                            {targetQty > 0 ? Math.round((dailyTargetQty / targetQty) * 100) : 100}% Day 1
                           </span>
                         </div>
                         <div className="h-2 w-full bg-[#ececec] rounded-full overflow-hidden">
                           <div 
                             className="bg-[#c09748] h-full transition-all duration-300"
-                            style={{ width: `${Math.min(100, availableStoreBalance > 0 ? (targetQty / availableStoreBalance) * 100 : 100)}%` }}
+                            style={{ width: `${Math.min(100, targetQty > 0 ? (dailyTargetQty / targetQty) * 100 : 100)}%` }}
                           />
                         </div>
                       </div>
@@ -2773,10 +3208,10 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => handleRecalculateMaterials(targetQty)}
+                      onClick={() => handleRecalculateMaterials(dailyTargetQty)}
                       className="px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[10.5px] font-semibold transition cursor-pointer shadow-2xs active:scale-95"
                     >
-                      Auto-Scale for {targetQty} Pcs
+                      Auto-Scale for Today's Target ({dailyTargetQty} Pcs)
                     </button>
 
                     <button
@@ -3039,7 +3474,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </tr>
                 </thead>
                 <tbody>
-                  {issuedMaterials.map((m, i) => (
+                  {companyMaterials.map((m, i) => (
                     <tr key={i}>
                       <td className="p-2 border border-[#ececec]">{i + 1}</td>
                       <td className="p-2 border border-[#ececec] font-medium">{m.itemDescription}</td>
@@ -3349,6 +3784,114 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Update Material Usage Modal */}
+      {showUsageModal && selectedMatForUsage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="bg-white rounded-[24px] max-w-md w-full p-6 shadow-2xl border border-[#ececec] space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-[#f2f2f3]">
+              <div>
+                <h3 className="font-serif font-normal text-lg text-[#17191c]">
+                  Update Material Usage on Floor
+                </h3>
+                <p className="text-xs text-[#777b86] mt-0.5 font-mono">
+                  Job Card: <strong className="text-[#c09748]">{jobCardNo}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUsageModal(false);
+                  setSelectedMatForUsage(null);
+                }}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-[#17191c] flex items-center justify-center text-xs font-bold transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-[#fafafb] rounded-[16px] border border-[#ececec] space-y-2 text-xs">
+              <div className="font-semibold text-sm text-[#17191c]">
+                {selectedMatForUsage.itemDescription}
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[11px] font-mono pt-1 border-t border-[#ececec]">
+                <div>
+                  <span className="text-[#777b86] block">Store Issued Qty:</span>
+                  <strong className="text-[#17191c] text-xs">{selectedMatForUsage.qty} {selectedMatForUsage.uom}</strong>
+                </div>
+                <div>
+                  <span className="text-[#777b86] block">Floor Balance (Remaining):</span>
+                  <strong className="text-emerald-800 text-xs">
+                    {Math.max(0, Number((selectedMatForUsage.qty - Number(usageConsumedInput || 0)).toFixed(2)))} {selectedMatForUsage.uom}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveMaterialUsage} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[11px] font-bold text-[#17191c] uppercase font-mono mb-1">
+                  Actual Quantity Consumed / Mixed ({selectedMatForUsage.uom}) *
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max={selectedMatForUsage.qty * 1.5}
+                  value={usageConsumedInput}
+                  onChange={e => setUsageConsumedInput(Number(e.target.value))}
+                  className="w-full p-2.5 rounded-[14px] border border-[#dcdfe4] bg-[#faf7ed] font-mono font-bold text-base text-[#8a6521] focus:border-[#c09748] focus:outline-none"
+                  required
+                />
+                <span className="text-[10px] text-[#777b86] block mt-1">
+                  Remaining unopened stock will be auto-calculated as Floor Balance.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-[#17191c] uppercase font-mono mb-1">
+                  Floor Usage Remarks (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={usageRemarkInput}
+                  onChange={e => setUsageRemarkInput(e.target.value)}
+                  placeholder="e.g. Mixed in booth #1 for shift batch run"
+                  className="w-full p-2.5 rounded-[14px] border border-[#dcdfe4] bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#f2f2f3]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUsageModal(false);
+                    setSelectedMatForUsage(null);
+                  }}
+                  className="px-4 py-2 rounded-full border border-[#ececec] text-xs font-semibold text-[#777b86] hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-full bg-[#17191c] hover:bg-[#2e3238] text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <Save className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span>Save Material Usage</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Feedback Toast */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#17191c] text-white px-5 py-3 rounded-full text-xs font-semibold shadow-2xl flex items-center gap-2 border border-[#c09748]/50 animate-in slide-in-from-bottom-5">
+          <CheckCircle2 className="w-4 h-4 text-[#c09748]" />
+          <span>{toastMessage}</span>
         </div>
       )}
 

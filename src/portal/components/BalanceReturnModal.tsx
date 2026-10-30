@@ -71,6 +71,7 @@ export const BalanceReturnModal: React.FC<BalanceReturnModalProps> = ({
   const [receivedByStore, setReceivedByStore] = useState<string>(currentUser?.name || 'Manoj Tiwari (Stores)');
   const [generalRemarks, setGeneralRemarks] = useState<string>('');
   const [supervisorDecision, setSupervisorDecision] = useState<string>('Restocked to active inventory with supervisor sign-off');
+  const [directRestock, setDirectRestock] = useState<boolean>(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   // Role validation: Store Incharge, Plant Head, Director
@@ -95,6 +96,7 @@ export const BalanceReturnModal: React.FC<BalanceReturnModalProps> = ({
       setSelectedJobCardNo('');
       setReturnLines([]);
       setSubmissionError(null);
+      setDirectRestock(false);
       return;
     }
 
@@ -103,7 +105,7 @@ export const BalanceReturnModal: React.FC<BalanceReturnModalProps> = ({
     setReceivedByStore(currentUser?.name || 'Manoj Tiwari (Stores)');
   }, [isOpen, preselectedJobCardNo, eligibleJobCards, currentUser]);
 
-  // When job card changes, build available return lines from its issued materials
+  // When job card changes, build available return lines for BOTH Party Substrates and Company Consumables
   useEffect(() => {
     if (!selectedJobCard) {
       setReturnLines([]);
@@ -113,8 +115,35 @@ export const BalanceReturnModal: React.FC<BalanceReturnModalProps> = ({
 
     setReturnedBy(selectedJobCard.assignedPainterName || selectedJobCard.painterName || 'Floor Painter');
 
-    const lines: ReturnLineFormItem[] = (selectedJobCard.issuedMaterials || []).map((m, idx) => {
-      // Find matching batch in stockBatches or extract from batchLines/grnNo
+    const lines: ReturnLineFormItem[] = [];
+
+    // 1. Party Substrate Line (Unpainted Customer Substrate Pieces)
+    const totalAssignedPieces = selectedJobCard.dailyTargetQty || selectedJobCard.targetQty || 0;
+    const completedPieces = (selectedJobCard.goodQty || 0) + (selectedJobCard.rejectQty || 0);
+    const unpaintedBalance = Math.max(0, totalAssignedPieces - completedPieces);
+
+    if (selectedJobCard.partDescription || selectedJobCard.partCode) {
+      lines.push({
+        id: 'rtn_substrate_line',
+        itemName: selectedJobCard.partDescription || `Part ${selectedJobCard.partCode} Substrate`,
+        batchId: selectedJobCard.sourceGrnNo || `LOT-${selectedJobCard.partCode || 'SUB'}-${selectedJobCard.jobCardNo}`,
+        grnNo: selectedJobCard.sourceGrnNo || 'PK-GRN-RETURN',
+        supplierBatchNo: selectedJobCard.sourceGrnNo || `LOT-${selectedJobCard.partCode || 'SUB'}`,
+        category: 'PARTY_MATERIAL',
+        materialType: 'substrate',
+        uom: 'Pcs',
+        issuedQty: totalAssignedPieces,
+        processedQty: completedPieces,
+        returnedQtyClaimed: unpaintedBalance,
+        storeCountedQty: unpaintedBalance,
+        condition: 'Unopened / Intact',
+        variance: 0,
+        remarks: unpaintedBalance > 0 ? 'Unpainted balance pieces returned to store' : 'Shift target fully completed'
+      });
+    }
+
+    // 2. Company Chemical Consumables Lines (Paints, Thinners, Hardeners)
+    (selectedJobCard.issuedMaterials || []).forEach((m, idx) => {
       const batchLine = m.batchLines?.[0];
       const foundBatch = stockBatches.find(b => 
         (batchLine && b.batchId === batchLine.batchId) || 
@@ -126,9 +155,10 @@ export const BalanceReturnModal: React.FC<BalanceReturnModalProps> = ({
       const batchId = batchLine?.batchId || foundBatch?.batchId || `SB-RETURN-${idx + 1}`;
       const supplierBatchNo = batchLine?.supplierBatchNo || foundBatch?.supplierBatchNo || m.batchNo || 'LOT-RETURN';
       const grnNo = batchLine?.grnNo || foundBatch?.grnNo || m.grnNo || 'PK-GRN-RETURN';
-      const isChem = m.materialType === 'paint' || m.materialType === 'thinner' || /paint|basecoat|thinner/i.test(m.itemDescription);
+      const isChem = m.materialType === 'paint' || m.materialType === 'thinner' || /paint|basecoat|thinner|hardener|clear/i.test(m.itemDescription);
+      const floorBalance = m.floorBalanceQty !== undefined ? m.floorBalanceQty : Math.max(0, Number((m.qty - (m.consumedQty || 0)).toFixed(2)));
 
-      return {
+      lines.push({
         id: `rtn_line_${idx + 1}`,
         itemName: m.itemDescription,
         batchId,
@@ -136,15 +166,15 @@ export const BalanceReturnModal: React.FC<BalanceReturnModalProps> = ({
         supplierBatchNo,
         category: (m.category || (isChem ? 'COMPANY_CONSUMABLE' : 'PARTY_MATERIAL')) as any,
         materialType: m.materialType || (isChem ? 'paint' : 'substrate'),
-        uom: m.uom || 'Pcs',
+        uom: m.uom || 'Litres',
         issuedQty: Number(m.qty || 0),
-        processedQty: Number(m.qty || 0), // Default assume processed until claimed
-        returnedQtyClaimed: 0,
-        storeCountedQty: 0,
-        condition: 'Opened - Usable',
+        processedQty: Number(m.consumedQty !== undefined ? m.consumedQty : m.qty - floorBalance),
+        returnedQtyClaimed: floorBalance,
+        storeCountedQty: floorBalance,
+        condition: floorBalance > 0 ? 'Opened - Usable' : 'Unopened / Intact',
         variance: 0,
-        remarks: ''
-      };
+        remarks: floorBalance > 0 ? 'Leftover floor stock returned' : 'Fully consumed'
+      });
     });
 
     setReturnLines(lines);
@@ -187,12 +217,7 @@ export const BalanceReturnModal: React.FC<BalanceReturnModalProps> = ({
     }
 
     if (activeReturns.length === 0) {
-      setSubmissionError('Please enter a returned quantity for at least one material line.');
-      return;
-    }
-
-    if (!isAuthorized) {
-      setSubmissionError('Access Denied: Only Store Incharge or Plant Head can accept material returns.');
+      setSubmissionError('Please enter a returned quantity for at least one material or piece line.');
       return;
     }
 
@@ -226,18 +251,20 @@ export const BalanceReturnModal: React.FC<BalanceReturnModalProps> = ({
       remarks: generalRemarks.trim() || undefined
     });
 
-    // Accept slip and restock eligible lines
-    acceptBalanceReturnSlip(
-      newSlip.rtnNo,
-      activeReturns.map(l => ({
-        lineId: l.id,
-        storeCountedQty: l.storeCountedQty,
-        condition: l.condition,
-        remarks: l.remarks
-      })),
-      receivedByStore,
-      hasDiscrepancy ? supervisorDecision : 'Full verified count match - Restocked'
-    );
+    // If Store Incharge or Plant Head and direct restock is enabled, restock immediately
+    if (isAuthorized && directRestock) {
+      acceptBalanceReturnSlip(
+        newSlip.rtnNo,
+        activeReturns.map(l => ({
+          lineId: l.id,
+          storeCountedQty: l.storeCountedQty,
+          condition: l.condition,
+          remarks: l.remarks
+        })),
+        receivedByStore,
+        hasDiscrepancy ? supervisorDecision : 'Full verified count match - Restocked'
+      );
+    }
 
     if (onSuccess) {
       onSuccess(newSlip.rtnNo);
@@ -276,13 +303,29 @@ export const BalanceReturnModal: React.FC<BalanceReturnModalProps> = ({
           </button>
         </div>
 
-        {/* Read-only Alert if not stores */}
-        {!isAuthorized && (
-          <div className="p-3 rounded-[16px] bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
-            <Lock className="w-4 h-4 text-rose-600 shrink-0" />
+        {/* Handover & Authorization Mode Banner */}
+        {!isAuthorized ? (
+          <div className="p-3 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be] text-[#8a6521] text-xs flex items-center gap-2 font-mono">
+            <Boxes className="w-4 h-4 text-[#c09748] shrink-0" />
             <span>
-              <strong>Read-Only Mode:</strong> Only <strong>Store Incharge</strong> or <strong>Plant Head</strong> can accept and credit return slips.
+              <strong>Floor Handover Mode:</strong> This return slip will be dispatched to the <strong>Stores Desk</strong> with status <em>Pending Store Verification</em>.
             </span>
+          </div>
+        ) : (
+          <div className="p-3 rounded-[16px] bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between gap-2 font-mono">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span><strong>Store / Head Authority:</strong> Restock immediately or dispatch to store desk.</span>
+            </div>
+            <label className="flex items-center gap-1.5 cursor-pointer text-[11px] font-bold text-emerald-900 shrink-0">
+              <input
+                type="checkbox"
+                checked={directRestock}
+                onChange={e => setDirectRestock(e.target.checked)}
+                className="rounded accent-emerald-600"
+              />
+              <span>Immediate Restock into Batch</span>
+            </label>
           </div>
         )}
 
@@ -550,15 +593,19 @@ export const BalanceReturnModal: React.FC<BalanceReturnModalProps> = ({
 
             <button
               type="submit"
-              disabled={!isAuthorized || activeReturns.length === 0}
+              disabled={activeReturns.length === 0}
               className={`px-6 py-2.5 rounded-full font-bold text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer active:scale-95 ${
-                isAuthorized && activeReturns.length > 0
+                activeReturns.length > 0
                   ? 'bg-[#17191c] hover:bg-black text-[#c09748]'
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed'
               }`}
             >
               <CheckSquare className="w-4 h-4 text-[#c09748]" />
-              <span>Confirm Return &amp; Restock to Batch</span>
+              <span>
+                {isAuthorized && directRestock
+                  ? 'Confirm Return & Restock to Batch'
+                  : 'Dispatch Return Slip to Stores Desk'}
+              </span>
             </button>
           </div>
         </form>

@@ -893,19 +893,15 @@ export const INITIAL_JOB_CARDS: JobCard[] = [
     ],
     issuedMaterials: [
       {
-        id: 'mat_smp_1',
-        itemDescription: 'Raw ABS Honeycomb Grille Molded Substrate',
-        qty: 5,
-        colour: 'Raw Black ABS',
-        uom: 'Pcs',
-        remark: 'Sampling lot'
-      },
-      {
         id: 'mat_smp_2',
         itemDescription: 'AkzoNobel Satin Gunmetal Polyurethane Base',
         qty: 2,
         colour: 'Gunmetal Gray',
         uom: 'Litres',
+        category: 'COMPANY_CONSUMABLE',
+        materialType: 'paint',
+        consumedQty: 1.5,
+        floorBalanceQty: 0.5,
         remark: 'Trial Formulation Cans'
       }
     ]
@@ -954,19 +950,15 @@ export const INITIAL_JOB_CARDS: JobCard[] = [
     isSlaBreached: false,
     issuedMaterials: [
       {
-        id: 'mat_as_1',
-        itemDescription: 'EV Touchscreen Instrument Bezel Substrates (ABS-PC Premium)',
-        qty: 500,
-        colour: 'Raw Molded Black',
-        uom: 'Pcs',
-        remark: 'Issued from PK-GRN-2026-AVINASH'
-      },
-      {
         id: 'mat_as_2',
         itemDescription: 'High Gloss Piano Black 2K PU Basecoat',
         qty: 15,
         colour: 'Piano Jet Black',
         uom: 'Litres',
+        category: 'COMPANY_CONSUMABLE',
+        materialType: 'paint',
+        consumedQty: 12,
+        floorBalanceQty: 3,
         remark: 'Batch BAT-PPG-AS-01'
       }
     ],
@@ -1037,6 +1029,8 @@ export const INITIAL_JOB_CARDS: JobCard[] = [
     model: 'Swift 2026 Model',
     color: 'Monza Red Gloss',
     targetQty: 3000,
+    dailyTargetQty: 1000,
+    dailyIssuedQty: 1000,
     sprayedQty: 1910,
     goodQty: 1875,
     rejectQty: 35,
@@ -1061,18 +1055,71 @@ export const INITIAL_JOB_CARDS: JobCard[] = [
       {
         id: 'mat_1',
         itemDescription: 'Auto AC Center Vent Bezel Substrate (ABS)',
-        qty: 3050,
+        qty: 1000,
         colour: 'Raw ABS Black',
         uom: 'Pcs',
-        remark: 'Issued from GRN-0891 bay 2'
+        category: 'PARTY_MATERIAL',
+        materialType: 'substrate',
+        consumedQty: 910,
+        floorBalanceQty: 90,
+        theoreticalQty: 910,
+        remark: 'Issued against Shift Quota from GRN-0891'
       },
       {
         id: 'mat_2',
         itemDescription: 'Monza Red 2K PU Basecoat Paint (PPG)',
-        qty: 75,
+        qty: 16.0,
         colour: 'Monza Red Gloss',
         uom: 'Litres',
-        remark: 'Batch BAT-PPG-2609-R4'
+        category: 'COMPANY_CONSUMABLE',
+        materialType: 'paint',
+        consumedQty: 14.5,
+        floorBalanceQty: 1.5,
+        theoreticalQty: 14.4,
+        batchNo: 'BAT-PPG-2609-R4',
+        remark: 'Mix ratio 4:1:1'
+      },
+      {
+        id: 'mat_3',
+        itemDescription: 'Slow Drying PU Thinner 400',
+        qty: 6.5,
+        colour: 'Clear',
+        uom: 'Litres',
+        category: 'COMPANY_CONSUMABLE',
+        materialType: 'thinner',
+        consumedQty: 5.8,
+        floorBalanceQty: 0.7,
+        theoreticalQty: 5.76,
+        batchNo: 'THN-2609-02',
+        remark: 'Viscosity 19s Ford Cup 4'
+      },
+      {
+        id: 'mat_4',
+        itemDescription: '2K Scratch-Resistant Hardener',
+        qty: 4.0,
+        colour: 'Clear',
+        uom: 'Litres',
+        category: 'COMPANY_CONSUMABLE',
+        materialType: 'hardener',
+        consumedQty: 3.6,
+        floorBalanceQty: 0.4,
+        theoreticalQty: 3.6,
+        batchNo: 'HD-2026-09',
+        remark: 'Curing catalyst'
+      },
+      {
+        id: 'mat_5',
+        itemDescription: '2K High Gloss Clear Lacquer Topcoat',
+        qty: 5.0,
+        colour: 'Clear Gloss',
+        uom: 'Litres',
+        category: 'COMPANY_CONSUMABLE',
+        materialType: 'clear',
+        consumedQty: 4.5,
+        floorBalanceQty: 0.5,
+        theoreticalQty: 4.55,
+        batchNo: 'CLR-2026-X1',
+        remark: 'Final protective gloss finish'
       }
     ],
     boothNo: 'Booths #1, #2, #3',
@@ -1373,6 +1420,8 @@ export const INITIAL_JOB_CARDS: JobCard[] = [
     model: 'Swift 2026 Model',
     color: 'Matte Jet Black',
     targetQty: 750,      // TARGET CAP
+    dailyTargetQty: 750,
+    dailyIssuedQty: 750,
     sprayedQty: 700,     // Ground Problem 1: Only 700 sprayed (50 Pending)
     goodQty: 680,
     rejectQty: 20,
@@ -1397,31 +1446,49 @@ export const INITIAL_JOB_CARDS: JobCard[] = [
     checkingPerson: 'Amit Verma (QA)',
     headerRemark: '50 pcs in jigging rework rack.',
 
-    // ISSUE MATERIAL DETAILS TABLE
+    // ISSUE MATERIAL DETAILS TABLE (Company Chemical Consumables)
     issuedMaterials: [
-      {
-        id: 'mat_5',
-        itemDescription: 'Auto AC Center Vent Bezel Substrate (ABS)',
-        qty: 750,
-        colour: 'Raw ABS Black',
-        uom: 'Pcs',
-        remark: 'Issued from GRN-0891'
-      },
       {
         id: 'mat_6',
         itemDescription: 'Matte Jet Black Basecoat (PPG)',
-        qty: 25,
+        qty: 12.0,
         colour: 'Matte Jet Black',
         uom: 'Litres',
+        category: 'COMPANY_CONSUMABLE',
+        materialType: 'paint',
+        consumedQty: 10.8,
+        floorBalanceQty: 1.2,
+        theoreticalQty: 10.5,
+        batchNo: 'BAT-PPG-2609-K1',
         remark: 'Batch BAT-PPG-2609-K1'
       },
       {
         id: 'mat_7',
-        itemDescription: 'PU Thinner 400',
-        qty: 8,
+        itemDescription: 'PU Thinner 400 Solvent',
+        qty: 5.0,
         colour: 'Clear Liquid',
         uom: 'Litres',
+        category: 'COMPANY_CONSUMABLE',
+        materialType: 'thinner',
+        consumedQty: 4.2,
+        floorBalanceQty: 0.8,
+        theoreticalQty: 4.2,
+        batchNo: 'THN-2609-02',
         remark: 'Standard solvent'
+      },
+      {
+        id: 'mat_8',
+        itemDescription: '2K Scratch-Resistant Hardener',
+        qty: 3.0,
+        colour: 'Clear',
+        uom: 'Litres',
+        category: 'COMPANY_CONSUMABLE',
+        materialType: 'hardener',
+        consumedQty: 2.6,
+        floorBalanceQty: 0.4,
+        theoreticalQty: 2.6,
+        batchNo: 'HD-2026-09',
+        remark: 'Curing catalyst'
       }
     ],
 

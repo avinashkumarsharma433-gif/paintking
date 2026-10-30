@@ -486,6 +486,10 @@ export interface IssuedMaterialItem {
   grnNo?: string;
   batchNo?: string;         // Primary or summary batch no for backwards compatibility
   expiryDate?: string;
+  // Company Consumables Floor Tracking (Chemicals & Raw Materials)
+  consumedQty?: number;     // Actually consumed/mixed on production floor
+  floorBalanceQty?: number; // Unopened/unconsumed balance currently on floor
+  theoreticalQty?: number;  // Standard engineering consumption target
 }
 
 export interface JobCardMaterialAllocation {
@@ -613,11 +617,28 @@ export interface JobCardProductionProgressLog {
   remarks?: string;
 }
 
+export interface JobCardDailyTargetRecord {
+  date: string; // YYYY-MM-DD
+  shiftName?: string;
+  dailyTarget: number; // e.g. 2000
+  issuedPieces: number; // e.g. 2000 from store
+  goodPieces: number; // pieces successfully finished
+  scrapPieces: number; // permanent dead loss/broken only (no rework tracking)
+  returnedPieces: number; // unpainted pieces returned to store at EOD
+  achievementPercent: number; // (goodPieces / dailyTarget) * 100
+  isClosed: boolean;
+  reconciledAt?: string;
+  notes?: string;
+}
+
 export interface JobCard {
   jobCardNature?: JobCardNature;
   samplingRecipe?: SamplingRecipeSheet;
   samplingApproval?: SamplingPartyApproval;
   progressLogs?: JobCardProductionProgressLog[];
+  dailyProductionHistory?: JobCardDailyTargetRecord[];
+  dailyTargetQty?: number; // Active shift daily target (e.g. 2,000 Pcs)
+  dailyIssuedQty?: number; // Pieces issued by store for active shift
   materialAllocations?: JobCardMaterialAllocation[];
   primerCompletedQty?: number;
   primerRejectQty?: number;

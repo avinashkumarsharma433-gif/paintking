@@ -54,7 +54,8 @@ import {
   BalanceReturnLine,
   BalanceReturnCondition,
   RequisitionLineItem,
-  PlantShiftConfig
+  PlantShiftConfig,
+  JobCardDailyTargetRecord
 } from '../types/portalTypes';
 import {
   applyIssueToBatches,
@@ -207,6 +208,11 @@ interface PortalContextType {
     reconciledCount: number;
     generatedSlips: BalanceReturnSlip[];
   };
+  requestNextDayTarget: (params: {
+    jobCardNo: string;
+    nextDayTarget: number;
+    requestedBy?: string;
+  }) => { success: boolean; error?: string; mrnNo?: string };
   flagBalanceReturnDiscrepancy: (
     rtnNo: string,
     discrepancyLines: Array<{
@@ -301,12 +307,18 @@ interface PortalContextType {
   resolveHandoverDiscrepancy: (transferId: string, action: string, supervisorName: string) => void;
 
   // Problem 1: Job Cards, Target Caps & Color Over-run
-  updateJobCardProgress: (jobCardNo: string, addedSprayedQty: number, addedRejectQty?: number) => void;
+  updateJobCardProgress: (
+    jobCardNo: string,
+    addedSprayedQty: number,
+    addedRejectQty?: number,
+    consumablesUsage?: { [key: string]: number }
+  ) => void;
   updateJobCardSprayed: (
     jobCardNo: string,
     addedSprayedQty: number,
     addedRejectQty?: number,
-    defectCategory?: string
+    defectCategory?: string,
+    consumablesUsage?: { [key: string]: number }
   ) => void;
 
   // Quality FPA Golden Gate
@@ -673,6 +685,36 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       status: 'Pending Store Verification'
     };
     setBalanceReturnSlips(prev => [newSlip, ...prev]);
+
+    // Update the Job Card's floor balances and returned counts
+    if (slip.jobCardNo) {
+      setJobCards(prev => prev.map(jc => {
+        if (jc.jobCardNo !== slip.jobCardNo) return jc;
+        const substrateLine = slip.lines.find(l => l.category === 'PARTY_MATERIAL' || l.uom === 'Pcs');
+        const returnedPcs = substrateLine ? Number(substrateLine.returnedQtyClaimed || 0) : 0;
+
+        // Also deduct returned floor balance from company consumables
+        const updatedMaterials = (jc.issuedMaterials || []).map(m => {
+          const matchedReturn = slip.lines.find(l => l.itemName === m.itemDescription || (m.batchNo && l.batchId === m.batchNo));
+          if (matchedReturn && matchedReturn.returnedQtyClaimed > 0) {
+            const currentFloorBal = m.floorBalanceQty !== undefined ? m.floorBalanceQty : m.qty;
+            return {
+              ...m,
+              floorBalanceQty: Math.max(0, Number((currentFloorBal - matchedReturn.returnedQtyClaimed).toFixed(2))),
+              remark: `${m.remark || ''} (Returned ${matchedReturn.returnedQtyClaimed} ${m.uom} on ${rtnNo})`.trim()
+            };
+          }
+          return m;
+        });
+
+        return {
+          ...jc,
+          issuedMaterials: updatedMaterials,
+          returnRejectionQty: (jc.returnRejectionQty || 0) + returnedPcs
+        };
+      }));
+    }
+
     return newSlip;
   };
 
@@ -1244,10 +1286,10 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     );
 
     activeJobs.forEach((jc) => {
-      // 1. Determine issued substrate pieces to floor
+      // 1. Determine issued substrate pieces to floor for today's shift (Daily Target Quota)
       const linkedMrn = materialRequisitions.find(m => m.jobCardNo === jc.jobCardNo);
       
-      let issuedPieces = 0;
+      let shiftTargetPieces = Number(jc.dailyIssuedQty || jc.dailyTargetQty || 0);
       let linkedBatchId = '';
       let linkedGrn = jc.sourceGrnNo || '';
       let partDesc = jc.partDescription || `${jc.partCode || 'Part'} Substrates`;
@@ -1261,7 +1303,9 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ) || linkedMrn.requisitionLines[0];
 
         if (substrateLine) {
-          issuedPieces = Number(substrateLine.issuedQty || substrateLine.requestedQty || 0);
+          if (!shiftTargetPieces) {
+            shiftTargetPieces = Number(substrateLine.issuedQty || substrateLine.requestedQty || 0);
+          }
           partDesc = substrateLine.itemName;
           if (substrateLine.issuedLines && substrateLine.issuedLines.length > 0) {
             linkedBatchId = substrateLine.issuedLines[0].batchId || '';
@@ -1270,25 +1314,26 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
       }
 
-      if (issuedPieces === 0) {
+      if (shiftTargetPieces === 0) {
         if (jc.issuedMaterials && jc.issuedMaterials.length > 0) {
           const subMat = jc.issuedMaterials.find(m => m.materialType === 'substrate' || m.uom === 'Pcs') || jc.issuedMaterials[0];
-          issuedPieces = Number(subMat.qty || 0);
+          shiftTargetPieces = Number(subMat.qty || 0);
           linkedBatchId = subMat.batchNo || linkedBatchId;
           linkedGrn = subMat.grnNo || linkedGrn;
         } else {
-          issuedPieces = Number(jc.targetQty || 0);
+          shiftTargetPieces = Number(jc.targetQty || 0);
         }
       }
 
-      // 2. Determine processed / sprayed pieces
-      const processedPieces = Math.min(
-        issuedPieces,
-        Number(jc.sprayedQty || (jc.goodQty + (jc.rejectQty || 0)) || 0)
+      // 2. Determine processed / sprayed pieces in today's shift
+      const priorGood = (jc.dailyProductionHistory || []).reduce((acc, h) => acc + (h.goodPieces || 0), 0);
+      const todaySprayed = Math.min(
+        shiftTargetPieces,
+        Math.max(0, Number(jc.sprayedQty || (jc.goodQty + (jc.rejectQty || 0)) || 0) - priorGood)
       );
 
-      // 3. Compute unconsumed floor balance
-      const unconsumedBalance = Math.max(0, issuedPieces - processedPieces);
+      // 3. Compute unconsumed floor balance for today's shift
+      const unconsumedBalance = Math.max(0, shiftTargetPieces - todaySprayed);
 
       if (unconsumedBalance > 0) {
         // Prevent duplicate return slip for this Job Card today
@@ -1326,21 +1371,48 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 supplierBatchNo: linkedBatchId || `LOT-${jc.partCode || 'SUB'}`,
                 category: 'PARTY_MATERIAL',
                 materialType: 'substrate',
-                issuedQty: issuedPieces,
-                processedQty: processedPieces,
+                issuedQty: shiftTargetPieces,
+                processedQty: todaySprayed,
                 returnedQtyClaimed: unconsumedBalance,
                 storeCountedQty: unconsumedBalance,
                 uom: 'Pcs',
                 condition: 'Unopened / Intact',
                 variance: 0,
-                remarks: `Auto-reconciled at 20:45 cutoff. Target/Issued ${issuedPieces} Pcs - Sprayed ${processedPieces} Pcs = ${unconsumedBalance} Pcs unconsumed floor return.`
+                remarks: `20:45 Cutoff: Shift Target ${shiftTargetPieces} Pcs - Sprayed ${todaySprayed} Pcs = ${unconsumedBalance} Pcs unconsumed floor return.`
               }
             ],
-            remarks: `Factory closes at 21:00 (9 PM). Auto-generated at 20:45 floor cutoff with 15-minute window for physical transit down to stores.`
+            remarks: `Factory closes at 21:00 (9 PM). System auto-generated at 20:45 floor cutoff with 15-minute window for physical transit down to stores.`
           };
 
           generatedSlips.push(newSlip);
         }
+      }
+
+      // Record daily production history entry if not already logged today
+      const alreadyHasDailyLog = (jc.dailyProductionHistory || []).some(h => h.date === todayStr);
+      if (!alreadyHasDailyLog) {
+        const achievement = shiftTargetPieces > 0 ? Math.min(100, Math.round((todaySprayed / shiftTargetPieces) * 100)) : 100;
+        const dailyRecord: JobCardDailyTargetRecord = {
+          date: todayStr,
+          shiftName: activeShift,
+          dailyTarget: jc.dailyTargetQty || shiftTargetPieces,
+          issuedPieces: shiftTargetPieces,
+          goodPieces: todaySprayed,
+          scrapPieces: Math.max(0, jc.rejectQty || 0),
+          returnedPieces: unconsumedBalance,
+          achievementPercent: achievement,
+          isClosed: true,
+          reconciledAt: '20:45',
+          notes: `EOD Reconciled: ${todaySprayed}/${shiftTargetPieces} finished (${achievement}%), ${unconsumedBalance} returned to store.`
+        };
+
+        setJobCards(prev => prev.map(item => {
+          if (item.jobCardNo !== jc.jobCardNo) return item;
+          return {
+            ...item,
+            dailyProductionHistory: [dailyRecord, ...(item.dailyProductionHistory || [])]
+          };
+        }));
       }
     });
 
@@ -1353,6 +1425,129 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       reconciledCount: generatedSlips.length,
       generatedSlips
     };
+  };
+
+  // Request Next Day / Shift Quota from Store (Multi-Day Job Card Workflow)
+  const requestNextDayTarget = (params: {
+    jobCardNo: string;
+    nextDayTarget: number;
+    requestedBy?: string;
+  }): { success: boolean; error?: string; mrnNo?: string } => {
+    const jc = jobCards.find(j => j.jobCardNo === params.jobCardNo);
+    if (!jc) return { success: false, error: 'Job Card not found' };
+
+    const remainingToProduce = Math.max(0, jc.targetQty - (jc.goodQty || 0));
+    if (remainingToProduce <= 0) {
+      return { success: false, error: 'Job Card total target is already completed!' };
+    }
+
+    const targetToAssign = Math.min(params.nextDayTarget, remainingToProduce);
+    if (targetToAssign <= 0) {
+      return { success: false, error: 'Target quantity must be greater than 0' };
+    }
+
+    // 1. Calculate chemical consumables strictly scaled for this target
+    const estPaintLitres = Math.max(1, Math.ceil((targetToAssign / 500) * 8));
+    const chemicals = [
+      {
+        id: `rl_chem_paint_${Date.now()}`,
+        itemCode: 'PAINT-2K',
+        itemName: `${jc.color} 2K PU Basecoat Paint`,
+        category: 'COMPANY_CONSUMABLE' as StockCategory,
+        materialType: 'paint' as StockMaterialType,
+        requestedQty: estPaintLitres,
+        uom: 'Litres',
+        colour: jc.color,
+        status: 'Pending' as const
+      },
+      {
+        id: `rl_chem_thinner_${Date.now()}`,
+        itemCode: 'THINNER-400',
+        itemName: 'PU Thinner 400 Solvent',
+        category: 'COMPANY_CONSUMABLE' as StockCategory,
+        materialType: 'thinner' as StockMaterialType,
+        requestedQty: Math.max(1, Math.ceil(estPaintLitres * 0.4)),
+        uom: 'Litres',
+        colour: 'Clear',
+        status: 'Pending' as const
+      },
+      {
+        id: `rl_chem_hardener_${Date.now()}`,
+        itemCode: 'HARDENER-2K',
+        itemName: '2K Scratch-Resistant Hardener',
+        category: 'COMPANY_CONSUMABLE' as StockCategory,
+        materialType: 'paint' as StockMaterialType,
+        requestedQty: Math.max(1, Math.ceil(estPaintLitres * 0.25)),
+        uom: 'Litres',
+        colour: 'Clear',
+        status: 'Pending' as const
+      },
+      {
+        id: `rl_chem_clear_${Date.now()}`,
+        itemCode: 'CLEAR-COAT',
+        itemName: '2K Clear Lacquer Topcoat',
+        category: 'COMPANY_CONSUMABLE' as StockCategory,
+        materialType: 'paint' as StockMaterialType,
+        requestedQty: Math.max(1, Math.ceil(targetToAssign / 200)),
+        uom: 'Litres',
+        colour: 'Clear Gloss',
+        status: 'Pending' as const
+      }
+    ];
+
+    const reqLines: RequisitionLineItem[] = [
+      {
+        id: `rl_sub_${Date.now()}`,
+        itemCode: jc.partCode || 'SUBSTRATE',
+        itemName: jc.partDescription || 'Component Substrate',
+        category: 'PARTY_MATERIAL',
+        materialType: 'substrate',
+        requestedQty: targetToAssign,
+        uom: 'Pcs',
+        customer: jc.customer,
+        partCode: jc.partCode,
+        colour: jc.color,
+        status: 'Pending'
+      },
+      ...chemicals
+    ];
+
+    const mrnNo = `MRN-2026-${String(materialRequisitions.length + 1).padStart(3, '0')}`;
+    const newMrn: MaterialRequisitionNote = {
+      mrnNo,
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      plant: (jc.plant as PlantLocation) || activePlant || 'Haridwar',
+      jobCardNo: jc.jobCardNo,
+      woNo: jc.woNo || 'WO-AUTO',
+      customer: jc.customer,
+      partCode: jc.partCode,
+      partDescription: jc.partDescription,
+      colorName: jc.color,
+      requestedQty: targetToAssign,
+      uom: 'Pcs',
+      requiredShift: activeShift,
+      requestedBy: params.requestedBy || currentUser.name || 'Production Supervisor',
+      urgency: 'High (Line Stoppage Risk)',
+      status: 'Pending Store Issue',
+      requisitionLines: reqLines,
+      productionRemarks: `Next Shift Production Quota for Painter [${jc.assignedPainterName || jc.painterName}]. Demanded: ${targetToAssign} Pcs (Total Order: ${jc.targetQty} Pcs, Completed: ${jc.goodQty || 0} Pcs).`
+    };
+
+    setMaterialRequisitions(prev => [newMrn, ...prev]);
+
+    // Update job card daily target and status
+    setJobCards(prev => prev.map(j => {
+      if (j.jobCardNo !== params.jobCardNo) return j;
+      return {
+        ...j,
+        dailyTargetQty: targetToAssign,
+        dailyIssuedQty: targetToAssign,
+        status: 'In Process'
+      };
+    }));
+
+    return { success: true, mrnNo };
   };
 
   // Automated background check for 20:45 cutoff
@@ -1432,21 +1627,23 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // SMART UNIFIED WORKFLOW:
     // Creating a Job Card automatically creates a Material Release Demand (MRN) for Store Incharge
+    // Strictly requests Today's Shift Quota (dailyTargetQty) instead of flooding the floor with the entire order
+    const shiftTargetPcs = formattedJc.dailyTargetQty || formattedJc.targetQty;
     const itemsSummary = formattedJc.issuedMaterials && formattedJc.issuedMaterials.length > 0
       ? formattedJc.issuedMaterials.map(m => `${m.itemDescription} (${m.qty} ${m.uom})`).join(', ')
-      : `${formattedJc.partDescription} (${formattedJc.targetQty} Pcs)`;
+      : `${formattedJc.partDescription} (${shiftTargetPcs} Pcs)`;
 
     const reqLines: RequisitionLineItem[] = [];
 
-    // 1. Substrate Party Material Line
-    if (formattedJc.targetQty > 0) {
+    // 1. Substrate Party Material Line (Limited to Today's Shift Target)
+    if (shiftTargetPcs > 0) {
       reqLines.push({
         id: `rl_sub_${Date.now()}`,
         itemCode: formattedJc.partCode || 'SUBSTRATE',
         itemName: formattedJc.partDescription || 'Component Substrate',
         category: 'PARTY_MATERIAL',
         materialType: 'substrate',
-        requestedQty: formattedJc.targetQty,
+        requestedQty: shiftTargetPcs,
         uom: 'Pcs',
         customer: formattedJc.customer,
         partCode: formattedJc.partCode,
@@ -1455,7 +1652,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
     }
 
-    // 2. Company Consumable Chemical Lines (Paint, Thinner, Hardener, Primer, Clear Coat)
+    // 2. Company Consumable Chemical Lines (Paint, Thinner, Hardener, Primer, Clear Coat for Today's Target)
     if (formattedJc.issuedMaterials && formattedJc.issuedMaterials.length > 0) {
       formattedJc.issuedMaterials.forEach((m, idx) => {
         reqLines.push({
@@ -1483,14 +1680,14 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       partCode: formattedJc.partCode,
       partDescription: formattedJc.partDescription,
       colorName: formattedJc.color,
-      requestedQty: formattedJc.targetQty,
-      uom: formattedJc.issuedMaterials?.[0]?.uom || 'Pcs',
+      requestedQty: shiftTargetPcs,
+      uom: 'Pcs',
       requiredShift: activeShift,
       requestedBy: formattedJc.prodSupervisor || currentUser.name || 'Production Manager',
       urgency: 'High (Line Stoppage Risk)',
       status: 'Pending Store Issue',
       requisitionLines: reqLines.length > 0 ? reqLines : undefined,
-      productionRemarks: `Auto-generated from Job Card creation for Painter [${formattedJc.painterName}]. Store to release: ${itemsSummary}`
+      productionRemarks: `Auto-generated for Painter [${formattedJc.painterName}]. Today's Shift Quota: ${shiftTargetPcs} Pcs (Total Order: ${formattedJc.targetQty} Pcs). Store to release: ${itemsSummary}`
     };
 
     setMaterialRequisitions(prev => [autoMrn, ...prev]);
@@ -1893,7 +2090,12 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // PROBLEM 1: Job Cards & Target Caps
-  const updateJobCardProgress = (jobCardNo: string, addedSprayedQty: number, addedRejectQty: number = 0) => {
+  const updateJobCardProgress = (
+    jobCardNo: string,
+    addedSprayedQty: number,
+    addedRejectQty: number = 0,
+    consumablesUsage?: { [key: string]: number }
+  ) => {
     setJobCards(prev => prev.map(jc => {
       if (jc.jobCardNo !== jobCardNo) return jc;
 
@@ -1914,13 +2116,102 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       const netAddedGood = Math.max(0, Number(addedSprayedQty || 0) - Number(addedRejectQty || 0));
 
+      // Synchronize both Party Material (Pcs) & Company Consumables (Litres)
+      const existingMats = (jc.issuedMaterials && jc.issuedMaterials.length > 0)
+        ? jc.issuedMaterials
+        : [
+            {
+              id: 'mat_sub_gen',
+              itemDescription: jc.partDescription || 'Component Substrate',
+              qty: jc.dailyIssuedQty || jc.dailyTargetQty || jc.targetQty,
+              colour: 'Raw Substrate Tone',
+              uom: 'Pcs',
+              category: 'PARTY_MATERIAL' as StockCategory,
+              materialType: 'substrate' as StockMaterialType,
+              consumedQty: 0,
+              floorBalanceQty: jc.dailyIssuedQty || jc.dailyTargetQty || jc.targetQty
+            },
+            {
+              id: 'mat_paint_gen',
+              itemDescription: `${jc.color} 2K PU Basecoat Paint`,
+              qty: Math.max(2, Math.ceil(((jc.dailyTargetQty || jc.targetQty) / 500) * 8)),
+              colour: jc.color,
+              uom: 'Litres',
+              category: 'COMPANY_CONSUMABLE' as StockCategory,
+              materialType: 'paint' as StockMaterialType,
+              consumedQty: 0,
+              floorBalanceQty: Math.max(2, Math.ceil(((jc.dailyTargetQty || jc.targetQty) / 500) * 8))
+            },
+            {
+              id: 'mat_thinner_gen',
+              itemDescription: 'PU Thinner 400 Solvent',
+              qty: Math.max(1, Math.ceil(((jc.dailyTargetQty || jc.targetQty) / 500) * 3.2)),
+              colour: 'Clear',
+              uom: 'Litres',
+              category: 'COMPANY_CONSUMABLE' as StockCategory,
+              materialType: 'thinner' as StockMaterialType,
+              consumedQty: 0,
+              floorBalanceQty: Math.max(1, Math.ceil(((jc.dailyTargetQty || jc.targetQty) / 500) * 3.2))
+            },
+            {
+              id: 'mat_hardener_gen',
+              itemDescription: '2K Scratch-Resistant Hardener',
+              qty: Math.max(1, Math.ceil(((jc.dailyTargetQty || jc.targetQty) / 500) * 2.0)),
+              colour: 'Clear',
+              uom: 'Litres',
+              category: 'COMPANY_CONSUMABLE' as StockCategory,
+              materialType: 'hardener' as StockMaterialType,
+              consumedQty: 0,
+              floorBalanceQty: Math.max(1, Math.ceil(((jc.dailyTargetQty || jc.targetQty) / 500) * 2.0))
+            }
+          ];
+
+      const updatedMaterials = existingMats.map(m => {
+        const isParty = m.category === 'PARTY_MATERIAL' || m.materialType === 'substrate' || m.uom === 'Pcs';
+        if (isParty) {
+          const newCons = Math.min(m.qty, (m.consumedQty || 0) + Number(addedSprayedQty || 0));
+          return {
+            ...m,
+            consumedQty: newCons,
+            floorBalanceQty: Math.max(0, m.qty - newCons)
+          };
+        } else {
+          // Company Consumable Chemical
+          let consumedNow = 0;
+          if (consumablesUsage) {
+            if (m.id && consumablesUsage[m.id] !== undefined) consumedNow = Number(consumablesUsage[m.id]);
+            else if (m.materialType && consumablesUsage[m.materialType] !== undefined) consumedNow = Number(consumablesUsage[m.materialType]);
+            else if (m.itemDescription && consumablesUsage[m.itemDescription] !== undefined) consumedNow = Number(consumablesUsage[m.itemDescription]);
+          }
+          if (consumedNow === 0 && addedSprayedQty > 0) {
+            // Auto standard theoretical estimation based on sprayed pieces
+            if (m.materialType === 'paint' || m.itemDescription.toLowerCase().includes('paint') || m.itemDescription.toLowerCase().includes('basecoat')) {
+              consumedNow = Number(((Number(addedSprayedQty) / 500) * 8).toFixed(2));
+            } else if (m.materialType === 'thinner' || m.itemDescription.toLowerCase().includes('thinner')) {
+              consumedNow = Number(((Number(addedSprayedQty) / 500) * 3.2).toFixed(2));
+            } else if (m.materialType === 'hardener' || m.itemDescription.toLowerCase().includes('hardener')) {
+              consumedNow = Number(((Number(addedSprayedQty) / 500) * 2.0).toFixed(2));
+            } else {
+              consumedNow = Number(((Number(addedSprayedQty) / 200) * 1.0).toFixed(2));
+            }
+          }
+          const updatedConsumed = Number(((m.consumedQty || 0) + consumedNow).toFixed(2));
+          return {
+            ...m,
+            consumedQty: updatedConsumed,
+            floorBalanceQty: Math.max(0, Number((m.qty - updatedConsumed).toFixed(2)))
+          };
+        }
+      });
+
       return {
         ...jc,
         sprayedQty: newSprayed,
         goodQty: newGood,
         rejectQty: newReject,
         firstPassGoodQty: (jc.firstPassGoodQty || 0) + netAddedGood,
-        status: newStatus
+        status: newStatus,
+        issuedMaterials: updatedMaterials
       };
     }));
   };
@@ -1929,9 +2220,10 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     jobCardNo: string,
     addedSprayedQty: number,
     addedRejectQty: number = 0,
-    defectCategory?: string
+    defectCategory?: string,
+    consumablesUsage?: { [key: string]: number }
   ) => {
-    updateJobCardProgress(jobCardNo, addedSprayedQty, addedRejectQty);
+    updateJobCardProgress(jobCardNo, addedSprayedQty, addedRejectQty, consumablesUsage);
 
     if (addedRejectQty > 0 && defectCategory) {
       setDefects(prev => prev.map(d => {
@@ -2895,7 +3187,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         supervisorSignOffBalanceReturn,
         plantShiftConfig,
         updatePlantShiftConfig,
-        executePlantClosingReconciliation
+        executePlantClosingReconciliation,
+        requestNextDayTarget
       }}
     >
       {children}
