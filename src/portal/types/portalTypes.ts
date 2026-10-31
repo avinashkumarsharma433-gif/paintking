@@ -609,6 +609,9 @@ export interface JobCardProductionProgressLog {
   scrapPieces?: number;
   defectCategory?: DefectCategory;
   defectReason?: string;
+  reworkAction?: string; // ISO 8.7 Corrective Action (e.g. 2000-grit Sanding + Re-clear)
+  qaVerified?: boolean;  // ISO Re-inspection disposition check
+  qaVerifiedBy?: string;
   processStage?: CoatingProcessStage;
   stageName?: string;
   painterName: string;
@@ -660,6 +663,7 @@ export interface JobCard {
   sprayedQty: number;       // Actual sprayed count
   goodQty: number;
   rejectQty: number;
+  reworkQty?: number;       // ISO 8.7 Rework Recovered / In Rework
   status: 'Open' | 'In Process' | 'Target Met' | 'Over-Run Flagged' | 'Completed' | 'Closed';
   fpaReportNo?: string;
   ipqcAuditCount?: number;

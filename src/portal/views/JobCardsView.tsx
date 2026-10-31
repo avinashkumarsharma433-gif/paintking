@@ -381,6 +381,9 @@ export const JobCardsView: React.FC = () => {
   const [reqUrgency, setReqUrgency] = useState<'Normal' | 'High (Line Stoppage Risk)' | 'Urgent Batch Run'>('Normal');
   const [reqRequestedBy, setReqRequestedBy] = useState<string>('Vikram Patel (Production Manager)');
 
+  // MRN View Details Modal State
+  const [selectedReqForView, setSelectedReqForView] = useState<MaterialRequisitionNote | null>(null);
+
   // MRN Inward Custody Acceptance Modal State
   const [showAcceptModal, setShowAcceptModal] = useState<boolean>(false);
   const [selectedReqForAccept, setSelectedReqForAccept] = useState<MaterialRequisitionNote | null>(null);
@@ -703,6 +706,11 @@ export const JobCardsView: React.FC = () => {
     setShowRequisitionModal(false);
     setToastMessage(`✓ Material Requisition sent to Store! Demanded ${reqQty} ${reqUom} for ${targetLineForReq}.`);
     setTimeout(() => setToastMessage(null), 5000);
+  };
+
+  // Open Store MRN Full Details Modal
+  const handleOpenViewDetailsModal = (req: MaterialRequisitionNote) => {
+    setSelectedReqForView(req);
   };
 
   // Open Store MRN Custody Verification Modal
@@ -1951,31 +1959,29 @@ export const JobCardsView: React.FC = () => {
                 type="button"
                 onClick={() => handleOpenRequisitionModal()}
                 disabled={isPlantDayClosed}
-                className="px-4 py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer transition select-none self-start sm:self-auto"
+                className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer transition select-none self-start sm:self-auto active:scale-95"
               >
                 <Plus className="w-3.5 h-3.5 text-[#c09748]" />
                 <span>+ Raise New Requisition (MRN)</span>
               </button>
             </div>
 
-            {/* Desktop Table for Material Requisitions */}
+            {/* Desktop Table for Material Requisitions - Streamlined 5-Column Universal Standard */}
             <div className="hidden md:block overflow-x-auto border border-[#ececec] rounded-[16px]">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-[#fafafb] text-[#777b86] font-semibold uppercase text-[10px] tracking-wider border-b border-[#ececec]">
-                    <th className="p-3">MRN No & Timestamp</th>
-                    <th className="p-3">Target Job Card & Customer</th>
+                    <th className="p-3">MRN Ref & Date</th>
+                    <th className="p-3">Target Job Card & Party</th>
                     <th className="p-3">Material & Specification</th>
-                    <th className="p-3 text-center">Demanded Qty</th>
-                    <th className="p-3">Urgency & Shift</th>
-                    <th className="p-3 text-center">Store Dispatch Status</th>
-                    <th className="p-3 text-right">Floor Custody Action</th>
+                    <th className="p-3 text-center">Quantities & MIN Slip</th>
+                    <th className="p-3 text-right">Store Status & Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#ececec] text-[#17191c]">
                   {materialRequisitions.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-6 text-center text-[#777b86]">
+                      <td colSpan={5} className="p-6 text-center text-[#777b86]">
                         No material requisitions raised yet. Click <strong>"+ Raise New Requisition"</strong> to demand materials from store.
                       </td>
                     </tr>
@@ -1988,168 +1994,91 @@ export const JobCardsView: React.FC = () => {
 
                       return (
                         <tr key={idx} className="hover:bg-[#fafafb] transition">
+                          {/* Col 1: MRN Ref & Date */}
                           <td className="p-3">
-                            <div className="font-mono font-bold text-[#c09748]">{req.mrnNo}</div>
-                            <div className="text-[11px] text-[#777b86]">{req.date} {req.time}</div>
-                            <div className="text-[10px] font-mono text-gray-400">{req.plant}</div>
+                            <div className="font-mono font-bold text-[#c09748] text-sm">{req.mrnNo}</div>
+                            <div className="text-[11px] text-[#777b86]">{req.date} • {req.time}</div>
+                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[9.5px] font-mono font-bold bg-[#fafafb] border border-[#ececec] text-[#777b86]">
+                              {req.plant}
+                            </span>
                           </td>
+
+                          {/* Col 2: Target Job Card & Customer */}
                           <td className="p-3">
-                            <div className="font-mono font-bold text-[#17191c]">{req.jobCardNo}</div>
+                            <div className="font-mono font-bold text-[#17191c] text-sm">{req.jobCardNo}</div>
                             <div className="font-mono text-xs text-[#8a6521]">WO: {req.woNo}</div>
-                            <div className="text-[10px] text-[#777b86]">{req.customer}</div>
+                            <div className="text-[11px] text-[#777b86] font-medium truncate max-w-[180px]">{req.customer}</div>
                           </td>
+
+                          {/* Col 3: Material & Specification */}
                           <td className="p-3">
-                            <div className="font-semibold text-[#17191c]">{req.partDescription}</div>
+                            <div className="font-semibold text-[#17191c] text-xs">{req.partDescription}</div>
                             <div className="font-mono text-[11px] text-[#777b86]">Code: {req.partCode}</div>
                             {req.colorName && (
-                              <div className="text-[10px] text-[#8a6521]">Shade: {req.colorName}</div>
+                              <div className="text-[10px] text-[#8a6521] font-mono">Shade: {req.colorName}</div>
                             )}
                           </td>
-                          <td className="p-3 text-center font-mono font-bold text-sm bg-[#faf7ed]/60 text-[#8a6521]">
-                            {req.requestedQty.toLocaleString('en-IN')} {req.uom}
-                            {req.issuedQty !== undefined && req.issuedQty !== req.requestedQty && (
-                              <div className="text-[10px] font-normal text-[#777b86]">
-                                Store Issued: {req.issuedQty} {req.uom}
-                              </div>
-                            )}
-                          </td>
-                          <td className="p-3">
-                            <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                              req.urgency.includes('High') || req.urgency.includes('Urgent')
-                                ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                                : 'bg-gray-100 text-gray-700'
-                            }`}>
-                              {req.urgency}
-                            </span>
-                            <div className="text-[10px] text-[#777b86] mt-0.5 truncate max-w-[120px]">
-                              Req by: {req.requestedBy}
-                            </div>
-                          </td>
+
+                          {/* Col 4: Quantities & MIN Slip */}
                           <td className="p-3 text-center">
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                              isPending
-                                ? 'bg-amber-50 text-amber-900 border-amber-300 animate-pulse'
-                                : isDispatched
-                                  ? 'bg-blue-50 text-blue-900 border-blue-200'
-                                  : isReceived
-                                    ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
-                                    : 'bg-rose-50 text-rose-900 border-rose-300'
-                            }`}>
-                              {req.status}
-                            </span>
+                            <div className="inline-block px-3 py-1.5 rounded-[12px] bg-[#faf7ed] border border-[#f4e5be] text-center font-mono">
+                              <span className="text-[9.5px] uppercase text-[#8a6521] block font-bold">
+                                {isReceived ? 'Received Qty' : isDispatched ? 'Store Dispatched' : 'Demanded Qty'}
+                              </span>
+                              <span className="font-bold text-sm text-[#8a6521]">
+                                {req.issuedQty !== undefined ? req.issuedQty : req.requestedQty} {req.uom}
+                              </span>
+                              {req.issuedQty !== undefined && req.issuedQty !== req.requestedQty && (
+                                <span className="text-[9.5px] text-[#777b86] block mt-0.5">
+                                  Demanded: {req.requestedQty} {req.uom}
+                                </span>
+                              )}
+                            </div>
                             {req.issuedSlipNo && (
-                              <div className="text-[10px] font-mono text-blue-700 mt-1">
+                              <div className="text-[10px] font-mono text-blue-700 font-bold mt-1">
                                 Slip: {req.issuedSlipNo}
                               </div>
                             )}
-                            {req.discrepancyQty !== undefined && req.discrepancyQty !== 0 && (
-                              <div className="text-[10px] font-bold text-rose-700 mt-0.5">
-                                Diff: {req.discrepancyQty > 0 ? `-${req.discrepancyQty} Shortage` : `+${Math.abs(req.discrepancyQty)} Excess`}
-                              </div>
-                            )}
                           </td>
-                          <td className="p-3 text-right">
-                            {isDispatched ? (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenAcceptModal(req)}
-                                className="px-3.5 py-1.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs cursor-pointer transition flex items-center gap-1.5 ml-auto"
-                              >
-                                <PackageCheck className="w-3.5 h-3.5" />
-                                <span>✓ Accept & Take Custody</span>
-                              </button>
-                            ) : isPending ? (
-                              <span className="text-[11px] text-amber-700 font-medium italic">
-                                Awaiting Store MIN Issue...
-                              </span>
-                            ) : isReceived ? (() => {
-                              const reqMatchingPir = preProductionReports.find(
-                                p => p.jobCardNo.toLowerCase() === req.jobCardNo.toLowerCase() ||
-                                     (req.woNo && p.workOrderNo && p.workOrderNo.toLowerCase() === req.woNo.toLowerCase())
-                              );
 
-                              return (
-                                <div className="text-right flex flex-col items-end gap-1.5">
-                                  <span className="text-[11px] text-emerald-800 font-bold flex items-center justify-end gap-1">
-                                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                                    <span>In Active WIP</span>
-                                  </span>
-                                  <div className="text-[10px] text-[#777b86]">
-                                    {req.receivedQty} {req.uom} recd by {req.receivedBy?.split(' ')[0]}
-                                  </div>
-                                  <div className="flex items-center gap-1.5 pt-0.5">
-                                    {reqMatchingPir ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => downloadStandardPreProductionPdf(reqMatchingPir)}
-                                        className="px-2.5 py-1 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer transition"
-                                        title={`Download PIR PDF (${reqMatchingPir.reportNo})`}
-                                      >
-                                        <Download className="w-3 h-3 text-[#c09748]" />
-                                        <span>PIR PDF ({reqMatchingPir.reportNo})</span>
-                                      </button>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const matchedJc = jobCards.find(
-                                            j => j.jobCardNo.toLowerCase() === req.jobCardNo.toLowerCase() ||
-                                                 (j.woNo && req.woNo && j.woNo.toLowerCase() === req.woNo.toLowerCase())
-                                          );
-                                          if (matchedJc) {
-                                            setSelectedJcForPir(matchedJc);
-                                          } else {
-                                            setSelectedJcForPir({
-                                              jobCardNo: req.jobCardNo,
-                                              woNo: req.woNo,
-                                              customer: req.customer,
-                                              partCode: req.partCode,
-                                              partDescription: req.partDescription,
-                                              color: req.colorName || 'Standard OEM Tone',
-                                              targetQty: req.receivedQty || req.issuedQty || req.requestedQty,
-                                              issuedRawQty: req.receivedQty || req.issuedQty || req.requestedQty,
-                                              sprayedQty: 0,
-                                              goodQty: 0,
-                                              rejectQty: 0,
-                                              status: 'Open',
-                                              jobCardType: 'master',
-                                              docNo: 'Doc No: 001',
-                                              dept: 'Cubic Line',
-                                              boothNo: 'Booth #1',
-                                              painterName: 'Ramesh Kumar (P1)',
-                                              checkingPerson: 'Amit Verma'
-                                            });
-                                          }
-                                          setShowPirModal(true);
-                                        }}
-                                        className="px-2.5 py-1 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer transition"
-                                      >
-                                        <Sparkles className="w-3 h-3 text-[#c09748]" />
-                                        <span>+ Generate PIR Report</span>
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => handleCreateJobCardFromReceivedBatch(req)}
-                                      className="px-3 py-1 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-[11px] flex items-center gap-1 shadow-2xs cursor-pointer transition"
-                                    >
-                                      <Plus className="w-3 h-3 text-[#c09748]" />
-                                      <span>+ Job Card</span>
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })() : (
-                              <div className="text-right">
-                                <span className="text-[11px] text-rose-700 font-bold flex items-center justify-end gap-1">
-                                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                                  <span>Discrepancy Logged</span>
-                                </span>
-                                <div className="text-[10px] text-[#777b86]">
-                                  Count: {req.receivedQty}/{req.issuedQty || req.requestedQty}
-                                </div>
+                          {/* Col 5: Status & Floor Custody Action */}
+                          <td className="p-3 text-right">
+                            <div className="flex flex-col items-end gap-1.5">
+                              <span className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${
+                                isPending
+                                  ? 'bg-amber-50 text-amber-900 border-amber-300'
+                                  : isDispatched
+                                  ? 'bg-blue-50 text-blue-900 border-blue-200'
+                                  : isReceived
+                                  ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                                  : 'bg-rose-50 text-rose-900 border-rose-300'
+                              }`}>
+                                {req.status}
+                              </span>
+
+                              <div className="flex items-center gap-1.5 pt-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenViewDetailsModal(req)}
+                                  className="px-3 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs flex items-center gap-1 shadow-2xs cursor-pointer transition active:scale-95"
+                                  title="View complete material issue details"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-[#8a6521]" />
+                                  <span>View Details</span>
+                                </button>
+
+                                {isDispatched && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenAcceptModal(req)}
+                                    className="px-3.5 py-1.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs cursor-pointer transition flex items-center gap-1 active:scale-95"
+                                  >
+                                    <PackageCheck className="w-3.5 h-3.5" />
+                                    <span>Accept Custody</span>
+                                  </button>
+                                )}
                               </div>
-                            )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -2159,7 +2088,7 @@ export const JobCardsView: React.FC = () => {
               </table>
             </div>
 
-            {/* Mobile View: Cards for Requisitions */}
+            {/* Mobile View: Clean 3-Row Cards */}
             <div className="grid grid-cols-1 gap-3 md:hidden">
               {materialRequisitions.map((req, idx) => {
                 const isPending = req.status === 'Pending Store Issue';
@@ -2170,14 +2099,14 @@ export const JobCardsView: React.FC = () => {
                 return (
                   <div
                     key={idx}
-                    className={`p-4 rounded-[16px] border bg-white space-y-3 shadow-2xs ${
+                    className={`p-4 rounded-[18px] border bg-white space-y-3 shadow-2xs ${
                       isDiscrepant ? 'border-rose-200 bg-rose-50/20' : isDispatched ? 'border-blue-200 bg-blue-50/10' : 'border-[#ececec]'
                     }`}
                   >
                     <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
                       <div>
                         <span className="font-mono font-bold text-xs text-[#c09748]">{req.mrnNo}</span>
-                        <div className="text-[10px] text-[#777b86]">{req.date} {req.time}</div>
+                        <div className="text-[10px] text-[#777b86]">{req.date} • {req.time}</div>
                       </div>
                       <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                         isPending
@@ -2200,109 +2129,40 @@ export const JobCardsView: React.FC = () => {
 
                     <div className="p-2.5 rounded-[12px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between text-xs">
                       <div>
-                        <span className="text-[9px] text-[#777b86] uppercase block">Demanded Qty</span>
-                        <span className="font-mono font-bold text-[#8a6521]">{req.requestedQty} {req.uom}</span>
+                        <span className="text-[9px] text-[#777b86] uppercase block font-mono">Store Dispatched</span>
+                        <span className="font-mono font-bold text-[#8a6521]">
+                          {req.issuedQty !== undefined ? req.issuedQty : req.requestedQty} {req.uom}
+                        </span>
                       </div>
                       {req.issuedSlipNo && (
                         <div className="text-right">
-                          <span className="text-[9px] text-[#777b86] uppercase block">Store Slip</span>
+                          <span className="text-[9px] text-[#777b86] uppercase block font-mono">Store MIN Slip</span>
                           <span className="font-mono font-bold text-blue-700">{req.issuedSlipNo}</span>
                         </div>
                       )}
                     </div>
 
-                    {isDispatched && (
+                    <div className="pt-2 flex items-center gap-2 border-t border-[#ececec]">
                       <button
                         type="button"
-                        onClick={() => handleOpenAcceptModal(req)}
-                        className="w-full py-2 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                        onClick={() => handleOpenViewDetailsModal(req)}
+                        className="flex-1 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
                       >
-                        <PackageCheck className="w-4 h-4" />
-                        <span>✓ Verify & Accept Floor Custody</span>
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View Details</span>
                       </button>
-                    )}
 
-                    {isReceived && (
-                      <div className="space-y-2 pt-2 border-t border-[#ececec]">
-                        <div className="flex items-center justify-between text-xs text-emerald-800 font-bold">
-                          <span className="flex items-center gap-1">
-                            <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Received in WIP</span>
-                          </span>
-                          <span className="text-[11px] font-mono text-[#777b86]">
-                            {req.receivedQty} {req.uom}
-                          </span>
-                        </div>
-                        {(() => {
-                          const reqMatchingPir = preProductionReports.find(
-                            p => p.jobCardNo.toLowerCase() === req.jobCardNo.toLowerCase() ||
-                                 (req.woNo && p.workOrderNo && p.workOrderNo.toLowerCase() === req.woNo.toLowerCase())
-                          );
-
-                          return (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                              {reqMatchingPir ? (
-                                <button
-                                  type="button"
-                                  onClick={() => downloadStandardPreProductionPdf(reqMatchingPir)}
-                                  className="w-full py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition"
-                                >
-                                  <Download className="w-3.5 h-3.5 text-[#c09748]" />
-                                  <span>Download PIR PDF</span>
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const matchedJc = jobCards.find(
-                                      j => j.jobCardNo.toLowerCase() === req.jobCardNo.toLowerCase() ||
-                                           (j.woNo && req.woNo && j.woNo.toLowerCase() === req.woNo.toLowerCase())
-                                    );
-                                    if (matchedJc) {
-                                      setSelectedJcForPir(matchedJc);
-                                    } else {
-                                      setSelectedJcForPir({
-                                        jobCardNo: req.jobCardNo,
-                                        woNo: req.woNo,
-                                        customer: req.customer,
-                                        partCode: req.partCode,
-                                        partDescription: req.partDescription,
-                                        color: req.colorName || 'Standard OEM Tone',
-                                        targetQty: req.receivedQty || req.issuedQty || req.requestedQty,
-                                        issuedRawQty: req.receivedQty || req.issuedQty || req.requestedQty,
-                                        sprayedQty: 0,
-                                        goodQty: 0,
-                                        rejectQty: 0,
-                                        status: 'Open',
-                                        jobCardType: 'master',
-                                        docNo: 'Doc No: 001',
-                                        dept: 'Cubic Line',
-                                        boothNo: 'Booth #1',
-                                        painterName: 'Ramesh Kumar (P1)',
-                                        checkingPerson: 'Amit Verma'
-                                      });
-                                    }
-                                    setShowPirModal(true);
-                                  }}
-                                  className="w-full py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition"
-                                >
-                                  <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
-                                  <span>+ Generate PIR Report</span>
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => handleCreateJobCardFromReceivedBatch(req)}
-                                className="w-full py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition"
-                              >
-                                <Plus className="w-3.5 h-3.5 text-[#c09748]" />
-                                <span>+ Create Job Card</span>
-                              </button>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
+                      {isDispatched && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAcceptModal(req)}
+                          className="flex-1 py-2 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition"
+                        >
+                          <PackageCheck className="w-4 h-4" />
+                          <span>Accept Custody</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -2873,6 +2733,23 @@ export const JobCardsView: React.FC = () => {
                     <div className="flex items-center justify-between text-[10.5px] text-[#777b86]">
                       <span>PO: {jc.goodQty || 0}/{jc.targetQty} Pcs</span>
                       <span className="font-mono font-bold text-[#8a6521]">{poPercent}% Complete</span>
+                    </div>
+
+                    {/* ISO 8.7 Quality Yield Breakdown (Good / Rework / Scrap) */}
+                    <div className="flex items-center gap-1 text-[9.5px] font-mono pt-0.5 border-t border-[#ececec]/60">
+                      <span className="text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded font-bold">
+                        OK: {jc.goodQty || 0}
+                      </span>
+                      {((jc.reworkQty !== undefined && jc.reworkQty > 0) || (jc.reworkRecoveredQty !== undefined && jc.reworkRecoveredQty > 0)) && (
+                        <span className="text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded font-bold" title="ISO 8.7 Rework Recovered">
+                          RW: {jc.reworkQty || jc.reworkRecoveredQty}
+                        </span>
+                      )}
+                      {(jc.rejectQty !== undefined && jc.rejectQty > 0) && (
+                        <span className="text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded font-bold" title="Dead Scrap Rejection">
+                          Scrap: {jc.rejectQty}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -3622,6 +3499,201 @@ export const JobCardsView: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Store Material Requisition (MRN) Details Popup */}
+      {selectedReqForView && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
+          onClick={() => setSelectedReqForView(null)}
+        >
+          <div 
+            className="bg-white rounded-[24px] max-w-xl w-full p-5 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-start pb-3 border-b border-[#ececec]">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+                  STORE REQUISITION & FLOOR HANDSHAKE
+                </span>
+                <h3 className="text-lg font-serif font-normal text-[#17191c] mt-1 flex items-center gap-2">
+                  <span>{selectedReqForView.mrnNo}</span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                    selectedReqForView.status === 'Pending Store Issue'
+                      ? 'bg-amber-50 text-amber-900 border-amber-300'
+                      : selectedReqForView.status === 'Dispatched by Store'
+                      ? 'bg-blue-50 text-blue-900 border-blue-200'
+                      : selectedReqForView.status === 'Received by Production'
+                      ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                      : 'bg-rose-50 text-rose-900 border-rose-300'
+                  }`}>
+                    {selectedReqForView.status}
+                  </span>
+                </h3>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setSelectedReqForView(null)}
+                className="w-8 h-8 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Section 1: Target Job Card & Customer */}
+            <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2">
+              <span className="text-[10px] font-mono uppercase font-bold text-[#777b86] block">
+                Target Production Job Card & Customer
+              </span>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-[#777b86] block text-[10px]">Job Card No:</span>
+                  <strong className="font-mono text-[#17191c] text-sm">{selectedReqForView.jobCardNo}</strong>
+                </div>
+                <div>
+                  <span className="text-[#777b86] block text-[10px]">Work Order Ref:</span>
+                  <strong className="font-mono text-[#8a6521] text-sm">WO: {selectedReqForView.woNo}</strong>
+                </div>
+                <div>
+                  <span className="text-[#777b86] block text-[10px]">Customer / Party:</span>
+                  <strong className="text-[#17191c]">{selectedReqForView.customer}</strong>
+                </div>
+                <div>
+                  <span className="text-[#777b86] block text-[10px]">Plant Unit:</span>
+                  <strong className="text-[#17191c]">{selectedReqForView.plant}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Material Specifications & Exact Quantity */}
+            <div className="p-3.5 rounded-[16px] bg-white border border-[#ececec] space-y-2.5">
+              <span className="text-[10px] font-mono uppercase font-bold text-[#8a6521] block">
+                Material Specifications & Dispatched Quantities
+              </span>
+              
+              <div className="space-y-1">
+                <div className="text-sm font-bold text-[#17191c]">{selectedReqForView.partDescription}</div>
+                <div className="flex items-center gap-2 font-mono text-[11px] text-[#777b86]">
+                  <span>Item Code: <strong className="text-[#17191c]">{selectedReqForView.partCode}</strong></span>
+                  {selectedReqForView.colorName && (
+                    <span>• Shade: <strong className="text-[#8a6521]">{selectedReqForView.colorName}</strong></span>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 font-mono">
+                <div className="p-2.5 rounded-[12px] bg-[#fafafb] border border-[#ececec]">
+                  <span className="text-[9.5px] uppercase text-[#777b86] font-bold block">Demanded Qty</span>
+                  <span className="text-base font-bold text-[#17191c]">{selectedReqForView.requestedQty} {selectedReqForView.uom}</span>
+                  <span className="text-[9px] text-[#777b86] block mt-0.5">By {selectedReqForView.requestedBy.split(' ')[0]}</span>
+                </div>
+
+                <div className="p-2.5 rounded-[12px] bg-[#faf7ed] border border-[#f4e5be]">
+                  <span className="text-[9.5px] uppercase text-[#8a6521] font-bold block">Store Issued Qty</span>
+                  <span className="text-base font-bold text-[#8a6521]">
+                    {selectedReqForView.issuedQty !== undefined ? selectedReqForView.issuedQty : selectedReqForView.requestedQty} {selectedReqForView.uom}
+                  </span>
+                  <span className="text-[9px] text-[#8a6521] block mt-0.5">
+                    Slip: {selectedReqForView.issuedSlipNo || 'Pending'}
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] col-span-2 sm:col-span-1">
+                  <span className="text-[9.5px] uppercase text-[#777b86] font-bold block">Physical Received</span>
+                  <span className={`text-base font-bold ${selectedReqForView.receivedQty ? 'text-emerald-700' : 'text-[#979799]'}`}>
+                    {selectedReqForView.receivedQty !== undefined ? `${selectedReqForView.receivedQty} ${selectedReqForView.uom}` : 'Not Recd'}
+                  </span>
+                  <span className="text-[9px] text-[#777b86] block mt-0.5">
+                    {selectedReqForView.receivedBy ? `By ${selectedReqForView.receivedBy.split(' ')[0]}` : 'Pending Handshake'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Store Dispatch & Receipt Verification Details */}
+            <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2">
+              <span className="text-[10px] font-mono uppercase font-bold text-[#777b86] block">
+                Dispatch Slip & Verification Log
+              </span>
+              <div className="grid grid-cols-2 gap-3 text-[11px] font-mono">
+                <div>
+                  <span className="text-[#777b86] block">Store Issue Slip (MIN):</span>
+                  <strong className="text-blue-700">{selectedReqForView.issuedSlipNo || 'Pending Issue Slip'}</strong>
+                </div>
+                <div>
+                  <span className="text-[#777b86] block">Source Inward Lot / GRN:</span>
+                  <strong className="text-[#17191c]">{selectedReqForView.sourceGrnNo || 'Direct Stock'}</strong>
+                </div>
+                <div>
+                  <span className="text-[#777b86] block">Requisition Raised At:</span>
+                  <strong className="text-[#17191c]">{selectedReqForView.date} {selectedReqForView.time}</strong>
+                </div>
+                <div>
+                  <span className="text-[#777b86] block">Urgency / Shift:</span>
+                  <strong className="text-rose-700">{selectedReqForView.urgency} ({selectedReqForView.requiredShift})</strong>
+                </div>
+              </div>
+
+              {selectedReqForView.productionRemarks && (
+                <div className="text-[11px] text-[#777b86] pt-1.5 border-t border-[#ececec]">
+                  Floor Notes: <strong className="text-[#17191c] font-sans">{selectedReqForView.productionRemarks}</strong>
+                </div>
+              )}
+            </div>
+
+            {/* Section 4: Status Guidance & Instant Accept Action */}
+            {selectedReqForView.status === 'Dispatched by Store' && (
+              <div className="p-3 rounded-[14px] bg-blue-50 border border-blue-200 text-blue-900 text-xs flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <PackageCheck className="w-4 h-4 text-blue-700 shrink-0" />
+                  <span>Store has dispatched <strong>{selectedReqForView.issuedQty || selectedReqForView.requestedQty} {selectedReqForView.uom}</strong>. Please verify physical trolley and accept.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const req = selectedReqForView;
+                    setSelectedReqForView(null);
+                    handleOpenAcceptModal(req);
+                  }}
+                  className="px-4 py-2 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs cursor-pointer transition shrink-0 flex items-center gap-1.5 active:scale-95"
+                >
+                  <PackageCheck className="w-3.5 h-3.5" />
+                  <span>Accept Custody</span>
+                </button>
+              </div>
+            )}
+
+            {selectedReqForView.status === 'Received by Production' && (
+              <div className="p-3 rounded-[14px] bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>
+                  ✓ Floor custody accepted by <strong>{selectedReqForView.receivedBy}</strong> ({selectedReqForView.receivedQty} {selectedReqForView.uom} active in Job Card WIP).
+                </span>
+              </div>
+            )}
+
+            {selectedReqForView.status === 'Pending Store Issue' && (
+              <div className="p-3 rounded-[14px] bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+                <span>
+                  Requisition is pending at Central Store. Storekeeper will pick and dispatch material with a MIN slip.
+                </span>
+              </div>
+            )}
+
+            {/* Footer */}
+            <div className="flex justify-end gap-2 pt-2 border-t border-[#ececec]">
+              <button
+                type="button"
+                onClick={() => setSelectedReqForView(null)}
+                className="px-5 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold cursor-pointer transition active:scale-95"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

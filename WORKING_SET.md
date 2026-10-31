@@ -4,6 +4,34 @@
 
 ---
 
+### [2026-10-31] Streamlined Store Demands (MRN) Desk & View Details Modal
+- **Task:** Simplified MRN Dashboard per Universal 5-Column rule: removed redundant '+ Job Card' button, '+ Generate PIR Report', and clutter. Replaced table with 5 clean columns (MRN Ref & Date, Target Job Card & Party, Material & Specification, Quantities & MIN Slip, Status & Action). Added luxury 'View Details' popup modal displaying complete store dispatch specs, MIN slip, and custody status with quick 'Accept Custody' action.
+- **Files Touched:**
+  - `src/portal/views/JobCardsView.tsx` (Component: `JobCardsView`) | Anchor: `selectedReqForView`
+- **Unfinished:** None.
+
+---
+
+### [2026-10-31] Stage 1 Rework Allocation, Typeable Comboboxes & Quality Log Display
+- **Task:** Fixed Stage 1 rework pieces lockout: allowed re-spraying rework pieces in Stage 1 by calculating max allowed as targetQty - good - scrap. Replaced native select inputs with luxury `TypeableDropdown`. Fixed missing `defectReason` in progress log persistence and added prominent ISO 9001 (Cl 8.7) Defect Reason & Corrective Action display cards on the main Job Card screen and in the full Audit Logs Modal.
+- **Files Touched:**
+  - `src/portal/components/TypeableDropdown.tsx` (Component: `TypeableDropdown`) | Anchor: `export const TypeableDropdown`
+  - `src/portal/components/JobCardModal.tsx` (Component: `JobCardModal`) | Anchor: `ISO 9001:2015 (Cl 8.7) Defect & Corrective Disposition`
+- **Unfinished:** None.
+
+---
+
+### [2026-10-31] ISO 9001 (Cl 8.7) Rework & Rejection Tracking in Job Card
+- **Task:** Integrated ISO 9001:2015 Clause 8.7 compliant Quality Disposition tracking into Job Card Modal, Job Cards List view, and PDF export. Created 5-metric execution balance (Total Given, First-Pass Good, Rework Recovered, Dead Scrap, Remaining), upgraded output logger with defect classification & corrective disposition actions, added micro-indicators on card cards, and updated PDF table.
+- **Files Touched:**
+  - `src/portal/types/portalTypes.ts` (Types: `JobCard`, `JobCardProductionProgressLog`) | Anchor: `reworkQty?: number;`
+  - `src/portal/components/JobCardModal.tsx` (Component: `JobCardModal`) | Anchor: `ISO_REWORK_ACTIONS`
+  - `src/portal/views/JobCardsView.tsx` (Component: `JobCardsView`) | Anchor: `ISO 8.7 Quality Yield Breakdown`
+  - `src/portal/utils/pdfStandardHeader.ts` (Function: `downloadStandardJobCardPdf`) | Anchor: `ISO 9001 (CL 8.7)`
+- **Unfinished:** None.
+
+---
+
 ### [2026-10-30] Removed Redundant 'Rework & Salvage' Tab & Sidebar Sub-Item
 - **Task:** Removed 'Rework & Salvage' tab from JobCardsView.tsx and sub-item from PortalSidebar.tsx. Direct shop-floor rework is performed directly without generating separate child paperwork, simplifying the production header tabs.
 - **Files Touched:**

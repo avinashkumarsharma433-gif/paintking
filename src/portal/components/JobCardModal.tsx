@@ -40,6 +40,7 @@ import {
 import { PaintkingDatePicker } from './PaintkingDatePicker';
 import { PaintkingDateTimePicker } from './PaintkingDateTimePicker';
 import { CustomCombobox, ComboboxOption } from './CustomCombobox';
+import { TypeableDropdown } from './TypeableDropdown';
 import { downloadStandardJobCardPdf } from '../utils/pdfStandardHeader';
 import { BalanceReturnModal } from './BalanceReturnModal';
 
@@ -59,6 +60,29 @@ const DEFECT_LABELS: Record<DefectCategory, string> = {
   pinhole: 'Pinholes / Solvent Pop (D07)',
   none: 'No Specific Defect / Floor Scrap'
 };
+
+const DEFECT_PRESET_OPTIONS = [
+  'Dust Nibs / Air Lint (D01)',
+  'Paint Run / Sagging (D02)',
+  'Orange Peel / Texture (D03)',
+  'Scratch / Handling Scuff (D04)',
+  'Undercoat Show / Low Film (D05)',
+  'Shade / Color Mismatch (D06)',
+  'Pinholes / Solvent Pop (D07)',
+  'Edge Dry Spray / Thin Coat',
+  'Water Spots / Rinse Marks',
+  'Moulding Flash / Parting Line Burr',
+  'Contamination / Substrate Spot'
+];
+
+const ISO_REWORK_ACTIONS = [
+  '2000-Grit Wet Sanding + Re-Clear Coat',
+  'De-nibbing & Machine Compound Buffing',
+  'Spot Feather Sanding & Local Shade Touch-Up',
+  'Chemical Strip & Complete Surface Re-Spray',
+  'Oven Re-bake & Cure Cycle (65°C / 45m)',
+  'Direct Machine Polish (Minor Surface Scuff)'
+];
 
 interface StageConfig {
   key: CoatingProcessStage;
@@ -371,6 +395,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   // LIVE PROCESS TRACKER & INCREMENTAL BATCH OUTPUT LOGGING
   // =========================================================================
   const [currentGoodQty, setCurrentGoodQty] = useState<number>(initialData?.goodQty || 0);
+  const [currentReworkQty, setCurrentReworkQty] = useState<number>(initialData?.reworkQty || initialData?.reworkRecoveredQty || 0);
   const [currentRejectQty, setCurrentRejectQty] = useState<number>(initialData?.rejectQty || 0);
   const [liveProgressLogs, setLiveProgressLogs] = useState<JobCardProductionProgressLog[]>(initialData?.progressLogs || []);
 
@@ -378,8 +403,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [showOutputLogger, setShowOutputLogger] = useState<boolean>(false);
   const [logPiecesSprayed, setLogPiecesSprayed] = useState<number>(100);
   const [logGoodPieces, setLogGoodPieces] = useState<number>(95);
-  const [logRejectPieces, setLogRejectPieces] = useState<number>(5);
+  const [logReworkPieces, setLogReworkPieces] = useState<number>(3);
+  const [logRejectPieces, setLogRejectPieces] = useState<number>(2);
   const [logDefectCategory, setLogDefectCategory] = useState<DefectCategory>('dust_nibs');
+  const [logDefectReason, setLogDefectReason] = useState<string>('Dust Nibs / Air Lint (D01)');
+  const [logReworkAction, setLogReworkAction] = useState<string>('2000-Grit Wet Sanding + Re-Clear Coat');
   const [logTimeInput, setLogTimeInput] = useState<string>(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   const [logRemarksInput, setLogRemarksInput] = useState<string>('');
 
@@ -687,11 +715,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       targetQty,
       dailyTargetQty,
       dailyIssuedQty: dailyTargetQty,
-      sprayedQty: currentGoodQty + currentRejectQty,
+      sprayedQty: currentGoodQty + currentReworkQty + currentRejectQty,
       goodQty: currentGoodQty,
+      reworkQty: currentReworkQty,
       rejectQty: currentRejectQty,
-      remainingQty: Math.max(0, targetQty - currentGoodQty - currentRejectQty),
-      status: (currentGoodQty >= targetQty && targetQty > 0) ? 'Target Met' : (currentGoodQty > 0 ? 'In Process' : 'Open'),
+      remainingQty: Math.max(0, targetQty - currentGoodQty - currentReworkQty - currentRejectQty),
+      status: (currentGoodQty + currentReworkQty >= targetQty && targetQty > 0) ? 'Target Met' : (currentGoodQty > 0 ? 'In Process' : 'Open'),
       painterName,
       assignedPainterName: painterName,
       assignedPainterId,
@@ -736,6 +765,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       if (initialData.assignedPainterName) setPainterName(initialData.assignedPainterName);
       if (initialData.dept) setDept(initialData.dept);
       if (initialData.goodQty !== undefined) setCurrentGoodQty(initialData.goodQty);
+      if (initialData.reworkQty !== undefined) setCurrentReworkQty(initialData.reworkQty);
+      else if (initialData.reworkRecoveredQty !== undefined) setCurrentReworkQty(initialData.reworkRecoveredQty);
       if (initialData.rejectQty !== undefined) setCurrentRejectQty(initialData.rejectQty);
       if (initialData.progressLogs) setLiveProgressLogs(initialData.progressLogs);
       if (initialData.issuedMaterials && initialData.issuedMaterials.length > 0) {
@@ -750,10 +781,13 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   }, [initialData, isOpen, grnList]);
 
   // Remaining pieces calculation
-  const remainingQty = Math.max(0, targetQty - currentGoodQty - currentRejectQty);
-  const totalSprayedSoFar = currentGoodQty + currentRejectQty;
+  const remainingQty = Math.max(0, targetQty - currentGoodQty - currentReworkQty - currentRejectQty);
+  const totalSprayedSoFar = currentGoodQty + currentReworkQty + currentRejectQty;
   const progressPercent = targetQty > 0 ? Math.min(100, Math.round((currentGoodQty / targetQty) * 100)) : 0;
-  const defectPercent = totalSprayedSoFar > 0 ? ((currentRejectQty / totalSprayedSoFar) * 100).toFixed(1) : '0.0';
+  const totalAchievedPercent = targetQty > 0 ? Math.min(100, Math.round(((currentGoodQty + currentReworkQty) / targetQty) * 100)) : 0;
+  const reworkPercent = totalSprayedSoFar > 0 ? ((currentReworkQty / totalSprayedSoFar) * 100).toFixed(1) : '0.0';
+  const scrapPercent = totalSprayedSoFar > 0 ? ((currentRejectQty / totalSprayedSoFar) * 100).toFixed(1) : '0.0';
+  const defectPercent = totalSprayedSoFar > 0 ? (((currentReworkQty + currentRejectQty) / totalSprayedSoFar) * 100).toFixed(1) : '0.0';
 
   // Multi-Stage Coating Process Configuration & Dynamic Counters
   const processStages = useMemo(() => getStagesForProcess(processType), [processType]);
@@ -763,41 +797,60 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     const stage2Logs = liveProgressLogs.filter(l => l.processStage === 'stage_2_basecoat');
     const stage3Logs = liveProgressLogs.filter(l => l.processStage === 'stage_3_topcoat' || !l.processStage);
 
-    const s1Completed = stage1Logs.reduce((sum, l) => sum + (l.piecesCompleted || 0), 0) || (initialData?.primerCompletedQty || 0);
-    const s1Rejects = stage1Logs.reduce((sum, l) => sum + (l.reworkPieces || 0) + (l.scrapPieces || 0), 0) || (initialData?.primerRejectQty || 0);
-    const s1Good = Math.max(0, s1Completed - s1Rejects);
+    // Stage 1: Primer / Ground Coat / Surface Prep
+    const s1Sprayed = stage1Logs.reduce((sum, l) => sum + (l.piecesCompleted || 0), 0) || (initialData?.primerCompletedQty || 0);
+    const s1Good = stage1Logs.length > 0
+      ? stage1Logs.reduce((sum, l) => sum + (l.goodPieces ?? Math.max(0, (l.piecesCompleted || 0) - (l.reworkPieces || 0) - (l.scrapPieces || 0))), 0)
+      : Math.max(0, (initialData?.primerCompletedQty || 0) - (initialData?.primerRejectQty || 0));
+    const s1Scrap = stage1Logs.reduce((sum, l) => sum + (l.scrapPieces || 0), 0) || (initialData?.primerRejectQty || 0);
+    const s1ReworkLogged = stage1Logs.reduce((sum, l) => sum + (l.reworkPieces || 0), 0);
+    const s1Pending = Math.max(0, targetQty - s1Good - s1Scrap);
+    const s1ActiveRework = Math.min(s1Pending, s1ReworkLogged);
+    const s1Rejects = s1Scrap + s1ActiveRework;
 
-    const s2Completed = stage2Logs.reduce((sum, l) => sum + (l.piecesCompleted || 0), 0) || (initialData?.basecoatCompletedQty || 0);
-    const s2Rejects = stage2Logs.reduce((sum, l) => sum + (l.reworkPieces || 0) + (l.scrapPieces || 0), 0) || (initialData?.basecoatRejectQty || 0);
-    const s2Good = Math.max(0, s2Completed - s2Rejects);
+    // Stage 2: Basecoat Colour / 3D Pattern / Print Pass
+    const s1GoodCap = s1Good;
+    const s2Sprayed = stage2Logs.reduce((sum, l) => sum + (l.piecesCompleted || 0), 0) || (initialData?.basecoatCompletedQty || 0);
+    const s2Good = stage2Logs.length > 0
+      ? stage2Logs.reduce((sum, l) => sum + (l.goodPieces ?? Math.max(0, (l.piecesCompleted || 0) - (l.reworkPieces || 0) - (l.scrapPieces || 0))), 0)
+      : Math.max(0, (initialData?.basecoatCompletedQty || 0) - (initialData?.basecoatRejectQty || 0));
+    const s2Scrap = stage2Logs.reduce((sum, l) => sum + (l.scrapPieces || 0), 0) || (initialData?.basecoatRejectQty || 0);
+    const s2ReworkLogged = stage2Logs.reduce((sum, l) => sum + (l.reworkPieces || 0), 0);
+    const s2Pending = Math.max(0, s1GoodCap - s2Good - s2Scrap);
+    const s2ActiveRework = Math.min(s2Pending, s2ReworkLogged);
+    const s2Rejects = s2Scrap + s2ActiveRework;
 
-    const s3Completed = stage3Logs.reduce((sum, l) => sum + (l.piecesCompleted || 0), 0) || (initialData?.topcoatCompletedQty || (initialData?.goodQty || 0) + (initialData?.rejectQty || 0));
-    const s3Rejects = stage3Logs.reduce((sum, l) => sum + (l.reworkPieces || 0) + (l.scrapPieces || 0), 0) || (initialData?.topcoatRejectQty || currentRejectQty);
+    // Stage 3: Topcoat Clear / Final Dimensional Inspection
+    const s2GoodCap = s2Good;
+    const s3Sprayed = stage3Logs.reduce((sum, l) => sum + (l.piecesCompleted || 0), 0) || (initialData?.topcoatCompletedQty || (initialData?.goodQty || 0) + (initialData?.rejectQty || 0));
     const s3Good = stage3Logs.length > 0 
-      ? Math.max(0, s3Completed - s3Rejects)
-      : (initialData?.goodQty || currentGoodQty);
+      ? stage3Logs.reduce((sum, l) => sum + (l.goodPieces ?? Math.max(0, (l.piecesCompleted || 0) - (l.reworkPieces || 0) - (l.scrapPieces || 0))), 0)
+      : (initialData?.goodQty ?? currentGoodQty);
+    const s3Scrap = stage3Logs.reduce((sum, l) => sum + (l.scrapPieces || 0), 0) || (initialData?.topcoatRejectQty || currentRejectQty);
+    const s3ReworkLogged = stage3Logs.reduce((sum, l) => sum + (l.reworkPieces || 0), 0);
+    const s3Pending = Math.max(0, s2GoodCap - s3Good - s3Scrap);
+    const s3ActiveRework = Math.min(s3Pending, s3ReworkLogged || (initialData?.reworkQty || currentReworkQty));
+    const s3Rejects = s3Scrap + s3ActiveRework;
 
     return {
-      stage1: { completed: s1Completed, good: s1Good, rejects: s1Rejects },
-      stage2: { completed: s2Completed, good: s2Good, rejects: s2Rejects },
-      stage3: { completed: s3Completed, good: s3Good, rejects: s3Rejects }
+      stage1: { completed: s1Sprayed, good: s1Good, rework: s1ActiveRework, totalRework: s1ReworkLogged, scrap: s1Scrap, rejects: s1Rejects, pending: s1Pending },
+      stage2: { completed: s2Sprayed, good: s2Good, rework: s2ActiveRework, totalRework: s2ReworkLogged, scrap: s2Scrap, rejects: s2Rejects, pending: s2Pending },
+      stage3: { completed: s3Sprayed, good: s3Good, rework: s3ActiveRework, totalRework: s3ReworkLogged, scrap: s3Scrap, rejects: s3Rejects, pending: s3Pending }
     };
-  }, [liveProgressLogs, initialData, currentGoodQty, currentRejectQty]);
+  }, [liveProgressLogs, initialData, targetQty, currentGoodQty, currentRejectQty, currentReworkQty]);
 
   // Strict Sequential Stage Handshake Logic:
-  // - Stage 1 Input: Raw substrate parts from Stores (targetQty)
-  // - Stage 2 Input: ONLY the Good Pieces passed by Stage 1 (stageCounts.stage1.good)
-  // - Stage 3 Input: ONLY the Good Pieces passed by Stage 2 (stageCounts.stage2.good)
+  // - Stage 1 Input: Raw substrate parts from Stores (targetQty). Remaining to process / rework = targetQty - s1Good - s1Scrap
+  // - Stage 2 Input: ONLY the Good Pieces passed by Stage 1 (stageCounts.stage1.good). Remaining = s1Good - s2Good - s2Scrap
+  // - Stage 3 Input: ONLY the Good Pieces passed by Stage 2 (stageCounts.stage2.good). Remaining = s2Good - s3Good - s3Scrap
   const currentStageMaxAllowed = useMemo(() => {
     if (selectedStage === 'stage_1_primer') {
-      return Math.max(0, targetQty - stageCounts.stage1.completed);
+      return Math.max(0, targetQty - stageCounts.stage1.good - stageCounts.stage1.scrap);
     }
     if (selectedStage === 'stage_2_basecoat') {
-      // Stage 2 can NEVER spray or pass more pieces than what Stage 1 passed as OK
-      return Math.max(0, stageCounts.stage1.good - stageCounts.stage2.completed);
+      return Math.max(0, stageCounts.stage1.good - stageCounts.stage2.good - stageCounts.stage2.scrap);
     }
-    // stage_3_topcoat: can NEVER spray or pass more pieces than what Stage 2 passed as OK
-    return Math.max(0, stageCounts.stage2.good - stageCounts.stage3.completed);
+    return Math.max(0, stageCounts.stage2.good - stageCounts.stage3.good - stageCounts.stage3.scrap);
   }, [selectedStage, targetQty, stageCounts]);
 
   // Stage-by-Stage Rejection Rates & Overall Job Rejection Rate
@@ -824,15 +877,16 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     setSelectedStage(stageKey);
     let maxForStage = 0;
     if (stageKey === 'stage_1_primer') {
-      maxForStage = Math.max(0, targetQty - stageCounts.stage1.completed);
+      maxForStage = Math.max(0, targetQty - stageCounts.stage1.good - stageCounts.stage1.scrap);
     } else if (stageKey === 'stage_2_basecoat') {
-      maxForStage = Math.max(0, stageCounts.stage1.good - stageCounts.stage2.completed);
+      maxForStage = Math.max(0, stageCounts.stage1.good - stageCounts.stage2.good - stageCounts.stage2.scrap);
     } else {
-      maxForStage = Math.max(0, stageCounts.stage2.good - stageCounts.stage3.completed);
+      maxForStage = Math.max(0, stageCounts.stage2.good - stageCounts.stage3.good - stageCounts.stage3.scrap);
     }
-    const defaultSprayed = Math.min(100, maxForStage);
+    const defaultSprayed = Math.min(100, Math.max(0, maxForStage));
     setLogPiecesSprayed(defaultSprayed);
     setLogGoodPieces(defaultSprayed);
+    setLogReworkPieces(0);
     setLogRejectPieces(0);
   };
 
@@ -1137,12 +1191,10 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   // Incremental Batch Output Logging (Stage-Aware)
   const handleSprayedPiecesChange = (val: number) => {
     if (isNaN(val)) val = 0;
-    const maxAllowed = currentStageMaxAllowed;
-    const sprayed = Math.min(maxAllowed, Math.max(0, val));
+    const sprayed = Math.min(currentStageMaxAllowed, Math.max(0, val));
     setLogPiecesSprayed(sprayed);
-    const rej = Math.min(sprayed, logRejectPieces);
-    setLogRejectPieces(rej);
-    setLogGoodPieces(Math.max(0, sprayed - rej));
+    const nonGood = logReworkPieces + logRejectPieces;
+    setLogGoodPieces(Math.max(0, sprayed - nonGood));
   };
 
   const handleGoodPiecesChange = (val: number) => {
@@ -1150,15 +1202,27 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     const maxAllowed = logPiecesSprayed;
     const good = Math.min(maxAllowed, Math.max(0, val));
     setLogGoodPieces(good);
-    setLogRejectPieces(Math.max(0, logPiecesSprayed - good));
+    const remainingDefects = Math.max(0, logPiecesSprayed - good);
+    setLogReworkPieces(remainingDefects);
+    setLogRejectPieces(0);
+  };
+
+  const handleReworkPiecesChange = (val: number) => {
+    if (isNaN(val)) val = 0;
+    const rw = Math.max(0, val);
+    const maxRw = Math.max(0, logPiecesSprayed - logRejectPieces);
+    const finalRw = Math.min(maxRw, rw);
+    setLogReworkPieces(finalRw);
+    setLogGoodPieces(Math.max(0, logPiecesSprayed - finalRw - logRejectPieces));
   };
 
   const handleRejectPiecesChange = (val: number) => {
     if (isNaN(val)) val = 0;
-    const maxAllowed = logPiecesSprayed;
-    const rej = Math.min(maxAllowed, Math.max(0, val));
-    setLogRejectPieces(rej);
-    setLogGoodPieces(Math.max(0, logPiecesSprayed - rej));
+    const rej = Math.max(0, val);
+    const maxRej = Math.max(0, logPiecesSprayed - logReworkPieces);
+    const finalRej = Math.min(maxRej, rej);
+    setLogRejectPieces(finalRej);
+    setLogGoodPieces(Math.max(0, logPiecesSprayed - logReworkPieces - finalRej));
   };
 
   const handleSaveOutputBatch = (e: React.FormEvent) => {
@@ -1172,6 +1236,19 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     const isFinalStage = selectedStage === 'stage_3_topcoat';
     const newGoodTotal = isFinalStage ? (currentGoodQty + logGoodPieces) : currentGoodQty;
     const newRejectTotal = currentRejectQty + logRejectPieces;
+    const newReworkTotal = isFinalStage
+      ? Math.max(0, currentReworkQty + logReworkPieces - (logGoodPieces > 0 && currentReworkQty > 0 ? Math.min(currentReworkQty, logGoodPieces) : 0))
+      : currentReworkQty;
+
+    const matchedCategory = (Object.keys(DEFECT_LABELS) as DefectCategory[]).find(
+      cat => DEFECT_LABELS[cat].toLowerCase() === logDefectReason.trim().toLowerCase()
+    ) || (logDefectReason.toLowerCase().includes('run') ? 'paint_run'
+      : logDefectReason.toLowerCase().includes('peel') ? 'orange_peel'
+      : logDefectReason.toLowerCase().includes('scratch') ? 'scratch'
+      : logDefectReason.toLowerCase().includes('undercoat') ? 'undercoat_show'
+      : logDefectReason.toLowerCase().includes('shade') || logDefectReason.toLowerCase().includes('color') ? 'shade_deviation'
+      : logDefectReason.toLowerCase().includes('pinhole') ? 'pinhole'
+      : 'dust_nibs');
 
     const newLogEntry: JobCardProductionProgressLog = {
       id: `LOG-${Date.now()}`,
@@ -1183,10 +1260,13 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       piecesCompleted: logPiecesSprayed,
       goodPieces: logGoodPieces,
       cumulativeGoodQty: newGoodTotal,
-      reworkPieces: logRejectPieces,
-      scrapPieces: 0,
-      defectCategory: logRejectPieces > 0 ? logDefectCategory : 'none',
-      defectReason: logRejectPieces > 0 ? DEFECT_LABELS[logDefectCategory] : undefined,
+      reworkPieces: logReworkPieces,
+      scrapPieces: logRejectPieces,
+      defectCategory: (logReworkPieces > 0 || logRejectPieces > 0) ? matchedCategory : 'none',
+      defectReason: (logReworkPieces > 0 || logRejectPieces > 0) ? logDefectReason.trim() : undefined,
+      reworkAction: logReworkPieces > 0 ? logReworkAction.trim() : undefined,
+      qaVerified: true,
+      qaVerifiedBy: currentUser.name || 'Quality Inspector',
       processStage: selectedStage,
       stageName: activeStageConfig.label,
       painterName: painterName,
@@ -1199,6 +1279,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     if (isFinalStage) {
       setCurrentGoodQty(newGoodTotal);
     }
+    setCurrentReworkQty(newReworkTotal);
     setCurrentRejectQty(newRejectTotal);
 
     if (initialData?.jobCardNo) {
@@ -1211,9 +1292,13 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
         piecesCompleted: logPiecesSprayed,
         goodPieces: logGoodPieces,
         cumulativeGoodQty: newGoodTotal,
-        reworkPieces: logRejectPieces,
-        scrapPieces: 0,
+        reworkPieces: logReworkPieces,
+        scrapPieces: logRejectPieces,
         defectCategory: newLogEntry.defectCategory,
+        defectReason: newLogEntry.defectReason,
+        reworkAction: newLogEntry.reworkAction,
+        qaVerified: true,
+        qaVerifiedBy: newLogEntry.qaVerifiedBy,
         processStage: selectedStage,
         stageName: activeStageConfig.label,
         painterName: newLogEntry.painterName,
@@ -1227,10 +1312,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     setLogRemarksInput('');
     const nextMax = isFinalStage
       ? Math.max(0, targetQty - newGoodTotal - newRejectTotal)
-      : Math.max(0, currentStageMaxAllowed - logPiecesSprayed);
+      : Math.max(0, currentStageMaxAllowed - logGoodPieces);
     const defaultNext = Math.min(100, Math.max(1, nextMax));
     setLogPiecesSprayed(defaultNext);
     setLogGoodPieces(defaultNext);
+    setLogReworkPieces(0);
     setLogRejectPieces(0);
   };
 
@@ -1366,11 +1452,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       targetQty,
       dailyTargetQty,
       dailyIssuedQty: dailyTargetQty,
-      sprayedQty: currentGoodQty + currentRejectQty,
+      sprayedQty: currentGoodQty + currentReworkQty + currentRejectQty,
       goodQty: currentGoodQty,
+      reworkQty: currentReworkQty,
       rejectQty: currentRejectQty,
-      remainingQty: Math.max(0, targetQty - currentGoodQty - currentRejectQty),
-      status: (currentGoodQty >= targetQty && targetQty > 0) ? 'Target Met' : (currentGoodQty > 0 ? 'In Process' : 'Open'),
+      remainingQty: Math.max(0, targetQty - currentGoodQty - currentReworkQty - currentRejectQty),
+      status: (currentGoodQty + currentReworkQty >= targetQty && targetQty > 0) ? 'Target Met' : (currentGoodQty > 0 ? 'In Process' : 'Open'),
       
       painterName,
       assignedPainterName: painterName,
@@ -2097,9 +2184,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     onClick={() => {
                       if (!showOutputLogger) {
                         let initialStage: CoatingProcessStage = 'stage_1_primer';
-                        if (stageCounts.stage1.completed >= targetQty && stageCounts.stage2.completed < (stageCounts.stage1.good || targetQty)) {
+                        const s1Done = (stageCounts.stage1.good + stageCounts.stage1.scrap) >= targetQty && targetQty > 0;
+                        const s2Done = (stageCounts.stage2.good + stageCounts.stage2.scrap) >= stageCounts.stage1.good && stageCounts.stage1.good > 0;
+                        if (s1Done && !s2Done) {
                           initialStage = 'stage_2_basecoat';
-                        } else if (stageCounts.stage2.completed >= (stageCounts.stage1.good || targetQty)) {
+                        } else if (s1Done && s2Done) {
                           initialStage = 'stage_3_topcoat';
                         }
                         handleSelectStage(initialStage);
@@ -2159,7 +2248,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     ? stage2RejRate
                     : stage3RejRate;
 
-                  const isComplete = inputCap > 0 && counts.completed >= inputCap;
+                  const isComplete = inputCap > 0 && (counts.good + counts.scrap) >= inputCap;
                   const isStarted = counts.completed > 0;
                   const isLocked = st.key !== 'stage_1_primer' && inputCap === 0;
                   const pct = inputCap > 0 ? Math.min(100, Math.round((counts.good / inputCap) * 100)) : 0;
@@ -2192,11 +2281,13 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                               ? 'bg-gray-100 text-[#777b86] border-gray-200'
                               : isComplete 
                               ? 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be]' 
+                              : counts.rework > 0 
+                              ? 'bg-amber-50 text-amber-800 border-amber-300'
                               : isStarted 
-                              ? 'bg-amber-50 text-amber-800 border-amber-200' 
+                              ? 'bg-amber-50/70 text-amber-800 border-amber-200' 
                               : 'bg-gray-100 text-[#777b86] border-gray-200'
                           }`}>
-                            {isLocked ? 'Waiting for Prev Stage' : isComplete ? 'Stage Complete' : isStarted ? `${counts.good}/${inputCap} OK` : 'Pending'}
+                            {isLocked ? 'Waiting for Prev Stage' : isComplete ? 'Stage Complete' : counts.rework > 0 ? `${counts.good}/${inputCap} OK • ${counts.rework} In RW` : isStarted ? `${counts.good}/${inputCap} OK` : 'Pending'}
                           </span>
                         </div>
 
@@ -2217,14 +2308,14 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           <div className="font-bold text-[#8a6521] mt-0.5">+{counts.good} Pcs</div>
                         </div>
 
-                        <div className={`p-2 rounded-[10px] border ${counts.rejects > 0 ? 'bg-rose-50 border-rose-200' : 'bg-[#fafafb] border-[#ececec]'}`}>
-                          <div className={`text-[9.5px] uppercase ${counts.rejects > 0 ? 'text-rose-800' : 'text-[#777b86]'}`}>Rejections</div>
-                          <div className={`font-bold mt-0.5 ${counts.rejects > 0 ? 'text-rose-700' : 'text-[#777b86]'}`}>{counts.rejects} Pcs</div>
+                        <div className={`p-2 rounded-[10px] border ${counts.rework > 0 ? 'bg-amber-50 border-amber-200' : 'bg-[#fafafb] border-[#ececec]'}`}>
+                          <div className={`text-[9.5px] uppercase ${counts.rework > 0 ? 'text-amber-800' : 'text-[#777b86]'}`}>Rework (RW)</div>
+                          <div className={`font-bold mt-0.5 ${counts.rework > 0 ? 'text-amber-800' : 'text-[#777b86]'}`}>+{counts.rework} Pcs</div>
                         </div>
 
-                        <div className={`p-2 rounded-[10px] border ${counts.rejects > 0 ? 'bg-rose-50/70 border-rose-200' : 'bg-[#faf7ed] border-[#f4e5be]'}`}>
-                          <div className="text-[9.5px] uppercase text-[#777b86]">Rejection Rate</div>
-                          <div className={`font-bold mt-0.5 ${counts.rejects > 0 ? 'text-rose-700' : 'text-[#8a6521]'}`}>{rejRate}%</div>
+                        <div className={`p-2 rounded-[10px] border ${counts.scrap > 0 ? 'bg-rose-50 border-rose-200' : 'bg-[#fafafb] border-[#ececec]'}`}>
+                          <div className={`text-[9.5px] uppercase ${counts.scrap > 0 ? 'text-rose-800' : 'text-[#777b86]'}`}>Dead Scrap</div>
+                          <div className={`font-bold mt-0.5 ${counts.scrap > 0 ? 'text-rose-700' : 'text-[#777b86]'}`}>{counts.scrap} Pcs</div>
                         </div>
                       </div>
 
@@ -2236,17 +2327,27 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                             style={{ width: `${inputCap > 0 ? Math.min(100, (counts.good / inputCap) * 100) : 0}%` }}
                             title={`Good: ${counts.good}`}
                           />
-                          {counts.rejects > 0 && (
+                          {counts.rework > 0 && (
+                            <div 
+                              className="bg-amber-400 h-full transition-all duration-300"
+                              style={{ width: `${inputCap > 0 ? Math.min(100, (counts.rework / inputCap) * 100) : 0}%` }}
+                              title={`Rework: ${counts.rework}`}
+                            />
+                          )}
+                          {counts.scrap > 0 && (
                             <div 
                               className="bg-rose-500 h-full transition-all duration-300"
-                              style={{ width: `${inputCap > 0 ? Math.min(100, (counts.rejects / inputCap) * 100) : 0}%` }}
-                              title={`Rejects: ${counts.rejects}`}
+                              style={{ width: `${inputCap > 0 ? Math.min(100, (counts.scrap / inputCap) * 100) : 0}%` }}
+                              title={`Scrap: ${counts.scrap}`}
                             />
                           )}
                         </div>
                         <div className="flex justify-between text-[10px] font-mono text-[#777b86]">
                           <span>{inputCap > 0 ? Math.round((counts.good / inputCap) * 100) : 0}% Good Yield</span>
-                          {counts.rejects > 0 && <span className="text-rose-700 font-semibold">{rejRate}% Defect Rate</span>}
+                          <div className="flex items-center gap-2">
+                            {counts.rework > 0 && <span className="text-amber-800 font-semibold">{counts.rework} Pcs Rework</span>}
+                            {counts.scrap > 0 && <span className="text-rose-700 font-semibold">{counts.scrap} Pcs Scrap</span>}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2255,57 +2356,70 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               </div>
             </div>
 
-            {/* 4 Metric Cards Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-[#fafafb] p-3.5 rounded-[18px] border border-[#ececec] space-y-1">
+            {/* 5 Metric Cards Grid (ISO 8.7 Quality Disposition Tracking) */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+              <div className="bg-[#fafafb] p-3 rounded-[16px] border border-[#ececec] space-y-1">
                 <span className="text-[10px] font-mono uppercase text-[#777b86] font-bold block flex items-center gap-1">
                   <Layers className="w-3 h-3 text-[#c09748]" />
-                  Total Given (Shuru me)
+                  Total Given
                 </span>
-                <div className="font-mono text-2xl font-bold text-[#17191c]">
+                <div className="font-mono text-xl font-bold text-[#17191c]">
                   {targetQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
                 </div>
                 <div className="text-[10px] text-[#777b86] font-mono truncate">
-                  Assigned: {painterName}
+                  Painter: {painterName.split(' ')[0]}
                 </div>
               </div>
 
-              <div className="bg-[#faf7ed] p-3.5 rounded-[18px] border border-[#f4e5be] space-y-1">
+              <div className="bg-[#faf7ed] p-3 rounded-[16px] border border-[#f4e5be] space-y-1">
                 <span className="text-[10px] font-mono uppercase text-[#8a6521] font-bold block flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3 text-[#c09748]" />
-                  Good Passed (Hue hain)
+                  Good OK (Pass)
                 </span>
-                <div className="font-mono text-2xl font-bold text-[#17191c]">
+                <div className="font-mono text-xl font-bold text-[#8a6521]">
                   {currentGoodQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
                 </div>
                 <div className="text-[10px] text-[#8a6521] font-semibold font-mono">
-                  {progressPercent}% Target Completed
+                  {progressPercent}% First-Pass Yield
                 </div>
               </div>
 
-              <div className="bg-rose-50/70 p-3.5 rounded-[18px] border border-rose-200 space-y-1">
+              <div className="bg-amber-50/70 p-3 rounded-[16px] border border-amber-200 space-y-1">
+                <span className="text-[10px] font-mono uppercase text-amber-800 font-bold block flex items-center gap-1">
+                  <RotateCcw className="w-3 h-3 text-amber-600" />
+                  Rework (Salvage)
+                </span>
+                <div className="font-mono text-xl font-bold text-amber-900">
+                  {currentReworkQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-amber-700">Pcs</span>
+                </div>
+                <div className="text-[10px] text-amber-800 font-mono">
+                  {reworkPercent}% Reworked
+                </div>
+              </div>
+
+              <div className="bg-rose-50/70 p-3 rounded-[16px] border border-rose-200 space-y-1">
                 <span className="text-[10px] font-mono uppercase text-rose-800 font-bold block flex items-center gap-1">
                   <AlertCircle className="w-3 h-3 text-rose-600" />
-                  Rejection / Defect
+                  Dead Scrap (Rej)
                 </span>
-                <div className="font-mono text-2xl font-bold text-rose-900">
+                <div className="font-mono text-xl font-bold text-rose-900">
                   {currentRejectQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-rose-700">Pcs</span>
                 </div>
                 <div className="text-[10px] text-rose-800 font-mono">
-                  {defectPercent}% Defect Rate
+                  {scrapPercent}% Scrap Rate
                 </div>
               </div>
 
-              <div className="bg-amber-50/70 p-3.5 rounded-[18px] border border-amber-200 space-y-1">
-                <span className="text-[10px] font-mono uppercase text-amber-800 font-bold block flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-amber-600" />
-                  Remaining (Bache hain)
+              <div className="bg-[#fafafb] p-3 rounded-[16px] border border-[#ececec] space-y-1 col-span-2 sm:col-span-1">
+                <span className="text-[10px] font-mono uppercase text-[#777b86] font-bold block flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-[#979799]" />
+                  Remaining
                 </span>
-                <div className="font-mono text-2xl font-bold text-amber-900">
-                  {remainingQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-amber-700">Pcs</span>
+                <div className="font-mono text-xl font-bold text-[#17191c]">
+                  {remainingQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
                 </div>
-                <div className="text-[10px] text-amber-800 font-mono">
-                  {remainingQty === 0 ? '🎉 100% Complete' : 'Pending on Floor'}
+                <div className="text-[10px] text-[#777b86] font-mono">
+                  {remainingQty === 0 ? '🎉 100% Target Met' : 'Floor WIP'}
                 </div>
               </div>
             </div>
@@ -2314,9 +2428,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
             <div className="space-y-1 pt-1">
               <div className="flex justify-between text-[11px] font-mono">
                 <span className="text-[#777b86]">
-                  Execution Balance: <strong className="text-[#8a6521]">{currentGoodQty} Good</strong> + <strong className="text-rose-700">{currentRejectQty} Rej</strong> of {targetQty} Pcs
+                  Execution Balance: <strong className="text-[#8a6521]">{currentGoodQty} Good</strong> + <strong className="text-amber-800">{currentReworkQty} Rework</strong> + <strong className="text-rose-700">{currentRejectQty} Scrap</strong> of {targetQty} Pcs
                 </span>
-                <span className="font-bold text-[#17191c]">{progressPercent}% Complete</span>
+                <span className="font-bold text-[#17191c]">{totalAchievedPercent}% Net Passed</span>
               </div>
               <div className="h-2.5 w-full bg-[#f2f2f3] rounded-full overflow-hidden flex border border-[#ececec]">
                 <div 
@@ -2325,9 +2439,14 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   title={`Good Pieces: ${currentGoodQty}`}
                 />
                 <div 
+                  className="bg-amber-400 h-full transition-all duration-300"
+                  style={{ width: `${Math.min(100, targetQty > 0 ? (currentReworkQty / targetQty) * 100 : 0)}%` }}
+                  title={`Rework Recovered: ${currentReworkQty}`}
+                />
+                <div 
                   className="bg-rose-500 h-full transition-all duration-300"
                   style={{ width: `${Math.min(100, targetQty > 0 ? (currentRejectQty / targetQty) * 100 : 0)}%` }}
-                  title={`Rejections: ${currentRejectQty}`}
+                  title={`Dead Scrap: ${currentRejectQty}`}
                 />
               </div>
             </div>
@@ -2393,7 +2512,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           </div>
                           <div className="flex items-center justify-between mt-1 text-[10px] font-mono text-[#777b86]">
                             <span>Input: {inputCap} Pcs</span>
-                            <span>Done: <strong>{stageInfo.good}</strong> Pcs</span>
+                            <span>Done: <strong className="text-[#8a6521]">{stageInfo.good}</strong>{stageInfo.rework > 0 && <span className="text-amber-700 ml-1">({stageInfo.rework} RW)</span>} Pcs</span>
                           </div>
                         </button>
                       );
@@ -2407,14 +2526,15 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
                     <span>
                       {selectedStage === 'stage_1_primer'
-                        ? `Stage 1 ka pura target (${targetQty} Pcs) spray ho chuka hai.`
+                        ? `Stage 1 ka target (${targetQty} Pcs) complete ho chuka hai (${stageCounts.stage1.good} Passed OK, ${stageCounts.stage1.scrap} Scrapped).`
                         : selectedStage === 'stage_2_basecoat'
-                        ? `Stage 1 se sirf ${stageCounts.stage1.good} pieces pass hue the aur sabhi Stage 2 me process ho chuke hain (ya Stage 1 abhi run nahi hua hai).`
-                        : `Stage 2 se sirf ${stageCounts.stage2.good} pieces pass hue the aur sabhi Stage 3 me process ho chuke hain.`}
+                        ? `Stage 1 se sirf ${stageCounts.stage1.good} pieces pass hue the aur sabhi Stage 2 me complete ho chuke hain.`
+                        : `Stage 2 se sirf ${stageCounts.stage2.good} pieces pass hue the aur sabhi Stage 3 me complete ho chuke hain.`}
                     </span>
                   </div>
                 )}
 
+                {/* Row 1: Production Counts (Sprayed = Good + Rework + Scrap) */}
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
                   <div>
                     <div className="flex items-center justify-between mb-1">
@@ -2450,8 +2570,24 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold text-rose-800 uppercase mb-1 font-mono">
-                      Rejection / Defect Count
+                    <label className="block text-[10px] font-bold text-amber-800 uppercase mb-1 font-mono flex items-center justify-between">
+                      <span>Rework Needed (RW)</span>
+                      <span className="text-[9px] font-normal text-amber-700">Touch-up / Re-spray</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max={logPiecesSprayed}
+                      value={logReworkPieces}
+                      onChange={e => handleReworkPiecesChange(Number(e.target.value))}
+                      className="w-full h-9.5 px-3 rounded-[12px] border border-amber-300 bg-white font-mono font-bold text-sm text-amber-800 focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-rose-800 uppercase mb-1 font-mono flex items-center justify-between">
+                      <span>Dead Scrap (Reject)</span>
+                      <span className="text-[9px] font-normal text-rose-700">Challan deduction</span>
                     </label>
                     <input
                       type="number"
@@ -2459,32 +2595,39 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       max={logPiecesSprayed}
                       value={logRejectPieces}
                       onChange={e => handleRejectPiecesChange(Number(e.target.value))}
-                      className="w-full h-9.5 px-3 rounded-[12px] border border-rose-300 bg-white font-mono font-bold text-sm text-rose-700"
+                      className="w-full h-9.5 px-3 rounded-[12px] border border-rose-300 bg-white font-mono font-bold text-sm text-rose-700 focus:border-rose-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Row 2: ISO 9001 Cl 8.7 Non-Conformance Disposition & Traceability */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs pt-1">
+                  <div>
+                    <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
+                      Defect Reason / Type
+                    </label>
+                    <TypeableDropdown
+                      disabled={logReworkPieces === 0 && logRejectPieces === 0}
+                      value={logDefectReason}
+                      onChange={setLogDefectReason}
+                      options={DEFECT_PRESET_OPTIONS}
+                      placeholder="Type or select defect..."
                     />
                   </div>
 
                   <div>
                     <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                      Defect Reason / Type
+                      ISO 8.7 Corrective Action Taken
                     </label>
-                    <select
-                      disabled={logRejectPieces === 0}
-                      value={logDefectCategory}
-                      onChange={e => setLogDefectCategory(e.target.value as DefectCategory)}
-                      className="w-full h-9.5 px-2 rounded-[12px] border border-[#dcdfe4] bg-white text-xs font-semibold text-[#17191c]"
-                    >
-                      <option value="dust_nibs">Dust Nibs / Air Lint</option>
-                      <option value="paint_run">Paint Run / Sagging</option>
-                      <option value="orange_peel">Orange Peel / Texture</option>
-                      <option value="scratch">Scratch / Handling</option>
-                      <option value="undercoat_show">Undercoat Show</option>
-                      <option value="shade_deviation">Shade Mismatch</option>
-                      <option value="pinhole">Pinholes / Pop</option>
-                    </select>
+                    <TypeableDropdown
+                      disabled={logReworkPieces === 0}
+                      value={logReworkAction}
+                      onChange={setLogReworkAction}
+                      options={ISO_REWORK_ACTIONS}
+                      placeholder="Type or select corrective action..."
+                    />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
                   <div>
                     <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
                       Time Logged *
@@ -2493,25 +2636,26 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       type="text"
                       value={logTimeInput}
                       onChange={e => setLogTimeInput(e.target.value)}
-                      className="w-full h-9 px-3 rounded-[12px] border border-[#dcdfe4] bg-white font-mono text-[#17191c]"
+                      className="w-full h-9.5 px-3 rounded-[12px] border border-[#dcdfe4] bg-white font-mono text-[#17191c]"
                     />
                   </div>
-                  <div className="sm:col-span-2">
+
+                  <div>
                     <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                      Supervisor Floor Remarks
+                      Supervisor / QA Remarks
                     </label>
                     <input
                       type="text"
                       value={logRemarksInput}
                       onChange={e => setLogRemarksInput(e.target.value)}
-                      className="w-full h-9 px-3 rounded-[12px] border border-[#dcdfe4] bg-white text-[#17191c]"
-                      placeholder="e.g. Trolley #1 baked at 65°C, adhesion clear"
+                      className="w-full h-9.5 px-3 rounded-[12px] border border-[#dcdfe4] bg-white text-[#17191c]"
+                      placeholder="e.g. Trolley #1 de-nibbed, adhesion OK"
                     />
                   </div>
                 </div>
 
                 <div className="p-2.5 rounded-[12px] bg-white border border-[#f4e5be] text-[11px] text-[#8a6521]">
-                  ⚡ <strong>Stage Impact ({activeStageConfig.shortLabel}):</strong> Logging: <strong>+{logGoodPieces} Good OK</strong>, <strong>+{logRejectPieces} Rejections</strong>.
+                  ⚡ <strong>Stage Impact ({activeStageConfig.shortLabel}):</strong> Logging: <strong>+{logGoodPieces} Good OK</strong>, <strong>+{logReworkPieces} Rework</strong>, <strong>+{logRejectPieces} Dead Scrap</strong>.
                   {selectedStage === 'stage_3_topcoat' ? (
                     <> Final good completion will increase to <strong>{currentGoodQty + logGoodPieces} Pcs</strong> (Remaining: <strong>{Math.max(0, remainingQty - logPiecesSprayed)} Pcs</strong>).</>
                   ) : (
@@ -2541,7 +2685,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
             )}
 
             {/* Activity & Audit Trail Strip with "View Logs" Trigger */}
-            <div className="pt-3 border-t border-[#ececec]">
+            <div className="pt-3 border-t border-[#ececec] space-y-2.5">
               <div className="p-3.5 rounded-[18px] bg-[#fafafb] border border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-center shrink-0">
@@ -2569,10 +2713,66 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
                   >
                     <Eye className="w-3.5 h-3.5 text-[#8a6521]" />
-                    <span>View Logs</span>
+                    <span>View All Logs ({liveProgressLogs.length})</span>
                   </button>
                 </div>
               </div>
+
+              {/* Latest Log Disposition Preview Card (Instant Scannability on Job Card Screen) */}
+              {liveProgressLogs.length > 0 && liveProgressLogs[0].actionType === 'BATCH_OUTPUT' && (
+                <div className="p-3.5 rounded-[16px] bg-white border border-[#ececec] space-y-2 text-xs shadow-2xs">
+                  <div className="flex items-center justify-between flex-wrap gap-2 text-[10.5px] font-mono">
+                    <span className="font-bold text-[#17191c] flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-[#c09748]" />
+                      <span>Latest Batch: {liveProgressLogs[0].stageName || 'Coating Stage'} ({liveProgressLogs[0].timeLabel})</span>
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                        +{liveProgressLogs[0].goodPieces ?? 0} Passed OK
+                      </span>
+                      {(liveProgressLogs[0].reworkPieces || 0) > 0 && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-bold">
+                          +{liveProgressLogs[0].reworkPieces} Rework
+                        </span>
+                      )}
+                      {(liveProgressLogs[0].scrapPieces || 0) > 0 && (
+                        <span className="px-2 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200 font-bold">
+                          +{liveProgressLogs[0].scrapPieces} Scrap
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Defect Reason & Corrective Action Strip */}
+                  {((liveProgressLogs[0].reworkPieces || 0) > 0 || (liveProgressLogs[0].scrapPieces || 0) > 0 || liveProgressLogs[0].defectReason || liveProgressLogs[0].reworkAction) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-[#f2f2f3]">
+                      <div className="p-2 rounded-[10px] bg-[#fafafb] border border-[#ececec]">
+                        <span className="text-[9.5px] uppercase font-mono font-bold text-[#777b86] block">
+                          Defect Reason / Type:
+                        </span>
+                        <span className="font-semibold text-[#17191c] text-xs block mt-0.5 break-words">
+                          {liveProgressLogs[0].defectReason || (liveProgressLogs[0].defectCategory && liveProgressLogs[0].defectCategory !== 'none' ? DEFECT_LABELS[liveProgressLogs[0].defectCategory] : 'Shop Floor Defect Recorded')}
+                        </span>
+                      </div>
+
+                      <div className="p-2 rounded-[10px] bg-amber-50/70 border border-amber-200">
+                        <span className="text-[9.5px] uppercase font-mono font-bold text-amber-800 block">
+                          ISO 8.7 Corrective Action Taken:
+                        </span>
+                        <span className="font-semibold text-amber-900 text-xs block mt-0.5 break-words">
+                          {liveProgressLogs[0].reworkAction || 'Touch-up Wet Sanding & Re-spray'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {liveProgressLogs[0].remarks && (
+                    <div className="text-[11px] font-mono text-[#777b86] pt-1 border-t border-[#f2f2f3]">
+                      Supervisor Remarks: <strong className="text-[#17191c] font-sans">{liveProgressLogs[0].remarks}</strong>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -3442,7 +3642,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               </div>
             </div>
 
-            <div className="p-3 bg-gray-50 border border-gray-300 rounded text-xs grid grid-cols-4 gap-2 text-center">
+            <div className="p-3 bg-gray-50 border border-gray-300 rounded text-xs grid grid-cols-5 gap-2 text-center">
               <div>
                 <div className="text-[10px] text-gray-500 uppercase">Total Given</div>
                 <div className="font-bold text-sm">{targetQty} Pcs</div>
@@ -3452,12 +3652,16 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 <div className="font-bold text-sm text-[#8a6521]">{currentGoodQty} Pcs</div>
               </div>
               <div>
-                <div className="text-[10px] text-rose-800 uppercase">Rejections</div>
+                <div className="text-[10px] text-amber-800 uppercase">Rework Recovered</div>
+                <div className="font-bold text-sm text-amber-800">{currentReworkQty} Pcs</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-rose-800 uppercase">Dead Scrap</div>
                 <div className="font-bold text-sm text-rose-800">{currentRejectQty} Pcs</div>
               </div>
               <div>
-                <div className="text-[10px] text-amber-800 uppercase">Remaining Balance</div>
-                <div className="font-bold text-sm text-amber-800">{remainingQty} Pcs</div>
+                <div className="text-[10px] text-gray-700 uppercase">Remaining Balance</div>
+                <div className="font-bold text-sm text-gray-700">{remainingQty} Pcs</div>
               </div>
             </div>
 
@@ -3496,7 +3700,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     <th className="p-2 border border-[#ececec]">Stage Description</th>
                     <th className="p-2 border border-[#ececec]">Operator Sign</th>
                     <th className="p-2 border border-[#ececec] text-center">OK Pieces</th>
-                    <th className="p-2 border border-[#ececec] text-center">Rejections</th>
+                    <th className="p-2 border border-[#ececec] text-center">Rework (RW)</th>
+                    <th className="p-2 border border-[#ececec] text-center">Dead Scrap</th>
                     <th className="p-2 border border-[#ececec]">QC Sign</th>
                   </tr>
                 </thead>
@@ -3514,8 +3719,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         <td className="p-2 border border-[#ececec] text-center font-mono font-bold text-[#8a6521]">
                           {counts.good > 0 ? `${counts.good} Pcs` : '____ Pcs'}
                         </td>
+                        <td className="p-2 border border-[#ececec] text-center font-mono text-amber-800">
+                          {counts.rework > 0 ? `${counts.rework} Pcs` : '____ Pcs'}
+                        </td>
                         <td className="p-2 border border-[#ececec] text-center font-mono text-rose-700">
-                          {counts.rejects > 0 ? `${counts.rejects} Pcs` : '____ Pcs'}
+                          {counts.scrap > 0 ? `${counts.scrap} Pcs` : '____ Pcs'}
                         </td>
                         <td className="p-2 border border-[#ececec] text-gray-400">[   ] Verified</td>
                       </tr>
@@ -3693,24 +3901,61 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                               <div className="text-[9.5px] text-emerald-800 mt-0.5">Quality Verified</div>
                             </div>
 
-                            {/* Rejections */}
-                            <div className={`p-2.5 rounded-[12px] border ${rejects > 0 ? 'bg-rose-50/80 border-rose-200' : 'bg-[#fafafb] border-[#ececec]'}`}>
-                              <div className={`text-[9.5px] uppercase font-bold ${rejects > 0 ? 'text-rose-800' : 'text-[#777b86]'}`}>3. Rejections</div>
-                              <div className={`text-sm font-bold mt-0.5 ${rejects > 0 ? 'text-rose-700' : 'text-[#777b86]'}`}>{rejects} Pcs</div>
-                              <div className={`text-[9.5px] truncate mt-0.5 ${rejects > 0 ? 'text-rose-700 font-medium' : 'text-[#777b86]'}`}>
-                                {rejects > 0 ? defectLabel : 'Zero Defects (100% OK)'}
+                            {/* Rework Recovered */}
+                            <div className={`p-2.5 rounded-[12px] border ${(log.reworkPieces || 0) > 0 ? 'bg-amber-50/80 border-amber-200' : 'bg-[#fafafb] border-[#ececec]'}`}>
+                              <div className={`text-[9.5px] uppercase font-bold ${(log.reworkPieces || 0) > 0 ? 'text-amber-800' : 'text-[#777b86]'}`}>3. Rework (RW)</div>
+                              <div className={`text-sm font-bold mt-0.5 ${(log.reworkPieces || 0) > 0 ? 'text-amber-800' : 'text-[#777b86]'}`}>{log.reworkPieces || 0} Pcs</div>
+                              <div className={`text-[9.5px] mt-0.5 ${(log.reworkPieces || 0) > 0 ? 'text-amber-800 font-medium' : 'text-[#777b86]'}`}>
+                                {(log.reworkPieces || 0) > 0 ? 'Touch-up / Re-spray' : 'No Rework'}
                               </div>
                             </div>
 
-                            {/* Stage Rejection % */}
-                            <div className={`p-2.5 rounded-[12px] border ${rejects > 0 ? 'bg-rose-50/50 border-rose-200' : 'bg-[#faf7ed] border-[#f4e5be]'}`}>
-                              <div className="text-[9.5px] uppercase text-[#777b86] font-bold">4. Stage Rejection %</div>
-                              <div className={`text-sm font-bold mt-0.5 ${rejects > 0 ? 'text-rose-700' : 'text-[#8a6521]'}`}>{batchRejRate}%</div>
-                              <div className="text-[9.5px] text-[#777b86] mt-0.5">
-                                {rejects > 0 ? 'Defects Found' : 'First-Pass Yield'}
+                            {/* Dead Scrap */}
+                            <div className={`p-2.5 rounded-[12px] border ${(log.scrapPieces || 0) > 0 ? 'bg-rose-50/80 border-rose-200' : 'bg-[#fafafb] border-[#ececec]'}`}>
+                              <div className={`text-[9.5px] uppercase font-bold ${(log.scrapPieces || 0) > 0 ? 'text-rose-800' : 'text-[#777b86]'}`}>4. Dead Scrap</div>
+                              <div className={`text-sm font-bold mt-0.5 ${(log.scrapPieces || 0) > 0 ? 'text-rose-700' : 'text-[#777b86]'}`}>{log.scrapPieces || 0} Pcs</div>
+                              <div className={`text-[9.5px] mt-0.5 ${(log.scrapPieces || 0) > 0 ? 'text-rose-700 font-medium' : 'text-[#777b86]'}`}>
+                                {(log.scrapPieces || 0) > 0 ? 'Challan Deduction' : 'Zero Scrap (100% OK)'}
                               </div>
                             </div>
                           </div>
+
+                          {/* Dedicated ISO 9001 (Cl 8.7) Quality & Disposition Record Card */}
+                          {((log.reworkPieces || 0) > 0 || (log.scrapPieces || 0) > 0 || log.defectReason || log.reworkAction) && (
+                            <div className="p-3 rounded-[14px] bg-[#faf7ed] border border-[#f4e5be] space-y-2">
+                              <div className="flex items-center justify-between flex-wrap gap-2 pb-1.5 border-b border-[#f4e5be]/70 text-[10.5px] font-mono">
+                                <span className="font-bold text-[#8a6521] uppercase flex items-center gap-1.5">
+                                  <AlertCircle className="w-3.5 h-3.5 text-[#c09748]" />
+                                  <span>ISO 9001:2015 (Cl 8.7) Defect & Corrective Disposition</span>
+                                </span>
+                                {log.qaVerified && (
+                                  <span className="font-bold text-emerald-800 bg-white/90 px-2.5 py-0.5 rounded-full border border-emerald-200 text-[10px]">
+                                    ✓ QA Verified: {log.qaVerifiedBy || 'Quality Inspector'}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                <div className="p-2.5 rounded-[10px] bg-white border border-[#ececec]">
+                                  <span className="text-[9.5px] uppercase font-mono font-bold text-[#777b86] block">
+                                    Defect Reason / Type:
+                                  </span>
+                                  <span className="font-semibold text-[#17191c] text-xs block mt-1 break-words">
+                                    {log.defectReason || (log.defectCategory && log.defectCategory !== 'none' ? DEFECT_LABELS[log.defectCategory] : 'Shop Floor Defect Recorded')}
+                                  </span>
+                                </div>
+
+                                <div className="p-2.5 rounded-[10px] bg-white border border-amber-200">
+                                  <span className="text-[9.5px] uppercase font-mono font-bold text-amber-800 block">
+                                    ISO Corrective Action Taken:
+                                  </span>
+                                  <span className="font-semibold text-amber-900 text-xs block mt-1 break-words">
+                                    {log.reworkAction || 'Touch-up Wet Sanding & Re-spray'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Sequential Pipeline Flow Note */}
                           <div className="p-2 px-3 rounded-[10px] bg-[#fafafb] border border-[#ececec] text-[11px] font-mono flex items-center justify-between gap-2 flex-wrap">

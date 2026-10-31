@@ -3921,7 +3921,7 @@ export const downloadStandardJobCardPdf = (jobCard: JobCard): void => {
       name: 'Stage 3: 2K Clear & Final QC', 
       spec: '2K PU Clear topcoat + 65°C oven bake 30m', 
       op: '[   ] Operator Sign', 
-      qc: `OK: ${jobCard.goodQty || '____'} / Rej: ${jobCard.rejectQty || '____'}` 
+      qc: `OK: ${jobCard.goodQty || '____'} | RW: ${jobCard.reworkQty || jobCard.reworkRecoveredQty || 0} | Rej: ${jobCard.rejectQty || '____'}` 
     }
   ];
 
@@ -3956,12 +3956,12 @@ export const downloadStandardJobCardPdf = (jobCard: JobCard): void => {
   currentY += 4;
   doc.setFillColor(250, 247, 237); // Champagne-50
   doc.setDrawColor(244, 229, 190);
-  doc.roundedRect(MARGIN_X, currentY, CONTENT_WIDTH, 18, 2, 2, 'FD');
+  doc.roundedRect(MARGIN_X, currentY, CONTENT_WIDTH, 22, 2, 2, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(138, 101, 33); // Deep Gold
-  doc.text('SHOP FLOOR DIRECTIVES & ASTM ADHESION QUALITY GUIDELINES:', MARGIN_X + 4, currentY + 4.5);
+  doc.text('SHOP FLOOR DIRECTIVES & ISO 9001 (CL 8.7) REWORK DISPOSITION GUIDELINES:', MARGIN_X + 4, currentY + 4.5);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.8);
@@ -3969,9 +3969,10 @@ export const downloadStandardJobCardPdf = (jobCard: JobCard): void => {
   doc.text('1. Substrates must be completely wiped with IPA lint-free wipes prior to conveyor jigging. Inspect for flash burrs.', MARGIN_X + 4, currentY + 8.5);
   doc.text('2. Spray gun fluid pressure 2.0-2.5 bar, booth temp 24°C ± 2°C. Maintain 8-10 mins flash-off time before clearcoat.', MARGIN_X + 4, currentY + 12);
   doc.text('3. Cross-hatch adhesion ASTM 5B test required on 1st sample. Count and record ok pieces in bin trolley card.', MARGIN_X + 4, currentY + 15.5);
+  doc.text('4. ISO 9001 Cl 8.7: Non-conforming parts are tracked with defect reason, reworked via SOP, and re-verified by QA.', MARGIN_X + 4, currentY + 19);
 
   // 7. SECTION 5: THREE SIGNATURE BLOCKS
-  currentY += 22;
+  currentY += 25;
   const sigColW = CONTENT_WIDTH / 3;
 
   doc.setDrawColor(TABLE_BORDER_COLOR[0], TABLE_BORDER_COLOR[1], TABLE_BORDER_COLOR[2]);
