@@ -11,6 +11,7 @@ interface PaintkingDatePickerProps {
   minDate?: string;
   maxDate?: string;
   required?: boolean;
+  highlightedDates?: string[]; // Dates with production activity to show dot indicator
 }
 
 const MONTH_NAMES = [
@@ -26,6 +27,7 @@ export const PaintkingDatePicker: React.FC<PaintkingDatePickerProps> = ({
   placeholder = 'DD-MM-YYYY',
   className = '',
   disabled = false,
+  highlightedDates = [],
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -346,6 +348,19 @@ export const PaintkingDatePicker: React.FC<PaintkingDatePickerProps> = ({
                 const selected = isSelected(dayNum);
                 const today = isToday(dayNum);
 
+                const monthStr = String(viewMonth + 1).padStart(2, '0');
+                const dayStr = String(dayNum).padStart(2, '0');
+                const curIso = `${viewYear}-${monthStr}-${dayStr}`;
+                const hasActivity = highlightedDates.some(hd => {
+                  if (!hd) return false;
+                  if (hd === curIso) return true;
+                  if (hd.includes('-') && hd.split('-')[0].length === 2) {
+                    const [d, m, y] = hd.split('-');
+                    return `${y}-${m}-${d}` === curIso;
+                  }
+                  return hd.startsWith(curIso);
+                });
+
                 return (
                   <button
                     key={`cur-${dayNum}`}
@@ -360,7 +375,16 @@ export const PaintkingDatePicker: React.FC<PaintkingDatePickerProps> = ({
                     }`}
                   >
                     <span>{dayNum}</span>
-                    {today && !selected && (
+                    {/* Dot indicator if work was logged on this date */}
+                    {hasActivity && (
+                      <span 
+                        title="Production & material activity recorded on this date" 
+                        className={`w-1.5 h-1.5 rounded-full absolute bottom-0.5 ${
+                          selected ? 'bg-[#c09748]' : 'bg-emerald-600'
+                        }`} 
+                      />
+                    )}
+                    {!hasActivity && today && !selected && (
                       <span className="w-1 h-1 rounded-full bg-[#c09748] absolute bottom-0.5" />
                     )}
                   </button>

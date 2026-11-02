@@ -305,6 +305,11 @@ export const JobCardsView: React.FC = () => {
   const [painterFilter, setPainterFilter] = useState<string>('ALL');
   const [customerFilter, setCustomerFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [mrnStatusFilter, setMrnStatusFilter] = useState<string>('ALL');
+  const [mrnSearchQuery, setMrnSearchQuery] = useState<string>('');
+  const [priorityLevelFilter, setPriorityLevelFilter] = useState<string>('ALL');
+  const [priorityStatusFilter, setPriorityStatusFilter] = useState<string>('ALL');
+  const [prioritySearchQuery, setPrioritySearchQuery] = useState<string>('');
 
   // Modals state
   const [selectedJobCardForProgress, setSelectedJobCardForProgress] = useState<JobCard | null>(null);
@@ -1288,6 +1293,101 @@ export const JobCardsView: React.FC = () => {
     }))
   ], [activeClientOptions]);
 
+  // Plant Priority Production Orders Filter Options & List
+  const priorityLevelDropdownOptions: FilterOption[] = useMemo(() => {
+    const total = plantHeadPriorities.length;
+    const p1 = plantHeadPriorities.filter(p => p.priorityLevel === 'P1_URGENT').length;
+    const p2 = plantHeadPriorities.filter(p => p.priorityLevel === 'P2_HIGH').length;
+    const p3 = plantHeadPriorities.filter(p => p.priorityLevel === 'P3_NORMAL').length;
+    const hold = plantHeadPriorities.filter(p => p.priorityLevel === 'HOLD').length;
+
+    return [
+      { value: 'ALL', label: 'All Priorities', badge: total },
+      { value: 'P1_URGENT', label: 'P1: Critical Line Shortage', badge: p1 },
+      { value: 'P2_HIGH', label: 'P2: High Priority', badge: p2 },
+      { value: 'P3_NORMAL', label: 'P3: Standard FIFO', badge: p3 },
+      { value: 'HOLD', label: 'On Hold', badge: hold },
+    ];
+  }, [plantHeadPriorities]);
+
+  const priorityStatusDropdownOptions: FilterOption[] = useMemo(() => {
+    const total = plantHeadPriorities.length;
+    const assigned = plantHeadPriorities.filter(p => p.status === 'Priority Assigned').length;
+    const launched = plantHeadPriorities.filter(p => p.status === 'Job Card Launched').length;
+    const inProd = plantHeadPriorities.filter(p => p.status === 'In Production').length;
+    const completed = plantHeadPriorities.filter(p => p.status === 'Completed').length;
+
+    return [
+      { value: 'ALL', label: 'All Statuses', badge: total },
+      { value: 'Priority Assigned', label: 'Pending Launch', badge: assigned },
+      { value: 'Job Card Launched', label: 'Launched', badge: launched },
+      { value: 'In Production', label: 'In Production', badge: inProd },
+      { value: 'Completed', label: 'Completed', badge: completed },
+    ];
+  }, [plantHeadPriorities]);
+
+  const filteredPriorityOrders = useMemo(() => {
+    return plantHeadPriorities
+      .filter(prio => {
+        if (priorityLevelFilter !== 'ALL' && prio.priorityLevel !== priorityLevelFilter) {
+          return false;
+        }
+        if (priorityStatusFilter !== 'ALL' && prio.status !== priorityStatusFilter) {
+          return false;
+        }
+        if (prioritySearchQuery.trim()) {
+          const q = prioritySearchQuery.toLowerCase();
+          const matchCust = (prio.customer || '').toLowerCase().includes(q);
+          const matchPart = (prio.partDescription || '').toLowerCase().includes(q) || (prio.partCode || '').toLowerCase().includes(q);
+          const matchChallan = (prio.challanNo || '').toLowerCase().includes(q);
+          const matchGrn = (prio.grnNo || '').toLowerCase().includes(q);
+          const matchColor = (prio.color || '').toLowerCase().includes(q);
+          const matchId = (prio.id || '').toLowerCase().includes(q);
+          if (!matchCust && !matchPart && !matchChallan && !matchGrn && !matchColor && !matchId) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const weight: Record<string, number> = { P1_URGENT: 1, P2_HIGH: 2, P3_NORMAL: 3, HOLD: 4 };
+        return (weight[a.priorityLevel] || 9) - (weight[b.priorityLevel] || 9);
+      });
+  }, [plantHeadPriorities, priorityLevelFilter, priorityStatusFilter, prioritySearchQuery]);
+
+  // Material Requisitions (MRN) Status Options & Filtered List
+  const mrnStatusDropdownOptions: FilterOption[] = useMemo(() => {
+    const total = materialRequisitions.length;
+    const pending = materialRequisitions.filter(r => r.status === 'Pending Store Issue').length;
+    const dispatched = materialRequisitions.filter(r => r.status === 'Dispatched by Store').length;
+    const received = materialRequisitions.filter(r => r.status === 'Received by Production').length;
+    const discrepant = materialRequisitions.filter(r => r.status === 'Discrepancy Flagged').length;
+
+    return [
+      { value: 'ALL', label: 'All Statuses', badge: total },
+      { value: 'Pending Store Issue', label: 'Pending Store Issue', badge: pending },
+      { value: 'Dispatched by Store', label: 'Dispatched by Store', badge: dispatched },
+      { value: 'Received by Production', label: 'Received by Production', badge: received },
+      { value: 'Discrepancy Flagged', label: 'Discrepancy Flagged', badge: discrepant },
+    ];
+  }, [materialRequisitions]);
+
+  const filteredMaterialRequisitions = useMemo(() => {
+    return materialRequisitions.filter(req => {
+      if (mrnStatusFilter !== 'ALL' && req.status !== mrnStatusFilter) {
+        return false;
+      }
+      if (mrnSearchQuery.trim()) {
+        const q = mrnSearchQuery.toLowerCase();
+        const matchMrn = req.mrnNo.toLowerCase().includes(q);
+        const matchJc = req.jobCardNo.toLowerCase().includes(q);
+        const matchCust = (req.customer || '').toLowerCase().includes(q);
+        const matchPart = (req.partDescription || '').toLowerCase().includes(q) || (req.partCode || '').toLowerCase().includes(q);
+        const matchSlip = (req.issuedSlipNo || '').toLowerCase().includes(q);
+        if (!matchMrn && !matchJc && !matchCust && !matchPart && !matchSlip) return false;
+      }
+      return true;
+    });
+  }, [materialRequisitions, mrnStatusFilter, mrnSearchQuery]);
+
   const statusDropdownOptions: FilterOption[] = useMemo(() => [
     { value: 'ALL', label: 'All Statuses', badge: filterStats.total },
     { value: 'ACTIVE_ONLY', label: 'Active Only', badge: filterStats.active },
@@ -1554,7 +1654,7 @@ export const JobCardsView: React.FC = () => {
           }`}
         >
           <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-          <span>Plant Head Priorities ({plantHeadPriorities.filter(p => p.status === 'Priority Assigned').length})</span>
+          <span>Strategic Priority Orders ({plantHeadPriorities.filter(p => p.status === 'Priority Assigned').length})</span>
         </button>
         <button
           onClick={() => handleSelectTab('ALL')}
@@ -1745,14 +1845,14 @@ export const JobCardsView: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#c09748] animate-pulse" />
                   <h3 className="font-serif font-normal text-lg sm:text-2xl text-[#17191c]">
-                    Plant Head Priority Production Orders
+                    Strategic Production Priority Queue
                   </h3>
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
-                    Satish Sharma's Schedule
+                    Plant Leadership Dispatch Directive
                   </span>
                 </div>
                 <p className="text-xs text-[#777b86] mt-1">
-                  Plant Head ne delivery commitments aur line changeover minimize karne ke hisaab se orders prioritize kiye hain. Production Manager in orders par <strong>"+ Create Job Card"</strong> click karke booth aur painter assign karta hai.
+                  Prioritized production batches aligned with OEM delivery commitments and line changeover efficiency. Click <strong>"+ Create Job Card"</strong> to allocate paint lines and technicians.
                 </p>
               </div>
 
@@ -1761,20 +1861,85 @@ export const JobCardsView: React.FC = () => {
               </div>
             </div>
 
+            {/* DEDICATED SEARCH & MULTI-FILTER CONTROL BAR for Priority Queue */}
+            <div className="bg-[#fafafb] rounded-[20px] border border-[#ececec] p-3 sm:p-3.5 shadow-2xs">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                {/* Search Input */}
+                <div className="flex-1 min-w-[200px] relative w-full">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none z-10">
+                    <Search className="w-4 h-4 text-[#c09748]" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search Customer, Part Code, Description, Challan No, GRN..."
+                    value={prioritySearchQuery}
+                    onChange={e => setPrioritySearchQuery(e.target.value)}
+                    style={{ paddingLeft: '40px' }}
+                    className="w-full pr-9 py-2.5 rounded-[14px] bg-white border border-[#ececec] text-xs text-[#17191c] placeholder:text-[#a3a6af] focus:outline-none focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/20 transition"
+                  />
+                  {prioritySearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setPrioritySearchQuery('')}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#777b86] hover:text-[#17191c] cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Priority Level Filter Dropdown */}
+                <div className="w-full sm:w-[230px] shrink-0">
+                  <PortalFilterSelect
+                    value={priorityLevelFilter}
+                    onChange={setPriorityLevelFilter}
+                    options={priorityLevelDropdownOptions}
+                    icon={<Flag className="w-3.5 h-3.5 text-[#c09748]" />}
+                    placeholder="All Priorities"
+                    searchable={false}
+                  />
+                </div>
+
+                {/* Status Filter Dropdown */}
+                <div className="w-full sm:w-[210px] shrink-0">
+                  <PortalFilterSelect
+                    value={priorityStatusFilter}
+                    onChange={setPriorityStatusFilter}
+                    options={priorityStatusDropdownOptions}
+                    icon={<Filter className="w-3.5 h-3.5 text-[#c09748]" />}
+                    placeholder="All Statuses"
+                    searchable={false}
+                  />
+                </div>
+
+                {/* Reset button if filter active */}
+                {(priorityLevelFilter !== 'ALL' || priorityStatusFilter !== 'ALL' || prioritySearchQuery.trim() !== '') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPriorityLevelFilter('ALL');
+                      setPriorityStatusFilter('ALL');
+                      setPrioritySearchQuery('');
+                    }}
+                    className="px-3.5 py-2.5 rounded-[14px] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0"
+                  >
+                    <X className="w-3.5 h-3.5 text-[#777b86]" />
+                    <span>Reset</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Priority Cards List */}
             <div className="space-y-3.5">
-              {plantHeadPriorities.length === 0 ? (
+              {filteredPriorityOrders.length === 0 ? (
                 <div className="p-8 text-center text-[#777b86] space-y-2">
                   <Flag className="w-8 h-8 text-[#979799] mx-auto" />
-                  <p className="font-serif text-base text-[#17191c]">No Priority Orders Assigned</p>
-                  <p className="text-xs">Plant Head ne abhi tak kisi store stock par priority assign nahi ki hai.</p>
+                  <p className="font-serif text-base text-[#17191c]">No Priority Orders Found</p>
+                  <p className="text-xs">No orders matching the current priority tier, status, or search query.</p>
                 </div>
               ) : (
-                plantHeadPriorities
-                  .sort((a, b) => {
-                    const weight = { P1_URGENT: 1, P2_HIGH: 2, P3_NORMAL: 3, HOLD: 4 };
-                    return (weight[a.priorityLevel] || 9) - (weight[b.priorityLevel] || 9);
-                  })
+                filteredPriorityOrders
                   .map((prio) => {
                     const isP1 = prio.priorityLevel === 'P1_URGENT';
                     const isP2 = prio.priorityLevel === 'P2_HIGH';
@@ -1966,118 +2131,175 @@ export const JobCardsView: React.FC = () => {
               </button>
             </div>
 
-            {/* Desktop Table for Material Requisitions - Streamlined 5-Column Universal Standard */}
-            <div className="hidden md:block overflow-x-auto border border-[#ececec] rounded-[16px]">
+            {/* DEDICATED SEARCH & STATUS FILTER CONTROL BAR for MRN Desk */}
+            <div className="bg-[#fafafb] rounded-[20px] border border-[#ececec] p-3 sm:p-3.5 shadow-2xs">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                {/* Search Input */}
+                <div className="flex-1 min-w-[200px] relative w-full">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none z-10">
+                    <Search className="w-4 h-4 text-[#c09748]" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search MRN No, Job Card, Material, Party, Slip..."
+                    value={mrnSearchQuery}
+                    onChange={e => setMrnSearchQuery(e.target.value)}
+                    style={{ paddingLeft: '40px' }}
+                    className="w-full pr-9 py-2.5 rounded-[14px] bg-white border border-[#ececec] text-xs text-[#17191c] placeholder:text-[#a3a6af] focus:outline-none focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/20 transition"
+                  />
+                  {mrnSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setMrnSearchQuery('')}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#777b86] hover:text-[#17191c] cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Status Filter Dropdown */}
+                <div className="w-full sm:w-[240px] shrink-0">
+                  <PortalFilterSelect
+                    value={mrnStatusFilter}
+                    onChange={setMrnStatusFilter}
+                    options={mrnStatusDropdownOptions}
+                    icon={<Filter className="w-3.5 h-3.5 text-[#c09748]" />}
+                    placeholder="All Statuses"
+                    searchable={false}
+                  />
+                </div>
+
+                {/* Reset button if filter active */}
+                {(mrnStatusFilter !== 'ALL' || mrnSearchQuery.trim() !== '') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMrnStatusFilter('ALL');
+                      setMrnSearchQuery('');
+                    }}
+                    className="px-3.5 py-2.5 rounded-[14px] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer shrink-0"
+                  >
+                    <X className="w-3.5 h-3.5 text-[#777b86]" />
+                    <span>Reset</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Desktop Table for Material Requisitions - Clean, Uncluttered Standard */}
+            <div className="hidden md:block overflow-x-auto border border-[#ececec] rounded-[18px]">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-[#fafafb] text-[#777b86] font-semibold uppercase text-[10px] tracking-wider border-b border-[#ececec]">
-                    <th className="p-3">MRN Ref & Date</th>
-                    <th className="p-3">Target Job Card & Party</th>
-                    <th className="p-3">Material & Specification</th>
-                    <th className="p-3 text-center">Quantities & MIN Slip</th>
-                    <th className="p-3 text-right">Store Status & Action</th>
+                  <tr className="bg-[#fafafb] text-[#777b86] font-semibold uppercase text-[11px] tracking-wider border-b border-[#ececec]">
+                    <th className="py-3.5 px-4 font-medium">Requisition Ref</th>
+                    <th className="py-3.5 px-4 font-medium">Target Job Card</th>
+                    <th className="py-3.5 px-4 font-medium">Material</th>
+                    <th className="py-3.5 px-4 text-center font-medium">Quantity</th>
+                    <th className="py-3.5 px-4 text-center font-medium">Status</th>
+                    <th className="py-3.5 px-4 text-right font-medium">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#ececec] text-[#17191c]">
-                  {materialRequisitions.length === 0 ? (
+                <tbody className="divide-y divide-[#f2f2f3] text-[#17191c]">
+                  {filteredMaterialRequisitions.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-6 text-center text-[#777b86]">
-                        No material requisitions raised yet. Click <strong>"+ Raise New Requisition"</strong> to demand materials from store.
+                      <td colSpan={6} className="p-8 text-center text-[#777b86]">
+                        No material requisitions found matching the selected filter/search criteria.
                       </td>
                     </tr>
                   ) : (
-                    materialRequisitions.map((req, idx) => {
+                    filteredMaterialRequisitions.map((req, idx) => {
                       const isPending = req.status === 'Pending Store Issue';
                       const isDispatched = req.status === 'Dispatched by Store';
                       const isReceived = req.status === 'Received by Production';
                       const isDiscrepant = req.status === 'Discrepancy Flagged';
 
                       return (
-                        <tr key={idx} className="hover:bg-[#fafafb] transition">
-                          {/* Col 1: MRN Ref & Date */}
-                          <td className="p-3">
-                            <div className="font-mono font-bold text-[#c09748] text-sm">{req.mrnNo}</div>
-                            <div className="text-[11px] text-[#777b86]">{req.date} • {req.time}</div>
-                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[9.5px] font-mono font-bold bg-[#fafafb] border border-[#ececec] text-[#777b86]">
-                              {req.plant}
-                            </span>
+                        <tr key={idx} className="hover:bg-[#fafafb]/80 transition group">
+                          {/* Col 1: Requisition Ref & Timestamp */}
+                          <td className="py-3.5 px-4 align-middle">
+                            <div 
+                              className="font-mono font-bold text-[#c09748] text-sm group-hover:underline cursor-pointer" 
+                              onClick={() => handleOpenViewDetailsModal(req)}
+                            >
+                              {req.mrnNo}
+                            </div>
+                            <div className="text-[11px] text-[#777b86] font-mono mt-0.5">{req.date} • {req.time}</div>
                           </td>
 
                           {/* Col 2: Target Job Card & Customer */}
-                          <td className="p-3">
-                            <div className="font-mono font-bold text-[#17191c] text-sm">{req.jobCardNo}</div>
-                            <div className="font-mono text-xs text-[#8a6521]">WO: {req.woNo}</div>
-                            <div className="text-[11px] text-[#777b86] font-medium truncate max-w-[180px]">{req.customer}</div>
+                          <td className="py-3.5 px-4 align-middle">
+                            <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#faf7ed] border border-[#f4e5be] font-mono font-bold text-xs text-[#8a6521]">
+                              {req.jobCardNo}
+                            </span>
+                            <div className="text-[11px] text-[#777b86] font-medium truncate max-w-[160px] mt-1">
+                              {req.customer}
+                            </div>
                           </td>
 
-                          {/* Col 3: Material & Specification */}
-                          <td className="p-3">
-                            <div className="font-semibold text-[#17191c] text-xs">{req.partDescription}</div>
-                            <div className="font-mono text-[11px] text-[#777b86]">Code: {req.partCode}</div>
-                            {req.colorName && (
-                              <div className="text-[10px] text-[#8a6521] font-mono">Shade: {req.colorName}</div>
-                            )}
+                          {/* Col 3: Material */}
+                          <td className="py-3.5 px-4 align-middle">
+                            <div className="font-semibold text-[#17191c] text-xs truncate max-w-[220px]" title={req.partDescription}>
+                              {req.partDescription}
+                            </div>
+                            <div className="font-mono text-[11px] text-[#777b86] mt-0.5">
+                              Code: {req.partCode}
+                            </div>
                           </td>
 
-                          {/* Col 4: Quantities & MIN Slip */}
-                          <td className="p-3 text-center">
-                            <div className="inline-block px-3 py-1.5 rounded-[12px] bg-[#faf7ed] border border-[#f4e5be] text-center font-mono">
-                              <span className="text-[9.5px] uppercase text-[#8a6521] block font-bold">
-                                {isReceived ? 'Received Qty' : isDispatched ? 'Store Dispatched' : 'Demanded Qty'}
-                              </span>
-                              <span className="font-bold text-sm text-[#8a6521]">
-                                {req.issuedQty !== undefined ? req.issuedQty : req.requestedQty} {req.uom}
-                              </span>
-                              {req.issuedQty !== undefined && req.issuedQty !== req.requestedQty && (
-                                <span className="text-[9.5px] text-[#777b86] block mt-0.5">
-                                  Demanded: {req.requestedQty} {req.uom}
-                                </span>
-                              )}
+                          {/* Col 4: Quantity */}
+                          <td className="py-3.5 px-4 align-middle text-center">
+                            <div className="font-mono font-bold text-sm text-[#17191c]">
+                              {req.issuedQty !== undefined ? req.issuedQty : req.requestedQty} <span className="text-xs font-normal text-[#777b86]">{req.uom}</span>
                             </div>
                             {req.issuedSlipNo && (
-                              <div className="text-[10px] font-mono text-blue-700 font-bold mt-1">
+                              <div className="text-[10px] font-mono text-blue-700 font-bold mt-0.5">
                                 Slip: {req.issuedSlipNo}
                               </div>
                             )}
                           </td>
 
-                          {/* Col 5: Status & Floor Custody Action */}
-                          <td className="p-3 text-right">
-                            <div className="flex flex-col items-end gap-1.5">
-                              <span className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold border ${
-                                isPending
-                                  ? 'bg-amber-50 text-amber-900 border-amber-300'
-                                  : isDispatched
-                                  ? 'bg-blue-50 text-blue-900 border-blue-200'
-                                  : isReceived
-                                  ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
-                                  : 'bg-rose-50 text-rose-900 border-rose-300'
-                              }`}>
-                                {req.status}
-                              </span>
+                          {/* Col 5: Status */}
+                          <td className="py-3.5 px-4 align-middle text-center">
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${
+                              isPending
+                                ? 'bg-amber-50 text-amber-900 border-amber-300'
+                                : isDispatched
+                                ? 'bg-blue-50 text-blue-900 border-blue-200'
+                                : isReceived
+                                ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                                : 'bg-rose-50 text-rose-900 border-rose-300'
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${
+                                isPending ? 'bg-amber-500' : isDispatched ? 'bg-blue-600 animate-pulse' : isReceived ? 'bg-emerald-600' : 'bg-rose-600'
+                              }`}></span>
+                              {req.status}
+                            </span>
+                          </td>
 
-                              <div className="flex items-center gap-1.5 pt-0.5">
+                          {/* Col 6: Actions */}
+                          <td className="py-3.5 px-4 align-middle text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenViewDetailsModal(req)}
+                                className="px-3.5 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer transition flex items-center gap-1.5 active:scale-95"
+                                title="View complete requisition dossier"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-[#777b86]" />
+                                <span>Details</span>
+                              </button>
+
+                              {isDispatched && (
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenViewDetailsModal(req)}
-                                  className="px-3 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs flex items-center gap-1 shadow-2xs cursor-pointer transition active:scale-95"
-                                  title="View complete material issue details"
+                                  onClick={() => handleOpenAcceptModal(req)}
+                                  className="px-3.5 py-1.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs cursor-pointer transition flex items-center gap-1 active:scale-95"
                                 >
-                                  <Eye className="w-3.5 h-3.5 text-[#8a6521]" />
-                                  <span>View Details</span>
+                                  <PackageCheck className="w-3.5 h-3.5" />
+                                  <span>Accept</span>
                                 </button>
-
-                                {isDispatched && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenAcceptModal(req)}
-                                    className="px-3.5 py-1.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs cursor-pointer transition flex items-center gap-1 active:scale-95"
-                                  >
-                                    <PackageCheck className="w-3.5 h-3.5" />
-                                    <span>Accept Custody</span>
-                                  </button>
-                                )}
-                              </div>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -2090,7 +2312,7 @@ export const JobCardsView: React.FC = () => {
 
             {/* Mobile View: Clean 3-Row Cards */}
             <div className="grid grid-cols-1 gap-3 md:hidden">
-              {materialRequisitions.map((req, idx) => {
+              {filteredMaterialRequisitions.map((req, idx) => {
                 const isPending = req.status === 'Pending Store Issue';
                 const isDispatched = req.status === 'Dispatched by Store';
                 const isReceived = req.status === 'Received by Production';

@@ -620,6 +620,15 @@ export interface JobCardProductionProgressLog {
   remarks?: string;
 }
 
+export interface DailyMaterialConsumptionSnapshot {
+  materialId?: string;
+  itemDescription: string;
+  materialType?: StockMaterialType | string;
+  category?: StockCategory;
+  consumedQty: number;
+  uom: string;
+}
+
 export interface JobCardDailyTargetRecord {
   date: string; // YYYY-MM-DD
   shiftName?: string;
@@ -632,6 +641,7 @@ export interface JobCardDailyTargetRecord {
   isClosed: boolean;
   reconciledAt?: string;
   notes?: string;
+  materialsConsumed?: DailyMaterialConsumptionSnapshot[];
 }
 
 export interface JobCard {

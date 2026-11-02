@@ -5,7 +5,9 @@ import {
   IssuedMaterialItem, 
   JobCardProductionProgressLog,
   DefectCategory,
-  CoatingProcessStage
+  CoatingProcessStage,
+  DailyMaterialConsumptionSnapshot,
+  JobCardDailyTargetRecord
 } from '../types/portalTypes';
 import { 
   Plus, 
@@ -425,6 +427,14 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [usageConsumedInput, setUsageConsumedInput] = useState<number>(0);
   const [usageRemarkInput, setUsageRemarkInput] = useState<string>('');
   const [showUsageModal, setShowUsageModal] = useState<boolean>(false);
+  const [isEditingDailyQuota, setIsEditingDailyQuota] = useState<boolean>(false);
+  const [editDailyQuotaInput, setEditDailyQuotaInput] = useState<number>(0);
+  const [showLogDailySnapshotModal, setShowLogDailySnapshotModal] = useState<boolean>(false);
+  const [snapshotDateInput, setSnapshotDateInput] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [snapshotGoodInput, setSnapshotGoodInput] = useState<number>(100);
+  const [snapshotScrapInput, setSnapshotScrapInput] = useState<number>(0);
+  const [snapshotNotesInput, setSnapshotNotesInput] = useState<string>('Daily Shift Execution Log');
+  const [snapshotMatUsage, setSnapshotMatUsage] = useState<Record<string, number>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Previously used shades from system history + standard factory tones
@@ -1079,7 +1089,113 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     setShowUsageModal(true);
   };
 
-  const handleSaveMaterialUsage = (e: React.FormEvent) => {
+  const handleSaveDailyQuota = () => {
+    const val = Math.max(1, Math.min(targetQty, Number(editDailyQuotaInput) || 1));
+    setDailyTargetQty(val);
+    setIsEditingDailyQuota(false);
+
+    if (initialData?.jobCardNo) {
+      updateJobCard({
+        ...initialData,
+        dailyTargetQty: val,
+        dailyIssuedQty: val
+      });
+    }
+
+    setToastMessage(`✓ Daily production quota updated to ${val.toLocaleString('en-IN')} Pcs/Day`);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleOpenDailySnapshotModal = () => {
+    const today = new Date().toISOString().split('T')[0];
+    setSnapshotDateInput(today);
+    setSnapshotGoodInput(Math.min(dailyTargetQty, Math.max(0, targetQty - currentGoodQty)));
+    setSnapshotScrapInput(0);
+    setSnapshotNotesInput(`Shift production run by ${painterName || 'Painter'}`);
+    
+    // Pre-populate material usage estimates
+    const initialUsage: Record<string, number> = {};
+    companyMaterials.forEach(m => {
+      const est = m.materialType === 'paint' ? 4 : m.materialType === 'thinner' ? 1.5 : 0.8;
+      initialUsage[m.id || m.itemDescription] = est;
+    });
+    setSnapshotMatUsage(initialUsage);
+    setShowLogDailySnapshotModal(true);
+  };
+
+  const handleSaveDailySnapshot = (e: React.FormEvent) => {
+    e.preventDefault();
+    const good = Number(snapshotGoodInput) || 0;
+    const scrap = Number(snapshotScrapInput) || 0;
+    const dateStr = snapshotDateInput || new Date().toISOString().split('T')[0];
+
+    const matSnapshots: DailyMaterialConsumptionSnapshot[] = companyMaterials.map(m => {
+      const usedNow = Number(snapshotMatUsage[m.id || m.itemDescription]) || 0;
+      return {
+        materialId: m.id,
+        itemDescription: m.itemDescription,
+        materialType: m.materialType,
+        category: m.category,
+        consumedQty: usedNow,
+        uom: m.uom
+      };
+    });
+
+    const newDailyRecord: JobCardDailyTargetRecord = {
+      date: dateStr,
+      shiftName: 'General Floor Shift',
+      dailyTarget: dailyTargetQty,
+      issuedPieces: dailyTargetQty,
+      goodPieces: good,
+      scrapPieces: scrap,
+      returnedPieces: Math.max(0, dailyTargetQty - good - scrap),
+      achievementPercent: dailyTargetQty > 0 ? Math.min(100, Math.round((good / dailyTargetQty) * 100)) : 100,
+      isClosed: true,
+      notes: snapshotNotesInput,
+      materialsConsumed: matSnapshots
+    };
+
+    // Update cumulative materials
+    const updatedIssuedMaterials = issuedMaterials.map(m => {
+      const usedNow = Number(snapshotMatUsage[m.id || m.itemDescription]) || 0;
+      const newCons = Number(((m.consumedQty || 0) + usedNow).toFixed(2));
+      return {
+        ...m,
+        consumedQty: newCons,
+        floorBalanceQty: Math.max(0, Number((m.qty - newCons).toFixed(2)))
+      };
+    });
+
+    setIssuedMaterials(updatedIssuedMaterials);
+
+    // Update existing job card state and history
+    const existingHistory = initialData?.dailyProductionHistory || [];
+    const filteredHistory = existingHistory.filter(h => h.date !== dateStr);
+    const updatedHistory = [newDailyRecord, ...filteredHistory];
+
+    const newGoodTotal = currentGoodQty + good;
+    const newRejectTotal = currentRejectQty + scrap;
+    setCurrentGoodQty(newGoodTotal);
+    setCurrentRejectQty(newRejectTotal);
+
+    if (initialData?.jobCardNo) {
+      updateJobCard({
+        ...initialData,
+        goodQty: newGoodTotal,
+        rejectQty: newRejectTotal,
+        sprayedQty: newGoodTotal + newRejectTotal,
+        dailyProductionHistory: updatedHistory,
+        issuedMaterials: updatedIssuedMaterials
+      });
+    }
+
+    setSelectedProductionDate(dateStr);
+    setShowLogDailySnapshotModal(false);
+    setToastMessage(`✓ Production snapshot for ${dateStr} saved! (${good} Pcs recorded, material usage logged)`);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+    const handleSaveMaterialUsage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMatForUsage) return;
     const newConsumed = Math.max(0, Number(usageConsumedInput));
@@ -1751,10 +1867,54 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     </span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-[#8a6521] font-semibold">Today's Shift Quota:</span>
-                    <span className="font-mono font-bold text-xs text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
-                      {(dailyTargetQty || (targetQty <= 1000 ? targetQty : 1000)).toLocaleString('en-IN')} Pcs/Day
+                    <span className="text-[#8a6521] font-semibold flex items-center gap-1">
+                      <span>Daily Production Target:</span>
                     </span>
+                    {isEditingDailyQuota ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="1"
+                          max={targetQty}
+                          value={editDailyQuotaInput}
+                          onChange={e => setEditDailyQuotaInput(Number(e.target.value))}
+                          className="w-20 h-7 px-1.5 rounded-lg border border-[#c09748] bg-white font-mono font-bold text-xs text-[#17191c] focus:outline-none"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveDailyQuota}
+                          className="px-2 py-1 rounded-full bg-emerald-700 text-white font-bold text-[10px] hover:bg-emerald-800 transition cursor-pointer"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingDailyQuota(false)}
+                          className="px-2 py-1 rounded-full bg-[#f2f2f3] text-[#777b86] font-bold text-[10px] hover:bg-[#e5e7eb] transition cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-xs text-[#8a6521] bg-[#faf3e0] px-2.5 py-0.5 rounded-full border border-[#f4e5be]">
+                          {(dailyTargetQty || (targetQty <= 1000 ? targetQty : 1000)).toLocaleString('en-IN')} Pcs/Day
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditDailyQuotaInput(dailyTargetQty || (targetQty <= 1000 ? targetQty : 1000));
+                            setIsEditingDailyQuota(true);
+                          }}
+                          className="px-2 py-0.5 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#8a6521] border border-[#ececec] text-[10px] font-bold flex items-center gap-1 cursor-pointer transition shadow-2xs"
+                          title="Change daily production pieces target"
+                        >
+                          <Edit3 className="w-3 h-3 text-[#c09748]" />
+                          <span>Change</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-[#777b86]">Target Colour:</span>
@@ -1817,6 +1977,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+                  
                   <button
                     type="button"
                     onClick={() => setShowReturnModal(true)}
@@ -1836,45 +1997,61 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 </div>
               </div>
 
-              {/* Daily Working Dates & Shift Filter Bar */}
-              <div className="p-3.5 bg-[#faf7ed] rounded-[20px] border border-[#f4e5be] flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="flex items-center gap-2 shrink-0">
-                  <Calendar className="w-4 h-4 text-[#8a6521]" />
+              {/* Daily Working Dates & Shift Filter Bar with Calendar Picker and Highlighted Activity Dots */}
+              <div className="p-4 bg-[#faf7ed] rounded-[22px] border border-[#f4e5be] flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-center text-[#8a6521]">
+                    <Calendar className="w-4 h-4 text-[#8a6521]" />
+                  </div>
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#8a6521] font-mono block">
-                      Production Date & Shift Filter
+                      Daily Production & Material Calendar Log
                     </span>
-                    <span className="text-[11px] text-[#777b86]">
-                      Select working date to inspect that shift's material issue vs consumption
+                    <span className="text-xs text-[#777b86]">
+                      Calendar me green dot wale dates par production hua tha. Click date to view that day's pieces & chemicals used.
                     </span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Calendar Input with Highlighted Activity Dots */}
+                  <div className="w-48">
+                    <PaintkingDatePicker
+                      value={selectedProductionDate === 'ALL' ? '' : selectedProductionDate}
+                      onChange={(dateVal) => setSelectedProductionDate(dateVal)}
+                      placeholder="Pick Working Date 📅"
+                      highlightedDates={productionDates}
+                      className="bg-white border-[#f4e5be] shadow-2xs text-xs"
+                    />
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => setSelectedProductionDate('ALL')}
-                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs ${
+                    className={`px-3.5 py-2 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
                       selectedProductionDate === 'ALL'
                         ? 'bg-[#17191c] text-white'
                         : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
                     }`}
                   >
-                    <span>All Working Dates (Cumulative)</span>
+                    <span>All Dates (Cumulative)</span>
                   </button>
-                  {productionDates.map(date => {
+
+                  {/* Quick-pills for active dates */}
+                  {productionDates.slice(0, 3).map(date => {
                     const isToday = date === new Date().toISOString().split('T')[0];
                     return (
                       <button
                         key={date}
                         type="button"
                         onClick={() => setSelectedProductionDate(date)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-2xs ${
+                        className={`px-3 py-1.5 rounded-full text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
                           selectedProductionDate === date
                             ? 'bg-[#8a6521] text-white'
                             : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
                         }`}
                       >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                         <span>{date}</span>
                         {isToday && (
                           <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-emerald-100 text-emerald-800 font-sans font-semibold">
@@ -1887,35 +2064,83 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 </div>
               </div>
 
-              {/* Selected Date Shift Summary Milestone */}
+              {/* Selected Date Shift Summary Milestone with Material Consumption Snapshot */}
               {selectedDateSummary && (
-                <div className="p-4 bg-white rounded-[18px] border border-[#ececec] space-y-2.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-[#17191c] font-mono flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-[#c09748]" />
-                      <span>Shift Production Summary for Working Date: <strong className="text-[#8a6521]">{selectedDateSummary.date}</strong></span>
-                    </span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
-                      Target Achievement: {selectedDateSummary.achievement}%
-                    </span>
+                <div className="p-4 sm:p-5 bg-gradient-to-r from-[#faf7ed] via-white to-white rounded-[20px] border border-[#f4e5be] space-y-3.5 shadow-2xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs border-b border-[#f4e5be]/60 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
+                      <span className="font-bold text-[#17191c] font-mono text-sm">
+                        Working Date Snapshot: <strong className="text-[#8a6521] underline decoration-[#c09748]">{selectedDateSummary.date}</strong>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                        Day Achievement: {selectedDateSummary.achievement}%
+                      </span>
+                      
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-                    <div className="bg-[#fafafb] p-2.5 rounded-[12px] border border-[#ececec]">
-                      <span className="text-[10px] text-[#777b86] uppercase font-mono block">Shift Quota Target</span>
-                      <span className="font-mono font-bold text-sm text-[#17191c]">{selectedDateSummary.target} Pcs</span>
+                  {/* 4 Quantitative Blocks for that Day */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center text-xs">
+                    <div className="bg-white p-3 rounded-[14px] border border-[#ececec] shadow-2xs">
+                      <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">Assigned Quota Target</span>
+                      <span className="font-mono font-bold text-base text-[#17191c] mt-0.5 block">{selectedDateSummary.target} Pcs</span>
                     </div>
-                    <div className="bg-emerald-50/60 p-2.5 rounded-[12px] border border-emerald-100">
-                      <span className="text-[10px] text-emerald-800 uppercase font-mono block">Shift Good Output</span>
-                      <span className="font-mono font-bold text-sm text-emerald-700">{selectedDateSummary.completed} Pcs</span>
+                    <div className="bg-emerald-50/80 p-3 rounded-[14px] border border-emerald-200 shadow-2xs">
+                      <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">Finished Good Pieces</span>
+                      <span className="font-mono font-bold text-base text-emerald-700 mt-0.5 block">{selectedDateSummary.completed} Pcs</span>
                     </div>
-                    <div className="bg-rose-50/60 p-2.5 rounded-[12px] border border-rose-100">
-                      <span className="text-[10px] text-rose-800 uppercase font-mono block">Dead Scrap Pieces</span>
-                      <span className="font-mono font-bold text-sm text-rose-700">{selectedDateSummary.rejects} Pcs</span>
+                    <div className="bg-rose-50/80 p-3 rounded-[14px] border border-rose-200 shadow-2xs">
+                      <span className="text-[10px] text-rose-800 uppercase font-mono font-bold block">Scrap / Rejects</span>
+                      <span className="font-mono font-bold text-base text-rose-700 mt-0.5 block">{selectedDateSummary.rejects} Pcs</span>
                     </div>
-                    <div className="bg-amber-50/60 p-2.5 rounded-[12px] border border-amber-100">
-                      <span className="text-[10px] text-amber-800 uppercase font-mono block">Unconsumed / Return</span>
-                      <span className="font-mono font-bold text-sm text-amber-900">{selectedDateSummary.returned || Math.max(0, selectedDateSummary.target - selectedDateSummary.completed)} Pcs</span>
+                    <div className="bg-amber-50/80 p-3 rounded-[14px] border border-amber-200 shadow-2xs">
+                      <span className="text-[10px] text-amber-800 uppercase font-mono font-bold block">Unused / Returnable</span>
+                      <span className="font-mono font-bold text-base text-amber-900 mt-0.5 block">{selectedDateSummary.returned || Math.max(0, selectedDateSummary.target - selectedDateSummary.completed)} Pcs</span>
+                    </div>
+                  </div>
+
+                  {/* Company Material Consumption Snapshot for this specific date */}
+                  <div className="bg-white p-3.5 rounded-[16px] border border-[#ececec] space-y-2">
+                    <span className="text-[10.5px] font-mono uppercase font-bold text-[#8a6521] block tracking-wide">
+                      Company Material Consumed on {selectedDateSummary.date}:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {(() => {
+                        const dayRecord = initialData?.dailyProductionHistory?.find(d => d.date === selectedDateSummary.date);
+                        if (dayRecord?.materialsConsumed && dayRecord.materialsConsumed.length > 0) {
+                          return dayRecord.materialsConsumed.map((m, idx) => (
+                            <div key={idx} className="p-2.5 rounded-[12px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between text-xs">
+                              <div>
+                                <div className="font-bold text-[#17191c] truncate max-w-[150px]">{m.itemDescription}</div>
+                                <span className="text-[10px] text-[#777b86] uppercase font-mono">{m.materialType || 'Chemical'}</span>
+                              </div>
+                              <span className="font-mono font-bold text-sm text-[#8a6521]">
+                                {m.consumedQty} {m.uom}
+                              </span>
+                            </div>
+                          ));
+                        }
+
+                        // Calculated proportion for this day based on completed pieces
+                        const ratio = targetQty > 0 ? (selectedDateSummary.completed / targetQty) : 0.5;
+                        return companyMaterials.map((m, idx) => {
+                          const estConsumed = Number(((m.qty * ratio) || (selectedDateSummary.completed > 0 ? (m.materialType === 'paint' ? 4 : 1.5) : 0)).toFixed(2));
+                          return (
+                            <div key={idx} className="p-2.5 rounded-[12px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between text-xs">
+                              <div>
+                                <div className="font-bold text-[#17191c] truncate max-w-[150px]">{m.itemDescription}</div>
+                                <span className="text-[10px] text-[#777b86] uppercase font-mono">{m.materialType || 'Chemical'}</span>
+                              </div>
+                              <span className="font-mono font-bold text-sm text-[#8a6521]">
+                                {estConsumed} {m.uom}
+                              </span>
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   </div>
                 </div>
