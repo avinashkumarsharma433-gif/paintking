@@ -194,30 +194,6 @@ export const INITIAL_USER_PROFILES: UserProfile[] = [
     avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80'
   },
   {
-    id: 'usr_iqc_1',
-    name: 'Sunil Rawat',
-    role: 'IQC_INSPECTOR',
-    roleTitle: 'Incoming Quality Control (IQC) Inspector',
-    plant: 'Haridwar',
-    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80'
-  },
-  {
-    id: 'usr_fpa_1',
-    name: 'Deepak Joshi',
-    role: 'FPA_IPQC_INSPECTOR',
-    roleTitle: 'FPA Golden Gate & Shift IPQC Inspector',
-    plant: 'Haridwar',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80'
-  },
-  {
-    id: 'usr_oqc_1',
-    name: 'Pankaj Kumar',
-    role: 'OQC_PDI_INSPECTOR',
-    roleTitle: 'Outgoing Quality (OQC) & PDI Inspector',
-    plant: 'Haridwar',
-    avatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80'
-  },
-  {
     id: 'usr_qa_1',
     name: 'Rajesh Nair',
     role: 'MANAGER_QA',

@@ -220,6 +220,13 @@ export const GatePassView: React.FC = () => {
       }
     }
 
+    // Validate quantities
+    const invalidQty = inwardItems.find(i => Number(i.quantity) <= 0 || isNaN(Number(i.quantity)));
+    if (invalidQty) {
+      setFormError('Kripya sabhi rows me valid quantity (greater than 0) bharein!');
+      return;
+    }
+
     const currentYear = new Date().getFullYear();
     const newSrNo = `INW-${currentYear}-${Math.floor(100 + Math.random() * 900)}`;
 
@@ -525,13 +532,13 @@ export const GatePassView: React.FC = () => {
               {/* DESKTOP VIEW: Clean 4-Column Table */}
               <div ref={inwardTableRef} className="hidden sm:block overflow-x-auto max-h-[520px] overflow-y-auto no-scrollbar border border-[#ececec] rounded-[16px]">
                 <table className="w-full text-left text-xs overflow-hidden">
-                  <thead className="bg-[#f2f2f3] text-[#17191c] border-b border-[#ececec] font-semibold sticky top-0 z-10">
+                  <thead className="bg-[#f2f2f3] text-[#17191c] border-b border-[#ececec] font-bold sticky top-0 z-10 text-[11px] uppercase tracking-wider">
                     <tr>
-                      <th className="p-3.5 w-44">1. INWARD REF & DATE</th>
-                      <th className="p-3.5">2. SUPPLIER / PARTY</th>
-                      <th className="p-3.5">3. MATERIAL & QUANTITY</th>
-                      <th className="p-3.5 w-40">4. STATUS</th>
-                      <th className="p-3.5 text-right w-44">ACTION</th>
+                      <th className="py-2 px-3 whitespace-nowrap">1. INWARD REF & DATE</th>
+                      <th className="py-2 px-3">2. SUPPLIER / PARTY</th>
+                      <th className="py-2 px-3">3. MATERIAL & QUANTITY</th>
+                      <th className="py-2 px-3 whitespace-nowrap">4. STATUS</th>
+                      <th className="py-2 px-3 text-right whitespace-nowrap">ACTION</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#ececec] text-[#17191c]">
@@ -551,16 +558,16 @@ export const GatePassView: React.FC = () => {
                         return (
                           <tr key={item.srNo || idx} className="hover:bg-[#fafafb] transition-colors">
                             {/* 1. Inward Ref & Date */}
-                            <td className="p-3.5 whitespace-nowrap">
-                              <div className="font-mono font-bold text-xs text-[#c09748]">{item.srNo}</div>
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <div className="font-mono font-bold text-xs sm:text-[13px] text-[#c09748]">{item.srNo}</div>
                               <div className="text-[11px] text-[#777b86] mt-0.5">
                                 {formatDateDDMMYYYY(item.date)}
                               </div>
                             </td>
 
                             {/* 2. Supplier / Party */}
-                            <td className="p-3.5">
-                              <div className="font-semibold text-xs text-[#17191c] line-clamp-1" title={item.partyName}>
+                            <td className="py-2.5 px-3">
+                              <div className="font-semibold text-xs sm:text-[13px] text-[#17191c] line-clamp-1" title={item.partyName}>
                                 {item.partyName}
                               </div>
                               <div className="text-[11px] text-[#777b86] mt-0.5 font-mono">
@@ -569,14 +576,14 @@ export const GatePassView: React.FC = () => {
                             </td>
 
                             {/* 3. Material & Quantity */}
-                            <td className="p-3.5">
-                              <div className="font-medium text-xs text-[#17191c] max-w-xs truncate" title={item.descriptionOfMaterial}>
+                            <td className="py-2.5 px-3">
+                              <div className="font-normal text-xs sm:text-[13px] text-[#17191c] max-w-xs truncate" title={item.descriptionOfMaterial}>
                                 {item.descriptionOfMaterial}
                               </div>
-                              <div className="font-mono font-bold text-xs text-[#17191c] mt-0.5">
+                              <div className="font-mono font-bold text-xs sm:text-[13px] text-[#17191c] mt-0.5">
                                 {breakdown.displayTotal}
                                 {item.items && item.items.length > 1 && (
-                                  <span className="text-[10px] text-[#777b86] font-normal font-sans ml-1.5">
+                                  <span className="text-[11px] text-[#777b86] font-normal font-sans ml-1.5">
                                     ({item.items.length} items)
                                   </span>
                                 )}
@@ -584,14 +591,14 @@ export const GatePassView: React.FC = () => {
                             </td>
 
                             {/* 4. Status */}
-                            <td className="p-3.5 whitespace-nowrap">
+                            <td className="py-2.5 px-3 whitespace-nowrap">
                               {item.grnNo && !item.grnNo.includes('Pending') ? (
-                                <span className="px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10.5px] font-mono font-bold inline-flex items-center gap-1">
+                                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-mono font-semibold inline-flex items-center gap-1">
                                   <BadgeCheck className="w-3 h-3 text-emerald-600" />
                                   <span>{item.grnNo}</span>
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[10.5px] font-medium">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-semibold">
                                   <Clock className="w-3 h-3 text-amber-600" />
                                   <span>Pending Store GRN</span>
                                 </span>
@@ -599,12 +606,12 @@ export const GatePassView: React.FC = () => {
                             </td>
 
                             {/* 5. Action */}
-                            <td className="p-3.5 text-right whitespace-nowrap">
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
                               <div className="flex items-center justify-end gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() => setSelectedInward(item)}
-                                  className="px-3 py-1.5 rounded-full border border-[#dcdfe4] bg-white hover:bg-[#17191c] hover:text-white hover:border-[#17191c] text-xs font-medium text-[#17191c] transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                                  className="px-3 py-1.5 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-semibold text-[#17191c] transition cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95 shrink-0"
                                   title="View Full Verification Slip"
                                 >
                                   <Eye className="w-3.5 h-3.5" />
@@ -614,7 +621,7 @@ export const GatePassView: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => downloadInwardPDF(item)}
-                                  className="w-8 h-8 rounded-full border border-[#dcdfe4] bg-white hover:bg-[#17191c] hover:text-white hover:border-[#17191c] text-[#777b86] transition cursor-pointer flex items-center justify-center shadow-2xs"
+                                  className="w-7 h-7 rounded-full border border-[#dcdfe4] bg-white hover:bg-[#17191c] hover:text-white hover:border-[#17191c] text-[#777b86] transition cursor-pointer flex items-center justify-center shadow-2xs shrink-0"
                                   title="Download PDF Pass"
                                 >
                                   <Download className="w-3.5 h-3.5" />
@@ -748,13 +755,13 @@ export const GatePassView: React.FC = () => {
               {/* DESKTOP VIEW: Clean 4-Column Table */}
               <div ref={outwardTableRef} className="hidden sm:block overflow-x-auto max-h-[520px] overflow-y-auto no-scrollbar border border-[#ececec] rounded-[16px]">
                 <table className="w-full text-left text-xs overflow-hidden">
-                  <thead className="bg-[#f2f2f3] text-[#17191c] border-b border-[#ececec] font-semibold sticky top-0 z-10">
+                  <thead className="bg-[#f2f2f3] text-[#17191c] border-b border-[#ececec] font-bold sticky top-0 z-10 text-[11px] uppercase tracking-wider">
                     <tr>
-                      <th className="p-3.5 w-44">1. OUTWARD REF & DATE</th>
-                      <th className="p-3.5">2. CUSTOMER / PARTY</th>
-                      <th className="p-3.5">3. MATERIAL & QUANTITY</th>
-                      <th className="p-3.5 w-40">4. STATUS</th>
-                      <th className="p-3.5 text-right w-44">ACTION</th>
+                      <th className="py-2 px-3 whitespace-nowrap">1. OUTWARD REF & DATE</th>
+                      <th className="py-2 px-3">2. CUSTOMER / PARTY</th>
+                      <th className="py-2 px-3">3. MATERIAL & QUANTITY</th>
+                      <th className="py-2 px-3 whitespace-nowrap">4. STATUS</th>
+                      <th className="py-2 px-3 text-right whitespace-nowrap">ACTION</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#ececec] text-[#17191c]">
@@ -768,16 +775,16 @@ export const GatePassView: React.FC = () => {
                       filteredOutward.map((item, idx) => (
                         <tr key={item.srNo || idx} className="hover:bg-[#fafafb] transition-colors">
                           {/* 1. Outward Ref & Date */}
-                          <td className="p-3.5 whitespace-nowrap">
-                            <div className="font-mono font-bold text-xs text-[#c09748]">{item.gatePassNo || item.srNo}</div>
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <div className="font-mono font-bold text-xs sm:text-[13px] text-[#c09748]">{item.gatePassNo || item.srNo}</div>
                             <div className="text-[11px] text-[#777b86] mt-0.5">
                               {formatDateDDMMYYYY(item.date)} {item.outTime && `• ${item.outTime}`}
                             </div>
                           </td>
 
                           {/* 2. Customer / Party */}
-                          <td className="p-3.5">
-                            <div className="font-semibold text-xs text-[#17191c] line-clamp-1" title={item.partyName}>
+                          <td className="py-2.5 px-3">
+                            <div className="font-semibold text-xs sm:text-[13px] text-[#17191c] line-clamp-1" title={item.partyName}>
                               {item.partyName}
                             </div>
                             <div className="text-[11px] text-[#777b86] mt-0.5 font-mono">
@@ -786,30 +793,30 @@ export const GatePassView: React.FC = () => {
                           </td>
 
                           {/* 3. Material & Quantity */}
-                          <td className="p-3.5">
-                            <div className="font-medium text-xs text-[#17191c] max-w-xs truncate" title={item.descriptionOfMaterial}>
+                          <td className="py-2.5 px-3">
+                            <div className="font-normal text-xs sm:text-[13px] text-[#17191c] max-w-xs truncate" title={item.descriptionOfMaterial}>
                               {item.descriptionOfMaterial}
                             </div>
-                            <div className="font-mono font-bold text-xs text-[#17191c] mt-0.5">
+                            <div className="font-mono font-bold text-xs sm:text-[13px] text-[#17191c] mt-0.5">
                               {item.quantity} {item.unit || 'Pcs'}
                             </div>
                           </td>
 
                           {/* 4. Status */}
-                          <td className="p-3.5 whitespace-nowrap">
-                            <span className="px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10.5px] font-mono font-bold inline-flex items-center gap-1">
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-mono font-semibold inline-flex items-center gap-1">
                               <BadgeCheck className="w-3 h-3 text-emerald-600" />
                               <span>Dispatched</span>
                             </span>
                           </td>
 
                           {/* 5. Action */}
-                          <td className="p-3.5 text-right whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
                                 type="button"
                                 onClick={() => setSelectedOutward(item)}
-                                className="px-3 py-1.5 rounded-full border border-[#dcdfe4] bg-white hover:bg-[#17191c] hover:text-white hover:border-[#17191c] text-xs font-medium text-[#17191c] transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                                className="px-3 py-1.5 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-semibold text-[#17191c] transition cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95 shrink-0"
                                 title="View Full Verification Slip"
                               >
                                 <Eye className="w-3.5 h-3.5" />
@@ -819,7 +826,7 @@ export const GatePassView: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => downloadOutwardPDF(item)}
-                                className="w-8 h-8 rounded-full border border-[#dcdfe4] bg-white hover:bg-[#17191c] hover:text-white hover:border-[#17191c] text-[#777b86] transition cursor-pointer flex items-center justify-center shadow-2xs"
+                                className="w-7 h-7 rounded-full border border-[#dcdfe4] bg-white hover:bg-[#17191c] hover:text-white hover:border-[#17191c] text-[#777b86] transition cursor-pointer flex items-center justify-center shadow-2xs shrink-0"
                                 title="Download PDF Pass"
                               >
                                 <Download className="w-3.5 h-3.5" />

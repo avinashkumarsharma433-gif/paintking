@@ -154,6 +154,8 @@ interface PortalContextType {
     hasDelayedJobs: boolean;
     breachedJobCards: JobCard[];
     onTimeJobCards: JobCard[];
+    passRate: number;
+    rating: number;
   };
 
   preProductionReports: PreProductionInspectionRecord[];
@@ -274,6 +276,7 @@ interface PortalContextType {
   submitMasterIQCReport: (report: IQCInspectionRecord) => void;
   addIPQCRecord: (ipqc: IPQCRecord) => void;
   addOQCRelease: (release: FinalQualityRelease) => void;
+  submitPdiClearance: (releaseId: string, pdiData: Partial<FinalQualityRelease>) => void;
   addJobCard: (jc: JobCard) => void;
   updateJobCard: (jc: JobCard) => void;
   addJobCardProgressLog: (jobCardNo: string, log: Omit<JobCardProductionProgressLog, 'id' | 'timestamp'>) => void;
@@ -329,6 +332,7 @@ interface PortalContextType {
   toggleInvoiceExcessApproval: (invoiceNo: string, lineItemId: string) => void;
   toggleClientConcession: (invoiceNo: string, lineItemId: string) => void;
   generateNewInvoiceFromPDI: (woNo: string) => void;
+  createCustomTaxInvoice: (invoice: BillingInvoice) => void;
 
   // Gate Pass
   createGatePass: (gp: GatePassRecord) => void;
@@ -408,7 +412,13 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('pk_current_user');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { /* fallback */ }
+      try { 
+        const parsed = JSON.parse(saved);
+        if (parsed.role === 'IQC_INSPECTOR' || parsed.role === 'FPA_IPQC_INSPECTOR' || parsed.role === 'OQC_PDI_INSPECTOR') {
+          return INITIAL_USER_PROFILES.find(u => u.role === 'MANAGER_QA') || INITIAL_USER_PROFILES[0];
+        }
+        return parsed; 
+      } catch (e) { /* fallback */ }
     }
     return INITIAL_USER_PROFILES[0]; // Kuldeep Singh
   });
@@ -690,12 +700,17 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (slip.jobCardNo) {
       setJobCards(prev => prev.map(jc => {
         if (jc.jobCardNo !== slip.jobCardNo) return jc;
-        const substrateLine = slip.lines.find(l => l.category === 'PARTY_MATERIAL' || l.uom === 'Pcs');
-        const returnedPcs = substrateLine ? Number(substrateLine.returnedQtyClaimed || 0) : 0;
+        const returnedPcs = slip.lines
+          .filter(l => l.category === 'PARTY_MATERIAL' || l.uom === 'Pcs')
+          .reduce((sum, l) => sum + Number(l.returnedQtyClaimed || 0), 0);
 
         // Also deduct returned floor balance from company consumables
         const updatedMaterials = (jc.issuedMaterials || []).map(m => {
-          const matchedReturn = slip.lines.find(l => l.itemName === m.itemDescription || (m.batchNo && l.batchId === m.batchNo));
+          const matchedReturn = slip.lines.find(l => 
+            l.itemName.toLowerCase().includes(m.itemDescription.toLowerCase()) || 
+            m.itemDescription.toLowerCase().includes(l.itemName.toLowerCase()) || 
+            (m.batchNo && l.batchId === m.batchNo)
+          );
           if (matchedReturn && matchedReturn.returnedQtyClaimed > 0) {
             const currentFloorBal = m.floorBalanceQty !== undefined ? m.floorBalanceQty : m.qty;
             return {
@@ -707,10 +722,13 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           return m;
         });
 
+        const isNowFullyFinished = ((jc.goodQty || 0) + (jc.rejectQty || 0) + returnedPcs) >= (jc.targetQty || 0);
+
         return {
           ...jc,
           issuedMaterials: updatedMaterials,
-          returnRejectionQty: (jc.returnRejectionQty || 0) + returnedPcs
+          returnRejectionQty: (jc.returnRejectionQty || 0) + returnedPcs,
+          status: isNowFullyFinished ? 'Completed' : jc.status
         };
       }));
     }
@@ -1329,7 +1347,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const priorGood = (jc.dailyProductionHistory || []).reduce((acc, h) => acc + (h.goodPieces || 0), 0);
       const todaySprayed = Math.min(
         shiftTargetPieces,
-        Math.max(0, Number(jc.sprayedQty || (jc.goodQty + (jc.rejectQty || 0)) || 0) - priorGood)
+        Math.max(0, Number(jc.sprayedQty || ((jc.goodQty || 0) + (jc.rejectQty || 0)) || 0) - priorGood)
       );
 
       // 3. Compute unconsumed floor balance for today's shift
@@ -1936,7 +1954,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           receivedDate: grn.receivedDate || grn.date,
           mfgDate: item.mfgDate || grn.mfgDate,
           expiryDate: item.expiryDate || grn.expiryDate,
-          uom: 'Pcs',
+          uom: item.uom || (item.partDescription?.toLowerCase().includes('paint') || item.partDescription?.toLowerCase().includes('litre') ? 'Litres' : 'Pcs'),
           receivedQty: Number(item.actualReceivedQty || item.invoicedQty || 0),
           balanceQty: Number(item.actualReceivedQty || item.invoicedQty || 0),
           status: 'Available',
@@ -1961,7 +1979,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         receivedDate: grn.receivedDate || grn.date,
         mfgDate: grn.mfgDate,
         expiryDate: grn.expiryDate,
-        uom: 'Pcs',
+        uom: (grn as any).uom || (isChemical ? 'Litres' : 'Pcs'),
         receivedQty: Number(grn.actualReceivedQty || grn.invoicedQty || 0),
         balanceQty: Number(grn.actualReceivedQty || grn.invoicedQty || 0),
         status: 'Available',
@@ -2511,7 +2529,9 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         onTimePercentage: 100,
         hasDelayedJobs: false,
         breachedJobCards: [] as JobCard[],
-        onTimeJobCards: [] as JobCard[]
+        onTimeJobCards: [] as JobCard[],
+        passRate: 100,
+        rating: 5.0
       };
     }
     const cleanTarget = painterNameOrId.trim().toLowerCase();
@@ -2545,6 +2565,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const evaluatedCount = onTimeJobCards.length + breachedJobCards.length;
     const onTimePercentage = evaluatedCount > 0 ? Math.round((onTimeJobCards.length / evaluatedCount) * 100) : 100;
+    const passRate = evaluatedCount > 0 ? onTimePercentage : 100;
+    const rating = passRate >= 95 ? 5.0 : passRate >= 85 ? 4.8 : passRate >= 75 ? 4.2 : 3.8;
 
     return {
       totalJobs: assignedJobs.length,
@@ -2555,7 +2577,9 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       onTimePercentage,
       hasDelayedJobs: breachedJobCards.length > 0,
       breachedJobCards,
-      onTimeJobCards
+      onTimeJobCards,
+      passRate,
+      rating
     };
   };
 
@@ -2774,6 +2798,31 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     setBillingInvoices(prev => [newInvoice, ...prev]);
+    if (woNo) {
+      setUniversalJobs(prev => prev.map(job => 
+        job.jobNumber === woNo 
+          ? { ...job, currentStage: '6. Billing Invoice' }
+          : job
+      ));
+    }
+  };
+
+  const createCustomTaxInvoice = (invoice: BillingInvoice) => {
+    setBillingInvoices(prev => {
+      const exists = prev.some(inv => inv.invoiceNo === invoice.invoiceNo);
+      if (exists) {
+        return prev.map(inv => inv.invoiceNo === invoice.invoiceNo ? invoice : inv);
+      }
+      return [invoice, ...prev];
+    });
+
+    if (invoice.woNo) {
+      setUniversalJobs(prev => prev.map(job => 
+        job.jobNumber === invoice.woNo 
+          ? { ...job, currentStage: '6. Billing Invoice' }
+          : job
+      ));
+    }
   };
 
   const createGatePass = (gp: GatePassRecord) => {
@@ -2803,13 +2852,21 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           ...inw,
           iqcStatus: report.status === 'Accepted' 
             ? 'Passed' 
-            : report.status === 'Rejected' 
-              ? 'Rejected' 
-              : report.hasDiscrepancy 
-                ? 'Discrepancy Halt' 
-                : 'Passed',
+            : report.status === 'Part Accepted'
+              ? 'Part Accepted'
+              : report.status === 'Rejected' 
+                ? 'Rejected' 
+                : report.hasDiscrepancy 
+                  ? 'Discrepancy Halt' 
+                  : 'Passed',
           iqcReportNo: report.reportNo,
-          status: report.status === 'Accepted' ? 'IQC Cleared - Awaiting Stores GRN' : inw.status
+          status: report.status === 'Accepted' 
+            ? 'IQC Cleared - Awaiting Stores GRN' 
+            : report.status === 'Part Accepted'
+              ? 'Part Accepted - Ready for Stores GRN'
+              : report.status === 'Rejected'
+                ? 'IQC Rejected - Return to Party'
+                : inw.status
         };
       }
       return inw;
@@ -2820,7 +2877,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if ((grn.sourceIqcReportNo && grn.sourceIqcReportNo === report.reportNo) || (report.inwardSrNo && grn.remarks?.includes(report.inwardSrNo))) {
         return {
           ...grn,
-          iqcStatus: report.status === 'Accepted' ? 'Accepted' : report.status === 'Rejected' ? 'Rejected' : 'Hold',
+          iqcStatus: report.status === 'Accepted' ? 'Accepted' : report.status === 'Part Accepted' ? 'Part Accepted' : report.status === 'Rejected' ? 'Rejected' : 'Hold',
           actualReceivedQty: report.actualReceived || grn.actualReceivedQty
         };
       }
@@ -2884,6 +2941,27 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       setBillingInvoices(prev => [newInvoice, ...prev]);
     }
+  };
+
+  const submitPdiClearance = (releaseId: string, pdiData: Partial<FinalQualityRelease>) => {
+    setQualityReleases(prev => prev.map(rel => {
+      if (rel.releaseId === releaseId || rel.woNo === releaseId) {
+        const updated: FinalQualityRelease = {
+          ...rel,
+          ...pdiData,
+          pdiStatus: pdiData.pdiStatus || 'Cleared for Invoicing',
+          pdiDate: pdiData.pdiDate || new Date().toISOString().split('T')[0],
+          pdiInspector: pdiData.pdiInspector || currentUser.name
+        };
+
+        if (updated.pdiStatus === 'Cleared for Invoicing') {
+          generateNewInvoiceFromPDI(updated.woNo);
+        }
+
+        return updated;
+      }
+      return rel;
+    }));
   };
 
   // Module E: Audit Actions
@@ -3102,6 +3180,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         submitMasterIQCReport,
         addIPQCRecord,
         addOQCRelease,
+        submitPdiClearance,
         addJobCard,
         updateJobCard,
         addJobCardProgressLog,
@@ -3122,6 +3201,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         toggleInvoiceExcessApproval,
         toggleClientConcession,
         generateNewInvoiceFromPDI,
+        createCustomTaxInvoice,
         createGatePass,
         updateGatePassStatus,
         unresolvedHandoversCount,

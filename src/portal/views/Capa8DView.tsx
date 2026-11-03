@@ -500,46 +500,46 @@ export const Capa8DView: React.FC = () => {
 
           <div className="bg-white rounded-[24px] border border-slate-200 shadow-xs overflow-hidden">
             <table className="w-full text-left text-xs">
-              <thead className="bg-[#17191c] text-white">
+              <thead className="bg-[#17191c] text-white text-[11px] font-bold uppercase tracking-wider">
                 <tr>
-                  <th className="p-3.5">Change ID</th>
-                  <th className="p-3.5">Date</th>
-                  <th className="p-3.5">4M Category</th>
-                  <th className="p-3.5">Description & Reason</th>
-                  <th className="p-3.5">Trial FPA</th>
-                  <th className="p-3.5">Customer Approval</th>
-                  <th className="p-3.5">QA Sign-off</th>
-                  <th className="p-3.5 text-center">Status</th>
+                  <th className="py-2 px-3 whitespace-nowrap">Change ID</th>
+                  <th className="py-2 px-3 whitespace-nowrap">Date</th>
+                  <th className="py-2 px-3 whitespace-nowrap">4M Category</th>
+                  <th className="py-2 px-3">Description & Reason</th>
+                  <th className="py-2 px-3 whitespace-nowrap">Trial FPA</th>
+                  <th className="py-2 px-3 whitespace-nowrap">Customer Approval</th>
+                  <th className="py-2 px-3 whitespace-nowrap">QA Sign-off</th>
+                  <th className="py-2 px-3 text-center whitespace-nowrap">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {fourMChanges.map((ch) => (
                   <tr key={ch.id} className="hover:bg-slate-50">
-                    <td className="p-3.5 font-mono font-bold text-slate-900">{ch.id}</td>
-                    <td className="p-3.5 text-slate-600">{ch.date}</td>
-                    <td className="p-3.5">
-                      <span className="px-2.5 py-1 rounded-full bg-[#faf3e0] text-[#8a6521] font-semibold border border-[#f4e5be]">
+                    <td className="py-2.5 px-3 font-mono font-bold text-xs sm:text-[13px] text-slate-900 whitespace-nowrap">{ch.id}</td>
+                    <td className="py-2.5 px-3 text-slate-600 text-[11px] whitespace-nowrap">{ch.date}</td>
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] font-semibold text-[11px] border border-[#f4e5be]">
                         {ch.changeType.split(' ')[0]}
                       </span>
                     </td>
-                    <td className="p-3.5 max-w-xs">
-                      <div className="font-semibold text-slate-900">{ch.description}</div>
+                    <td className="py-2.5 px-3 max-w-xs">
+                      <div className="font-semibold text-xs sm:text-[13px] text-slate-900">{ch.description}</div>
                       <div className="text-[11px] text-slate-500 mt-0.5">{ch.reasonForChange}</div>
                     </td>
-                    <td className="p-3.5 font-mono text-[#c09748] font-medium">{ch.trialFpaReportNo || 'N/A'}</td>
-                    <td className="p-3.5">
+                    <td className="py-2.5 px-3 font-mono text-[#c09748] font-semibold text-xs sm:text-[13px] whitespace-nowrap">{ch.trialFpaReportNo || 'N/A'}</td>
+                    <td className="py-2.5 px-3 whitespace-nowrap text-xs">
                       {ch.customerIntimationRequired ? (
                         ch.customerApprovalReceived ? (
-                          <span className="text-emerald-700 font-medium">Approved by OEM</span>
+                          <span className="text-emerald-700 font-semibold">Approved by OEM</span>
                         ) : (
-                          <span className="text-amber-700 font-medium">Pending OEM</span>
+                          <span className="text-amber-700 font-semibold">Pending OEM</span>
                         )
                       ) : (
                         <span className="text-slate-400">Internal Only</span>
                       )}
                     </td>
-                    <td className="p-3.5 text-slate-700 font-medium">{ch.approvedByQA}</td>
-                    <td className="p-3.5 text-center">
+                    <td className="py-2.5 px-3 text-slate-700 font-medium text-xs sm:text-[13px] whitespace-nowrap">{ch.approvedByQA}</td>
+                    <td className="py-2.5 px-3 text-center whitespace-nowrap">
                       <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
                         ch.status === 'Approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                       }`}>

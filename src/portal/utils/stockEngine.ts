@@ -192,7 +192,8 @@ export function getEligibleSortedBatches(
   const reqPartCode = (params.partCode || '').trim().toLowerCase();
   const reqColour = (params.colour || '').trim().toLowerCase();
 
-  const filtered = allBatches.filter(batch => {
+  const safeBatches = Array.isArray(allBatches) ? allBatches : [];
+  const filtered = safeBatches.filter(batch => {
     // 1. Plant location match (if specified)
     if (params.plant && batch.plant.toLowerCase() !== params.plant.toLowerCase()) {
       return false;
@@ -440,7 +441,18 @@ export function validateIssue(
     return { isValid: false, errors: ['At least one batch must be selected for issue.'] };
   }
 
-  const batchMap = new Map(allBatches.map(b => [b.batchId, b]));
+  const safeBatches = Array.isArray(allBatches) ? allBatches : [];
+  const batchMap = new Map(safeBatches.map(b => [b.batchId, b]));
+  const totalRequestedByBatch = new Map<string, number>();
+
+  for (const line of lines) {
+    totalRequestedByBatch.set(
+      line.batchId, 
+      (totalRequestedByBatch.get(line.batchId) || 0) + Number(line.issuedQty || 0)
+    );
+  }
+
+  const verifiedBatches = new Set<string>();
 
   for (const line of lines) {
     const batch = batchMap.get(line.batchId);
@@ -448,6 +460,13 @@ export function validateIssue(
       errors.push(`Stock batch "${line.batchId}" not found in system.`);
       continue;
     }
+
+    if (line.issuedQty <= 0) {
+      errors.push(`Issued quantity for batch "${batch.supplierBatchNo || batch.batchId}" must be greater than zero.`);
+    }
+
+    if (verifiedBatches.has(line.batchId)) continue;
+    verifiedBatches.add(line.batchId);
 
     // BLOCK EXPIRED BATCHES - NO OVERRIDE POSSIBLE
     const shelfLife = calculateBatchShelfLife(batch);
@@ -464,13 +483,10 @@ export function validateIssue(
       );
     }
 
-    if (line.issuedQty <= 0) {
-      errors.push(`Issued quantity for batch "${batch.supplierBatchNo || batch.batchId}" must be greater than zero.`);
-    }
-
-    if (line.issuedQty > batch.balanceQty) {
+    const totalReq = totalRequestedByBatch.get(batch.batchId) || line.issuedQty;
+    if (totalReq > batch.balanceQty) {
       errors.push(
-        `INSUFFICIENT STOCK: Cannot issue ${line.issuedQty} ${batch.uom} from batch "${batch.supplierBatchNo || batch.batchId}". Available balance is only ${batch.balanceQty} ${batch.uom}.`
+        `INSUFFICIENT STOCK: Cannot issue total ${totalReq} ${batch.uom} from batch "${batch.supplierBatchNo || batch.batchId}". Available balance is only ${batch.balanceQty} ${batch.uom}.`
       );
     }
   }
@@ -553,10 +569,10 @@ export function applyReturn(
 ): StockBatch[] {
   const creditsByBatchId = new Map<string, number>();
   const creditsBySupplierBatch = new Map<string, number>();
-  const creditsByGrn = new Map<string, number>();
+  const creditsByGrnAndItem = new Map<string, number>();
 
   for (const line of returnSlip.lines) {
-    // Only restock usable materials
+    // Only restock usable materials - NEVER restock damaged, scrap or expired materials
     if (line.condition === 'Unopened / Intact' || line.condition === 'Opened - Usable') {
       const restockQty = Number(line.storeCountedQty || 0);
       if (restockQty > 0) {
@@ -567,7 +583,8 @@ export function applyReturn(
           creditsBySupplierBatch.set(line.supplierBatchNo, (creditsBySupplierBatch.get(line.supplierBatchNo) || 0) + restockQty);
         }
         if (line.grnNo) {
-          creditsByGrn.set(line.grnNo, (creditsByGrn.get(line.grnNo) || 0) + restockQty);
+          const itemKey = `${line.grnNo}___${(line.itemName || '').trim().toLowerCase()}`;
+          creditsByGrnAndItem.set(itemKey, (creditsByGrnAndItem.get(itemKey) || 0) + restockQty);
         }
       }
     }
@@ -575,16 +592,18 @@ export function applyReturn(
 
   let matchedBatchIds = new Set<string>();
 
-  return currentBatches.map(batch => {
+  return (currentBatches || []).map(batch => {
     let creditQty = 0;
+    const itemKey = `${batch.grnNo}___${(batch.itemName || '').trim().toLowerCase()}`;
+
     if (creditsByBatchId.has(batch.batchId)) {
       creditQty = creditsByBatchId.get(batch.batchId)!;
       matchedBatchIds.add(batch.batchId);
     } else if (batch.supplierBatchNo && creditsBySupplierBatch.has(batch.supplierBatchNo)) {
       creditQty = creditsBySupplierBatch.get(batch.supplierBatchNo)!;
       matchedBatchIds.add(batch.batchId);
-    } else if (batch.grnNo && creditsByGrn.has(batch.grnNo) && !matchedBatchIds.has(batch.batchId)) {
-      creditQty = creditsByGrn.get(batch.grnNo)!;
+    } else if (batch.grnNo && creditsByGrnAndItem.has(itemKey) && !matchedBatchIds.has(batch.batchId)) {
+      creditQty = creditsByGrnAndItem.get(itemKey)!;
       matchedBatchIds.add(batch.batchId);
     }
 

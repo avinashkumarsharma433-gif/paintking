@@ -186,7 +186,7 @@ export const StoresView: React.FC = () => {
     });
 
     const acceptedIqcJobs = iqcRecords
-      .filter(rec => rec.status === 'Accepted')
+      .filter(rec => rec.status === 'Accepted' || rec.status === 'Part Accepted')
       .filter(rec => {
         if (receivedReportNos.has(rec.reportNo)) return false;
         if (grnList.some(g => (g.sourceIqcReportNo && g.sourceIqcReportNo === rec.reportNo) || (g.remarks && g.remarks.includes(rec.reportNo)))) {
@@ -238,7 +238,7 @@ export const StoresView: React.FC = () => {
 
     const inwardPassedJobs = materialInwardLogs
       .filter(inw => {
-        const isPassed = inw.iqcStatus === 'Passed' || inw.iqcStatus === 'Accepted';
+        const isPassed = inw.iqcStatus === 'Passed' || inw.iqcStatus === 'Accepted' || inw.iqcStatus === 'Part Accepted';
         if (!isPassed) return false;
 
         const alreadyCovered = acceptedIqcJobs.some(j => 
@@ -344,11 +344,11 @@ export const StoresView: React.FC = () => {
         shelfHealth = 'FRESH';
       }
 
-      // Find all Job Cards issued against this customer or part code
+      // Find all Job Cards issued against this customer AND part code (or linked by GRN)
       const matchingJobCards = jobCards.filter(jc => 
-        (jc.customer && jc.customer.trim().toLowerCase() === customer.trim().toLowerCase()) ||
-        (jc.partCode && jc.partCode.trim().toLowerCase() === partCode.trim().toLowerCase()) ||
-        (jc.woNo && grn.invoiceChallanNo && jc.woNo.includes(grn.invoiceChallanNo))
+        ((jc.customer && jc.customer.trim().toLowerCase() === customer.trim().toLowerCase()) &&
+         (jc.partCode && jc.partCode.trim().toLowerCase() === partCode.trim().toLowerCase())) ||
+        (jc.sourceGrnNo && jc.sourceGrnNo === grn.grnNo)
       );
 
       // Only count master job cards or standalone job cards (prevent double count of painter child cards)
@@ -1059,14 +1059,14 @@ export const StoresView: React.FC = () => {
             <div className="hidden md:block overflow-x-auto border border-[#ececec] rounded-[16px]">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-[#fafafb] text-[#777b86] font-semibold uppercase text-[10px] tracking-wider border-b border-[#ececec]">
-                    <th className="p-3">Customer / Party Name</th>
-                    <th className="p-3">Part Code & Lot Details</th>
-                    <th className="p-3 text-center">Total Inward</th>
-                    <th className="p-3 text-center">Issued to Floor</th>
-                    <th className="p-3 text-center">Store Balance</th>
-                    <th className="p-3 text-center">Priority & Alerts</th>
-                    <th className="p-3 text-right">Action</th>
+                  <tr className="bg-[#fafafb] text-[#777b86] font-bold uppercase text-[11px] tracking-wider border-b border-[#ececec]">
+                    <th className="py-2 px-3 whitespace-nowrap">Customer / Party Name</th>
+                    <th className="py-2 px-3 whitespace-nowrap">Part Code & Lot Details</th>
+                    <th className="py-2 px-3 text-center whitespace-nowrap">Total Inward</th>
+                    <th className="py-2 px-3 text-center whitespace-nowrap">Issued to Floor</th>
+                    <th className="py-2 px-3 text-center whitespace-nowrap">Store Balance</th>
+                    <th className="py-2 px-3 text-center whitespace-nowrap">Priority & Alerts</th>
+                    <th className="py-2 px-3 text-right whitespace-nowrap">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#ececec] text-[#17191c]">
@@ -1074,55 +1074,55 @@ export const StoresView: React.FC = () => {
                     const isFifoFirst = fifoPriorityGrnSet.has(item.grnNo) && item.balanceAvailable > 0;
                     return (
                       <tr key={idx} className="hover:bg-[#fafafb] transition">
-                        <td className="p-3">
-                          <div className="font-bold text-[#17191c]">{item.customer}</div>
-                          <div className="text-[10px] text-[#777b86] font-mono">GRN: {item.grnNo}</div>
+                        <td className="py-2.5 px-3">
+                          <div className="font-semibold text-xs sm:text-[13px] text-[#17191c]">{item.customer}</div>
+                          <div className="text-[11px] text-[#777b86] font-mono mt-0.5">GRN: {item.grnNo}</div>
                         </td>
-                        <td className="p-3">
-                          <div className="font-mono font-bold text-[#c09748]">{item.partCode}</div>
+                        <td className="py-2.5 px-3">
+                          <div className="font-mono font-bold text-xs sm:text-[13px] text-[#c09748]">{item.partCode}</div>
                           <div className="text-[11px] text-[#777b86] line-clamp-1">{item.partDesc}</div>
-                          <div className="text-[10px] text-[#a3a6af]">Inward: {formatDateDDMMYYYY(item.receivedDate)} ({item.daysInStore}d ago)</div>
+                          <div className="text-[11px] text-[#a3a6af]">Inward: {formatDateDDMMYYYY(item.receivedDate)} ({item.daysInStore}d ago)</div>
                         </td>
-                        <td className="p-3 text-center font-mono font-bold text-[#17191c]">
+                        <td className="py-2.5 px-3 text-center font-mono font-bold text-xs sm:text-[13px] text-[#17191c] whitespace-nowrap">
                           {item.totalInward.toLocaleString('en-IN')} {item.uom}
                         </td>
-                        <td className="p-3 text-center font-mono font-semibold text-blue-800 bg-blue-50/20">
+                        <td className="py-2.5 px-3 text-center font-mono font-semibold text-xs sm:text-[13px] text-blue-800 bg-blue-50/20 whitespace-nowrap">
                           <div>{item.totalIssuedToFloor.toLocaleString('en-IN')} {item.uom}</div>
                         </td>
-                        <td className="p-3 text-center font-mono font-bold text-base bg-[#faf7ed]/60 text-[#8a6521]">
+                        <td className="py-2.5 px-3 text-center font-mono font-bold text-xs sm:text-[13px] bg-[#faf7ed]/60 text-[#8a6521] whitespace-nowrap">
                           {item.balanceAvailable.toLocaleString('en-IN')} {item.uom}
                         </td>
-                        <td className="p-3 text-center">
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
                           <div className="flex flex-col items-center gap-1">
                             {isFifoFirst && (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs">
                                 <Sparkles className="w-3 h-3 text-emerald-700 shrink-0" />
                                 <span>FIFO 1st Priority</span>
                               </span>
                             )}
                             {item.isReorderAlert && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-800 border border-rose-200">
                                 <ShieldAlert className="w-3 h-3 text-rose-600 shrink-0" />
                                 <span>Low Stock (Re-order)</span>
                               </span>
                             )}
                             {!isFifoFirst && !item.isReorderAlert && item.balanceAvailable > 0 && (
-                              <span className="text-[10px] text-gray-500 font-mono">Standard Queue</span>
+                              <span className="text-[11px] text-gray-500 font-mono">Standard Queue</span>
                             )}
                             {item.balanceAvailable === 0 && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-gray-100 text-gray-500">Fully Consumed</span>
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-gray-100 text-gray-500">Fully Consumed</span>
                             )}
                           </div>
                         </td>
-                        <td className="p-3 text-right">
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
                           <div className="inline-flex items-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => setSelectedGrnForView(item.rawGrn)}
-                              className="px-3 py-1.5 rounded-full border border-[#ececec] bg-white text-[#17191c] hover:border-[#c09748] text-[11px] font-semibold hover:bg-gray-50 transition inline-flex items-center gap-1 cursor-pointer shadow-2xs"
+                              className="px-3 py-1.5 rounded-full border border-[#ececec] bg-white text-[#17191c] hover:border-[#c09748] text-xs font-semibold hover:bg-gray-50 transition inline-flex items-center gap-1 cursor-pointer shadow-2xs active:scale-95 shrink-0"
                               title="View Raw GRN Document"
                             >
-                              <Eye className="w-3 h-3 text-[#c09748]" />
+                              <Eye className="w-3.5 h-3.5 text-[#c09748]" />
                               <span>View GRN</span>
                             </button>
                           </div>
@@ -1440,12 +1440,12 @@ export const StoresView: React.FC = () => {
             <div className="hidden md:block overflow-x-auto border border-[#ececec] rounded-[16px]">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-[#fafafb] text-[#777b86] font-semibold uppercase text-[10px] tracking-wider border-b border-[#ececec]">
-                    <th className="p-3">MIN Slip No & Date</th>
-                    <th className="p-3">Customer & Part Details</th>
-                    <th className="p-3">Material & Qty (Batch Summary)</th>
-                    <th className="p-3 text-center">FIFO / FEFO Status</th>
-                    <th className="p-3 text-right">Actions</th>
+                  <tr className="bg-[#fafafb] text-[#777b86] font-bold uppercase text-[11px] tracking-wider border-b border-[#ececec]">
+                    <th className="py-2 px-3 whitespace-nowrap">MIN Slip No & Date</th>
+                    <th className="py-2 px-3 whitespace-nowrap">Customer & Part Details</th>
+                    <th className="py-2 px-3">Material & Qty (Batch Summary)</th>
+                    <th className="py-2 px-3 text-center whitespace-nowrap">FIFO / FEFO Status</th>
+                    <th className="py-2 px-3 text-right whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#ececec] text-[#17191c]">
@@ -1456,54 +1456,54 @@ export const StoresView: React.FC = () => {
 
                     return (
                       <tr key={idx} className="hover:bg-[#fafafb] transition">
-                        <td className="p-3">
-                          <div className="font-mono font-bold text-[#c09748]">{slip.slipNo}</div>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <div className="font-mono font-bold text-xs sm:text-[13px] text-[#c09748]">{slip.slipNo}</div>
                           <div className="text-[11px] text-[#777b86]">{slip.date}</div>
-                          <div className="text-[10px] text-[#a3a6af] font-mono mt-0.5 flex items-center gap-1.5">
+                          <div className="text-[11px] text-[#a3a6af] font-mono mt-0.5 flex items-center gap-1.5">
                             <span>GRN: {slip.grnNo}</span>
                             <span className="inline-block w-1 h-1 rounded-full bg-gray-300 shrink-0" />
                             <span>{slip.jobCardId}</span>
                           </div>
                         </td>
-                        <td className="p-3">
-                          <div className="font-bold text-[#17191c]">{slip.customer}</div>
-                          <div className="font-mono font-bold text-xs text-[#8a6521]">{slip.partCode}</div>
-                          <div className="text-[10px] text-[#777b86]">To: {slip.issuedTo}</div>
+                        <td className="py-2.5 px-3">
+                          <div className="font-semibold text-xs sm:text-[13px] text-[#17191c]">{slip.customer}</div>
+                          <div className="font-mono font-bold text-xs sm:text-[13px] text-[#8a6521]">{slip.partCode}</div>
+                          <div className="text-[11px] text-[#777b86]">To: {slip.issuedTo}</div>
                         </td>
-                        <td className="p-3">
+                        <td className="py-2.5 px-3">
                           <div className="flex items-center gap-1.5">
-                            <span className="font-mono font-bold text-sm bg-blue-50/50 text-blue-900 px-2 py-0.5 rounded-md border border-blue-100">
+                            <span className="font-mono font-bold text-xs sm:text-[13px] bg-blue-50/50 text-blue-900 px-2 py-0.5 rounded-md border border-blue-100">
                               {slip.qty.toLocaleString('en-IN')} {slip.uom}
                             </span>
-                            <span className="text-xs text-[#17191c] font-medium">{slip.partDescription}</span>
+                            <span className="text-xs sm:text-[13px] text-[#17191c] font-medium">{slip.partDescription}</span>
                           </div>
                           <div className="mt-1">
-                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-mono bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be]">
+                            <span className="inline-block px-2.5 py-0.5 rounded text-[11px] font-mono bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be]">
                               Batches: {batchSummaryStr}
                             </span>
                           </div>
                         </td>
-                        <td className="p-3 text-center">
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
                           {slip.hasOverride ? (
                             <div>
-                              <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-amber-50 text-amber-900 border border-amber-300 inline-flex items-center gap-1">
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-amber-50 text-amber-900 border border-amber-300 inline-flex items-center gap-1">
                                 <AlertTriangle className="w-3 h-3 text-amber-600" />
                                 <span>FIFO Override</span>
                               </span>
                               {slip.overrideReasonCode && (
-                                <div className="text-[9px] font-mono text-amber-800 mt-0.5">
+                                <div className="text-[11px] font-mono text-amber-800 mt-0.5">
                                   {slip.overrideReasonCode}
                                 </div>
                               )}
                             </div>
                           ) : (
-                            <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-emerald-50 text-emerald-900 border border-emerald-300 inline-flex items-center gap-1">
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-emerald-50 text-emerald-900 border border-emerald-300 inline-flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                               <span>FIFO OK</span>
                             </span>
                           )}
                         </td>
-                        <td className="p-3 text-right">
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               type="button"
@@ -1717,28 +1717,28 @@ export const StoresView: React.FC = () => {
                 {/* DESKTOP TABLE VIEW (>= 640px): Standard Clean 4-Column Table */}
                 <div className="hidden sm:block overflow-x-auto border border-[#ececec] rounded-[16px]">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-[#f2f2f3] text-[#17191c] border-b border-[#ececec] font-semibold sticky top-0">
+                    <thead className="bg-[#f2f2f3] text-[#17191c] border-b border-[#ececec] font-bold sticky top-0 text-[11px] uppercase tracking-wider">
                       <tr>
-                        <th className="p-3.5 w-52 whitespace-nowrap">1. IQC REPORT REF & DATE</th>
-                        <th className="p-3.5">2. SUPPLIER / PARTY</th>
-                        <th className="p-3.5">3. MATERIAL & QUANTITY</th>
-                        <th className="p-3.5 text-right w-64 whitespace-nowrap">ACTION</th>
+                        <th className="py-2 px-3 whitespace-nowrap">1. IQC REPORT REF & DATE</th>
+                        <th className="py-2 px-3">2. SUPPLIER / PARTY</th>
+                        <th className="py-2 px-3">3. MATERIAL & QUANTITY</th>
+                        <th className="py-2 px-3 text-right whitespace-nowrap">ACTION</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#ececec] text-[#17191c]">
                       {filteredPending.map((job, idx) => (
                         <tr key={job.reportNo || idx} className="hover:bg-[#fafafb] transition">
                           {/* 1. IQC Report Ref & Date */}
-                          <td className="p-3.5 whitespace-nowrap">
-                            <div className="font-mono font-bold text-xs text-[#c09748]">{job.reportNo}</div>
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <div className="font-mono font-bold text-xs sm:text-[13px] text-[#c09748]">{job.reportNo}</div>
                             <div className="text-[11px] text-[#777b86] mt-0.5 font-medium">
                               {formatDateDDMMYYYY(job.receivedDate || job.invoiceChallanDate)}
                             </div>
                           </td>
 
                           {/* 2. Supplier / Party & Challan */}
-                          <td className="p-3.5">
-                            <div className="font-semibold text-xs text-[#17191c] line-clamp-1" title={job.vendorCustomer}>
+                          <td className="py-2.5 px-3">
+                            <div className="font-semibold text-xs sm:text-[13px] text-[#17191c] line-clamp-1" title={job.vendorCustomer}>
                               {job.vendorCustomer}
                             </div>
                             <div className="text-[11px] text-[#777b86] mt-0.5 font-mono">
@@ -1747,22 +1747,22 @@ export const StoresView: React.FC = () => {
                           </td>
 
                           {/* 3. Material Description & Verified Quantity */}
-                          <td className="p-3.5">
-                            <div className="font-medium text-xs text-[#17191c] max-w-xs truncate" title={job.partDescription}>
+                          <td className="py-2.5 px-3">
+                            <div className="font-normal text-xs sm:text-[13px] text-[#17191c] max-w-xs truncate" title={job.partDescription}>
                               {job.partDescription || 'Raw Substrate'}
                             </div>
-                            <div className="font-mono font-bold text-xs text-emerald-800 mt-0.5">
+                            <div className="font-mono font-bold text-xs sm:text-[13px] text-emerald-800 mt-0.5">
                               {Number(job.totalQty).toLocaleString('en-IN')} {job.uom || 'Pcs'}
                             </div>
                           </td>
 
                           {/* 4. Actions: Accept & Create GRN + View Details */}
-                          <td className="p-3.5 text-right whitespace-nowrap">
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-2">
                               <button
                                 type="button"
                                 onClick={() => handleOpenGrnForPending(job)}
-                                className="px-3.5 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
+                                className="px-3 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95 shrink-0"
                                 title="Accept Lot into Store & Generate Official GRN (DOC NO: 00)"
                               >
                                 <Plus className="w-3.5 h-3.5 text-[#8a6521]" />
@@ -2155,12 +2155,12 @@ export const StoresView: React.FC = () => {
             <div className="hidden md:block overflow-x-auto border border-[#ececec] rounded-[16px]">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-[#fafafb] text-[#777b86] font-semibold uppercase text-[10px] tracking-wider border-b border-[#ececec]">
-                    <th className="p-3">RTN Slip No & Date</th>
-                    <th className="p-3">Job Card & MIN Reference</th>
-                    <th className="p-3">Returned Materials & Physical Count</th>
-                    <th className="p-3 text-center">Status & Reconciliation</th>
-                    <th className="p-3 text-right">Store Action</th>
+                  <tr className="bg-[#fafafb] text-[#777b86] font-bold uppercase text-[11px] tracking-wider border-b border-[#ececec]">
+                    <th className="py-2 px-3 whitespace-nowrap">RTN Slip No & Date</th>
+                    <th className="py-2 px-3 whitespace-nowrap">Job Card & MIN Reference</th>
+                    <th className="py-2 px-3">Returned Materials & Physical Count</th>
+                    <th className="py-2 px-3 text-center whitespace-nowrap">Status & Reconciliation</th>
+                    <th className="py-2 px-3 text-right whitespace-nowrap">Store Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#ececec] text-[#17191c]">
@@ -2179,10 +2179,10 @@ export const StoresView: React.FC = () => {
 
                     return (
                       <tr key={idx} className="hover:bg-[#fafafb] transition">
-                        <td className="p-3">
-                          <div className="font-mono font-bold text-[#c09748]">{slip.rtnNo}</div>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <div className="font-mono font-bold text-xs sm:text-[13px] text-[#c09748]">{slip.rtnNo}</div>
                           <div className="text-[11px] text-[#777b86]">{slip.date} {slip.time}</div>
-                          <div className="text-[10px] font-mono text-gray-400">{slip.plant} Plant</div>
+                          <div className="text-[11px] font-mono text-gray-400">{slip.plant} Plant</div>
                           {isAuto && (
                             <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
                               <span>Auto 20:45 Cutoff</span>
@@ -2191,12 +2191,12 @@ export const StoresView: React.FC = () => {
                             </span>
                           )}
                         </td>
-                        <td className="p-3">
-                          <div className="font-mono font-bold text-[#17191c]">{slip.jobCardNo}</div>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <div className="font-mono font-bold text-xs sm:text-[13px] text-[#17191c]">{slip.jobCardNo}</div>
                           <div className="text-[11px] text-[#8a6521] font-mono">MIN: {slip.minNo}</div>
-                          <div className="text-[10px] text-[#777b86]">{slip.returnedBy}</div>
+                          <div className="text-[11px] text-[#777b86]">{slip.returnedBy}</div>
                         </td>
-                        <td className="p-3">
+                        <td className="py-2.5 px-3">
                           <div className="space-y-1.5">
                             {slip.lines.map((line, lIdx) => (
                               <div key={lIdx} className="p-2 rounded-[10px] bg-[#fafafb] border border-[#ececec] text-[11px]">
@@ -2232,8 +2232,8 @@ export const StoresView: React.FC = () => {
                             ))}
                           </div>
                         </td>
-                        <td className="p-3 text-center">
-                          <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
                             isAccepted
                               ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
                               : isDiscrepant
@@ -2250,7 +2250,7 @@ export const StoresView: React.FC = () => {
                             </div>
                           )}
                         </td>
-                        <td className="p-3 text-right">
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
                           {isPending && isStoreIncharge && (
                             <button
                               type="button"

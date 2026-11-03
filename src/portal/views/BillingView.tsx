@@ -24,7 +24,10 @@ import {
   Package,
   Calendar,
   Layers,
-  Award
+  Award,
+  FilePlus,
+  Check,
+  ArrowRight
 } from 'lucide-react';
 
 // Number to Words Converter for INR Currency
@@ -54,6 +57,7 @@ export const BillingView: React.FC = () => {
     toggleInvoiceExcessApproval, 
     qualityReleases,
     generateNewInvoiceFromPDI,
+    createCustomTaxInvoice,
     universalJobs,
     activePlant,
     currentUser,
@@ -83,10 +87,188 @@ export const BillingView: React.FC = () => {
   // Active Invoice lookup (defaults to first available or selected)
   const activeInv = billingInvoices.find(inv => inv.invoiceNo === selectedInvoiceNo) || billingInvoices[0] || null;
 
-  // Pending OQC releases that don't have an invoice generated yet
-  const availableOqcOrders = qualityReleases.filter(
+  // Pending PDI releases that are cleared for dispatch & billing
+  const availablePdiOrders = qualityReleases.filter(
     r => r.pdiStatus === 'Cleared for Invoicing'
   );
+  const availableOqcOrders = availablePdiOrders;
+
+  // Wizard state for interactive Tax Invoice creation
+  interface WizardLineItem {
+    id: string;
+    colorName: string;
+    orderedQty: number;
+    passedAndPackedQty: number;
+    unitRate: number;
+    billExcess: boolean;
+  }
+
+  const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
+  const [selectedWoForInvoice, setSelectedWoForInvoice] = useState<string>('');
+  const [customCustomer, setCustomCustomer] = useState<string>('');
+  const [customGstin, setCustomGstin] = useState<string>('27AABCT8814M1Z2');
+  const [customGstType, setCustomGstType] = useState<'INTRA_STATE' | 'INTER_STATE'>('INTRA_STATE');
+  const [customPaymentTerms, setCustomPaymentTerms] = useState<string>('Net 30 Days');
+  const [customSacCode, setCustomSacCode] = useState<string>('9988');
+  const [wizardLineItems, setWizardLineItems] = useState<WizardLineItem[]>([]);
+
+  const openCreateModal = (woNo?: string) => {
+    const targetWo = woNo || availablePdiOrders[0]?.woNo || universalJobs[0]?.jobNumber || 'WO-2026-9041';
+    const releases = qualityReleases.filter(r => r.woNo === targetWo);
+    const job = universalJobs.find(j => j.jobNumber === targetWo);
+    
+    setSelectedWoForInvoice(targetWo);
+    setCustomCustomer(releases[0]?.customer || job?.clientName || 'Tata Motors Passenger Vehicles');
+    setCustomGstin(job?.clientName?.includes('Havells') ? '05AABCH9912K1Z3' : '27AABCT8814M1Z2');
+    setCustomGstType(activePlant === 'Haridwar' ? 'INTER_STATE' : 'INTRA_STATE');
+    setCustomPaymentTerms('Net 30 Days');
+    setCustomSacCode('9988');
+
+    if (releases.length > 0) {
+      const lines: WizardLineItem[] = releases.map((rel, idx) => {
+        const isRed = rel.color.includes('Red');
+        const poQty = isRed ? 250 : 750;
+        return {
+          id: `wiz_${idx}_${Date.now()}`,
+          colorName: rel.color,
+          orderedQty: poQty,
+          passedAndPackedQty: rel.passedQty,
+          unitRate: isRed ? 25 : 20,
+          billExcess: false
+        };
+      });
+      setWizardLineItems(lines);
+    } else {
+      setWizardLineItems([
+        {
+          id: `wiz_0_${Date.now()}`,
+          colorName: 'Metallic Crimson Red Finish',
+          orderedQty: 250,
+          passedAndPackedQty: 300,
+          unitRate: 25,
+          billExcess: false
+        },
+        {
+          id: `wiz_1_${Date.now()}`,
+          colorName: 'Matte Obsidian Black Finish',
+          orderedQty: 750,
+          passedAndPackedQty: 750,
+          unitRate: 20,
+          billExcess: false
+        }
+      ]);
+    }
+    setShowCreateModal(true);
+  };
+
+  const handleSelectWoInWizard = (woNo: string) => {
+    setSelectedWoForInvoice(woNo);
+    const releases = qualityReleases.filter(r => r.woNo === woNo);
+    const job = universalJobs.find(j => j.jobNumber === woNo);
+    if (releases.length > 0) {
+      setCustomCustomer(releases[0].customer);
+      setWizardLineItems(releases.map((rel, idx) => {
+        const isRed = rel.color.includes('Red');
+        const poQty = isRed ? 250 : 750;
+        return {
+          id: `wiz_${idx}_${Date.now()}`,
+          colorName: rel.color,
+          orderedQty: poQty,
+          passedAndPackedQty: rel.passedQty,
+          unitRate: isRed ? 25 : 20,
+          billExcess: false
+        };
+      }));
+    } else if (job) {
+      setCustomCustomer(job.clientName);
+      setWizardLineItems([
+        {
+          id: `wiz_j_${Date.now()}`,
+          colorName: job.productName || 'Surface Finished Substrate',
+          orderedQty: job.batchQuantity || 500,
+          passedAndPackedQty: job.sprayedQuantity || job.batchQuantity || 500,
+          unitRate: 22,
+          billExcess: false
+        }
+      ]);
+    }
+  };
+
+  const handleToggleExcessInWizard = (id: string) => {
+    setWizardLineItems(prev => prev.map(item => item.id === id ? { ...item, billExcess: !item.billExcess } : item));
+  };
+
+  const handleUpdateUnitRateInWizard = (id: string, rate: number) => {
+    setWizardLineItems(prev => prev.map(item => item.id === id ? { ...item, unitRate: rate } : item));
+  };
+
+  const wizardSubTotal = Math.round(
+    wizardLineItems.reduce((acc, it) => {
+      const billable = it.billExcess ? it.passedAndPackedQty : Math.min(it.passedAndPackedQty, it.orderedQty);
+      return acc + (billable * it.unitRate);
+    }, 0) * 100
+  ) / 100;
+
+  const wizardCgst = customGstType === 'INTRA_STATE' ? Math.round(wizardSubTotal * 0.09 * 100) / 100 : 0;
+  const wizardSgst = customGstType === 'INTRA_STATE' ? Math.round(wizardSubTotal * 0.09 * 100) / 100 : 0;
+  const wizardIgst = customGstType === 'INTER_STATE' ? Math.round(wizardSubTotal * 0.18 * 100) / 100 : 0;
+  const wizardTotalGst = Math.round((wizardCgst + wizardSgst + wizardIgst) * 100) / 100;
+  const wizardGrandTotal = Math.round((wizardSubTotal + wizardTotalGst) * 100) / 100;
+
+  const handleAuthorizeAndGenerateInvoice = () => {
+    const currentYear = new Date().getFullYear();
+    const newInvNo = `PK-TAX-${currentYear}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const lines: BillableLineItem[] = wizardLineItems.map(it => {
+      const excess = Math.max(0, it.passedAndPackedQty - it.orderedQty);
+      const billableQty = it.billExcess ? it.passedAndPackedQty : Math.min(it.passedAndPackedQty, it.orderedQty);
+      const lineTotal = Math.round(billableQty * it.unitRate * 100) / 100;
+      return {
+        id: it.id,
+        colorName: it.colorName,
+        orderedQty: it.orderedQty,
+        passedAndPackedQty: it.passedAndPackedQty,
+        billableQty,
+        excessQty: excess,
+        excessApprovedByClient: it.billExcess,
+        unitRate: it.unitRate,
+        lineTotal,
+        status: 'Contract Fulfilled'
+      };
+    });
+
+    const totalOrdered = lines.reduce((acc, it) => acc + it.orderedQty, 0);
+    const totalBilled = lines.reduce((acc, it) => acc + it.billableQty, 0);
+
+    const newInvoice: BillingInvoice = {
+      invoiceNo: newInvNo,
+      invoiceDate: new Date().toISOString().split('T')[0],
+      woNo: selectedWoForInvoice || `WO-${currentYear}-9901`,
+      customer: customCustomer || 'Valued OEM Client',
+      customerGstin: customGstin,
+      plant: activePlant,
+      gstType: customGstType,
+      sacHsnCode: customSacCode,
+      paymentTerms: customPaymentTerms,
+      lineItems: lines,
+      subTotal: wizardSubTotal,
+      gstPercent: 18,
+      gstAmount: wizardTotalGst,
+      cgstAmount: wizardCgst,
+      sgstAmount: wizardSgst,
+      igstAmount: wizardIgst,
+      grandTotal: wizardGrandTotal,
+      totalOrderedQty: totalOrdered,
+      totalBilledQty: totalBilled,
+      status: 'Generated',
+      preparedBy: currentUser.name,
+      balanceBacklogNote: 'Reconciled and certified by Billing & Dispatch Desk.'
+    };
+
+    createCustomTaxInvoice(newInvoice);
+    setSelectedInvoiceNo(newInvoice.invoiceNo);
+    setShowCreateModal(false);
+  };
 
   // Instant Green Button Handler: Auto-Generates Invoice & Triggers Official Standard PDF Download!
   const handleAutoGenerateAndDownloadPdf = () => {
@@ -152,16 +334,98 @@ export const BillingView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <button
+            onClick={() => openCreateModal()}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold shadow-xs transition cursor-pointer w-full md:w-auto active:scale-95"
+          >
+            <Plus className="w-4 h-4 text-[#17191c]" />
+            <span>+ Create Tax Invoice</span>
+          </button>
+
           {activeInv && (
             <button
               onClick={() => { setDocType('TAX_INVOICE'); setShowPrintModal(true); }}
-              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold shadow-xs transition cursor-pointer w-full md:w-auto active:scale-95"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-white border border-[#dcdfe4] hover:bg-[#fafafb] text-[#17191c] text-xs font-semibold shadow-2xs transition cursor-pointer w-full md:w-auto active:scale-95"
             >
-              <Printer className="w-4 h-4 text-[#17191c]" />
+              <Printer className="w-4 h-4 text-[#777b86]" />
               <span>Print Tax Invoice</span>
             </button>
           )}
         </div>
+      </div>
+
+      {/* Pending PDI Releases Queue Banner */}
+      <div className="bg-white rounded-[20px] sm:rounded-[24px] p-4 sm:p-5 border border-[#ececec] shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-[#f2f2f3] pb-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <h2 className="text-xs sm:text-sm font-bold text-[#17191c] uppercase tracking-wider">
+              Gate 5 PDI Cleared Batches Ready for Invoicing ({availablePdiOrders.length})
+            </h2>
+          </div>
+          <span className="text-[11px] text-[#777b86]">
+            Passes in PDI ➔ Reconcile PO & generate official Tax Invoice (SEC 31) + Challan (Rule 55)
+          </span>
+        </div>
+
+        {availablePdiOrders.length === 0 ? (
+          <div className="p-4 rounded-[16px] bg-[#fafafb] border border-dashed border-[#ececec] text-center text-xs text-[#777b86]">
+            All cleared PDI orders currently have active invoices. Complete new batches through Gate 5 PDI to queue them here.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {availablePdiOrders.map(order => {
+              const existingInv = billingInvoices.find(inv => inv.woNo === order.woNo);
+              return (
+                <div 
+                  key={order.releaseId}
+                  className="p-3.5 rounded-[18px] bg-[#fafafb] border border-[#ececec] hover:border-[#c09748]/50 transition flex flex-col justify-between gap-3 shadow-2xs"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-[10px] font-bold text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
+                        {order.woNo}
+                      </span>
+                      <span className="text-[10px] text-[#777b86] font-mono">
+                        {order.pdiDate || order.releaseDate}
+                      </span>
+                    </div>
+                    <div className="font-bold text-xs text-[#17191c] truncate">{order.customer}</div>
+                    <div className="text-[11px] text-[#777b86] flex items-center justify-between">
+                      <span className="truncate pr-2">{order.color}</span>
+                      <strong className="text-emerald-800 font-mono shrink-0">{order.passedQty} pcs cleared</strong>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-[#ececec] flex items-center justify-between gap-2">
+                    {existingInv ? (
+                      <>
+                        <span className="text-[10px] text-emerald-800 font-semibold font-mono flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+                          {existingInv.invoiceNo}
+                        </span>
+                        <button
+                          onClick={() => setSelectedInvoiceNo(existingInv.invoiceNo)}
+                          className="px-3 py-1 rounded-full bg-white border border-[#ececec] text-[11px] font-semibold text-[#17191c] hover:border-[#c09748] transition cursor-pointer"
+                        >
+                          View Bill
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => openCreateModal(order.woNo)}
+                        className="w-full py-1.5 px-3 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Create Tax Invoice</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Invoice Selector & Instant PDF Download Green Button Bar */}
@@ -279,53 +543,53 @@ export const BillingView: React.FC = () => {
 
               <div className="overflow-x-auto no-scrollbar scroll-smooth">
                 <table className="w-full text-left text-xs border border-[#ececec] rounded-[16px] overflow-hidden">
-                  <thead className="bg-[#fafafb] text-[#777b86] font-semibold border-b border-[#ececec]">
+                  <thead className="bg-[#fafafb] text-[#777b86] font-bold border-b border-[#ececec] text-[11px] uppercase tracking-wider">
                     <tr>
-                      <th className="p-3.5">Color / Finish Line</th>
-                      <th className="p-3.5 text-center">Customer PO Qty</th>
-                      <th className="p-3.5 text-center">Sprayed & Passed</th>
-                      <th className="p-3.5 text-center">Floor Variance</th>
-                      <th className="p-3.5 text-center">Client Concession</th>
-                      <th className="p-3.5 text-center">Billable Qty</th>
-                      <th className="p-3.5 text-right">Unit Rate</th>
-                      <th className="p-3.5 text-right">Line Total</th>
+                      <th className="py-2 px-3 whitespace-nowrap">Color / Finish Line</th>
+                      <th className="py-2 px-3 text-center whitespace-nowrap">Customer PO Qty</th>
+                      <th className="py-2 px-3 text-center whitespace-nowrap">Sprayed & Passed</th>
+                      <th className="py-2 px-3 text-center whitespace-nowrap">Floor Variance</th>
+                      <th className="py-2 px-3 text-center whitespace-nowrap">Client Concession</th>
+                      <th className="py-2 px-3 text-center whitespace-nowrap">Billable Qty</th>
+                      <th className="py-2 px-3 text-right whitespace-nowrap">Unit Rate</th>
+                      <th className="py-2 px-3 text-right whitespace-nowrap">Line Total</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#ececec] text-[#17191c]">
                     {activeInv.lineItems.map(item => (
                       <tr key={item.id} className="hover:bg-[#fafafb]">
-                        <td className="p-3.5 font-medium">
-                          <div className="flex items-center gap-2.5">
+                        <td className="py-2.5 px-3 font-semibold text-xs sm:text-[13px] text-[#17191c] whitespace-nowrap">
+                          <div className="flex items-center gap-2">
                             <span 
-                              className={`w-3 h-3 rounded-full ${
+                              className={`w-2.5 h-2.5 rounded-full ${
                                 item.colorName.includes('Red') ? 'bg-red-500' : 'bg-[#17191c]'
                               }`} 
                             />
                             <span>{item.colorName}</span>
                           </div>
                         </td>
-                        <td className="p-3.5 text-center font-mono font-medium">{item.orderedQty} pcs</td>
-                        <td className="p-3.5 text-center font-mono font-bold text-emerald-800">
+                        <td className="py-2.5 px-3 text-center font-mono font-medium text-xs sm:text-[13px] whitespace-nowrap">{item.orderedQty} pcs</td>
+                        <td className="py-2.5 px-3 text-center font-mono font-bold text-xs sm:text-[13px] text-emerald-800 whitespace-nowrap">
                           {item.passedAndPackedQty} pcs
                         </td>
-                        <td className="p-3.5 text-center">
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
                           {item.excessQty > 0 ? (
-                            <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold font-mono">
+                            <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-semibold font-mono text-[11px]">
                               +{item.excessQty} Buffer Over-run
                             </span>
                           ) : item.orderedQty > item.passedAndPackedQty ? (
-                            <span className="px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 font-bold font-mono">
+                            <span className="px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 font-semibold font-mono text-[11px]">
                               -{item.orderedQty - item.passedAndPackedQty} Shortfall
                             </span>
                           ) : (
-                            <span className="text-gray-400 font-mono">0 (Exact)</span>
+                            <span className="text-gray-400 font-mono text-[11px]">0 (Exact)</span>
                           )}
                         </td>
-                        <td className="p-3.5 text-center">
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
                           {item.excessQty > 0 ? (
                             <button
                               onClick={() => toggleInvoiceExcessApproval(activeInv.invoiceNo, item.id)}
-                              className={`px-3 py-1 rounded-full text-[11px] font-semibold transition cursor-pointer border ${
+                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition cursor-pointer border ${
                                 item.excessApprovedByClient
                                   ? 'bg-emerald-700 border-emerald-800 text-white'
                                   : 'bg-white border-[#f4e5be] text-[#8a6521] hover:bg-[#faf3e0]'
@@ -338,11 +602,11 @@ export const BillingView: React.FC = () => {
                             <span className="text-[#a3a6af] text-[11px]">N/A</span>
                           )}
                         </td>
-                        <td className="p-3.5 text-center font-mono text-sm font-bold text-[#17191c]">
+                        <td className="py-2.5 px-3 text-center font-mono text-xs sm:text-[13px] font-bold text-[#17191c] whitespace-nowrap">
                           {item.billableQty} pcs
                         </td>
-                        <td className="p-3.5 text-right font-mono text-[#777b86]">₹{item.unitRate.toFixed(2)}</td>
-                        <td className="p-3.5 text-right font-serif font-normal text-base text-[#17191c]">
+                        <td className="py-2.5 px-3 text-right font-mono text-[11px] text-[#777b86] whitespace-nowrap">₹{item.unitRate.toFixed(2)}</td>
+                        <td className="py-2.5 px-3 text-right font-serif font-normal text-sm sm:text-base text-[#17191c] whitespace-nowrap">
                           ₹{item.lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </td>
                       </tr>
@@ -839,6 +1103,285 @@ export const BillingView: React.FC = () => {
               >
                 <Download className="w-3.5 h-3.5 text-[#17191c]" />
                 <span>Download / Print PDF Now</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* INTERACTIVE TAX INVOICE CREATION WIZARD MODAL                       */}
+      {/* ------------------------------------------------------------------ */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-3xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] max-h-[92vh] overflow-y-auto no-scrollbar space-y-5">
+            
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-[#ececec] pb-3">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold uppercase tracking-wider">
+                    PK-ACC-INV-WIZARD • TAX INVOICE CREATION
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold">
+                    📍 {activePlant} Unit
+                  </span>
+                </div>
+                <h3 className="text-lg sm:text-xl font-serif text-[#17191c]">
+                  Create New Tax Invoice & 3-Way Reconciliation
+                </h3>
+                <p className="text-[11px] text-[#777b86]">
+                  Reconcile Customer PO against PDI passed counts, verify client concessions & calculate GST.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-[#17191c] font-bold flex items-center justify-center cursor-pointer transition shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Step 1: Work Order & Client Information */}
+            <div className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] space-y-3">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[#777b86] flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-[#c09748]" />
+                1. Order & Buyer Particulars
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-[#777b86] mb-1">
+                    Select Cleared Work Order
+                  </label>
+                  <select
+                    value={selectedWoForInvoice}
+                    onChange={e => handleSelectWoInWizard(e.target.value)}
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
+                  >
+                    {availablePdiOrders.map(rel => (
+                      <option key={rel.releaseId} value={rel.woNo}>
+                        {rel.woNo} • {rel.customer} ({rel.passedQty} pcs)
+                      </option>
+                    ))}
+                    {availablePdiOrders.length === 0 && (
+                      <option value="WO-2026-9041">WO-2026-9041 • Tata Motors (1,000 pcs)</option>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-[#777b86] mb-1">
+                    Billed Customer / Buyer
+                  </label>
+                  <input
+                    type="text"
+                    value={customCustomer}
+                    onChange={e => setCustomCustomer(e.target.value)}
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs text-[#17191c] font-semibold focus:border-[#c09748] focus:outline-none"
+                    placeholder="e.g. Tata Motors Passenger Vehicles"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-[#777b86] mb-1">
+                    Customer GSTIN
+                  </label>
+                  <input
+                    type="text"
+                    value={customGstin}
+                    onChange={e => setCustomGstin(e.target.value)}
+                    className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-mono text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                    placeholder="27AABCT8814M1Z2"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Step 2: 3-Way Line Reconciliation & Unit Rates */}
+            <div className="space-y-3">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[#777b86] flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-[#c09748]" />
+                  2. 3-Way Line Reconciliation: PO Qty vs PDI Passed vs Rate
+                </span>
+                <span className="text-[10px] font-normal text-[#8a6521]">
+                  Contract Rates editable per client PO schedule
+                </span>
+              </div>
+
+              <div className="overflow-x-auto no-scrollbar border border-[#ececec] rounded-[16px]">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#fafafb] text-[#777b86] font-bold border-b border-[#ececec] text-[11px] uppercase tracking-wider">
+                    <tr>
+                      <th className="py-2 px-3">Finish Line / Color</th>
+                      <th className="py-2 px-3 text-center">PO Agreed</th>
+                      <th className="py-2 px-3 text-center">PDI Cleared</th>
+                      <th className="py-2 px-3 text-center">Buffer / Excess</th>
+                      <th className="py-2 px-3 text-center">Client Concession</th>
+                      <th className="py-2 px-3 text-right">Unit Rate (₹)</th>
+                      <th className="py-2 px-3 text-right">Line Total (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#ececec]">
+                    {wizardLineItems.map(item => {
+                      const excess = Math.max(0, item.passedAndPackedQty - item.orderedQty);
+                      const billable = item.billExcess ? item.passedAndPackedQty : Math.min(item.passedAndPackedQty, item.orderedQty);
+                      const lineTotal = Math.round(billable * item.unitRate * 100) / 100;
+                      return (
+                        <tr key={item.id} className="hover:bg-[#fafafb]">
+                          <td className="py-2.5 px-3 font-semibold text-[#17191c]">
+                            {item.colorName}
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-mono text-gray-600">
+                            {item.orderedQty} pcs
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-800">
+                            {item.passedAndPackedQty} pcs
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            {excess > 0 ? (
+                              <span className="px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold">
+                                +{excess} Buffer
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 font-mono text-[10px]">0</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            {excess > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleExcessInWizard(item.id)}
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition cursor-pointer border ${
+                                  item.billExcess
+                                    ? 'bg-emerald-700 border-emerald-800 text-white'
+                                    : 'bg-white border-[#ececec] text-[#777b86] hover:bg-gray-50'
+                                }`}
+                              >
+                                {item.billExcess ? '✓ Approved (+50 Billed)' : 'Hold in Buffer'}
+                              </button>
+                            ) : (
+                              <span className="text-gray-400 text-[10px]">Exact Match</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="text-gray-400 text-xs">₹</span>
+                              <input
+                                type="number"
+                                min="1"
+                                step="0.5"
+                                value={item.unitRate}
+                                onChange={e => handleUpdateUnitRateInWizard(item.id, parseFloat(e.target.value) || 0)}
+                                className="w-16 p-1 text-right rounded-md border border-[#ececec] bg-white text-xs font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                              />
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-[#17191c]">
+                            ₹{lineTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Step 3: Tax Mode & Commercial Terms */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec]">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-[#777b86] mb-1">
+                  GST Classification
+                </label>
+                <select
+                  value={customGstType}
+                  onChange={e => setCustomGstType(e.target.value as 'INTRA_STATE' | 'INTER_STATE')}
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
+                >
+                  <option value="INTRA_STATE">Intra-State: CGST 9% + SGST 9% (18%)</option>
+                  <option value="INTER_STATE">Inter-State: IGST 18%</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-[#777b86] mb-1">
+                  HSN / SAC Code
+                </label>
+                <select
+                  value={customSacCode}
+                  onChange={e => setCustomSacCode(e.target.value)}
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
+                >
+                  <option value="9988">SAC 9988 • Industrial Surface Coating Services</option>
+                  <option value="3926">HSN 3926 • Custom Moulded Plastic Articles</option>
+                  <option value="8708">HSN 8708 • Finished Automotive Parts</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-[#777b86] mb-1">
+                  Payment Credit Terms
+                </label>
+                <select
+                  value={customPaymentTerms}
+                  onChange={e => setCustomPaymentTerms(e.target.value)}
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
+                >
+                  <option value="Net 30 Days">Net 30 Days (Standard Corporate)</option>
+                  <option value="Net 15 Days">Net 15 Days</option>
+                  <option value="Immediate / On Delivery">Immediate / On Delivery</option>
+                  <option value="100% Advance Received">100% Advance Received</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Step 4: Live Totals & INR Words Preview */}
+            <div className="p-4 rounded-[18px] bg-[#faf3e0]/40 border border-[#f4e5be] space-y-2">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <div className="space-y-1">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-[#8a6521] font-bold">
+                    AMOUNT IN WORDS (INR):
+                  </div>
+                  <div className="text-xs font-semibold text-[#17191c] italic">
+                    {numberToWordsINR(wizardGrandTotal)}
+                  </div>
+                </div>
+
+                <div className="text-right space-y-0.5 shrink-0">
+                  <div className="text-[11px] text-[#777b86]">
+                    Subtotal: <strong className="text-[#17191c] font-mono">₹{wizardSubTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                  </div>
+                  <div className="text-[11px] text-[#777b86]">
+                    {customGstType === 'INTRA_STATE' ? 'CGST 9% + SGST 9%' : 'IGST 18%'}:{' '}
+                    <strong className="text-[#17191c] font-mono">₹{wizardTotalGst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                  </div>
+                  <div className="text-sm font-serif font-bold text-[#8a6521]">
+                    Grand Total: ₹{wizardGrandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#ececec]">
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] text-xs font-semibold hover:bg-gray-50 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAuthorizeAndGenerateInvoice}
+                className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold shadow-xs transition flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <Check className="w-4 h-4 text-[#17191c]" />
+                <span>Authorize & Generate Tax Invoice</span>
               </button>
             </div>
 

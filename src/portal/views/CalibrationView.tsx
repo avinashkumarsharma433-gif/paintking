@@ -90,17 +90,17 @@ export const CalibrationView: React.FC = () => {
       {/* Instruments Table */}
       <div className="bg-white rounded-[24px] border border-slate-200 shadow-xs overflow-hidden">
         <table className="w-full text-left text-xs">
-          <thead className="bg-[#17191c] text-white">
+          <thead className="bg-[#17191c] text-white text-[11px] font-bold uppercase tracking-wider">
             <tr>
-              <th className="p-3.5">Code</th>
-              <th className="p-3.5">Instrument & Make/Model</th>
-              <th className="p-3.5">Range & Accuracy</th>
-              <th className="p-3.5">NABL Calibration Agency</th>
-              <th className="p-3.5">Certificate No</th>
-              <th className="p-3.5">Last Calibrated</th>
-              <th className="p-3.5">Next Due</th>
-              <th className="p-3.5 text-center">Status</th>
-              <th className="p-3.5 text-right">Action</th>
+              <th className="py-2 px-3 whitespace-nowrap">Code</th>
+              <th className="py-2 px-3">Instrument & Make/Model</th>
+              <th className="py-2 px-3">Range & Accuracy</th>
+              <th className="py-2 px-3">NABL Calibration Agency</th>
+              <th className="py-2 px-3 whitespace-nowrap">Certificate No</th>
+              <th className="py-2 px-3 whitespace-nowrap">Last Calibrated</th>
+              <th className="py-2 px-3 whitespace-nowrap">Next Due</th>
+              <th className="py-2 px-3 text-center whitespace-nowrap">Status</th>
+              <th className="py-2 px-3 text-right whitespace-nowrap">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -110,18 +110,18 @@ export const CalibrationView: React.FC = () => {
 
               return (
                 <tr key={inst.id} className="hover:bg-slate-50">
-                  <td className="p-3.5 font-mono font-bold text-slate-900">{inst.equipmentCode}</td>
-                  <td className="p-3.5">
-                    <div className="font-semibold text-slate-900">{inst.equipmentName}</div>
+                  <td className="py-2.5 px-3 font-mono font-bold text-xs sm:text-[13px] text-slate-900 whitespace-nowrap">{inst.equipmentCode}</td>
+                  <td className="py-2.5 px-3">
+                    <div className="font-semibold text-xs sm:text-[13px] text-slate-900">{inst.equipmentName}</div>
                     <div className="text-[11px] text-slate-500 font-mono">{inst.makeModel} • S/N: {inst.serialNo}</div>
                   </td>
-                  <td className="p-3.5 text-slate-700">{inst.rangeAccuracy}</td>
-                  <td className="p-3.5 text-slate-700">{inst.calibrationAgency}</td>
-                  <td className="p-3.5 font-mono text-[#c09748] font-medium">{inst.certificateNo}</td>
-                  <td className="p-3.5 text-slate-600">{inst.lastCalibrationDate}</td>
-                  <td className="p-3.5 font-bold font-mono text-slate-900">{inst.nextCalibrationDue}</td>
-                  <td className="p-3.5 text-center">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ${
+                  <td className="py-2.5 px-3 text-xs sm:text-[13px] text-slate-700">{inst.rangeAccuracy}</td>
+                  <td className="py-2.5 px-3 text-xs sm:text-[13px] text-slate-700">{inst.calibrationAgency}</td>
+                  <td className="py-2.5 px-3 font-mono text-[#c09748] font-semibold text-xs sm:text-[13px] whitespace-nowrap">{inst.certificateNo}</td>
+                  <td className="py-2.5 px-3 text-slate-600 text-[11px] whitespace-nowrap">{inst.lastCalibrationDate}</td>
+                  <td className="py-2.5 px-3 font-bold font-mono text-xs sm:text-[13px] text-slate-900 whitespace-nowrap">{inst.nextCalibrationDue}</td>
+                  <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
                       isValid 
                         ? 'bg-emerald-100 text-emerald-800' 
                         : isDue 
@@ -131,10 +131,10 @@ export const CalibrationView: React.FC = () => {
                       {inst.status}
                     </span>
                   </td>
-                  <td className="p-3.5 text-right">
+                  <td className="py-2.5 px-3 text-right whitespace-nowrap">
                     <button
                       onClick={() => setEditingRecord(inst)}
-                      className="px-3 py-1 rounded-full border border-slate-300 hover:bg-slate-100 text-slate-700 text-[11px] font-medium cursor-pointer"
+                      className="px-3 py-1.5 rounded-full border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold cursor-pointer transition active:scale-95"
                     >
                       Update
                     </button>

@@ -2191,13 +2191,13 @@ export const JobCardsView: React.FC = () => {
             <div className="hidden md:block overflow-x-auto border border-[#ececec] rounded-[18px]">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-[#fafafb] text-[#777b86] font-semibold uppercase text-[11px] tracking-wider border-b border-[#ececec]">
-                    <th className="py-3.5 px-4 font-medium">Requisition Ref</th>
-                    <th className="py-3.5 px-4 font-medium">Target Job Card</th>
-                    <th className="py-3.5 px-4 font-medium">Material</th>
-                    <th className="py-3.5 px-4 text-center font-medium">Quantity</th>
-                    <th className="py-3.5 px-4 text-center font-medium">Status</th>
-                    <th className="py-3.5 px-4 text-right font-medium">Actions</th>
+                  <tr className="bg-[#fafafb] text-[#777b86] font-bold uppercase text-[11px] tracking-wider border-b border-[#ececec]">
+                    <th className="py-2 px-3 whitespace-nowrap">Requisition Ref</th>
+                    <th className="py-2 px-3 whitespace-nowrap">Target Job Card</th>
+                    <th className="py-2 px-3">Material</th>
+                    <th className="py-2 px-3 text-center whitespace-nowrap">Quantity</th>
+                    <th className="py-2 px-3 text-center whitespace-nowrap">Status</th>
+                    <th className="py-2 px-3 text-right whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#f2f2f3] text-[#17191c]">
@@ -2217,9 +2217,9 @@ export const JobCardsView: React.FC = () => {
                       return (
                         <tr key={idx} className="hover:bg-[#fafafb]/80 transition group">
                           {/* Col 1: Requisition Ref & Timestamp */}
-                          <td className="py-3.5 px-4 align-middle">
+                          <td className="py-2.5 px-3 align-middle whitespace-nowrap">
                             <div 
-                              className="font-mono font-bold text-[#c09748] text-sm group-hover:underline cursor-pointer" 
+                              className="font-mono font-bold text-[#c09748] text-xs sm:text-[13px] group-hover:underline cursor-pointer" 
                               onClick={() => handleOpenViewDetailsModal(req)}
                             >
                               {req.mrnNo}
@@ -2228,18 +2228,18 @@ export const JobCardsView: React.FC = () => {
                           </td>
 
                           {/* Col 2: Target Job Card & Customer */}
-                          <td className="py-3.5 px-4 align-middle">
-                            <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#faf7ed] border border-[#f4e5be] font-mono font-bold text-xs text-[#8a6521]">
+                          <td className="py-2.5 px-3 align-middle">
+                            <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#faf7ed] border border-[#f4e5be] font-mono font-bold text-[11px] text-[#8a6521] whitespace-nowrap">
                               {req.jobCardNo}
                             </span>
-                            <div className="text-[11px] text-[#777b86] font-medium truncate max-w-[160px] mt-1">
+                            <div className="text-[11px] text-[#777b86] font-medium truncate max-w-[160px] mt-0.5">
                               {req.customer}
                             </div>
                           </td>
 
                           {/* Col 3: Material */}
-                          <td className="py-3.5 px-4 align-middle">
-                            <div className="font-semibold text-[#17191c] text-xs truncate max-w-[220px]" title={req.partDescription}>
+                          <td className="py-2.5 px-3 align-middle">
+                            <div className="font-semibold text-[#17191c] text-xs sm:text-[13px] truncate max-w-[220px]" title={req.partDescription}>
                               {req.partDescription}
                             </div>
                             <div className="font-mono text-[11px] text-[#777b86] mt-0.5">
@@ -2248,20 +2248,20 @@ export const JobCardsView: React.FC = () => {
                           </td>
 
                           {/* Col 4: Quantity */}
-                          <td className="py-3.5 px-4 align-middle text-center">
-                            <div className="font-mono font-bold text-sm text-[#17191c]">
+                          <td className="py-2.5 px-3 align-middle text-center whitespace-nowrap">
+                            <div className="font-mono font-bold text-xs sm:text-[13px] text-[#17191c]">
                               {req.issuedQty !== undefined ? req.issuedQty : req.requestedQty} <span className="text-xs font-normal text-[#777b86]">{req.uom}</span>
                             </div>
                             {req.issuedSlipNo && (
-                              <div className="text-[10px] font-mono text-blue-700 font-bold mt-0.5">
+                              <div className="text-[11px] font-mono text-blue-700 font-bold mt-0.5">
                                 Slip: {req.issuedSlipNo}
                               </div>
                             )}
                           </td>
 
                           {/* Col 5: Status */}
-                          <td className="py-3.5 px-4 align-middle text-center">
-                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${
+                          <td className="py-2.5 px-3 align-middle text-center whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
                               isPending
                                 ? 'bg-amber-50 text-amber-900 border-amber-300'
                                 : isDispatched
@@ -2278,12 +2278,12 @@ export const JobCardsView: React.FC = () => {
                           </td>
 
                           {/* Col 6: Actions */}
-                          <td className="py-3.5 px-4 align-middle text-right">
+                          <td className="py-2.5 px-3 align-middle text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
                                 type="button"
                                 onClick={() => handleOpenViewDetailsModal(req)}
-                                className="px-3.5 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer transition flex items-center gap-1.5 active:scale-95"
+                                className="px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer transition flex items-center gap-1.5 active:scale-95 shrink-0"
                                 title="View complete requisition dossier"
                               >
                                 <Eye className="w-3.5 h-3.5 text-[#777b86]" />
@@ -2294,7 +2294,7 @@ export const JobCardsView: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => handleOpenAcceptModal(req)}
-                                  className="px-3.5 py-1.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-xs cursor-pointer transition flex items-center gap-1 active:scale-95"
+                                  className="px-3 py-1.5 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white font-semibold text-xs shadow-xs cursor-pointer transition flex items-center gap-1 active:scale-95 shrink-0"
                                 >
                                   <PackageCheck className="w-3.5 h-3.5" />
                                   <span>Accept</span>
@@ -2819,6 +2819,11 @@ export const JobCardsView: React.FC = () => {
             const isFpaApproved = jc.fpaStatus === 'Approved' || (matchingFpa?.overallResult === 'Approved');
             const activeFpaReportNo = jc.fpaReportNo || matchingFpa?.reportNo;
 
+            const jcIpqcRecords = ipqcRecords.filter(
+              r => (r.jobCardNo && r.jobCardNo.toLowerCase() === jc.jobCardNo.toLowerCase()) ||
+                   (jc.woNo && r.woNo && r.woNo.trim().toLowerCase() === jc.woNo.trim().toLowerCase())
+            );
+
             const isClosed = jc.status === 'Completed' || jc.status === 'Target Met' || jc.status === 'Verified & Accepted';
             const isSlaBreachedNow = (jc.isSlaBreached) || (!isClosed && jc.slaDeadline && new Date() > new Date(jc.slaDeadline));
             const effectiveDailyTarget = jc.dailyTargetQty || (jc.targetQty <= 1000 ? jc.targetQty : 1000);
@@ -2874,29 +2879,84 @@ export const JobCardsView: React.FC = () => {
                       📍 {jc.plant || 'Haridwar'} ({jc.dept?.split('(')[0]?.trim() || jc.boothNo || 'Booth #1'})
                     </span>
 
-                    {/* QA Gates Mini Pills */}
+                    {/* QA Gates Interactive Mini Pills */}
                     {isPirPassed ? (
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-mono font-bold flex items-center gap-1" title={activePirReportNo ? `PIR Cleared under ${activePirReportNo}` : 'PIR Passed'}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedJcForPir(jc);
+                          setShowPirModal(true);
+                        }}
+                        className="px-2.5 py-0.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-mono font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-2xs"
+                        title={activePirReportNo ? `PIR Cleared under ${activePirReportNo} - Click to inspect/edit` : 'PIR Passed - Click to inspect'}
+                      >
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                         <span>Gate 1: PIR ✓</span>
-                      </span>
+                      </button>
                     ) : (
-                      <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-mono font-semibold flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedJcForPir(jc);
+                          setShowPirModal(true);
+                        }}
+                        className="px-2.5 py-0.5 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-mono font-semibold flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-2xs"
+                        title="Gate 1 PIR Pending - Click to conduct inspection"
+                      >
                         <AlertTriangle className="w-3 h-3 text-amber-600" />
                         <span>Gate 1: PIR Pending</span>
-                      </span>
+                      </button>
                     )}
 
                     {isFpaApproved ? (
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-mono font-bold flex items-center gap-1" title={activeFpaReportNo ? `FPA Approved under ${activeFpaReportNo}` : 'FPA Approved'}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedJcForFpa(jc);
+                          setShowFpaModal(true);
+                        }}
+                        className="px-2.5 py-0.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-mono font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-2xs"
+                        title={activeFpaReportNo ? `FPA Approved under ${activeFpaReportNo} - Click to inspect/edit` : 'FPA Approved - Click to inspect'}
+                      >
                         <Sparkles className="w-3 h-3 text-emerald-600" />
                         <span>Gate 2: FPA ✓</span>
-                      </span>
+                      </button>
                     ) : (
-                      <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 text-[11px] font-mono font-semibold flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedJcForFpa(jc);
+                          setShowFpaModal(true);
+                        }}
+                        className="px-2.5 py-0.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-[11px] font-mono font-semibold flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-2xs"
+                        title="Gate 2 FPA Pending - Click to conduct Golden Sample test"
+                      >
+                        <Sparkles className="w-3 h-3 text-blue-600" />
                         <span>Gate 2: FPA Pending</span>
-                      </span>
+                      </button>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedJcForIpqc(jc);
+                        setShowIpqcModal(true);
+                      }}
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-2xs ${
+                        jcIpqcRecords.length > 0
+                          ? 'bg-[#faf7ed] hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]'
+                          : 'bg-gray-100 hover:bg-gray-200 text-gray-600 border border-gray-200'
+                      }`}
+                      title={jcIpqcRecords.length > 0 ? `${jcIpqcRecords.length} IPQC line audits recorded - Click to inspect or add` : 'Click to record In-Process inspection'}
+                    >
+                      <Clock className="w-3 h-3 text-[#c09748]" />
+                      <span>Gate 3: IPQC {jcIpqcRecords.length > 0 ? `(${jcIpqcRecords.length})` : 'Audit'}</span>
+                    </button>
                   </div>
 
                   {/* Right Side: Status Badge & SLA (Confusing non-clickable Open pill removed) */}

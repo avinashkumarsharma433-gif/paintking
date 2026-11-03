@@ -130,46 +130,46 @@ export const ProductionOfferingView: React.FC = () => {
           {/* Line Items Table (1-to-1 with Format A.11) */}
           <div className="overflow-x-auto rounded-[16px] border border-slate-200">
             <table className="w-full text-left text-xs">
-              <thead className="bg-[#17191c] text-white">
+              <thead className="bg-[#17191c] text-white text-[11px] font-bold uppercase tracking-wider">
                 <tr>
-                  <th className="p-3">Job Card #</th>
-                  <th className="p-3">Customer</th>
-                  <th className="p-3">Part Description</th>
-                  <th className="p-3">Color</th>
-                  <th className="p-3 text-right">Offered Qty</th>
-                  <th className="p-3 text-right">QC Passed</th>
-                  <th className="p-3 text-right">Rejection</th>
-                  <th className="p-3 text-right">Rework</th>
-                  <th className="p-3">Remarks</th>
+                  <th className="py-2 px-3 whitespace-nowrap">Job Card #</th>
+                  <th className="py-2 px-3 whitespace-nowrap">Customer</th>
+                  <th className="py-2 px-3">Part Description</th>
+                  <th className="py-2 px-3 whitespace-nowrap">Color</th>
+                  <th className="py-2 px-3 text-right whitespace-nowrap">Offered Qty</th>
+                  <th className="py-2 px-3 text-right whitespace-nowrap">QC Passed</th>
+                  <th className="py-2 px-3 text-right whitespace-nowrap">Rejection</th>
+                  <th className="py-2 px-3 text-right whitespace-nowrap">Rework</th>
+                  <th className="py-2 px-3 whitespace-nowrap">Remarks</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {selectedReport.lineItems.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50">
-                    <td className="p-3 font-mono font-bold text-slate-900">{item.jobCardNo}</td>
-                    <td className="p-3 font-medium text-slate-800">{item.customer}</td>
-                    <td className="p-3 text-slate-700">{item.partDescription}</td>
-                    <td className="p-3">
-                      <span className="inline-block px-2 py-0.5 rounded-full bg-slate-100 font-medium text-slate-800">
+                    <td className="py-2.5 px-3 font-mono font-bold text-xs sm:text-[13px] text-slate-900 whitespace-nowrap">{item.jobCardNo}</td>
+                    <td className="py-2.5 px-3 font-semibold text-xs sm:text-[13px] text-slate-800 whitespace-nowrap">{item.customer}</td>
+                    <td className="py-2.5 px-3 text-xs sm:text-[13px] text-slate-700">{item.partDescription}</td>
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <span className="inline-block px-2.5 py-0.5 rounded-full bg-slate-100 font-semibold text-[11px] text-slate-800">
                         {item.color}
                       </span>
                     </td>
-                    <td className="p-3 text-right font-mono font-bold text-slate-900">{item.offeredQty}</td>
-                    <td className="p-3 text-right font-mono font-bold text-emerald-700">{item.passedQty}</td>
-                    <td className="p-3 text-right font-mono font-bold text-rose-700">{item.rejectionQty}</td>
-                    <td className="p-3 text-right font-mono font-bold text-amber-700">{item.reworkQty}</td>
-                    <td className="p-3 text-slate-500 max-w-xs truncate">{item.remarks || '—'}</td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-xs sm:text-[13px] text-slate-900 whitespace-nowrap">{item.offeredQty}</td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-xs sm:text-[13px] text-emerald-700 whitespace-nowrap">{item.passedQty}</td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-xs sm:text-[13px] text-rose-700 whitespace-nowrap">{item.rejectionQty}</td>
+                    <td className="py-2.5 px-3 text-right font-mono font-bold text-xs sm:text-[13px] text-amber-700 whitespace-nowrap">{item.reworkQty}</td>
+                    <td className="py-2.5 px-3 text-slate-500 text-[11px] max-w-xs truncate">{item.remarks || '—'}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot className="bg-slate-100 font-bold text-slate-900 border-t-2 border-slate-300">
                 <tr>
-                  <td colSpan={4} className="p-3 uppercase tracking-wider text-[11px]">Total Roll-up:</td>
-                  <td className="p-3 text-right font-mono">{selectedReport.totalOfferedQty}</td>
-                  <td className="p-3 text-right font-mono text-emerald-700">{selectedReport.totalPassedQty}</td>
-                  <td className="p-3 text-right font-mono text-rose-700">{selectedReport.totalRejectionQty}</td>
-                  <td className="p-3 text-right font-mono text-amber-700">{selectedReport.totalReworkQty}</td>
-                  <td className="p-3"></td>
+                  <td colSpan={4} className="py-2 px-3 uppercase tracking-wider text-[11px]">Total Roll-up:</td>
+                  <td className="py-2 px-3 text-right font-mono text-xs sm:text-[13px]">{selectedReport.totalOfferedQty}</td>
+                  <td className="py-2 px-3 text-right font-mono text-xs sm:text-[13px] text-emerald-700">{selectedReport.totalPassedQty}</td>
+                  <td className="py-2 px-3 text-right font-mono text-xs sm:text-[13px] text-rose-700">{selectedReport.totalRejectionQty}</td>
+                  <td className="py-2 px-3 text-right font-mono text-xs sm:text-[13px] text-amber-700">{selectedReport.totalReworkQty}</td>
+                  <td className="py-2 px-3"></td>
                 </tr>
               </tfoot>
             </table>

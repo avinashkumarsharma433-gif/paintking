@@ -119,7 +119,8 @@ export interface FifoOverrideLog {
 export type BalanceReturnCondition = 
   | 'Unopened / Intact'
   | 'Opened - Usable'
-  | 'Mixed or Pot-life Expired - Scrap';
+  | 'Mixed or Pot-life Expired - Scrap'
+  | 'Damaged / Scrapped';
 
 export type BalanceReturnStatus = 
   | 'Pending Store Verification'
@@ -346,6 +347,7 @@ export interface GRNLineItem {
   expiryDate?: string;
   category?: StockCategory;
   materialType?: StockMaterialType;
+  uom?: string;
 }
 
 export interface GoodsReceiptNote {
@@ -1137,15 +1139,28 @@ export interface FinalQualityRelease {
   sampledQty: number;
   passedQty: number;
   rejectedQty: number;
-  packingBoxCondition: 'Pass' | 'Fail';
-  traceabilityBatchNo: 'Pass' | 'Fail';
-  quantityMatch: 'Pass' | 'Fail';
+  // Technical Coating Specs (OQC)
+  dftMicrons?: number;
+  glossGU?: number;
   physicalInspection: 'Pass' | 'Fail';
   conductivity: 'Pass' | 'Fail' | 'N/A';
   adhesion: 'Pass' | 'Fail';
   deltaE: number;
   oqcStatus: 'Accepted' | 'Rejected' | 'Hold';
+  oqcDate?: string;
+  oqcInspector?: string;
+  // Packaging, Traceability & Dispatch Specs (PDI)
+  totalBoxes?: number;
+  sampledBoxes?: number;
+  packingBoxCondition: 'Pass' | 'Fail';
+  traceabilityBatchNo: 'Pass' | 'Fail';
+  quantityMatch: 'Pass' | 'Fail';
+  dunnageProtection?: 'Pass' | 'Fail';
+  coaIncluded?: 'Pass' | 'Fail';
+  vehicleReadiness?: 'Pass' | 'Fail' | 'N/A';
   pdiStatus: 'Cleared for Invoicing' | 'Hold';
+  pdiDate?: string;
+  pdiInspector?: string;
   inspector: string;
   plantHeadSign: string;
 }
@@ -1176,12 +1191,20 @@ export interface BillingInvoice {
   gstAmount: number;
   cgstAmount?: number;
   sgstAmount?: number;
+  igstAmount?: number;
+  gstType?: 'INTRA_STATE' | 'INTER_STATE';
   grandTotal: number;
   totalOrderedQty: number;
   totalBilledQty: number;
   status: 'Draft' | 'Generated' | 'Dispatched' | 'Paid';
   balanceBacklogNote?: string;
   preparedBy: string;
+  paymentTerms?: string;
+  sacHsnCode?: string;
+  customerGstin?: string;
+  vehicleNo?: string;
+  driverName?: string;
+  driverPhone?: string;
 }
 
 // 10. Gate Pass & Security Registers (PK-ADM-GTP-001)
@@ -1244,8 +1267,8 @@ export interface MaterialInwardRecord {
   securitySignature: string;
   remarks?: string;
   plant: PlantLocation;
-  status: 'Received at Gate' | 'Handed to Stores' | 'Issued to Floor' | 'Pending IQC Inspection' | 'GRN Created - In Stores';
-  iqcStatus?: 'Pending' | 'In-Progress' | 'Passed' | 'Rejected' | 'Discrepancy Halt';
+  status: 'Received at Gate' | 'Handed to Stores' | 'Issued to Floor' | 'Pending IQC Inspection' | 'GRN Created - In Stores' | 'IQC Cleared - Awaiting Stores GRN' | 'Part Accepted - Ready for Stores GRN' | 'IQC Rejected - Return to Party';
+  iqcStatus?: 'Pending' | 'In-Progress' | 'Passed' | 'Part Accepted' | 'Rejected' | 'Discrepancy Halt';
   iqcReportNo?: string;
 }
 

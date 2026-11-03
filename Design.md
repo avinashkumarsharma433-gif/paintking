@@ -65,11 +65,28 @@ PaintKing operates in heavy industrial manufacturing, but its digital surface is
 ### Body & Interactive UI (`font-sans`)
 - **Primary Sans Stack:** `Plus Jakarta Sans`, `Inter`, system `sans-serif`.
 - **Character:** Crisp, functional, and highly legible across both desktop workstations and mobile shopfloor tablets.
-- **Section Eyebrow:** `text-[10px] sm:text-[11px] font-mono font-bold uppercase tracking-[0.2em] text-[#c09748]`
-- **Body Paragraph:** `text-sm sm:text-[15px] text-[#777b86] leading-relaxed font-normal`
-- **Table Cell Data:** `text-xs text-[#17191c] font-normal`
-- **Serial Numbers / Part Codes:** `font-mono font-bold text-xs text-[#c09748]`
+- **Section Eyebrow:** `text-[11px] font-mono font-bold uppercase tracking-[0.16em] text-[#c09748]`
+- **Body Paragraph:** `text-xs sm:text-sm text-[#777b86] leading-relaxed font-normal`
+- **Table Cell Primary Data:** `text-xs sm:text-[13px] font-semibold text-[#17191c]`
+- **Table Cell Descriptions:** `text-xs sm:text-[13px] font-normal text-[#17191c] leading-relaxed`
+- **Serial Numbers / Part Codes:** `font-mono font-bold text-xs sm:text-[13px] text-[#c09748]`
+- **Secondary Subtitles & Dates:** `text-[11px] text-[#777b86]`
 - **Pill Action Text:** `text-xs font-semibold tracking-wide`
+
+### 3.1 Calibrated Desktop Table Typography Standard (Balanced & Sleek)
+> **MANDATORY POLICY FOR ALL PORTAL MODULES, TABLES & DASHBOARDS:**
+> To maintain high density without cognitive fatigue or excessive chunkiness, tables adhere to a calibrated **12px – 13px** primary data scale with an absolute floor of **11px (`text-[11px]`)** for secondary metadata and badges. Microscopic text (`≤10px`) is disallowed on desktop.
+
+| UI Element / Hierarchy Level | Calibrated Desktop Size | Tailwind CSS Token | Font Weight & Color Rule |
+|---|---|---|---|
+| **Primary Row Entity / Party / Customer** | **12px – 13px** | `text-xs sm:text-[13px]` | `font-semibold text-[#17191c]` |
+| **Document Ref / Job Card / Report ID** | **12px – 13px** | `text-xs sm:text-[13px]` | `font-mono font-bold text-[#c09748]` |
+| **Material Description & Main Specs** | **12px – 13px** | `text-xs sm:text-[13px]` | `font-normal text-[#17191c] leading-relaxed` |
+| **Quantities & Numerical Counts** | **12px – 13px** | `text-xs sm:text-[13px]` | `font-mono font-bold text-[#17191c]` |
+| **Table Column Headers (`th`)** | **11px** | `text-[11px]` | `font-bold uppercase tracking-wider text-[#777b86]` |
+| **Status Badges & Pill Indicators** | **11px** | `text-[11px]` | `font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap` |
+| **Action Buttons (`button`)** | **12px** | `text-xs` | `font-semibold px-3 py-1.5 rounded-full whitespace-nowrap` |
+| **Secondary Metadata (Dates, Challan, Subtitles)** | **11px (ABSOLUTE FLOOR)** | `text-[11px]` | `font-normal / font-mono text-[#777b86]` |
 
 ---
 

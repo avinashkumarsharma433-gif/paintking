@@ -604,13 +604,13 @@ export const PainterDetailProfileView: React.FC<PainterDetailProfileViewProps> =
             <div className="hidden lg:block overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="border-b border-[#ececec] text-[#777b86] font-semibold text-[11px] uppercase tracking-wider bg-[#fafafb]">
-                    <th className="py-3 px-3">Job Card # & Dates</th>
-                    <th className="py-3 px-3">Customer & WO</th>
-                    <th className="py-3 px-3">Part Details & Color</th>
-                    <th className="py-3 px-3">Progress / Output</th>
-                    <th className="py-3 px-3">Status</th>
-                    <th className="py-3 px-3 text-right">Action</th>
+                  <tr className="border-b border-[#ececec] text-[#777b86] font-bold text-[11px] uppercase tracking-wider bg-[#fafafb]">
+                    <th className="py-2 px-3 whitespace-nowrap">Job Card # & Dates</th>
+                    <th className="py-2 px-3 whitespace-nowrap">Customer & WO</th>
+                    <th className="py-2 px-3">Part Details & Color</th>
+                    <th className="py-2 px-3 whitespace-nowrap">Progress / Output</th>
+                    <th className="py-2 px-3 whitespace-nowrap">Status</th>
+                    <th className="py-2 px-3 text-right whitespace-nowrap">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#ececec]">
@@ -623,14 +623,14 @@ export const PainterDetailProfileView: React.FC<PainterDetailProfileViewProps> =
 
                     return (
                       <tr key={jc.jobCardNo} className="hover:bg-[#fafafb] transition">
-                        <td className="py-3 px-3 align-top">
-                          <div className="font-mono font-bold text-xs text-[#17191c] flex items-center gap-1.5">
+                        <td className="py-2.5 px-3 align-top whitespace-nowrap">
+                          <div className="font-mono font-bold text-xs sm:text-[13px] text-[#17191c] flex items-center gap-1.5">
                             <span>{jc.jobCardNo}</span>
                             {jc.jobCardType === 'rework_child' && (
-                              <span className="px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[9px] font-bold">RW</span>
+                              <span className="px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold">RW</span>
                             )}
                           </div>
-                          <div className="text-[10px] text-[#777b86] mt-0.5 space-y-0.5">
+                          <div className="text-[11px] text-[#777b86] mt-0.5 space-y-0.5">
                             <div>Issued: {issueDate}</div>
                             {finishDate && (
                               <div className="text-emerald-700 font-semibold">Finished: {finishDate}</div>
@@ -638,22 +638,22 @@ export const PainterDetailProfileView: React.FC<PainterDetailProfileViewProps> =
                           </div>
                         </td>
 
-                        <td className="py-3 px-3 align-top">
-                          <div className="font-semibold text-[#17191c]">{jc.customer}</div>
-                          <div className="text-[10px] text-[#777b86] font-mono mt-0.5">WO: {jc.woNo || '—'}</div>
+                        <td className="py-2.5 px-3 align-top">
+                          <div className="font-semibold text-xs sm:text-[13px] text-[#17191c]">{jc.customer}</div>
+                          <div className="text-[11px] text-[#777b86] font-mono mt-0.5">WO: {jc.woNo || '—'}</div>
                         </td>
 
-                        <td className="py-3 px-3 align-top max-w-[220px]">
-                          <div className="font-mono font-bold text-[#8a6521] text-[11px]">{jc.partCode}</div>
-                          <div className="text-[#17191c] text-[11px] truncate" title={jc.partDescription}>{jc.partDescription}</div>
-                          <div className="text-[10px] text-[#777b86] flex items-center gap-1 mt-0.5">
+                        <td className="py-2.5 px-3 align-top max-w-[220px]">
+                          <div className="font-mono font-bold text-xs sm:text-[13px] text-[#8a6521]">{jc.partCode}</div>
+                          <div className="text-xs sm:text-[13px] text-[#17191c] truncate" title={jc.partDescription}>{jc.partDescription}</div>
+                          <div className="text-[11px] text-[#777b86] flex items-center gap-1 mt-0.5">
                             <span className="w-2 h-2 rounded-full bg-[#c09748]" />
                             <span className="truncate">{jc.color}</span>
                           </div>
                         </td>
 
-                        <td className="py-3 px-3 align-top min-w-[140px]">
-                          <div className="flex items-center justify-between text-[11px] font-semibold text-[#17191c]">
+                        <td className="py-2.5 px-3 align-top min-w-[140px] whitespace-nowrap">
+                          <div className="flex items-center justify-between text-xs sm:text-[13px] font-semibold text-[#17191c]">
                             <span>{jc.sprayedQty} / {jc.targetQty} Pcs</span>
                             <span className="text-[#8a6521]">{percent}%</span>
                           </div>
@@ -667,8 +667,8 @@ export const PainterDetailProfileView: React.FC<PainterDetailProfileViewProps> =
                           </div>
                         </td>
 
-                        <td className="py-3 px-3 align-top">
-                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                        <td className="py-2.5 px-3 align-top whitespace-nowrap">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
                             isCompleted
                               ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                               : isPendingVerification
@@ -678,19 +678,19 @@ export const PainterDetailProfileView: React.FC<PainterDetailProfileViewProps> =
                             {isCompleted ? 'Completed' : isPendingVerification ? 'Awaiting Verification' : jc.status || 'In Process'}
                           </span>
                           {jc.fpaStatus && (
-                            <div className="text-[9px] text-[#777b86] mt-0.5">
+                            <div className="text-[11px] text-[#777b86] mt-0.5">
                               FPA: <strong className={jc.fpaStatus === 'Approved' ? 'text-emerald-700' : 'text-amber-700'}>{jc.fpaStatus}</strong>
                             </div>
                           )}
                         </td>
 
-                        <td className="py-3 px-3 align-top text-right">
+                        <td className="py-2.5 px-3 align-top text-right whitespace-nowrap">
                           <button
                             type="button"
                             onClick={() => onViewJobCard(jc)}
-                            className="px-3 py-1 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold transition cursor-pointer inline-flex items-center gap-1 active:scale-95 shadow-2xs"
+                            className="px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition cursor-pointer inline-flex items-center gap-1 active:scale-95 shadow-2xs"
                           >
-                            <Eye className="w-3 h-3 text-[#777b86]" />
+                            <Eye className="w-3.5 h-3.5 text-[#777b86]" />
                             <span>View Card</span>
                           </button>
                         </td>

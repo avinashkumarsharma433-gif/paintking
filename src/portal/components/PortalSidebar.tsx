@@ -135,7 +135,7 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       icon: Briefcase,
       badge: openOverrunCount > 0 ? 'Color Over-run' : null,
       badgeColor: 'bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521]',
-      roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION'],
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA'],
       subItems: [
         { label: 'All Job Cards', subTab: 'ALL' },
         { label: 'Store Demands & Arriving (MRN)', subTab: 'REQUISITIONS' },
@@ -198,7 +198,7 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       docCode: 'PK-PRD-PMX-001',
       icon: Pipette,
       badge: null,
-      roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC'],
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA'],
       subItems: [
         { label: 'Shade Formulations & Recipes', subTab: 'RECIPES' },
         { label: 'Ford Cup 4 Viscosity Checks', subTab: 'VISCOSITY' },
@@ -208,16 +208,20 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
     },
     {
       id: 'qa',
-      label: 'Incoming Quality Control (IQC)',
-      subtitle: '7-Aspect Inward Gate & 20% Sampling',
-      docCode: 'PK-QA-IQC-001',
-      icon: CheckCircle2,
-      badge: 'IQC Gate',
+      label: 'Quality Assurance & Control (QA Hub)',
+      subtitle: 'IQC • PIR • FPA Golden Gate • IPQC Line Audit',
+      docCode: 'PK-QA-001',
+      icon: ShieldCheck,
+      badge: 'QA Gates',
       badgeColor: 'bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521]',
-      roles: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA', 'IQC_INSPECTOR'],
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA'],
       subItems: [
-        { label: '1. Pending Inwards (Awaiting IQC)', subTab: 'PENDING' },
-        { label: '2. Completed Jobs (IQC Reports & PDF)', subTab: 'COMPLETED' }
+        { label: 'Gate 0: Inward Quality (IQC)', subTab: 'IQC' },
+        { label: 'Gate 1: Pre-Production (PIR)', subTab: 'PIR' },
+        { label: 'Gate 2: Golden Part (FPA)', subTab: 'FPA' },
+        { label: 'Gate 3: In-Process (IPQC)', subTab: 'IPQC' },
+        { label: 'Gate 4: Outgoing Quality (OQC)', subTab: 'OQC' },
+        { label: 'Gate 5: Pre-Dispatch (PDI)', subTab: 'PDI' }
       ]
     },
     {
@@ -227,7 +231,7 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       docCode: 'PK-STR-PKG-001',
       icon: PackageCheck,
       badge: null,
-      roles: ['DIRECTOR', 'PLANT_HEAD', 'STORES', 'PRODUCTION', 'QA_QC'],
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'STORES', 'PRODUCTION', 'QA_QC', 'MANAGER_QA'],
       subItems: [
         { label: 'Box Packing Slips & QR Codes', subTab: 'PACKING_SLIPS' },
         { label: 'Barcode Traceability Scan', subTab: 'TRACEABILITY' },
@@ -256,7 +260,7 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       icon: ClipboardList,
       badge: '4-Tier Sign',
       badgeColor: 'bg-blue-50 border border-blue-200 text-blue-800',
-      roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'FPA_IPQC_INSPECTOR', 'OPERATOR'],
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'OPERATOR'],
       subItems: [
         { label: 'Line Clearance Offering Slip', subTab: 'OFFERING_SLIP' },
         { label: 'Tier 1: Operator Check', subTab: 'TIER_1' },
@@ -272,7 +276,7 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       docCode: 'PK-HR-LV-01',
       icon: UserCheck,
       badge: null,
-      roles: ['DIRECTOR', 'PLANT_HEAD', 'HR', 'DEPT_INCHARGE', 'PRODUCTION', 'STORES', 'QA_QC', 'MANAGER_QA', 'OPERATOR', 'SECURITY', 'BILLING', 'IQC_INSPECTOR', 'FPA_IPQC_INSPECTOR', 'OQC_PDI_INSPECTOR'],
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'HR', 'DEPT_INCHARGE', 'PRODUCTION', 'STORES', 'QA_QC', 'MANAGER_QA', 'OPERATOR', 'SECURITY', 'BILLING'],
       subItems: [
         { label: 'Leave Application & Balance', subTab: 'LEAVE_APP' },
         { label: 'Shift Attendance (08:30–18:30)', subTab: 'ATTENDANCE' },
@@ -287,7 +291,7 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       icon: Wrench,
       badge: 'NABL Certified',
       badgeColor: 'bg-emerald-50 border border-emerald-200 text-emerald-800',
-      roles: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA', 'PRODUCTION', 'STORES', 'FPA_IPQC_INSPECTOR'],
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA', 'PRODUCTION', 'STORES'],
       subItems: [
         { label: 'Master Equipment Register', subTab: 'EQUIPMENT_REG' },
         { label: 'DFT & Gloss Meter Calibration', subTab: 'GAUGES' },

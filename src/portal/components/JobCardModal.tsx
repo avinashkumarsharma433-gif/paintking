@@ -7,7 +7,10 @@ import {
   DefectCategory,
   CoatingProcessStage,
   DailyMaterialConsumptionSnapshot,
-  JobCardDailyTargetRecord
+  JobCardDailyTargetRecord,
+  PreProductionInspectionRecord,
+  FPARecord,
+  IPQCRecord
 } from '../types/portalTypes';
 import { 
   Plus, 
@@ -37,14 +40,24 @@ import {
   Edit3,
   Tag,
   Eye,
-  RotateCcw
+  RotateCcw,
+  ShieldCheck,
+  AlertTriangle
 } from 'lucide-react';
 import { PaintkingDatePicker } from './PaintkingDatePicker';
 import { PaintkingDateTimePicker } from './PaintkingDateTimePicker';
 import { CustomCombobox, ComboboxOption } from './CustomCombobox';
 import { TypeableDropdown } from './TypeableDropdown';
-import { downloadStandardJobCardPdf } from '../utils/pdfStandardHeader';
+import { 
+  downloadStandardJobCardPdf,
+  downloadStandardPreProductionPdf,
+  downloadStandardFPAPdf,
+  downloadStandardIPQCPdf
+} from '../utils/pdfStandardHeader';
 import { BalanceReturnModal } from './BalanceReturnModal';
+import { PreProductionInspectionModal } from './PreProductionInspectionModal';
+import { FPAModal } from './FPAModal';
+import { IPQCModal } from './IPQCModal';
 
 interface JobCardModalProps {
   isOpen: boolean;
@@ -229,7 +242,10 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     painters, 
     paintingBooths,
     getPainterActiveJobCount,
-    balanceReturnSlips
+    balanceReturnSlips,
+    preProductionReports,
+    fpaRecords,
+    ipqcRecords
   } = usePortalStore();
 
   const [viewMode, setViewMode] = useState<'PORTAL' | 'PRINT'>('PORTAL');
@@ -419,6 +435,64 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   // Dedicated Audit Trail Popup Modal state
   const [showAuditLogsModal, setShowAuditLogsModal] = useState<boolean>(false);
 
+  // Dedicated Tab state for Existing Job Card ('EXECUTION' | 'QUALITY' | 'DAILY_LOG')
+  const [existingCardTab, setExistingCardTab] = useState<'EXECUTION' | 'QUALITY' | 'DAILY_LOG'>('EXECUTION');
+
+  // Quality Gates Modals State
+  const [showPirModal, setShowPirModal] = useState<boolean>(false);
+  const [showFpaModal, setShowFpaModal] = useState<boolean>(false);
+  const [showIpqcModal, setShowIpqcModal] = useState<boolean>(false);
+
+  // Quality Records & Live Status for Current Job Card
+  const activePirRecord = useMemo(() => {
+    return preProductionReports.find(r => r.jobCardNo === jobCardNo);
+  }, [preProductionReports, jobCardNo]);
+  const isPirPassed = activePirRecord?.overallResult === 'Passed';
+
+  const activeFpaRecord = useMemo(() => {
+    return fpaRecords.find(r => r.jobCardNo === jobCardNo);
+  }, [fpaRecords, jobCardNo]);
+  const isFpaApproved = activeFpaRecord?.overallResult === 'Approved';
+
+  const activeIpqcRecords = useMemo(() => {
+    return ipqcRecords.filter(r => r.jobCardNo === jobCardNo || (r.woNo && (r.woNo === wNo || r.workOrderNo === wNo)));
+  }, [ipqcRecords, jobCardNo, wNo]);
+
+  const currentJcForModals: JobCard = useMemo(() => {
+    return initialData || (jobCards.find(j => j.jobCardNo === jobCardNo) || {
+      id: jobCardNo,
+      jobCardNo,
+      docNo,
+      revNo,
+      revDate,
+      customer,
+      wNo,
+      woNo: wNo,
+      sourceGrnNo: selectedGrnNo,
+      partName: partDescription,
+      partDescription,
+      partCode,
+      rawPartCode: partCode,
+      substrateMaterial: (initialData as any)?.substrateMaterial || 'ABS (Acrylonitrile Butadiene Styrene)',
+      processType,
+      color: batchColor,
+      targetQty,
+      goodQty: currentGoodQty,
+      reworkQty: currentReworkQty,
+      rejectQty: currentRejectQty,
+      stage: currentStep,
+      status: (initialData?.status || 'Open') as any,
+      date: issueDate,
+      issueDate,
+      issueTime,
+      deliveryDate: defaultDeadlineDate(),
+      assignedPainterName: painterName,
+      painterName,
+      boothNo: dept.split('(')[0]?.trim() || 'Booth #1',
+      plant: activePlant
+    } as unknown as JobCard);
+  }, [initialData, jobCards, jobCardNo, docNo, revNo, revDate, customer, wNo, selectedGrnNo, partDescription, partCode, processType, batchColor, targetQty, currentGoodQty, currentReworkQty, currentRejectQty, currentStep, issueDate, issueTime, painterName, dept, activePlant]);
+
   // =========================================================================
   // DAILY PRODUCTION TRACKING & CONSUMABLES USAGE STATE
   // =========================================================================
@@ -429,12 +503,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [showUsageModal, setShowUsageModal] = useState<boolean>(false);
   const [isEditingDailyQuota, setIsEditingDailyQuota] = useState<boolean>(false);
   const [editDailyQuotaInput, setEditDailyQuotaInput] = useState<number>(0);
-  const [showLogDailySnapshotModal, setShowLogDailySnapshotModal] = useState<boolean>(false);
-  const [snapshotDateInput, setSnapshotDateInput] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [snapshotGoodInput, setSnapshotGoodInput] = useState<number>(100);
-  const [snapshotScrapInput, setSnapshotScrapInput] = useState<number>(0);
-  const [snapshotNotesInput, setSnapshotNotesInput] = useState<string>('Daily Shift Execution Log');
-  const [snapshotMatUsage, setSnapshotMatUsage] = useState<Record<string, number>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Previously used shades from system history + standard factory tones
@@ -989,20 +1057,40 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     setDeadlineTime(target.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   };
 
+  // Helpers to normalize and match date strings reliably across ISO YYYY-MM-DD and DD-MM-YYYY
+  const normalizeToIsoDate = (dStr?: string): string => {
+    if (!dStr) return '';
+    const trimmed = dStr.trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+    const parts = trimmed.split('-');
+    if (parts.length === 3 && parts[2].length === 4) {
+      return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    }
+    return trimmed;
+  };
+
+  const doesLogMatchDate = (log: JobCardProductionProgressLog, targetDate: string): boolean => {
+    if (!targetDate || targetDate === 'ALL') return true;
+    const isoTarget = normalizeToIsoDate(targetDate);
+    if (log.timestamp && normalizeToIsoDate(log.timestamp.slice(0, 10)) === isoTarget) return true;
+    if (log.dateLabel && normalizeToIsoDate(log.dateLabel) === isoTarget) return true;
+    return false;
+  };
+
   // Extract all distinct working dates for this Job Card (for Date Filter)
   const productionDates = useMemo(() => {
     const dates = new Set<string>();
-    if (initialData?.issueDate) dates.add(initialData.issueDate);
-    if (initialData?.createdAt) dates.add(initialData.createdAt.split('T')[0]);
+    if (initialData?.issueDate) dates.add(normalizeToIsoDate(initialData.issueDate));
+    if (initialData?.createdAt) dates.add(normalizeToIsoDate(initialData.createdAt.split('T')[0]));
     if (liveProgressLogs && liveProgressLogs.length > 0) {
       liveProgressLogs.forEach(l => {
-        if (l.dateLabel) dates.add(l.dateLabel);
-        else if (l.timestamp) dates.add(l.timestamp.split('T')[0]);
+        if (l.dateLabel) dates.add(normalizeToIsoDate(l.dateLabel));
+        else if (l.timestamp) dates.add(normalizeToIsoDate(l.timestamp.split('T')[0]));
       });
     }
     if (initialData?.dailyProductionHistory && initialData.dailyProductionHistory.length > 0) {
       initialData.dailyProductionHistory.forEach(d => {
-        if (d.date) dates.add(d.date);
+        if (d.date) dates.add(normalizeToIsoDate(d.date));
       });
     }
     const todayStr = new Date().toISOString().split('T')[0];
@@ -1013,18 +1101,16 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   // Selected Date Breakdown Summary
   const selectedDateSummary = useMemo(() => {
     if (selectedProductionDate === 'ALL') return null;
-    const dateLogs = liveProgressLogs.filter(l => 
-      l.dateLabel === selectedProductionDate || 
-      (l.timestamp && l.timestamp.startsWith(selectedProductionDate))
-    );
-    const dayHistory = initialData?.dailyProductionHistory?.find(d => d.date === selectedProductionDate);
+    const isoSelected = normalizeToIsoDate(selectedProductionDate);
+    const dateLogs = liveProgressLogs.filter(l => doesLogMatchDate(l, isoSelected));
+    const dayHistory = initialData?.dailyProductionHistory?.find(d => normalizeToIsoDate(d.date) === isoSelected);
     const dayCompleted = dateLogs.reduce((s, l) => s + (l.piecesCompleted || 0), 0) || dayHistory?.goodPieces || 0;
     const dayRejects = dateLogs.reduce((s, l) => s + (l.reworkPieces || 0) + (l.scrapPieces || 0), 0) || dayHistory?.scrapPieces || 0;
     const dayTarget = dayHistory?.dailyTarget || dailyTargetQty || (targetQty <= 1000 ? targetQty : 1000);
     const dayReturned = dayHistory?.returnedPieces || 0;
 
     return {
-      date: selectedProductionDate,
+      date: isoSelected,
       target: dayTarget,
       completed: dayCompleted,
       rejects: dayRejects,
@@ -1106,96 +1192,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleOpenDailySnapshotModal = () => {
-    const today = new Date().toISOString().split('T')[0];
-    setSnapshotDateInput(today);
-    setSnapshotGoodInput(Math.min(dailyTargetQty, Math.max(0, targetQty - currentGoodQty)));
-    setSnapshotScrapInput(0);
-    setSnapshotNotesInput(`Shift production run by ${painterName || 'Painter'}`);
-    
-    // Pre-populate material usage estimates
-    const initialUsage: Record<string, number> = {};
-    companyMaterials.forEach(m => {
-      const est = m.materialType === 'paint' ? 4 : m.materialType === 'thinner' ? 1.5 : 0.8;
-      initialUsage[m.id || m.itemDescription] = est;
-    });
-    setSnapshotMatUsage(initialUsage);
-    setShowLogDailySnapshotModal(true);
-  };
-
-  const handleSaveDailySnapshot = (e: React.FormEvent) => {
-    e.preventDefault();
-    const good = Number(snapshotGoodInput) || 0;
-    const scrap = Number(snapshotScrapInput) || 0;
-    const dateStr = snapshotDateInput || new Date().toISOString().split('T')[0];
-
-    const matSnapshots: DailyMaterialConsumptionSnapshot[] = companyMaterials.map(m => {
-      const usedNow = Number(snapshotMatUsage[m.id || m.itemDescription]) || 0;
-      return {
-        materialId: m.id,
-        itemDescription: m.itemDescription,
-        materialType: m.materialType,
-        category: m.category,
-        consumedQty: usedNow,
-        uom: m.uom
-      };
-    });
-
-    const newDailyRecord: JobCardDailyTargetRecord = {
-      date: dateStr,
-      shiftName: 'General Floor Shift',
-      dailyTarget: dailyTargetQty,
-      issuedPieces: dailyTargetQty,
-      goodPieces: good,
-      scrapPieces: scrap,
-      returnedPieces: Math.max(0, dailyTargetQty - good - scrap),
-      achievementPercent: dailyTargetQty > 0 ? Math.min(100, Math.round((good / dailyTargetQty) * 100)) : 100,
-      isClosed: true,
-      notes: snapshotNotesInput,
-      materialsConsumed: matSnapshots
-    };
-
-    // Update cumulative materials
-    const updatedIssuedMaterials = issuedMaterials.map(m => {
-      const usedNow = Number(snapshotMatUsage[m.id || m.itemDescription]) || 0;
-      const newCons = Number(((m.consumedQty || 0) + usedNow).toFixed(2));
-      return {
-        ...m,
-        consumedQty: newCons,
-        floorBalanceQty: Math.max(0, Number((m.qty - newCons).toFixed(2)))
-      };
-    });
-
-    setIssuedMaterials(updatedIssuedMaterials);
-
-    // Update existing job card state and history
-    const existingHistory = initialData?.dailyProductionHistory || [];
-    const filteredHistory = existingHistory.filter(h => h.date !== dateStr);
-    const updatedHistory = [newDailyRecord, ...filteredHistory];
-
-    const newGoodTotal = currentGoodQty + good;
-    const newRejectTotal = currentRejectQty + scrap;
-    setCurrentGoodQty(newGoodTotal);
-    setCurrentRejectQty(newRejectTotal);
-
-    if (initialData?.jobCardNo) {
-      updateJobCard({
-        ...initialData,
-        goodQty: newGoodTotal,
-        rejectQty: newRejectTotal,
-        sprayedQty: newGoodTotal + newRejectTotal,
-        dailyProductionHistory: updatedHistory,
-        issuedMaterials: updatedIssuedMaterials
-      });
-    }
-
-    setSelectedProductionDate(dateStr);
-    setShowLogDailySnapshotModal(false);
-    setToastMessage(`✓ Production snapshot for ${dateStr} saved! (${good} Pcs recorded, material usage logged)`);
-    setTimeout(() => setToastMessage(null), 4000);
-  };
-
-    const handleSaveMaterialUsage = (e: React.FormEvent) => {
+  const handleSaveMaterialUsage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMatForUsage) return;
     const newConsumed = Math.max(0, Number(usageConsumedInput));
@@ -1612,6 +1609,900 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     onClose();
   };
 
+  // =========================================================================
+  // RENDER DEDICATED DAILY PRODUCTION & CHEMICAL CONSUMPTION LEDGER
+  // =========================================================================
+  const renderDailyLedgerContent = () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const activeDateStr = selectedProductionDate === 'ALL' ? null : normalizeToIsoDate(selectedProductionDate);
+    const dateLogs = liveProgressLogs.filter(l => doesLogMatchDate(l, selectedProductionDate));
+
+    return (
+      <div className="space-y-5">
+        {/* Top Control Bar: Shift Identity */}
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-[#faf7ed] via-white to-white rounded-[22px] border border-[#f4e5be] shadow-2xs flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-center text-[#8a6521] shrink-0">
+              <Calendar className="w-5 h-5 text-[#8a6521]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#8a6521] font-mono">
+                  Daily Shift Production & Chemicals Ledger
+                </span>
+                <span className="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                  {productionDates.length} Working {productionDates.length === 1 ? 'Date' : 'Dates'} Recorded
+                </span>
+              </div>
+              <h3 className="font-serif font-normal text-base sm:text-lg text-[#17191c] mt-0.5">
+                {activeDateStr ? `Working Date Log: ${activeDateStr}` : 'Cumulative Production & Chemical Consumption Overview'}
+              </h3>
+            </div>
+          </div>
+        </div>
+
+        {/* Date Selector Navigation Bar */}
+        <div className="p-4 bg-white rounded-[22px] border border-[#ececec] flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-[10.5px] font-mono font-bold uppercase tracking-wider text-[#777b86]">
+              Select Working Date:
+            </span>
+            <div className="w-48">
+              <PaintkingDatePicker
+                value={selectedProductionDate === 'ALL' ? '' : selectedProductionDate}
+                onChange={(dateVal) => setSelectedProductionDate(dateVal || 'ALL')}
+                placeholder="Pick Working Date 📅"
+                highlightedDates={productionDates}
+                className="bg-[#fafafb] border-[#dcdfe4] shadow-2xs text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setSelectedProductionDate('ALL')}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                selectedProductionDate === 'ALL'
+                  ? 'bg-[#17191c] text-white'
+                  : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+              }`}
+            >
+              <span>All Dates (Cumulative)</span>
+            </button>
+
+            {productionDates.map(date => {
+              const isToday = date === todayStr;
+              const isSelected = activeDateStr === date;
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  onClick={() => setSelectedProductionDate(date)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                    isSelected
+                      ? 'bg-[#8a6521] text-white'
+                      : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-emerald-500'}`} />
+                  <span>{date}</span>
+                  {isToday && (
+                    <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-sans font-semibold ${
+                      isSelected ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      Today
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 4 Quantitative Output Milestone Cards */}
+        {selectedDateSummary ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-xs text-center space-y-1">
+              <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">Assigned Quota Target</span>
+              <span className="font-mono font-bold text-xl text-[#17191c] block">
+                {selectedDateSummary.target.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
+              </span>
+              <span className="text-[10.5px] text-[#777b86] block font-mono">Shift Quota</span>
+            </div>
+
+            <div className="bg-emerald-50/80 p-4 rounded-[20px] border border-emerald-200 shadow-xs text-center space-y-1">
+              <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">Finished Good Output</span>
+              <span className="font-mono font-bold text-xl text-emerald-700 block">
+                {selectedDateSummary.completed.toLocaleString('en-IN')} <span className="text-xs font-normal text-emerald-800">Pcs</span>
+              </span>
+              <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                {selectedDateSummary.achievement}% Achieved
+              </span>
+            </div>
+
+            <div className="bg-rose-50/80 p-4 rounded-[20px] border border-rose-200 shadow-xs text-center space-y-1">
+              <span className="text-[10px] text-rose-800 uppercase font-mono font-bold block">Defects & Rejection</span>
+              <span className="font-mono font-bold text-xl text-rose-700 block">
+                {selectedDateSummary.rejects.toLocaleString('en-IN')} <span className="text-xs font-normal text-rose-800">Pcs</span>
+              </span>
+              <span className="text-[10.5px] text-rose-800 block font-mono">Scrap / Defect Pieces</span>
+            </div>
+
+            <div className="bg-amber-50/80 p-4 rounded-[20px] border border-amber-200 shadow-xs text-center space-y-1">
+              <span className="text-[10px] text-amber-800 uppercase font-mono font-bold block">Unconsumed / Returnable</span>
+              <span className="font-mono font-bold text-xl text-amber-900 block">
+                {(selectedDateSummary.returned || Math.max(0, selectedDateSummary.target - selectedDateSummary.completed)).toLocaleString('en-IN')} <span className="text-xs font-normal text-amber-800">Pcs</span>
+              </span>
+              <span className="text-[10.5px] text-amber-800 block font-mono">Floor Balance Pcs</span>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-xs text-center space-y-1">
+              <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">Total Job Order Target</span>
+              <span className="font-mono font-bold text-xl text-[#17191c] block">
+                {targetQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
+              </span>
+              <span className="text-[10.5px] text-[#777b86] block font-mono">100% Target Base</span>
+            </div>
+
+            <div className="bg-emerald-50/80 p-4 rounded-[20px] border border-emerald-200 shadow-xs text-center space-y-1">
+              <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">Cumulative Good Finished</span>
+              <span className="font-mono font-bold text-xl text-emerald-700 block">
+                {currentGoodQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-emerald-800">Pcs</span>
+              </span>
+              <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                {progressPercent}% Complete
+              </span>
+            </div>
+
+            <div className="bg-rose-50/80 p-4 rounded-[20px] border border-rose-200 shadow-xs text-center space-y-1">
+              <span className="text-[10px] text-rose-800 uppercase font-mono font-bold block">Total Dead Scrap</span>
+              <span className="font-mono font-bold text-xl text-rose-700 block">
+                {currentRejectQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-rose-800">Pcs</span>
+              </span>
+              <span className="text-[10.5px] text-rose-800 block font-mono">{scrapPercent}% Rejection Rate</span>
+            </div>
+
+            <div className="bg-amber-50/80 p-4 rounded-[20px] border border-amber-200 shadow-xs text-center space-y-1">
+              <span className="text-[10px] text-amber-800 uppercase font-mono font-bold block">Remaining WIP Pieces</span>
+              <span className="font-mono font-bold text-xl text-amber-900 block">
+                {remainingQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-amber-800">Pcs</span>
+              </span>
+              <span className="text-[10.5px] text-amber-800 block font-mono">To Be Finished</span>
+            </div>
+          </div>
+        )}
+
+        {/* Company Materials / Chemicals Consumed Section */}
+        <div className="bg-white p-5 sm:p-6 rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#ececec]">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#c09748]" />
+                <h4 className="font-serif font-normal text-base sm:text-lg text-[#17191c]">
+                  Company Chemicals & Consumables Consumed
+                </h4>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                  {activeDateStr ? `Date: ${activeDateStr}` : 'Cumulative (All Dates)'}
+                </span>
+              </div>
+              <p className="text-xs text-[#777b86] mt-0.5">
+                Exact paints, thinners, and hardeners consumed by painter {painterName || 'Vikram Patel'} on the floor.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            {companyMaterials.map((m, idx) => {
+              let consumedVal = 0;
+              if (activeDateStr) {
+                const dayRecord = initialData?.dailyProductionHistory?.find(d => normalizeToIsoDate(d.date) === activeDateStr);
+                const dayMat = dayRecord?.materialsConsumed?.find(mc => mc.materialId === m.id || mc.itemDescription === m.itemDescription);
+                if (dayMat) {
+                  consumedVal = dayMat.consumedQty;
+                } else if (selectedDateSummary && selectedDateSummary.completed > 0) {
+                  const ratio = targetQty > 0 ? (selectedDateSummary.completed / targetQty) : 0.5;
+                  consumedVal = Number(((m.qty * ratio) || (m.materialType === 'paint' ? 4 : 1.5)).toFixed(2));
+                }
+              } else {
+                consumedVal = m.consumedQty || 0;
+              }
+
+              const totalIssued = m.qty || 0;
+              const floorBal = m.floorBalanceQty !== undefined ? m.floorBalanceQty : Math.max(0, Number((totalIssued - (m.consumedQty || 0)).toFixed(2)));
+              const pctUsed = totalIssued > 0 ? Math.min(100, Math.round(((m.consumedQty || 0) / totalIssued) * 100)) : 0;
+
+              return (
+                <div key={m.id || idx} className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] space-y-3 shadow-2xs">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-bold text-xs sm:text-sm text-[#17191c]">{m.itemDescription}</div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                          {m.materialType?.toUpperCase() || 'CHEMICAL'}
+                        </span>
+                        <span className="text-[10px] text-[#777b86] font-mono">{m.colour || 'Clear / Spec'}</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[9.5px] text-[#777b86] uppercase font-mono block">
+                        {activeDateStr ? 'Date Consumed' : 'Total Consumed'}
+                      </span>
+                      <span className="font-mono font-bold text-base text-[#8a6521]">
+                        {consumedVal} {m.uom}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-[#ececec] flex items-center justify-between text-xs text-[#777b86]">
+                    <span>Store Issued: <strong className="font-mono text-[#17191c] font-bold">{totalIssued} {m.uom}</strong></span>
+                    <span>Floor Balance: <strong className="font-mono text-emerald-800 font-bold">{floorBal} {m.uom}</strong></span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[10px] font-mono text-[#777b86]">
+                      <span>Cumulative Usage</span>
+                      <span>{pctUsed}%</span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-gray-200 overflow-hidden">
+                      <div 
+                        className="h-full bg-[#c09748] rounded-full transition-all"
+                        style={{ width: `${pctUsed}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Date-wise Shift Batches Logged */}
+        <div className="bg-white p-5 sm:p-6 rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
+            <div>
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[#c09748]" />
+                <h4 className="font-serif font-normal text-base sm:text-lg text-[#17191c]">
+                  Shop Floor Time-Slot Batches Logged
+                </h4>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                  {dateLogs.length} {dateLogs.length === 1 ? 'Batch' : 'Batches'}
+                </span>
+              </div>
+              <p className="text-xs text-[#777b86] mt-0.5">
+                Individual coating runs, ISO defect entries & corrective actions recorded for this date.
+              </p>
+            </div>
+          </div>
+
+          {dateLogs.length === 0 ? (
+            <div className="p-6 rounded-[18px] bg-[#fafafb] border border-[#ececec] text-center text-xs text-[#777b86] space-y-1">
+              <History className="w-6 h-6 text-[#dcdfe4] mx-auto mb-1" />
+              <p className="font-semibold text-[#17191c]">No individual time-slot batches logged for this date.</p>
+              <p>Shift output was logged as cumulative pieces or recorded in shift summary.</p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {dateLogs.map((log, idx) => (
+                <div key={log.id || idx} className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-bold text-[#17191c]">
+                        {log.timeLabel || (log.timestamp ? new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Shift Log')}
+                      </span>
+                      <span className="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                        {log.stageName || (log.processStage === 'stage_1_primer' ? 'Stage 1 Primer' : log.processStage === 'stage_2_basecoat' ? 'Stage 2 Basecoat' : 'Stage 3 Topcoat')}
+                      </span>
+                      <span className="text-[#777b86] font-mono">By {log.painterName || painterName || 'Painter'}</span>
+                    </div>
+                    {log.defectReason && (
+                      <div className="flex items-center gap-2 text-[11px]">
+                        <span className="text-rose-800 font-semibold">Defect: {log.defectReason}</span>
+                        {log.reworkAction && (
+                          <span className="text-[#8a6521]">➔ ISO Action: {log.reworkAction}</span>
+                        )}
+                      </div>
+                    )}
+                    {log.remarks && (
+                      <div className="text-[11px] text-[#777b86] italic">Note: {log.remarks}</div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                    <span className="px-2.5 py-1 rounded-full font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs">
+                      +{log.goodPieces || log.piecesCompleted || 0} Good
+                    </span>
+                    {(log.reworkPieces || 0) > 0 && (
+                      <span className="px-2.5 py-1 rounded-full font-mono font-bold bg-amber-50 text-amber-900 border border-amber-200 text-xs">
+                        +{log.reworkPieces} Rework
+                      </span>
+                    )}
+                    {(log.scrapPieces || 0) > 0 && (
+                      <span className="px-2.5 py-1 rounded-full font-mono font-bold bg-rose-50 text-rose-800 border border-rose-200 text-xs">
+                        +{log.scrapPieces} Scrap
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Master Working Dates History Ledger Table */}
+        <div className="bg-white p-5 sm:p-6 rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
+            <div>
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[#c09748]" />
+                <h4 className="font-serif font-normal text-base sm:text-lg text-[#17191c]">
+                  All Working Dates Ledger for {jobCardNo}
+                </h4>
+              </div>
+              <p className="text-xs text-[#777b86] mt-0.5">
+                Summary record of all working shifts, target achievement, and chemical consumption on each date.
+              </p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto border border-[#ececec] rounded-[18px]">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-[#f2f2f3] text-[#17191c] font-mono border-b border-[#ececec]">
+                  <th className="py-2.5 px-3 font-bold">Working Date</th>
+                  <th className="py-2.5 px-3 font-bold text-center">Daily Quota</th>
+                  <th className="py-2.5 px-3 font-bold text-center text-emerald-800">Good Finished</th>
+                  <th className="py-2.5 px-3 font-bold text-center text-rose-800">Scrap / Defect</th>
+                  <th className="py-2.5 px-3 font-bold text-center">Achievement</th>
+                  <th className="py-2.5 px-4 font-bold">Paints Consumed (Est)</th>
+                  <th className="py-2.5 px-4 font-bold text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#ececec]">
+                {productionDates.map((date, idx) => {
+                  const dayLogs = liveProgressLogs.filter(l => doesLogMatchDate(l, date));
+                  const dayHist = initialData?.dailyProductionHistory?.find(d => normalizeToIsoDate(d.date) === date);
+                  const dayGood = dayLogs.reduce((s, l) => s + (l.piecesCompleted || 0), 0) || dayHist?.goodPieces || 0;
+                  const dayScrap = dayLogs.reduce((s, l) => s + (l.scrapPieces || 0) + (l.reworkPieces || 0), 0) || dayHist?.scrapPieces || 0;
+                  const dayQuota = dayHist?.dailyTarget || dailyTargetQty || (targetQty <= 1000 ? targetQty : 1000);
+                  const achPct = dayQuota > 0 ? Math.min(100, Math.round((dayGood / dayQuota) * 100)) : 0;
+                  const isCurActive = activeDateStr === date;
+
+                  return (
+                    <tr key={date} className={`transition ${isCurActive ? 'bg-[#faf7ed]' : idx % 2 === 1 ? 'bg-[#fafafb]' : 'bg-white'}`}>
+                      <td className="py-3 px-3">
+                        <div className="font-mono font-bold text-[#17191c] flex items-center gap-1.5">
+                          <span className={`w-2 h-2 rounded-full ${isCurActive ? 'bg-[#c09748]' : 'bg-emerald-500'}`} />
+                          <span>{date}</span>
+                          {date === todayStr && (
+                            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-emerald-100 text-emerald-800 font-sans font-semibold">
+                              Today
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-center font-mono font-semibold text-[#17191c]">
+                        {dayQuota.toLocaleString('en-IN')} Pcs
+                      </td>
+                      <td className="py-3 px-3 text-center font-mono font-bold text-emerald-700">
+                        {dayGood.toLocaleString('en-IN')} Pcs
+                      </td>
+                      <td className="py-3 px-3 text-center font-mono font-bold text-rose-700">
+                        {dayScrap} Pcs
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                          achPct >= 80 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : achPct > 0 ? 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be]' : 'bg-gray-100 text-[#777b86] border-gray-200'
+                        }`}>
+                          {achPct}%
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-[#777b86] font-mono text-[11px]">
+                        {dayGood > 0 ? `~${Number(((dayGood / (targetQty || 250)) * 8).toFixed(1))}L Basecoat • ~${Number(((dayGood / (targetQty || 250)) * 3).toFixed(1))}L Thinner` : '0L'}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProductionDate(date)}
+                          className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer shadow-2xs ${
+                            isCurActive
+                              ? 'bg-[#8a6521] text-white'
+                              : 'bg-white hover:bg-[#f2f2f3] text-[#8a6521] border border-[#f4e5be]'
+                          }`}
+                        >
+                          {isCurActive ? 'Viewing' : 'Inspect'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // =========================================================================
+  // RENDER DEDICATED QUALITY CONTROL GATES (PIR • FPA • IPQC)
+  // =========================================================================
+  const renderQualityTabContent = () => {
+    return (
+      <div className="space-y-6">
+        {/* Top Quality Pipeline Overview */}
+        <div className="bg-white p-5 rounded-[24px] border border-[#ececec] shadow-xs">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-5 h-5 text-[#8a6521]" />
+              </div>
+              <div>
+                <h3 className="font-serif font-normal text-lg sm:text-xl text-[#17191c]">
+                  Quality Assurance Gates & Release Traceability
+                </h3>
+                <p className="text-xs text-[#777b86] font-mono mt-0.5">
+                  Job Card: <strong className="text-[#17191c]">{jobCardNo}</strong> • Part: <strong className="text-[#17191c]">{partCode}</strong> • IATF 16949 / ISO 9001:2015 Compliant
+                </p>
+              </div>
+            </div>
+
+            {/* Overall Gate Clearance Status */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`px-3 py-1 rounded-full text-xs font-mono font-bold flex items-center gap-1.5 border ${
+                isPirPassed 
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                  : 'bg-amber-50 text-amber-800 border-amber-200'
+              }`}>
+                {isPirPassed ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />}
+                <span>Gate 1 (PIR): {isPirPassed ? 'Passed' : 'Pending'}</span>
+              </span>
+
+              <span className={`px-3 py-1 rounded-full text-xs font-mono font-bold flex items-center gap-1.5 border ${
+                isFpaApproved 
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                  : 'bg-blue-50 text-blue-800 border-blue-200'
+              }`}>
+                {isFpaApproved ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Sparkles className="w-3.5 h-3.5 text-blue-600" />}
+                <span>Gate 2 (FPA): {isFpaApproved ? 'Approved' : 'Pending'}</span>
+              </span>
+
+              <span className="px-3 py-1 rounded-full text-xs font-mono font-bold flex items-center gap-1.5 border bg-[#faf7ed] text-[#8a6521] border-[#f4e5be]">
+                <Clock className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>Gate 3 (IPQC): {activeIpqcRecords.length} Audits</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* GATE 1: PRE-PRODUCTION INSPECTION REPORT (PIR / PK-QA-PIR-001)            */}
+        {/* ========================================================================= */}
+        <div className="bg-white p-5 sm:p-6 rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#f2f2f3]">
+            <div className="flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-full bg-[#faf3e0] text-[#8a6521] font-mono font-bold text-xs flex items-center justify-center border border-[#f4e5be]">
+                G1
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-serif font-normal text-base sm:text-lg text-[#17191c]">
+                    Gate 1: Pre-Production QC Inspection (PIR)
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-gray-100 text-gray-700 border border-gray-200">
+                    Doc: PK-QA-PIR-001
+                  </span>
+                </div>
+                <p className="text-xs text-[#777b86]">
+                  Raw Substrates & Chemical Batch Verification before loading conveyor
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              {activePirRecord ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => downloadStandardPreProductionPdf(activePirRecord)}
+                    className="px-3.5 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                    title="Download Official PIR PDF"
+                  >
+                    <Download className="w-3.5 h-3.5 text-[#8a6521]" />
+                    <span>Download PIR PDF</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowPirModal(true)}
+                    className="px-3.5 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-[#777b86]" />
+                    <span>Edit / Re-Inspect</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowPirModal(true)}
+                  className="px-4 py-2 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Perform Gate 1 Check (PIR)</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {activePirRecord ? (
+            <div className="space-y-4">
+              {/* Report Metadata Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec]">
+                  <span className="text-[10px] text-[#777b86] font-mono uppercase block">Report Number</span>
+                  <span className="font-mono font-bold text-[#17191c]">{activePirRecord.reportNo}</span>
+                </div>
+                <div className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec]">
+                  <span className="text-[10px] text-[#777b86] font-mono uppercase block">Inspection Date</span>
+                  <span className="font-mono font-bold text-[#17191c]">{activePirRecord.date}</span>
+                </div>
+                <div className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec]">
+                  <span className="text-[10px] text-[#777b86] font-mono uppercase block">Inspector / QA</span>
+                  <span className="font-semibold text-[#17191c]">{activePirRecord.inspectedBy} / {activePirRecord.qaEngineer}</span>
+                </div>
+                <div className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec]">
+                  <span className="text-[10px] text-[#777b86] font-mono uppercase block">Overall Result</span>
+                  <span className={`inline-block font-mono font-bold ${activePirRecord.overallResult === 'Passed' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    ● {activePirRecord.overallResult.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quantities Verified */}
+              <div className="p-3.5 rounded-[18px] bg-gradient-to-r from-[#faf7ed] to-white border border-[#f4e5be] flex flex-wrap items-center justify-between gap-4 text-xs">
+                <div>
+                  <span className="text-[10.5px] font-mono font-bold uppercase text-[#8a6521]">Substrate Material:</span>{' '}
+                  <strong className="text-[#17191c]">{activePirRecord.substrateMaterial}</strong>
+                </div>
+                <div className="flex items-center gap-4 font-mono">
+                  <span>Issued: <strong>{activePirRecord.issuedQty}</strong></span>
+                  <span>•</span>
+                  <span>Inspected: <strong>{activePirRecord.inspectedQty}</strong></span>
+                  <span>•</span>
+                  <span className="text-emerald-700 font-bold">Accepted: {activePirRecord.acceptedQty}</span>
+                  {activePirRecord.rejectedQty > 0 && (
+                    <>
+                      <span>•</span>
+                      <span className="text-rose-700 font-bold">Rejected: {activePirRecord.rejectedQty}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* 8 Critical Substrate Checkpoints */}
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#777b86] font-mono block mb-2">
+                  8 Critical Pre-Production Checkpoints (ASTM / IATF Standard)
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+                  {[
+                    { label: '1. Physical Condition (No Dents)', val: activePirRecord.physicalCondition },
+                    { label: '2. Burrs, Flash & Sink Marks', val: activePirRecord.burrsFlashSinkMarks },
+                    { label: '3. Oil / Grease Free', val: activePirRecord.oilGreaseChemical },
+                    { label: '4. IPA Chemical Wipe Clean', val: activePirRecord.cleaningIpaWiping },
+                    { label: '5. Ionized Static Dedusting', val: activePirRecord.staticDedusting },
+                    { label: '6. Masking & Hole Plugging', val: activePirRecord.maskingProtection },
+                    { label: '7. Jigging & Hanging Orientation', val: activePirRecord.jiggingOrientation },
+                    { label: '8. Physical Qty Verification', val: activePirRecord.quantityVerification },
+                  ].map((chk, cIdx) => (
+                    <div key={cIdx} className="p-2.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-[#777b86] truncate" title={chk.label}>{chk.label}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                        chk.val === 'Pass' 
+                          ? 'bg-emerald-100 text-emerald-800' 
+                          : chk.val === 'N/A'
+                          ? 'bg-gray-100 text-gray-700'
+                          : 'bg-rose-100 text-rose-800'
+                      }`}>
+                        {chk.val}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="p-6 rounded-[20px] bg-amber-50/50 border border-dashed border-amber-300 text-center space-y-3">
+              <div className="w-10 h-10 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center mx-auto text-amber-700">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h5 className="font-bold text-sm text-[#17191c]">Gate 1 Inspection Pending</h5>
+                <p className="text-xs text-[#777b86] max-w-md mx-auto mt-1">
+                  Raw substrates received from Store must be verified for flash, burrs, transit scratches, and degreased with IPA before conveyor hanging.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPirModal(true)}
+                className="px-5 py-2 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Perform Gate 1 Substrate Check (PIR)</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ========================================================================= */}
+        {/* GATE 2: FIRST PART APPROVAL (FPA - GOLDEN GATE / PK-QA-FPA-001)            */}
+        {/* ========================================================================= */}
+        <div className="bg-white p-5 sm:p-6 rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#f2f2f3]">
+            <div className="flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-full bg-[#faf3e0] text-[#8a6521] font-mono font-bold text-xs flex items-center justify-center border border-[#f4e5be]">
+                G2
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-serif font-normal text-base sm:text-lg text-[#17191c]">
+                    Gate 2: First Part Approval (FPA - Golden Gate)
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-gray-100 text-gray-700 border border-gray-200">
+                    Doc: PK-QA-FPA-001
+                  </span>
+                </div>
+                <p className="text-xs text-[#777b86]">
+                  Golden Sample release approval: Spectrophotometer &Delta;E &lt; 1.0, DFT microns, ASTM 5B Adhesion
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              {activeFpaRecord ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => downloadStandardFPAPdf(activeFpaRecord)}
+                    className="px-3.5 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                    title="Download Official FPA PDF"
+                  >
+                    <Download className="w-3.5 h-3.5 text-[#8a6521]" />
+                    <span>Download FPA PDF</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowFpaModal(true)}
+                    className="px-3.5 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-[#777b86]" />
+                    <span>Re-Test / Edit FPA</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowFpaModal(true)}
+                  className="px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Perform First Part Approval (FPA)</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {activeFpaRecord ? (
+            <div className="space-y-4">
+              {/* Technical Measurement Cards (Spectrophotometer, DFT, Gloss, Adhesion) */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-4 rounded-[20px] bg-emerald-50/70 border border-emerald-200/80 shadow-2xs text-center space-y-1">
+                  <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">
+                    Spectrophotometer &Delta;E
+                  </span>
+                  <span className="font-mono font-bold text-2xl text-emerald-900 block">
+                    {activeFpaRecord.deltaE !== undefined ? Number(activeFpaRecord.deltaE).toFixed(2) : '0.42'}
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-700 block">
+                    Tolerance &lt; 1.00 (Pass)
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] shadow-2xs text-center space-y-1">
+                  <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">
+                    Film Thickness (DFT)
+                  </span>
+                  <span className="font-mono font-bold text-2xl text-[#17191c] block">
+                    {activeFpaRecord.dftMicrons ?? '38'} <span className="text-xs font-normal text-[#777b86]">µm</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-[#777b86] block">
+                    Spec: 35–45 µm
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] shadow-2xs text-center space-y-1">
+                  <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">
+                    60° Gloss Value
+                  </span>
+                  <span className="font-mono font-bold text-2xl text-[#17191c] block">
+                    {activeFpaRecord.glossValue60 ?? '92'} <span className="text-xs font-normal text-[#777b86]">GU</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-[#777b86] block">
+                    High Gloss PU Clear
+                  </span>
+                </div>
+
+                <div className="p-4 rounded-[20px] bg-emerald-50/70 border border-emerald-200/80 shadow-2xs text-center space-y-1">
+                  <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">
+                    ASTM D3359 Adhesion
+                  </span>
+                  <span className="font-mono font-bold text-2xl text-emerald-900 block">
+                    {activeFpaRecord.crossHatchAdhesion ?? '5B'}
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-700 block">
+                    100% Intact / Zero Flake
+                  </span>
+                </div>
+              </div>
+
+              {/* FPA Context Metadata */}
+              <div className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] text-[#777b86] font-mono uppercase block">Report & Date</span>
+                  <span className="font-mono font-bold text-[#17191c]">{activeFpaRecord.reportNo}</span>
+                  <div className="text-[11px] text-[#777b86] font-mono">{activeFpaRecord.date}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#777b86] font-mono uppercase block">Painter & Booth</span>
+                  <span className="font-semibold text-[#17191c]">{activeFpaRecord.painter}</span>
+                  <div className="text-[11px] text-[#777b86] font-mono">{activeFpaRecord.booth}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#777b86] font-mono uppercase block">Paint Batch</span>
+                  <span className="font-mono font-bold text-[#8a6521]">{activeFpaRecord.paintBatch}</span>
+                  <div className="text-[11px] text-[#777b86]">{activeFpaRecord.color}</div>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#777b86] font-mono uppercase block">QA Authorization</span>
+                  <span className="font-semibold text-emerald-800 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{activeFpaRecord.qcEngineer}</span>
+                  </span>
+                  <div className="text-[10px] text-[#777b86] font-mono">
+                    {activeFpaRecord.managerQAApproval ? 'Manager QA Released' : 'Pending Verification'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="p-6 rounded-[20px] bg-blue-50/50 border border-dashed border-blue-300 text-center space-y-3">
+              <div className="w-10 h-10 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center mx-auto text-blue-700">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h5 className="font-bold text-sm text-[#17191c]">First Part Approval (FPA) Pending</h5>
+                <p className="text-xs text-[#777b86] max-w-md mx-auto mt-1">
+                  1–5 trial pieces must be test sprayed and verified with Spectrophotometer (&Delta;E &lt; 1.0), DFT coating thickness, and ASTM D3359 cross-hatch tape test before mass production.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFpaModal(true)}
+                className="px-5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Perform First Part Approval (FPA)</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ========================================================================= */}
+        {/* GATE 3: IN-PROCESS QUALITY CONTROL (IPQC / PK-QA-IPQ-001)                 */}
+        {/* ========================================================================= */}
+        <div className="bg-white p-5 sm:p-6 rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#f2f2f3]">
+            <div className="flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-full bg-[#faf3e0] text-[#8a6521] font-mono font-bold text-xs flex items-center justify-center border border-[#f4e5be]">
+                G3
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-serif font-normal text-base sm:text-lg text-[#17191c]">
+                    Gate 3: In-Process Quality Control (IPQC Line Audits)
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-gray-100 text-gray-700 border border-gray-200">
+                    Doc: PK-QA-IPQ-001
+                  </span>
+                </div>
+                <p className="text-xs text-[#777b86]">
+                  Conveyor line inspection records across shift time-slots (8:00–11:00, 11:00–14:00, etc.)
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowIpqcModal(true)}
+              className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer flex items-center gap-1.5 active:scale-95 self-start sm:self-auto"
+            >
+              <Plus className="w-3.5 h-3.5 text-[#c09748]" />
+              <span>Record Line Audit (IPQC)</span>
+            </button>
+          </div>
+
+          {activeIpqcRecords.length > 0 ? (
+            <div className="space-y-3">
+              {activeIpqcRecords.map((rec, rIdx) => (
+                <div 
+                  key={rec.reportNo || rIdx}
+                  className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] hover:border-[#c09748]/50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-bold text-[#17191c]">{rec.reportNo}</span>
+                      <span className="px-2 py-0.5 rounded-full bg-white text-[#777b86] border border-[#ececec] font-mono text-[10px]">
+                        {rec.date}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be] font-mono text-[10px] font-bold">
+                        {rec.shift || 'Shift A'} • {rec.booth || 'Booth #1'}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                        (rec.result || 'Pass') === 'Pass' 
+                          ? 'bg-emerald-100 text-emerald-800' 
+                          : 'bg-rose-100 text-rose-800'
+                      }`}>
+                        {rec.result || 'Pass'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-[#777b86]">
+                      Painter: <strong className="text-[#17191c]">{rec.painter}</strong> • Inspector: <strong className="text-[#17191c]">{rec.inspector || rec.verifiedBy || 'QC Inspector'}</strong>
+                      {rec.deltaE !== undefined && (
+                        <span> • Spectro &Delta;E: <strong className="text-[#8a6521] font-mono">{Number(rec.deltaE).toFixed(2)}</strong></span>
+                      )}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => downloadStandardIPQCPdf(rec)}
+                    className="px-3.5 py-1.5 rounded-full bg-white hover:bg-[#faf3e0] text-[#8a6521] border border-[#ececec] hover:border-[#f4e5be] text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs self-start sm:self-auto shrink-0"
+                    title="Download Official IPQC PDF"
+                  >
+                    <Download className="w-3.5 h-3.5 text-[#8a6521]" />
+                    <span>Download IPQC PDF</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-6 rounded-[20px] bg-gray-50/70 border border-dashed border-gray-300 text-center space-y-3">
+              <div className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center mx-auto text-gray-500 shadow-2xs">
+                <Clock className="w-5 h-5 text-[#c09748]" />
+              </div>
+              <div>
+                <h5 className="font-bold text-sm text-[#17191c]">No In-Process Audits Recorded Yet</h5>
+                <p className="text-xs text-[#777b86] max-w-md mx-auto mt-1">
+                  Once mass production is running on the conveyor, record periodic 3-hour shift time-slot audits (bubbles, dust nibs, finish quality, &Delta;E).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowIpqcModal(true)}
+                className="px-5 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition inline-flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>Record First Line Audit (IPQC)</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -1807,6 +2698,167 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               </div>
             </div>
 
+            {/* Dedicated Sub-view Tab Navigation for Existing Job Card */}
+            <div className="flex items-center gap-2 border-b border-[#ececec] pb-3 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setExistingCardTab('EXECUTION')}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  existingCardTab === 'EXECUTION'
+                    ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] shadow-2xs'
+                    : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>Floor Execution & Materials</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setExistingCardTab('QUALITY')}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  existingCardTab === 'QUALITY'
+                    ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] shadow-2xs ring-1 ring-[#c09748]/20'
+                    : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>Quality Control Gates (PIR • FPA • IPQC)</span>
+                {isFpaApproved ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    ✓ FPA Approved
+                  </span>
+                ) : isPirPassed ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                    Gate 2: FPA Due
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                    Gate 1: PIR Due
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setExistingCardTab('DAILY_LOG')}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  existingCardTab === 'DAILY_LOG'
+                    ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] shadow-2xs ring-1 ring-[#c09748]/20'
+                    : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5 text-[#8a6521]" />
+                <span>Daily Production & Material Consumption Log</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#8a6521] text-white">
+                  {productionDates.length} {productionDates.length === 1 ? 'Date' : 'Dates'}
+                </span>
+              </button>
+            </div>
+
+            {existingCardTab === 'EXECUTION' ? (
+              <div className="space-y-6">
+
+            {/* Quality Gates Shop Floor Action Banner */}
+            {!isPirPassed ? (
+              <div className="p-4 rounded-[20px] bg-amber-50/90 border border-amber-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0 mt-0.5">
+                    <AlertTriangle className="w-5 h-5 text-amber-700" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-amber-900 uppercase tracking-wide font-mono">
+                        Gate 1 Action Required: Pre-Production QC (PIR) Pending
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200/70 text-amber-900 font-mono">
+                        Substrate Verification Due
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                      Raw substrates received from Store must be inspected (burrs, flash, oil/grease, IPA cleaning, static de-dusting, 8 checkpoints) before conveyor loading.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPirModal(true)}
+                  className="px-4 py-2 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Perform Gate 1 Check (PIR)</span>
+                </button>
+              </div>
+            ) : !isFpaApproved ? (
+              <div className="p-4 rounded-[20px] bg-blue-50/90 border border-blue-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-full bg-blue-100 border border-blue-300 flex items-center justify-center shrink-0 mt-0.5">
+                    <Sparkles className="w-5 h-5 text-blue-700" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-blue-900 uppercase tracking-wide font-mono">
+                        Gate 2 Action Required: First Part Approval (FPA Golden Sample) Pending
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 font-mono">
+                        PIR Cleared ({activePirRecord?.reportNo})
+                      </span>
+                    </div>
+                    <p className="text-xs text-blue-800 mt-1 leading-relaxed">
+                      Spray 1–5 trial pieces. Test spectrophotometer colour (&Delta;E &lt; 1.0), DFT microns, and ASTM 5B cross-hatch adhesion tape test before mass spraying.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowFpaModal(true)}
+                  className="px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Perform FPA Golden Test</span>
+                </button>
+              </div>
+            ) : (
+              <div className="p-4 rounded-[20px] bg-emerald-50/90 border border-emerald-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-700" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-emerald-900 uppercase tracking-wide font-mono">
+                        Quality Released for Mass Production: FPA Golden Sample Approved
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-200/70 text-emerald-900 font-mono">
+                        {activeFpaRecord?.reportNo}
+                      </span>
+                    </div>
+                    <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
+                      Gate 1 Substrates Cleared &bull; Gate 2 Golden Sample Approved (&Delta;E: {activeFpaRecord?.deltaE ?? '0.42'}, Adhesion: {activeFpaRecord?.crossHatchAdhesion ?? '5B'}). Conveyor line is cleared for mass production.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setShowIpqcModal(true)}
+                    className="px-3.5 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                  >
+                    <Clock className="w-3.5 h-3.5 text-[#c09748]" />
+                    <span>Record Line Audit (IPQC)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExistingCardTab('QUALITY')}
+                    className="px-3.5 py-1.5 rounded-full bg-white hover:bg-emerald-100/50 text-emerald-800 border border-emerald-300 text-xs font-semibold shadow-2xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>View Quality Gates</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* 1. Core Handover Summary (3 Structured Read-Only Cards - Non-Editable) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Card 1: Customer & Order Reference */}
@@ -1977,15 +3029,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
-                  
-                  <button
-                    type="button"
-                    onClick={() => setShowReturnModal(true)}
-                    className="px-4 py-2 rounded-full bg-[#faf7ed] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5 text-[#c09748]" />
-                    <span>Return Balance to Store</span>
-                  </button>
                   <button
                     type="button"
                     onClick={() => setShowAddMaterialDrawer(!showAddMaterialDrawer)}
@@ -1996,155 +3039,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </button>
                 </div>
               </div>
-
-              {/* Daily Working Dates & Shift Filter Bar with Calendar Picker and Highlighted Activity Dots */}
-              <div className="p-4 bg-[#faf7ed] rounded-[22px] border border-[#f4e5be] flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <div className="w-8 h-8 rounded-full bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-center text-[#8a6521]">
-                    <Calendar className="w-4 h-4 text-[#8a6521]" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#8a6521] font-mono block">
-                      Daily Production & Material Calendar Log
-                    </span>
-                    <span className="text-xs text-[#777b86]">
-                      Calendar me green dot wale dates par production hua tha. Click date to view that day's pieces & chemicals used.
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  {/* Calendar Input with Highlighted Activity Dots */}
-                  <div className="w-48">
-                    <PaintkingDatePicker
-                      value={selectedProductionDate === 'ALL' ? '' : selectedProductionDate}
-                      onChange={(dateVal) => setSelectedProductionDate(dateVal)}
-                      placeholder="Pick Working Date 📅"
-                      highlightedDates={productionDates}
-                      className="bg-white border-[#f4e5be] shadow-2xs text-xs"
-                    />
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedProductionDate('ALL')}
-                    className={`px-3.5 py-2 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
-                      selectedProductionDate === 'ALL'
-                        ? 'bg-[#17191c] text-white'
-                        : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
-                    }`}
-                  >
-                    <span>All Dates (Cumulative)</span>
-                  </button>
-
-                  {/* Quick-pills for active dates */}
-                  {productionDates.slice(0, 3).map(date => {
-                    const isToday = date === new Date().toISOString().split('T')[0];
-                    return (
-                      <button
-                        key={date}
-                        type="button"
-                        onClick={() => setSelectedProductionDate(date)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
-                          selectedProductionDate === date
-                            ? 'bg-[#8a6521] text-white'
-                            : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
-                        }`}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                        <span>{date}</span>
-                        {isToday && (
-                          <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-emerald-100 text-emerald-800 font-sans font-semibold">
-                            Today
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Selected Date Shift Summary Milestone with Material Consumption Snapshot */}
-              {selectedDateSummary && (
-                <div className="p-4 sm:p-5 bg-gradient-to-r from-[#faf7ed] via-white to-white rounded-[20px] border border-[#f4e5be] space-y-3.5 shadow-2xs">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs border-b border-[#f4e5be]/60 pb-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
-                      <span className="font-bold text-[#17191c] font-mono text-sm">
-                        Working Date Snapshot: <strong className="text-[#8a6521] underline decoration-[#c09748]">{selectedDateSummary.date}</strong>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
-                        Day Achievement: {selectedDateSummary.achievement}%
-                      </span>
-                      
-                    </div>
-                  </div>
-
-                  {/* 4 Quantitative Blocks for that Day */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center text-xs">
-                    <div className="bg-white p-3 rounded-[14px] border border-[#ececec] shadow-2xs">
-                      <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">Assigned Quota Target</span>
-                      <span className="font-mono font-bold text-base text-[#17191c] mt-0.5 block">{selectedDateSummary.target} Pcs</span>
-                    </div>
-                    <div className="bg-emerald-50/80 p-3 rounded-[14px] border border-emerald-200 shadow-2xs">
-                      <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">Finished Good Pieces</span>
-                      <span className="font-mono font-bold text-base text-emerald-700 mt-0.5 block">{selectedDateSummary.completed} Pcs</span>
-                    </div>
-                    <div className="bg-rose-50/80 p-3 rounded-[14px] border border-rose-200 shadow-2xs">
-                      <span className="text-[10px] text-rose-800 uppercase font-mono font-bold block">Scrap / Rejects</span>
-                      <span className="font-mono font-bold text-base text-rose-700 mt-0.5 block">{selectedDateSummary.rejects} Pcs</span>
-                    </div>
-                    <div className="bg-amber-50/80 p-3 rounded-[14px] border border-amber-200 shadow-2xs">
-                      <span className="text-[10px] text-amber-800 uppercase font-mono font-bold block">Unused / Returnable</span>
-                      <span className="font-mono font-bold text-base text-amber-900 mt-0.5 block">{selectedDateSummary.returned || Math.max(0, selectedDateSummary.target - selectedDateSummary.completed)} Pcs</span>
-                    </div>
-                  </div>
-
-                  {/* Company Material Consumption Snapshot for this specific date */}
-                  <div className="bg-white p-3.5 rounded-[16px] border border-[#ececec] space-y-2">
-                    <span className="text-[10.5px] font-mono uppercase font-bold text-[#8a6521] block tracking-wide">
-                      Company Material Consumed on {selectedDateSummary.date}:
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {(() => {
-                        const dayRecord = initialData?.dailyProductionHistory?.find(d => d.date === selectedDateSummary.date);
-                        if (dayRecord?.materialsConsumed && dayRecord.materialsConsumed.length > 0) {
-                          return dayRecord.materialsConsumed.map((m, idx) => (
-                            <div key={idx} className="p-2.5 rounded-[12px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between text-xs">
-                              <div>
-                                <div className="font-bold text-[#17191c] truncate max-w-[150px]">{m.itemDescription}</div>
-                                <span className="text-[10px] text-[#777b86] uppercase font-mono">{m.materialType || 'Chemical'}</span>
-                              </div>
-                              <span className="font-mono font-bold text-sm text-[#8a6521]">
-                                {m.consumedQty} {m.uom}
-                              </span>
-                            </div>
-                          ));
-                        }
-
-                        // Calculated proportion for this day based on completed pieces
-                        const ratio = targetQty > 0 ? (selectedDateSummary.completed / targetQty) : 0.5;
-                        return companyMaterials.map((m, idx) => {
-                          const estConsumed = Number(((m.qty * ratio) || (selectedDateSummary.completed > 0 ? (m.materialType === 'paint' ? 4 : 1.5) : 0)).toFixed(2));
-                          return (
-                            <div key={idx} className="p-2.5 rounded-[12px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between text-xs">
-                              <div>
-                                <div className="font-bold text-[#17191c] truncate max-w-[150px]">{m.itemDescription}</div>
-                                <span className="text-[10px] text-[#777b86] uppercase font-mono">{m.materialType || 'Chemical'}</span>
-                              </div>
-                              <span className="font-mono font-bold text-sm text-[#8a6521]">
-                                {estConsumed} {m.uom}
-                              </span>
-                            </div>
-                          );
-                        });
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Add Additional Material Drawer */}
               {showAddMaterialDrawer && (
@@ -2314,25 +3208,26 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               {/* Reconciliation Card: Issued = Good + Reject + Returned + Variance */}
               {(() => {
                 const jcReturnSlips = balanceReturnSlips.filter(r => r.jobCardNo === jobCardNo);
-                const totalReturned = jcReturnSlips
+                const totalReturnedPieces = jcReturnSlips
                   .flatMap(r => r.lines)
+                  .filter(l => (l.category === 'PARTY_MATERIAL' || l.uom === 'Pcs') && l.condition !== 'Damaged / Scrapped')
                   .reduce((sum, line) => sum + Number(line.storeCountedQty || line.returnedQtyClaimed || 0), 0);
-                const goodPieces = stageCounts.stage2.completed || initialData?.goodQty || 0;
-                const rejectPieces = stageCounts.stage2.rejects || initialData?.rejectQty || 0;
-                const totalAccounted = goodPieces + rejectPieces + totalReturned;
+                const goodPieces = currentGoodQty || initialData?.goodQty || 0;
+                const rejectPieces = currentRejectQty || initialData?.rejectQty || 0;
+                const totalAccounted = goodPieces + rejectPieces + totalReturnedPieces;
                 const variance = targetQty - totalAccounted;
 
                 return (
-                  <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec] space-y-2.5">
-                    <div className="flex items-center justify-between">
+                  <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec] space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <RotateCcw className="w-3.5 h-3.5 text-[#c09748]" />
                         <span className="font-mono text-xs font-bold text-[#17191c] uppercase tracking-wide">
-                          Material & Output Reconciliation Rule
+                          Material &amp; Output Reconciliation Rule
                         </span>
                       </div>
                       <span className="text-[10px] font-mono text-[#777b86]">
-                        {jcReturnSlips.length} Return Slip(s) Logged
+                        {jcReturnSlips.length === 0 ? 'No Return Slip Yet (Pending Job Completion)' : `${jcReturnSlips.length} Return Slip(s) Logged`}
                       </span>
                     </div>
 
@@ -2351,21 +3246,21 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       </div>
                       <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
                         <span className="text-[10px] text-[#8a6521] uppercase font-mono block">Returned to Store</span>
-                        <span className="font-mono font-bold text-sm text-[#8a6521]">{totalReturned} Pcs</span>
+                        <span className="font-mono font-bold text-sm text-[#8a6521]">{totalReturnedPieces} Pcs</span>
                       </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] pt-1 border-t border-[#f2f2f3]">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] pt-1 border-t border-[#ececec]">
                       <span className="text-[#777b86]">
-                        Reconciliation: <strong className="font-mono">Issued ({targetQty}) = Good ({goodPieces}) + Reject ({rejectPieces}) + Returned ({totalReturned}) + Variance ({variance})</strong>
+                        Reconciliation: <strong className="font-mono">Target ({targetQty}) = Good ({goodPieces}) + Scrap ({rejectPieces}) + Returned ({totalReturnedPieces}) + Variance ({variance})</strong>
                       </span>
                       {variance === 0 ? (
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
                           ✓ 100% Balanced (0 Variance)
                         </span>
                       ) : (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-rose-50 text-rose-800 border border-rose-200 self-start sm:self-auto">
-                          ⚠ Discrepancy: {variance > 0 ? `+${variance}` : variance} Pcs Variance
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200 self-start sm:self-auto">
+                          Balance to Reconcile: {variance > 0 ? `${variance} Pcs Remaining` : `${variance} Pcs Over`}
                         </span>
                       )}
                     </div>
@@ -3000,6 +3895,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               )}
             </div>
           </div>
+        </div>
+      ) : existingCardTab === 'QUALITY' ? (
+        renderQualityTabContent()
+      ) : (
+        renderDailyLedgerContent()
+      )}
 
             {/* 4. Action Footer for Existing Card */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-[#ececec]">
@@ -3011,7 +3912,16 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 <span>Plant: <strong className="text-[#8a6521]">{activePlant}</strong></span>
               </div>
 
-              <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+              <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowReturnModal(true)}
+                  className="px-4 py-2.5 rounded-full bg-[#faf7ed] hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition cursor-pointer flex items-center gap-2 active:scale-95 shadow-2xs"
+                  title="Generate final Return to Store slip when Job Card is completed"
+                >
+                  <RotateCcw className="w-4 h-4 text-[#c09748]" />
+                  <span>Return Leftover to Store</span>
+                </button>
                 <button
                   type="button"
                   onClick={handleDownloadPdf}
@@ -4374,6 +5284,36 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
           onSuccess={() => {
             setShowReturnModal(false);
           }}
+        />
+      )}
+
+      {/* Quality Control Gate 1: Pre-Production Inspection (PIR) Modal */}
+      {showPirModal && (
+        <PreProductionInspectionModal
+          isOpen={showPirModal}
+          onClose={() => setShowPirModal(false)}
+          jobCard={currentJcForModals}
+          onSuccess={() => setShowPirModal(false)}
+        />
+      )}
+
+      {/* Quality Control Gate 2: First Part Approval (FPA Golden Sample) Modal */}
+      {showFpaModal && (
+        <FPAModal
+          isOpen={showFpaModal}
+          onClose={() => setShowFpaModal(false)}
+          jobCard={currentJcForModals}
+          onSuccess={() => setShowFpaModal(false)}
+        />
+      )}
+
+      {/* Quality Control Gate 3: In-Process Quality Control (IPQC Line Audits) Modal */}
+      {showIpqcModal && (
+        <IPQCModal
+          isOpen={showIpqcModal}
+          onClose={() => setShowIpqcModal(false)}
+          jobCard={currentJcForModals}
+          onSuccess={() => setShowIpqcModal(false)}
         />
       )}
     </div>

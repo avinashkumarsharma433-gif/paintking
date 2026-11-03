@@ -487,14 +487,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
         <div className="hidden md:block overflow-x-auto border border-[#ececec] rounded-[18px]">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-[#fafafb] text-[#777b86] font-semibold uppercase text-[10px] tracking-wider border-b border-[#ececec]">
-                <th className="p-3.5">Party / Customer</th>
-                <th className="p-3.5">Part Code & Description</th>
-                <th className="p-3.5">GRN & Challan</th>
-                <th className="p-3.5 text-center">Store Balance</th>
-                <th className="p-3.5">Assigned Priority Level</th>
-                <th className="p-3.5">Target Date & Floor Directive</th>
-                <th className="p-3.5 text-right">Plant Head Action</th>
+              <tr className="bg-[#fafafb] text-[#777b86] font-bold uppercase text-[11px] tracking-wider border-b border-[#ececec]">
+                <th className="py-2 px-3 whitespace-nowrap">Party / Customer</th>
+                <th className="py-2 px-3 whitespace-nowrap">Part Code & Description</th>
+                <th className="py-2 px-3 whitespace-nowrap">GRN & Challan</th>
+                <th className="py-2 px-3 text-center whitespace-nowrap">Store Balance</th>
+                <th className="py-2 px-3 whitespace-nowrap">Assigned Priority Level</th>
+                <th className="py-2 px-3">Target Date & Floor Directive</th>
+                <th className="py-2 px-3 text-right whitespace-nowrap">Plant Head Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#ececec] text-[#17191c]">
@@ -515,37 +515,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
 
                   return (
                     <tr key={idx} className={`hover:bg-[#fafafb] transition ${isP1 ? 'bg-rose-50/15' : ''}`}>
-                      <td className="p-3.5">
-                        <div className="font-bold text-[#17191c] flex items-center gap-1.5">
-                          <Building2 className="w-3.5 h-3.5 text-[#c09748]" />
+                      <td className="py-2.5 px-3">
+                        <div className="font-semibold text-xs sm:text-[13px] text-[#17191c] flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-[#c09748] shrink-0" />
                           <span>{item.customer}</span>
                         </div>
-                        <div className="text-[10px] font-mono text-[#777b86] mt-0.5">Rec: {item.receivedDate}</div>
+                        <div className="text-[11px] font-mono text-[#777b86] mt-0.5">Rec: {item.receivedDate}</div>
                       </td>
 
-                      <td className="p-3.5">
-                        <div className="font-mono font-bold text-[#8a6521]">{item.partCode}</div>
+                      <td className="py-2.5 px-3">
+                        <div className="font-mono font-bold text-xs sm:text-[13px] text-[#8a6521]">{item.partCode}</div>
                         <div className="text-[11px] text-[#777b86] truncate max-w-[220px]">{item.partDesc}</div>
                       </td>
 
-                      <td className="p-3.5">
-                        <div className="font-mono font-bold text-[#17191c] text-[11px]">{item.grnNo}</div>
-                        <div className="text-[10px] text-[#777b86] font-mono">Challan: {item.challanNo}</div>
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <div className="font-mono font-bold text-[#17191c] text-xs sm:text-[13px]">{item.grnNo}</div>
+                        <div className="text-[11px] text-[#777b86] font-mono">Challan: {item.challanNo}</div>
                       </td>
 
-                      <td className="p-3.5 text-center">
-                        <span className={`font-mono font-bold text-xs px-2.5 py-1 rounded-full inline-block border ${
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                        <span className={`font-mono font-bold text-xs px-2.5 py-0.5 rounded-full inline-block border ${
                           item.balanceAvailable > 0 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'
                         }`}>
                           {item.balanceAvailable.toLocaleString('en-IN')} {item.uom}
                         </span>
-                        <div className="text-[10px] text-[#777b86] font-mono mt-0.5">Inward: {item.totalInward} {item.uom}</div>
+                        <div className="text-[11px] text-[#777b86] font-mono mt-0.5">Inward: {item.totalInward} {item.uom}</div>
                       </td>
 
-                      <td className="p-3.5">
+                      <td className="py-2.5 px-3 whitespace-nowrap">
                         {prio ? (
                           <div className="space-y-1">
-                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-mono font-bold border ${
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border ${
                               isP1 
                                 ? 'bg-rose-50 text-rose-800 border-rose-300 ring-1 ring-rose-200 animate-pulse' 
                                 : isP2 
@@ -557,26 +557,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                               <Zap className="w-3 h-3" />
                               <span>{isP1 ? 'P1 - URGENT (Line Risk)' : isP2 ? 'P2 - HIGH PRIORITY' : isP3 ? 'P3 - STANDARD FIFO' : 'HOLD'}</span>
                             </span>
-                            
                           </div>
                         ) : (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-mono text-gray-500 bg-gray-100 border border-dashed border-gray-300">
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono text-gray-500 bg-gray-100 border border-dashed border-gray-300">
                             ⏳ Unscheduled
                           </span>
                         )}
                       </td>
 
-                      <td className="p-3.5">
+                      <td className="py-2.5 px-3">
                         {prio ? (
                           <div className="space-y-0.5">
                             <div className="text-[11px] font-semibold text-[#17191c] flex items-center gap-1">
                               <Calendar className="w-3 h-3 text-[#c09748]" />
                               <span>Target: {prio.targetDate}</span>
                             </div>
-                            <div className="text-[10px] text-[#8a6521] italic bg-[#faf7ed] p-1.5 rounded-md border border-[#f4e5be] line-clamp-2">
+                            <div className="text-[11px] text-[#8a6521] italic bg-[#faf7ed] p-1.5 rounded-md border border-[#f4e5be] line-clamp-2">
                               "{prio.plantHeadRemarks}"
                             </div>
-                            <div className="text-[9px] text-[#777b86]">
+                            <div className="text-[11px] text-[#777b86]">
                               Status: {isJobCardCreated ? <strong className="text-emerald-700">✓ Job Card Launched ({prio.linkedJobCardNo || 'Active'})</strong> : <strong className="text-amber-700">Assigned to Vikram Patel</strong>}
                             </div>
                           </div>
@@ -585,11 +584,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                         )}
                       </td>
 
-                      <td className="p-3.5 text-right">
+                      <td className="py-2.5 px-3 text-right whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => handleOpenPriorityModal(item)}
-                          className="px-3.5 py-1.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs shadow-2xs cursor-pointer transition inline-flex items-center gap-1.5 ml-auto active:scale-95"
+                          className="px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer transition inline-flex items-center gap-1.5 ml-auto active:scale-95 shrink-0"
                         >
                           <Flag className="w-3.5 h-3.5 text-[#c09748]" />
                           <span>{prio ? 'Edit Priority' : '+ Assign Priority'}</span>
