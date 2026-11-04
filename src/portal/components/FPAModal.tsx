@@ -35,12 +35,17 @@ export const FPAModal: React.FC<FPAModalProps> = ({
   jobCard,
   onSuccess
 }) => {
-  const { createFPARecord, activePlant, currentUser, materialRequisitions } = usePortalStore();
+  const { createFPARecord, activePlant, currentUser, materialRequisitions, paintMixing } = usePortalStore();
 
   const matchingRequisition = useMemo(() => {
     if (!jobCard) return null;
     return materialRequisitions.find(r => r.jobCardNo === jobCard.jobCardNo);
   }, [materialRequisitions, jobCard]);
+
+  const matchingPaintMixing = useMemo(() => {
+    if (!jobCard) return null;
+    return paintMixing.find(p => p.woNo === jobCard.woNo || p.color === jobCard.color);
+  }, [paintMixing, jobCard]);
 
   const isMaterialIssued = useMemo(() => {
     if (!jobCard) return false;
@@ -69,6 +74,8 @@ export const FPAModal: React.FC<FPAModalProps> = ({
   const [paintDescription, setPaintDescription] = useState<string>('PPG 2K PU Monza Red Gloss Topcoat');
   const [paintBatch, setPaintBatch] = useState<string>('');
   const [thinnerBatch, setThinnerBatch] = useState<string>('');
+  const [hardenerBatch, setHardenerBatch] = useState<string>('');
+  const [chemicalBatches, setChemicalBatches] = useState<Array<{ name: string; type: string; batchNo: string }>>([]);
   const [painter, setPainter] = useState<string>('Ramesh Kumar (P1)');
   const [booth, setBooth] = useState<string>('Booth #1 (Enclosed)');
   const [startupTime, setStartupTime] = useState<string>('08:30 AM');
@@ -134,37 +141,74 @@ export const FPAModal: React.FC<FPAModalProps> = ({
       setFamily(jobCard.family || `${jobCard.partDescription || jobCard.partCode || 'Auto'} Family (Mould-01)`);
       setColor(jobCard.color || 'Monza Red Gloss');
       setPaintDescription(jobCard.paintDescription || `${jobCard.color || '2K PU'} Industrial Basecoat`);
-      const paintMat = jobCard.issuedMaterials?.find(m => 
-        m.materialType === 'paint' || 
-        (m.category === 'COMPANY_CONSUMABLE' && /paint|basecoat|topcoat|pu/i.test(m.itemDescription)) ||
-        /paint|basecoat|topcoat/i.test(m.itemDescription)
-      ) || jobCard.issuedMaterials?.[1];
 
-      const thinnerMat = jobCard.issuedMaterials?.find(m => 
+      // Find actual materials issued in this specific Job Card
+      const issued = jobCard.issuedMaterials || [];
+
+      // Collect only the actual chemical items that were genuinely issued to this Job Card
+      const allChems: Array<{ name: string; type: string; batchNo: string }> = [];
+
+      issued.forEach(m => {
+        // Skip substrates or non-chemical items if any
+        if (m.materialType === 'substrate' || /substrate|molded|raw piece|bezel|panel/i.test(m.itemDescription)) {
+          return;
+        }
+        const bNo = m.batchNo || m.batchLines?.[0]?.supplierBatchNo;
+        if (bNo && !allChems.some(c => c.batchNo === bNo)) {
+          allChems.push({
+            name: m.itemDescription,
+            type: m.materialType || 'Chemical',
+            batchNo: bNo
+          });
+        }
+      });
+
+      // Check specifically if paint, thinner, hardener exist in this job card
+      const paintMat = issued.find(m => 
+        m.materialType === 'paint' || 
+        /paint|basecoat|topcoat|pu coat/i.test(m.itemDescription)
+      );
+
+      const thinnerMat = issued.find(m => 
         m.materialType === 'thinner' || 
         /thinner|solvent|reducer/i.test(m.itemDescription)
-      ) || jobCard.issuedMaterials?.[2];
+      );
 
-      const resolvedPaintBatch = 
-        jobCard.paintBatch || 
-        matchingRequisition?.issuedBatchLines?.find(b => !/thinner|solvent|reducer/i.test(b.supplierBatchNo || ''))?.supplierBatchNo ||
-        paintMat?.batchNo || 
-        paintMat?.batchLines?.[0]?.supplierBatchNo || 
-        '';
+      const hardenerMat = issued.find(m => 
+        m.materialType === 'hardener' || 
+        /hardener|catalyst|activator|curing/i.test(m.itemDescription)
+      );
 
-      const resolvedThinnerBatch = 
-        jobCard.thinnerBatch || 
-        matchingRequisition?.issuedBatchLines?.find(b => /thinner|solvent|reducer/i.test(b.supplierBatchNo || ''))?.supplierBatchNo ||
-        thinnerMat?.batchNo || 
-        thinnerMat?.batchLines?.[0]?.supplierBatchNo || 
-        '';
+      const resolvedPaintBatch = jobCard.paintBatch || paintMat?.batchNo || paintMat?.batchLines?.[0]?.supplierBatchNo || '';
+      const resolvedThinnerBatch = jobCard.thinnerBatch || thinnerMat?.batchNo || thinnerMat?.batchLines?.[0]?.supplierBatchNo || '';
+      const resolvedHardenerBatch = jobCard.hardenerBatch || hardenerMat?.batchNo || hardenerMat?.batchLines?.[0]?.supplierBatchNo || '';
+
+      // If allChems is empty but job card has a single direct batch field, include only that
+      if (allChems.length === 0) {
+        if (resolvedPaintBatch) {
+          allChems.push({ name: jobCard.paintDescription || 'Paint Basecoat', type: 'paint', batchNo: resolvedPaintBatch });
+        }
+        if (resolvedHardenerBatch) {
+          allChems.push({ name: 'Hardener Catalyst', type: 'hardener', batchNo: resolvedHardenerBatch });
+        }
+        if (resolvedThinnerBatch) {
+          allChems.push({ name: 'Thinner / Reducer', type: 'thinner', batchNo: resolvedThinnerBatch });
+        }
+      }
 
       setPaintBatch(resolvedPaintBatch);
       setThinnerBatch(resolvedThinnerBatch);
+      setHardenerBatch(resolvedHardenerBatch);
+      setChemicalBatches(allChems);
       const assignedPainter = jobCard.assignedPainterName || jobCard.painterName || 'Ramesh Kumar (P1)';
       setPainter(assignedPainter);
       setAcceptancePainter(assignedPainter);
       setBooth(jobCard.boothNo || 'Booth #1');
+      if (matchingPaintMixing?.viscosityFordCupSec) {
+        setViscositySec(matchingPaintMixing.viscosityFordCupSec);
+      } else {
+        setViscositySec(15);
+      }
       setStartupTime(jobCard.issueTime || jobCard.startTime || '08:30 AM');
       setApprovalTime(new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
       setDeltaToleranceLimit(0.70);
@@ -233,6 +277,9 @@ export const FPAModal: React.FC<FPAModalProps> = ({
       masterPlaqueRef
     };
 
+    // Auto-stamp exact live system approval time when submitted
+    const liveApprovalTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
     const fpaData = {
       date,
       plant: activePlant,
@@ -246,10 +293,12 @@ export const FPAModal: React.FC<FPAModalProps> = ({
       paintDescription,
       paintBatch,
       thinnerBatch,
+      hardenerBatch,
+      chemicalBatches,
       painter,
       booth,
       startupTime,
-      approvalTime,
+      approvalTime: isEligibleForApproval ? liveApprovalTime : 'Under Review / Hold',
       viscositySec: Number(viscositySec),
       visualChecks,
       sample1,
@@ -293,10 +342,10 @@ export const FPAModal: React.FC<FPAModalProps> = ({
   };
 
   const stepsList = [
-    { num: 1, title: 'Line & Paint Data', icon: Layers },
-    { num: 2, title: 'Visual 5-Samples', icon: ClipboardList },
-    { num: 3, title: 'Adhesion & Delta-E', icon: ShieldCheck },
-    { num: 4, title: 'Signatures & Release', icon: FileCheck }
+    { num: 1, part: 'Part 1', title: 'Job & Paint Data', subtitle: 'Line Parameters & MIN', icon: Layers },
+    { num: 2, part: 'Part 2', title: 'Visual 5-Samples', subtitle: 'Surface Checkpoints', icon: ClipboardList },
+    { num: 3, part: 'Part 3', title: 'Adhesion & Delta-E', subtitle: 'ASTM 5B & Colorimetry', icon: ShieldCheck },
+    { num: 4, part: 'Part 4', title: 'Release & Sign-Off', subtitle: 'Authorization & Samples', icon: FileCheck }
   ];
 
   return (
@@ -435,198 +484,240 @@ export const FPAModal: React.FC<FPAModalProps> = ({
           /* ========================================================================= */
           <form onSubmit={handleSubmit} className="space-y-4">
             
-            {/* Modal Header */}
-            <div className="space-y-1 pb-2 border-b border-[#ececec] pr-8">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold">
-                  DOC NO: PK-QA-FPA-001 • REV: 02
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#17191c] text-[10px] font-mono font-semibold">
-                  Job Card: {jobCardNo}
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold">
-                  Target: ΔE ≤ 0.70 & 100% Adhesion
-                </span>
+            {/* MODAL HEADER (IQC & PIR STANDARD) */}
+            <div className="text-center space-y-1.5 pb-2 pr-8 sm:pr-0 border-b border-[#f0f0f2]">
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-xs font-mono font-bold uppercase tracking-wider">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#c09748]" />
+                DOC NO: PK-QA-FPA-001 • REV: 02 • QUALITY GATE 2 RELEASE
               </div>
               <h2 className="text-xl sm:text-2xl font-serif text-[#17191c] font-normal tracking-tight">
-                First Part Approval (FPA) Inspection Wizard
+                First Part Approval (FPA) Inspection Report
               </h2>
+              <p className="text-xs text-[#777b86] max-w-xl mx-auto">
+                First piece spray audit: CIELAB spectrophotometer &Delta;E &le; {deltaToleranceLimit.toFixed(2)}, ASTM 5B cross-cut adhesion &amp; 5-sample surface verification before mass run.
+              </p>
             </div>
 
-            {/* CONNECTED PILL STEPPER */}
-            <div className="grid grid-cols-4 gap-1.5 sm:gap-2 p-1.5 bg-[#fafafb] rounded-full border border-[#ececec]">
-              {stepsList.map(s => {
-                const isActive = currentStep === s.num;
-                const isCompleted = currentStep > s.num;
-                const IconComponent = s.icon;
-                return (
-                  <button
-                    key={s.num}
-                    type="button"
-                    onClick={() => setCurrentStep(s.num as any)}
-                    className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-full text-[11px] font-semibold transition cursor-pointer ${
-                      isActive
-                        ? 'bg-[#c09748] text-white shadow-xs'
-                        : isCompleted
-                        ? 'bg-emerald-100 text-emerald-900'
-                        : 'text-[#777b86] hover:text-[#17191c] hover:bg-white'
-                    }`}
-                  >
-                    <IconComponent className="w-3.5 h-3.5 shrink-0" />
-                    <span className="hidden sm:inline">{s.title}</span>
-                    <span className="sm:hidden">Step {s.num}</span>
-                  </button>
-                );
-              })}
+            {/* 4-PART RESPONSIVE STEPPER CARDS (EXACT MATCH WITH PIR / IQC DESIGN) */}
+            <div className="py-1 sm:py-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 w-full">
+                {stepsList.map(s => {
+                  const isActive = currentStep === s.num;
+                  return (
+                    <button
+                      key={s.num}
+                      type="button"
+                      onClick={() => setCurrentStep(s.num as any)}
+                      className={`p-2.5 sm:p-3 rounded-[14px] text-left transition cursor-pointer border flex flex-col justify-between ${
+                        isActive
+                          ? 'bg-[#faf3e0]/60 border-[#c09748] shadow-2xs ring-1 ring-[#c09748]/30'
+                          : 'bg-[#fafafb] border-[#e2e4e9] hover:border-[#cbd0d8]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center ${
+                          isActive ? 'bg-[#c09748] text-white shadow-2xs' : 'bg-gray-200 text-[#777b86]'
+                        }`}>
+                          {s.num}
+                        </span>
+                        <span className="text-[11px] font-mono text-[#777b86]">{s.part}</span>
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-[#17191c] truncate">{s.title}</div>
+                        <div className="text-[11px] text-[#777b86] truncate">{s.subtitle}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* ========================================================================= */}
             {/* STEP 1: PRODUCTION LINE & PAINT IDENTIFICATION (AUTO-FILLED)              */}
             {/* ========================================================================= */}
             {currentStep === 1 && (
-              <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-3 animate-in fade-in duration-150">
-                <div className="flex items-center justify-between">
+              <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-3.5 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between pb-1 border-b border-[#ececec]">
                   <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
                     <Layers className="w-4 h-4 text-[#c09748]" />
-                    <span>Step 1: Production Line & Paint Mix Identification</span>
+                    <span>Part 1: Header, Line & Paint Parameters</span>
                   </span>
-                  <span className="text-[10px] font-mono text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full font-semibold">
-                    ✓ Pre-populated from Job Card
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-[#777b86]">
+                      Active Plant: <strong className="text-[#17191c] font-medium">{activePlant}</strong>
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full font-semibold">
+                      ✓ Auto-Loaded
+                    </span>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {/* Row 1: Locked Job Card, Customer & Work Order */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Part Description</label>
-                    <input
-                      type="text"
-                      value={partDescription}
-                      onChange={e => setPartDescription(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c] outline-none"
-                      required
-                    />
+                    <label className="block text-[10px] font-bold text-[#17191c] uppercase mb-1">
+                      Active Job Card (Locked):
+                    </label>
+                    <div className="w-full p-2.5 rounded-[12px] bg-white border border-[#c09748] text-xs font-bold text-[#17191c] flex items-center justify-between shadow-2xs">
+                      <span className="truncate">{jobCardNo || 'N/A'}</span>
+                      <span className="px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] text-[10px] font-mono shrink-0">
+                        Locked
+                      </span>
+                    </div>
                   </div>
+
                   <div>
-                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Part Code</label>
-                    <input
-                      type="text"
-                      value={partCode}
-                      onChange={e => setPartCode(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Family (Mould Group)</label>
-                    <input
-                      type="text"
-                      value={family}
-                      onChange={e => setFamily(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Customer / OEM</label>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-1">Customer / Party Name</label>
                     <input
                       type="text"
                       value={customer}
-                      onChange={e => setCustomer(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none"
-                      required
+                      readOnly
+                      className="w-full p-2.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-medium text-[#17191c] outline-none cursor-not-allowed"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Work Order No</label>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-1">Work Order No</label>
                     <input
                       type="text"
                       value={woNo}
-                      onChange={e => setWoNo(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
-                      required
+                      readOnly
+                      className="w-full p-2.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-medium text-[#17191c] outline-none cursor-not-allowed"
                     />
                   </div>
+                </div>
+
+                {/* Row 2: Part Code, Part Description & Color */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Paint Description</label>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-1">Part Code</label>
                     <input
                       type="text"
-                      value={paintDescription}
-                      onChange={e => setPaintDescription(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-0.5">
-                      <label className="block text-[10px] font-semibold text-[#777b86]">Paint Batch Number</label>
-                      <span className="text-[9px] font-mono font-bold text-[#8a6521] bg-[#faf7ed] border border-[#f4e5be] px-1.5 py-0.2 rounded">
-                        ✓ MIN Batch
-                      </span>
-                    </div>
-                    <input
-                      type="text"
-                      value={paintBatch}
-                      onChange={e => setPaintBatch(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
-                      placeholder="e.g. BATCH-PPG-RED-001"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-0.5">
-                      <label className="block text-[10px] font-semibold text-[#777b86]">Thinner Batch Number</label>
-                      <span className="text-[9px] font-mono font-bold text-[#8a6521] bg-[#faf7ed] border border-[#f4e5be] px-1.5 py-0.2 rounded">
-                        ✓ MIN Batch
-                      </span>
-                    </div>
-                    <input
-                      type="text"
-                      value={thinnerBatch}
-                      onChange={e => setThinnerBatch(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
-                      placeholder="e.g. BATCH-THN-PU-001"
-                      required
+                      value={partCode}
+                      readOnly
+                      className="w-full p-2.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none cursor-not-allowed"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Painter Name</label>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-1">Part Description</label>
                     <input
                       type="text"
-                      value={painter}
-                      onChange={e => setPainter(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none"
-                      required
+                      value={partDescription}
+                      readOnly
+                      className="w-full p-2.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-medium text-[#17191c] outline-none cursor-not-allowed"
                     />
                   </div>
+
                   <div>
-                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Painting Booth</label>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-1">Color / Finish</label>
                     <input
                       type="text"
-                      value={booth}
-                      onChange={e => setBooth(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none"
-                      required
+                      value={color}
+                      readOnly
+                      className="w-full p-2.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-medium text-[#17191c] outline-none cursor-not-allowed"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Startup Time</label>
+                </div>
+
+                {/* Row 3: Paint Description & Floor Viscosity */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-1">Paint / Coating Description</label>
                     <input
                       type="text"
-                      value={startupTime}
-                      onChange={e => setStartupTime(e.target.value)}
-                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none font-mono"
-                      required
+                      value={paintDescription}
+                      readOnly
+                      className="w-full p-2.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-medium text-[#17191c] outline-none cursor-not-allowed"
                     />
                   </div>
+
                   <div>
-                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Viscosity (Ford Cup 4 sec)</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[10px] font-semibold text-[#777b86]">Viscosity (Ford Cup 4 sec)</label>
+                      <span className="text-[9px] font-mono text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded font-semibold">
+                        Floor Check
+                      </span>
+                    </div>
                     <input
                       type="number"
                       value={viscositySec}
                       onChange={e => setViscositySec(Number(e.target.value))}
-                      className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
+                      className="w-full p-2.5 rounded-[12px] bg-white border-2 border-[#c09748] text-xs font-mono font-bold text-[#17191c] outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Dynamic Chemical Batches Grid: Show ONLY materials genuinely issued to this Job Card */}
+                {chemicalBatches.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-[10px] font-bold text-[#17191c] uppercase font-mono">
+                        Issued Materials & Batch Traceability ({chemicalBatches.length} item{chemicalBatches.length > 1 ? 's' : ''}):
+                      </label>
+                      <span className="text-[9px] font-mono font-bold text-[#8a6521] bg-[#faf7ed] border border-[#f4e5be] px-2 py-0.5 rounded-full">
+                        Job Card Issued
+                      </span>
+                    </div>
+                    <div className={`grid grid-cols-1 sm:grid-cols-${Math.min(chemicalBatches.length, 4)} gap-2.5`}>
+                      {chemicalBatches.map((cb, idx) => (
+                        <div key={idx} className="p-2.5 rounded-[14px] bg-white border border-[#ececec] space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-semibold text-[#777b86] truncate max-w-[140px]" title={cb.name}>
+                              {cb.name}
+                            </span>
+                            <span className="text-[9px] font-mono uppercase px-1.5 py-0.2 rounded bg-[#f4f4f6] text-[#777b86]">
+                              {cb.type}
+                            </span>
+                          </div>
+                          <div className="font-mono font-bold text-xs text-[#17191c] bg-[#fafafb] px-2 py-1 rounded-[8px] border border-[#ececec]">
+                            {cb.batchNo}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Row 4: Painter Name, Painting Booth, Startup Time (Approval Time is Auto-Stamped at Release) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[10px] font-semibold text-[#777b86]">Painter Name</label>
+                      <span className="text-[9px] font-mono text-[#8a6521] bg-[#faf7ed] px-1 rounded">Job Card</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={painter}
+                      readOnly
+                      className="w-full p-2.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-medium text-[#17191c] outline-none cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[10px] font-semibold text-[#777b86]">Painting Booth</label>
+                      <span className="text-[9px] font-mono text-[#8a6521] bg-[#faf7ed] px-1 rounded">Job Card</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={booth}
+                      readOnly
+                      className="w-full p-2.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-medium text-[#17191c] outline-none cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[10px] font-semibold text-[#777b86]">Startup / Spray Time</label>
+                      <span className="text-[9px] font-mono text-[#8a6521] bg-[#faf7ed] px-1 rounded">Line Issue</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={startupTime}
+                      onChange={e => setStartupTime(e.target.value)}
+                      className="w-full p-2.5 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] outline-none font-mono focus:border-[#c09748]"
                       required
                     />
                   </div>

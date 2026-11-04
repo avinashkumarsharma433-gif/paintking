@@ -2155,7 +2155,45 @@ export const INITIAL_BILLING_INVOICES: BillingInvoice[] = [
     totalOrderedQty: 1000,
     totalBilledQty: 950,
     status: 'Generated',
+    clientType: 'REGULAR_CREDIT',
+    paymentTerms: 'Net 30 Days (Corporate Credit Approved)',
+    paymentStatus: 'Unpaid',
     balanceBacklogNote: '50 pcs Black pending to be coated on next shift. 50 extra Red held in finished stock awaiting PO amendment.',
+    preparedBy: 'Neha Gupta (Billing)'
+  },
+  {
+    invoiceNo: 'PK-TAX-2026-9088',
+    invoiceDate: '2026-11-04',
+    woNo: 'WO-2026-9088',
+    customer: 'Apex Auto Spares (1st-Time Trial Client)',
+    plant: 'Mumbai',
+    clientType: 'NEW_CLIENT_ADVANCE',
+    paymentTerms: '100% Advance Payment Before Dispatch',
+    paymentStatus: 'Unpaid',
+    lineItems: [
+      {
+        id: 'li_apex_1',
+        colorName: 'Metallic Champagne Gold & Hydro-Dip Woodgrain',
+        orderedQty: 200,
+        passedAndPackedQty: 200,
+        billableQty: 200,
+        excessQty: 0,
+        excessApprovedByClient: true,
+        unitRate: 45.00,
+        lineTotal: 9000.00,
+        status: 'Contract Fulfilled'
+      }
+    ],
+    subTotal: 9000.00,
+    gstPercent: 18,
+    gstAmount: 1620.00,
+    cgstAmount: 810.00,
+    sgstAmount: 810.00,
+    grandTotal: 10620.00,
+    totalOrderedQty: 200,
+    totalBilledQty: 200,
+    status: 'Generated',
+    balanceBacklogNote: '1st-Time trial order. Company policy: 100% payment verification required prior to gate dispatch clearance.',
     preparedBy: 'Neha Gupta (Billing)'
   }
 ];

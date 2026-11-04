@@ -855,6 +855,12 @@ export interface FPARecord {
   paintDescription?: string;   // e.g. "Monza Red 2K PU Basecoat"
   paintBatch: string;
   thinnerBatch?: string;       // e.g. "THN-2609-02"
+  hardenerBatch?: string;      // Hardener / Catalyst batch
+  chemicalBatches?: Array<{
+    name: string;
+    type: string;
+    batchNo: string;
+  }>;
   painter: string;
   booth: string;
   startupTime?: string;        // e.g. "08:30 AM"
@@ -973,6 +979,7 @@ export interface IQCInspectionRecord {
   shortageQty?: number;          // Discrepancy = invQuantity - actualReceived
   excessQty?: number;
   boxCondition?: 'Intact & Clean' | 'Damaged / Crushed' | 'Wet / Moisture' | 'Repacked' | 'Intact & Clean (Palletized Crates)';
+  materialCategory?: 'Party Material' | 'Internal Company';
   deltaEValue?: number | string;
   hasDiscrepancy?: boolean;
   discrepancyReportedToProductionManager?: boolean;
@@ -1205,6 +1212,11 @@ export interface BillingInvoice {
   vehicleNo?: string;
   driverName?: string;
   driverPhone?: string;
+  clientType?: 'REGULAR_CREDIT' | 'NEW_CLIENT_ADVANCE';
+  paymentStatus?: 'Unpaid' | 'Paid / Advance Verified';
+  paymentRef?: string;
+  paymentDate?: string;
+  paymentReceivedBy?: string;
 }
 
 // 10. Gate Pass & Security Registers (PK-ADM-GTP-001)
@@ -1288,6 +1300,13 @@ export interface MaterialOutwardRecord {
   securitySignature: string;
   remarks?: string;
   plant: PlantLocation;
+  invoiceRef?: string;
+  woNo?: string;
+  clientType?: 'REGULAR_CREDIT' | 'NEW_CLIENT_ADVANCE';
+  paymentStatus?: 'Unpaid' | 'Paid / Advance Verified';
+  paymentRef?: string;
+  driverPhone?: string;
+  boxCount?: number;
 }
 
 // 11. Defect & CAPA Record (PK-QA-REJ-001 & PK-QA-CAP-001)

@@ -27,7 +27,10 @@ import {
   Award,
   FilePlus,
   Check,
-  ArrowRight
+  ArrowRight,
+  Lock,
+  Unlock,
+  AlertTriangle
 } from 'lucide-react';
 
 // Number to Words Converter for INR Currency
@@ -58,6 +61,7 @@ export const BillingView: React.FC = () => {
     qualityReleases,
     generateNewInvoiceFromPDI,
     createCustomTaxInvoice,
+    recordInvoicePayment,
     universalJobs,
     activePlant,
     currentUser,
@@ -110,6 +114,10 @@ export const BillingView: React.FC = () => {
   const [customGstType, setCustomGstType] = useState<'INTRA_STATE' | 'INTER_STATE'>('INTRA_STATE');
   const [customPaymentTerms, setCustomPaymentTerms] = useState<string>('Net 30 Days');
   const [customSacCode, setCustomSacCode] = useState<string>('9988');
+  const [customClientType, setCustomClientType] = useState<'REGULAR_CREDIT' | 'NEW_CLIENT_ADVANCE'>('REGULAR_CREDIT');
+  const [customPaymentStatus, setCustomPaymentStatus] = useState<'Unpaid' | 'Paid / Advance Verified'>('Unpaid');
+  const [showQuickPaymentModal, setShowQuickPaymentModal] = useState<boolean>(false);
+  const [quickPaymentRef, setQuickPaymentRef] = useState<string>('');
   const [wizardLineItems, setWizardLineItems] = useState<WizardLineItem[]>([]);
 
   const openCreateModal = (woNo?: string) => {
@@ -249,7 +257,9 @@ export const BillingView: React.FC = () => {
       plant: activePlant,
       gstType: customGstType,
       sacHsnCode: customSacCode,
-      paymentTerms: customPaymentTerms,
+      paymentTerms: customClientType === 'NEW_CLIENT_ADVANCE' ? '100% Advance Payment Before Dispatch' : customPaymentTerms,
+      clientType: customClientType,
+      paymentStatus: customPaymentStatus,
       lineItems: lines,
       subTotal: wizardSubTotal,
       gstPercent: 18,
@@ -499,6 +509,41 @@ export const BillingView: React.FC = () => {
                   <span className="whitespace-nowrap">Date: <strong className="text-[#17191c]">{activeInv.invoiceDate}</strong></span>
                   <span className="text-[#a3a6af] shrink-0">•</span>
                   <span className="whitespace-nowrap">Plant: <strong className="text-[#17191c]">{activeInv.plant}</strong></span>
+                </div>
+
+                {/* Client Credit Profile & Dispatch Gating Status Badge */}
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  {activeInv.clientType === 'NEW_CLIENT_ADVANCE' || activeInv.customer.toLowerCase().includes('1st-time') || activeInv.customer.toLowerCase().includes('new client') ? (
+                    activeInv.paymentStatus === 'Paid / Advance Verified' ? (
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-bold flex items-center gap-1 font-mono">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                        Advance Paid (Ref: {activeInv.paymentRef || 'Verified'}) • Cleared for Gate Exit
+                      </span>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200 text-[11px] font-bold flex items-center gap-1 font-mono">
+                          <Lock className="w-3.5 h-3.5 text-rose-700" />
+                          New Client: 100% Payment Mandatory Before Gate Outward Exit
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQuickPaymentRef(`UTR-${Date.now().toString().slice(-6)}`);
+                            setShowQuickPaymentModal(true);
+                          }}
+                          className="px-3 py-1 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] text-[11px] font-semibold transition cursor-pointer flex items-center gap-1 shadow-xs"
+                        >
+                          <Unlock className="w-3 h-3" />
+                          <span>Record Payment</span>
+                        </button>
+                      </div>
+                    )
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold flex items-center gap-1 font-mono">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                      Regular OEM Client (Credit Terms: Net 30 Days) • Gate Dispatch Permitted
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1292,7 +1337,21 @@ export const BillingView: React.FC = () => {
             </div>
 
             {/* Step 3: Tax Mode & Commercial Terms */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec]">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-[#777b86] mb-1">
+                  Client Profile & Gating Rule
+                </label>
+                <select
+                  value={customClientType}
+                  onChange={e => setCustomClientType(e.target.value as 'REGULAR_CREDIT' | 'NEW_CLIENT_ADVANCE')}
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
+                >
+                  <option value="REGULAR_CREDIT">Regular OEM (Credit: Net 30 Days)</option>
+                  <option value="NEW_CLIENT_ADVANCE">New Client (100% Payment Mandatory)</option>
+                </select>
+              </div>
+
               <div>
                 <label className="block text-[10px] font-bold uppercase text-[#777b86] mb-1">
                   GST Classification
@@ -1316,9 +1375,9 @@ export const BillingView: React.FC = () => {
                   onChange={e => setCustomSacCode(e.target.value)}
                   className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
                 >
-                  <option value="9988">SAC 9988 • Industrial Surface Coating Services</option>
-                  <option value="3926">HSN 3926 • Custom Moulded Plastic Articles</option>
-                  <option value="8708">HSN 8708 • Finished Automotive Parts</option>
+                  <option value="9988">SAC 9988 • Surface Coating Job-Work</option>
+                  <option value="3926">HSN 3926 • Custom Moulded Plastic</option>
+                  <option value="8708">HSN 8708 • Finished Auto Components</option>
                 </select>
               </div>
 
@@ -1385,6 +1444,86 @@ export const BillingView: React.FC = () => {
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* QUICK PAYMENT VERIFICATION MODAL IN BILLING VIEW */}
+      {showQuickPaymentModal && activeInv && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-[24px] max-w-md w-full p-5 sm:p-6 shadow-2xl border border-[#ececec] space-y-4">
+            <div className="flex items-start justify-between border-b border-[#ececec] pb-3">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold uppercase tracking-wider">
+                  ACCOUNTS & COMMERCIAL DESK
+                </span>
+                <h3 className="text-base font-serif text-[#17191c] mt-1">
+                  Record 100% Payment & Unlock Dispatch
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuickPaymentModal(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-[#17191c] font-bold flex items-center justify-center cursor-pointer transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-[#777b86]">Client:</span>
+                <strong className="text-[#17191c]">{activeInv.customer}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#777b86]">Tax Invoice No:</span>
+                <strong className="font-mono text-[#8a6521]">{activeInv.invoiceNo}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#777b86]">Invoice Total:</span>
+                <strong className="text-sm font-serif text-emerald-800">
+                  ₹{activeInv.grandTotal.toLocaleString('en-IN')}
+                </strong>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-[#777b86] mb-1">
+                  Bank Reference / UTR Number *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={quickPaymentRef}
+                  onChange={e => setQuickPaymentRef(e.target.value)}
+                  placeholder="e.g. UTR #HDFC0029312984 / CHQ #881203"
+                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-[#ececec] flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowQuickPaymentModal(false)}
+                className="px-4 py-2 rounded-full border border-[#ececec] bg-white text-[#777b86] text-xs font-semibold hover:bg-gray-50 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const ref = quickPaymentRef.trim() || `UTR-${Date.now().toString().slice(-6)}`;
+                  recordInvoicePayment(activeInv.invoiceNo, ref);
+                  setShowQuickPaymentModal(false);
+                }}
+                className="px-5 py-2 rounded-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold shadow-xs transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Check className="w-3.5 h-3.5 text-white" />
+                <span>Confirm Payment & Unlock Gate</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

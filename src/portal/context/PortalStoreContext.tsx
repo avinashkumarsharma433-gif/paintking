@@ -333,6 +333,8 @@ interface PortalContextType {
   toggleClientConcession: (invoiceNo: string, lineItemId: string) => void;
   generateNewInvoiceFromPDI: (woNo: string) => void;
   createCustomTaxInvoice: (invoice: BillingInvoice) => void;
+  recordInvoicePayment: (invoiceNo: string, paymentRef: string) => void;
+  markInvoiceDispatched: (invoiceNo: string, gatePassNo: string) => void;
 
   // Gate Pass
   createGatePass: (gp: GatePassRecord) => void;
@@ -2825,6 +2827,43 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const recordInvoicePayment = (invoiceNo: string, paymentRef: string) => {
+    setBillingInvoices(prev => prev.map(inv => {
+      if (inv.invoiceNo === invoiceNo) {
+        return {
+          ...inv,
+          paymentStatus: 'Paid / Advance Verified',
+          paymentRef,
+          paymentDate: new Date().toISOString().split('T')[0],
+          paymentReceivedBy: currentUser.name
+        };
+      }
+      return inv;
+    }));
+  };
+
+  const markInvoiceDispatched = (invoiceNo: string, gatePassNo: string) => {
+    setBillingInvoices(prev => prev.map(inv => {
+      if (inv.invoiceNo === invoiceNo) {
+        return {
+          ...inv,
+          status: 'Dispatched',
+          balanceBacklogNote: `Dispatched under Outward Gate Pass ${gatePassNo}`
+        };
+      }
+      return inv;
+    }));
+
+    const invoice = billingInvoices.find(inv => inv.invoiceNo === invoiceNo);
+    if (invoice?.woNo) {
+      setUniversalJobs(prev => prev.map(job => 
+        job.jobNumber === invoice.woNo 
+          ? { ...job, currentStage: '7. Outward Dispatched' }
+          : job
+      ));
+    }
+  };
+
   const createGatePass = (gp: GatePassRecord) => {
     setGatePasses(prev => [gp, ...prev]);
   };
@@ -3202,6 +3241,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         toggleClientConcession,
         generateNewInvoiceFromPDI,
         createCustomTaxInvoice,
+        recordInvoicePayment,
+        markInvoiceDispatched,
         createGatePass,
         updateGatePassStatus,
         unresolvedHandoversCount,

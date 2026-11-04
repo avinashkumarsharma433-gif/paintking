@@ -69,6 +69,7 @@ export const QAView: React.FC = () => {
     materialInwardLogs,
     submitPreSprayIQC,
     submitFinalQA,
+    materialRequisitions,
     activePlant, 
     currentUser,
     activeSubTab: globalSubTab,
@@ -182,9 +183,21 @@ export const QAView: React.FC = () => {
     return jobCards.filter(j => {
       const isClosed = j.status === 'Completed' || j.status === 'Closed' || j.status === 'Target Met';
       if (isClosed) return false;
-      return !fpaRecords.some(f => f.jobCardNo === j.jobCardNo && f.overallResult === 'Approved');
+      const alreadyApproved = fpaRecords.some(f => f.jobCardNo === j.jobCardNo && f.overallResult === 'Approved');
+      if (alreadyApproved) return false;
+
+      // Filter out job cards where store has NOT issued any material yet (Strict Gate 2 Requirement)
+      const matchingReq = materialRequisitions.find(r => r.jobCardNo === j.jobCardNo);
+      const isMaterialIssued = Boolean(
+        (matchingReq && (matchingReq.issuedSlipNo || matchingReq.status === 'Dispatched by Store' || matchingReq.status === 'Partially Issued' || (matchingReq.issuedBatchLines && matchingReq.issuedBatchLines.length > 0))) ||
+        j.linkedMinNo ||
+        j.paintBatch ||
+        (j.issuedMaterials && j.issuedMaterials.some(m => m.batchNo || (m.batchLines && m.batchLines.length > 0)))
+      );
+
+      return isMaterialIssued;
     });
-  }, [jobCards, fpaRecords]);
+  }, [jobCards, fpaRecords, materialRequisitions]);
   const fpaPendingCount = pendingFpaJobs.length;
 
   const activeIpqcJobs = React.useMemo(() => {
@@ -518,6 +531,7 @@ export const QAView: React.FC = () => {
     preventiveAction: 'Standard storage and handling maintained',
     remarks: 'Material meets all quality specs. Approved for production issue.',
     status: 'Accepted' as 'Accepted' | 'Rejected' | 'Hold',
+    materialCategory: 'Party Material' as 'Party Material' | 'Internal Company',
     preparedBy: currentUser.name || 'Manoj Tiwari (IQC Inspector)',
     verifiedBy: 'Sanjay Rawat (Production Manager)',
     generatedAt: '',
@@ -609,6 +623,7 @@ export const QAView: React.FC = () => {
       preventiveAction: 'Standard storage and handling maintained',
       remarks: 'Material meets all quality specs. Approved for production issue.',
       status: 'Accepted',
+      materialCategory: (inward.materialCategory || 'Party Material') as 'Party Material' | 'Internal Company',
       preparedBy: currentUser.name || 'Manoj Tiwari (IQC Inspector)',
       verifiedBy: 'Sanjay Rawat (Production Manager)',
       generatedAt: '',
@@ -616,6 +631,74 @@ export const QAView: React.FC = () => {
     });
 
     setShowMasterIqcModal(true);
+  };
+
+  const openMasterIqcForNewReport = () => {
+    // If pending inwards exist, select the first pending inward as default, otherwise create standard entry
+    const defaultInward = pendingInwards[0] || materialInwardLogs[0];
+    if (defaultInward) {
+      openMasterIqcForInward(defaultInward);
+    } else {
+      const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      const randNum = Math.floor(10 + Math.random() * 90);
+      const repNo = `IQC-${dateStr}-${randNum}`;
+      setSelectedInwardForIqc(null);
+      setIqcModalStep(1);
+      setIqcFormError(null);
+      setMasterIqcForm({
+        reportNo: repNo,
+        inwardSrNo: 'DIRECT-INW',
+        vendorCustomer: 'ROOP POLYMERS LTD',
+        partComponent: 'RP-8841',
+        partDescription: 'ABS Car AC Vent Bezel Substrates',
+        invoiceChallanNo: 'CH-DIRECT-01',
+        invoiceChallanDate: new Date().toISOString().split('T')[0],
+        inspectionDate: new Date().toISOString().split('T')[0],
+        batchNo: `B-DIRECT-${dateStr.slice(-4)}`,
+        invQuantity: 1000,
+        uom: 'Pcs',
+        actualReceived: 1000,
+        shortageQty: 0,
+        boxCondition: 'Intact & Clean',
+        hasDiscrepancy: false,
+        discrepancyReportedToProductionManager: false,
+        productionManagerNote: '',
+        deltaEValue: 0.42,
+        verifiedItems: [{
+          id: '1',
+          materialName: 'ABS Car AC Vent Bezel Substrates',
+          challanQty: 1000,
+          actualQty: 1000,
+          unit: 'Pcs',
+          isReceived: true,
+          condition: 'Intact & Clean',
+          shortageQty: 0,
+          notes: '',
+          sampleSize: 200,
+          passQty: 200,
+          rejectQty: 0,
+          rejectionPercent: 0,
+          defectDetail: 'Nil - All parts pass visual & physical checks'
+        }],
+        aspects: defaultCoreAspects.map(a => ({ ...a })),
+        sampleSize: 200,
+        passQty: 200,
+        rejectQty: 0,
+        rejectionPercent: 0,
+        rejectionDetail: 'Nil - All parts pass visual and physical checks',
+        rootCause: 'N/A - Compliant material',
+        correctiveAction: 'N/A',
+        preventiveAction: 'Standard storage and handling maintained',
+        remarks: 'Material meets all quality specs. Approved for production issue.',
+        status: 'Accepted',
+        materialCategory: 'Party Material',
+        preparedBy: currentUser.name || 'Manoj Tiwari (IQC Inspector)',
+        verifiedBy: 'Sanjay Rawat (Production Manager)',
+        generatedAt: '',
+        generatedTimestamp: ''
+      });
+      setShowMasterIqcModal(true);
+    }
   };
 
   // Recalculates total actual received, shortage, and discrepancies across all security items
@@ -892,6 +975,7 @@ export const QAView: React.FC = () => {
       actualReceived: masterIqcForm.actualReceived,
       shortageQty: masterIqcForm.shortageQty,
       boxCondition: masterIqcForm.boxCondition,
+      materialCategory: masterIqcForm.materialCategory,
       hasDiscrepancy: masterIqcForm.hasDiscrepancy,
       discrepancyReportedToProductionManager: masterIqcForm.discrepancyReportedToProductionManager,
       productionManagerNote: masterIqcForm.productionManagerNote,
@@ -1324,12 +1408,10 @@ export const QAView: React.FC = () => {
               onClick={() => {
                 setActiveSubTab('FPA');
                 setGlobalSubTab('FPA');
-                const pendingJc = jobCards.find(j => {
-                  const isClosed = j.status === 'Completed' || j.status === 'Closed' || j.status === 'Target Met';
-                  return !isClosed && !fpaRecords.some(f => f.jobCardNo === j.jobCardNo && f.overallResult === 'Approved');
-                });
-                setSelectedJcForFpa(pendingJc || jobCards[0] || null);
-                setShowFpaModal(true);
+                setSelectedJcForFpa(pendingFpaJobs[0] || null);
+                if (pendingFpaJobs.length > 0) {
+                  setShowFpaModal(true);
+                }
               }}
               className="px-3.5 py-2 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-300 text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95"
               title="Click to switch to Gate 2 FPA list & perform Golden test"
@@ -1658,7 +1740,7 @@ export const QAView: React.FC = () => {
                       <span className="font-mono text-[11px] text-[#777b86] whitespace-nowrap">Challan: {inw.quantity} {inw.unit || 'Pcs'}</span>
                       <button
                         type="button"
-                        onClick={() => setShowIqcModal(true)}
+                        onClick={() => openMasterIqcForInward(inw)}
                         className="px-3.5 py-1.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-xs font-bold shadow-2xs cursor-pointer flex items-center gap-1 active:scale-95 whitespace-nowrap shrink-0"
                       >
                         <ShieldCheck className="w-3.5 h-3.5 text-[#c09748]" />
@@ -1708,7 +1790,7 @@ export const QAView: React.FC = () => {
                         <td className="py-2.5 px-3 text-right whitespace-nowrap">
                           <button
                             type="button"
-                            onClick={() => setShowIqcModal(true)}
+                            onClick={() => openMasterIqcForInward(inw)}
                             className="px-3 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95 whitespace-nowrap shrink-0"
                           >
                             <ShieldCheck className="w-3.5 h-3.5 text-[#c09748]" />
@@ -1744,7 +1826,7 @@ export const QAView: React.FC = () => {
             </div>
             <button
               type="button"
-              onClick={() => setShowIqcModal(true)}
+              onClick={openMasterIqcForNewReport}
               className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1.5 active:scale-95 self-start sm:self-auto whitespace-nowrap shrink-0"
             >
               <Plus className="w-3.5 h-3.5 text-[#c09748]" />
@@ -1785,11 +1867,13 @@ export const QAView: React.FC = () => {
                     </td>
                     <td className="py-2.5 px-3 text-center whitespace-nowrap">
                       <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap inline-flex items-center ${
-                        rec.status === 'Passed'
-                          ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                        rec.status === 'Accepted' || rec.status === 'Passed'
+                          ? 'bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521]'
+                          : rec.status === 'Part Accepted'
+                          ? 'bg-blue-50 border border-blue-200 text-blue-800'
                           : rec.status === 'Hold'
                           ? 'bg-amber-100 border border-amber-300 text-amber-900'
-                          : 'bg-red-50 border border-red-200 text-red-800'
+                          : 'bg-rose-50 border border-rose-200 text-rose-800'
                       }`}>
                         {rec.status}
                       </span>
@@ -2590,7 +2674,14 @@ export const QAView: React.FC = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowFpaModal(true)}
+                  onClick={() => {
+                    const pendingJc = jobCards.find(j => {
+                      const isClosed = j.status === 'Completed' || j.status === 'Closed' || j.status === 'Target Met';
+                      return !isClosed && !fpaRecords.some(f => f.jobCardNo === j.jobCardNo && f.overallResult === 'Approved');
+                    });
+                    setSelectedJcForFpa(pendingJc || jobCards[0] || null);
+                    setShowFpaModal(true);
+                  }}
                   className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1.5 active:scale-95 self-start sm:self-auto"
                 >
                   <Plus className="w-3.5 h-3.5 text-[#c09748]" />
@@ -3751,6 +3842,10 @@ export const QAView: React.FC = () => {
           setShowPirModal(false);
           setSelectedJcForPir(null);
         }}
+        onSuccess={() => {
+          setShowPirModal(false);
+          setSelectedJcForPir(null);
+        }}
         jobCard={selectedJcForPir}
       />
 
@@ -3763,6 +3858,10 @@ export const QAView: React.FC = () => {
             setSelectedJcForFpa(null);
           }}
           jobCard={selectedJcForFpa}
+          onSuccess={() => {
+            setShowFpaModal(false);
+            setSelectedJcForFpa(null);
+          }}
         />
       )}
 
@@ -4083,229 +4182,7 @@ export const QAView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 4: FPA GOLDEN GATE FORM (WITH SMART AUTO-FILL) */}
-      {showFpaModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-lg w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
-            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
-              <div>
-                <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">New First Part Approval (FPA) Test</h3>
-                <p className="text-[11px] sm:text-[11px] text-[#777b86]">Select Party / Work Order to auto-fill FPA details below</p>
-              </div>
-              <button 
-                onClick={() => setShowFpaModal(false)} 
-                className="font-bold text-[#979799] hover:text-[#17191c] text-base cursor-pointer transition p-1"
-              >
-                ✕
-              </button>
-            </div>
 
-            <form onSubmit={handleFpaSubmit} className="space-y-3">
-              {/* SMART PARTY / WORK ORDER DROPDOWN AUTO-FILL */}
-              <div className="p-3 bg-[#faf3e0]/50 rounded-[14px] border border-[#f4e5be] space-y-1.5">
-                <label className="block text-[#8a6521] font-bold text-xs flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
-                  Select Party Name / Job Card (Auto-Fill Details):
-                </label>
-                <select
-                  onChange={e => selectOrderForFpa(e.target.value)}
-                  className="w-full p-2.5 rounded-[12px] border border-[#f4e5be] bg-white font-medium text-xs text-[#17191c] cursor-pointer focus:outline-none"
-                >
-                  <option value="">-- Choose Party / Job Card to Auto-Populate --</option>
-                  {availableOrders.map(o => (
-                    <option key={o.jobCardNo} value={o.jobCardNo}>
-                      {o.customer} • {o.woNo} ({o.partCode} - {o.color})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Work Order</label>
-                  <input
-                    type="text"
-                    value={fpaForm.woNo}
-                    onChange={e => setFpaForm({ ...fpaForm, woNo: e.target.value })}
-                    className="w-full p-2.5 rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Job Card No.</label>
-                  <input
-                    type="text"
-                    value={fpaForm.jobCardNo}
-                    onChange={e => setFpaForm({ ...fpaForm, jobCardNo: e.target.value })}
-                    className="w-full p-2.5 rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Color / Finish</label>
-                  <input
-                    type="text"
-                    value={fpaForm.color}
-                    onChange={e => setFpaForm({ ...fpaForm, color: e.target.value })}
-                    className="w-full p-2.5 rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Ford Cup Viscosity (s)</label>
-                  <input
-                    type="number"
-                    value={fpaForm.viscositySec}
-                    onChange={e => setFpaForm({ ...fpaForm, viscositySec: Math.max(0, Number(e.target.value)) })}
-                    className="w-full p-2.5 rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none"
-                    min={0}
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Delta-E Spectrophotometer Calculator Card with Unified Inline Tolerance */}
-              <div className={`p-3.5 sm:p-4 rounded-[16px] sm:rounded-[20px] border space-y-2.5 ${
-                isDeltaEPass ? 'bg-[#faf3e0]/40 border-[#f4e5be]' : 'bg-red-50 border-red-300'
-              }`}>
-                <div className="flex justify-between items-center text-xs">
-                  <div className="font-semibold text-[#17191c] flex items-center gap-1.5">
-                    <Gauge className="w-4 h-4 text-[#c09748]" />
-                    <span>Spectrophotometer Colorimetry (L, a, b, ΔE)</span>
-                  </div>
-                  <span className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] ${
-                    isDeltaEPass ? 'bg-emerald-100 text-emerald-800' : 'bg-red-600 text-white'
-                  }`}>
-                    {isDeltaEPass ? `✓ PASS (≤ ${(fpaForm.deltaToleranceLimit || 0.70).toFixed(2)})` : `🚨 REJECT (> ${(fpaForm.deltaToleranceLimit || 0.70).toFixed(2)})`}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                  <div>
-                    <label className="block text-[11px] text-[#777b86] font-medium mb-0.5">L*</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={fpaForm.L}
-                      onChange={e => setFpaForm({ ...fpaForm, L: Number(e.target.value) })}
-                      className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[12px] border border-[#ececec] bg-white font-mono focus:border-[#c09748] text-xs focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-[#777b86] font-medium mb-0.5">a*</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={fpaForm.a}
-                      onChange={e => setFpaForm({ ...fpaForm, a: Number(e.target.value) })}
-                      className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[12px] border border-[#ececec] bg-white font-mono focus:border-[#c09748] text-xs focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-[#777b86] font-medium mb-0.5">b*</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={fpaForm.b}
-                      onChange={e => setFpaForm({ ...fpaForm, b: Number(e.target.value) })}
-                      className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[12px] border border-[#ececec] bg-white font-mono focus:border-[#c09748] text-xs focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-[#8a6521] font-bold mb-0.5">ΔE Limit (≤)</label>
-                    <input
-                      type="number"
-                      step="0.05"
-                      min={0.10}
-                      max={5.00}
-                      value={fpaForm.deltaToleranceLimit ?? 0.70}
-                      onChange={e => setFpaForm({ ...fpaForm, deltaToleranceLimit: Math.max(0.01, Number(e.target.value)) })}
-                      className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[12px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs text-center text-[#17191c] focus:outline-none"
-                      placeholder="0.70"
-                    />
-                  </div>
-                  <div className="col-span-2 sm:col-span-1">
-                    <label className="block text-[11px] text-[#777b86] font-bold mb-0.5">Observed ΔE</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      value={fpaForm.deltaE}
-                      onChange={e => setFpaForm({ ...fpaForm, deltaE: Math.max(0, Number(e.target.value)) })}
-                      className="w-full p-1.5 sm:p-2 rounded-[8px] sm:rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Adhesion Test Checkbox */}
-              <div className="p-3.5 sm:p-4 bg-[#fafafb] border border-[#ececec] rounded-[16px] sm:rounded-[20px] space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <div className="font-semibold text-[#17191c]">Adhesion & Physical Testing:</div>
-                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                    fpaForm.adhesionPercent === 100 
-                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
-                      : 'bg-red-50 text-red-700 border border-red-200'
-                  }`}>
-                    {fpaForm.adhesionPercent}%
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[#777b86] font-medium mb-1">Cross-Cut Grid (ASTM 5B)</label>
-                    <select
-                      value={fpaForm.crossCutTest}
-                      onChange={e => {
-                        const val = e.target.value as 'Pass' | 'Fail';
-                        const newAdhesion = (val === 'Pass' && fpaForm.tapeTest === 'Pass') ? 100 : 0;
-                        setFpaForm({ ...fpaForm, crossCutTest: val, adhesionPercent: newAdhesion });
-                      }}
-                      className="w-full p-2 rounded-[10px] border border-[#ececec] bg-white cursor-pointer text-xs focus:border-[#c09748] focus:outline-none"
-                    >
-                      <option value="Pass">Pass (100% Adhesion)</option>
-                      <option value="Fail">Fail (Flaking / Peeling)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[#777b86] font-medium mb-1">3M 600 Tape Pull Test</label>
-                    <select
-                      value={fpaForm.tapeTest}
-                      onChange={e => {
-                        const val = e.target.value as 'Pass' | 'Fail';
-                        const newAdhesion = (fpaForm.crossCutTest === 'Pass' && val === 'Pass') ? 100 : 0;
-                        setFpaForm({ ...fpaForm, tapeTest: val, adhesionPercent: newAdhesion });
-                      }}
-                      className="w-full p-2 rounded-[10px] border border-[#ececec] bg-white cursor-pointer text-xs focus:border-[#c09748] focus:outline-none"
-                    >
-                      <option value="Pass">Pass (Zero Paint Transfer)</option>
-                      <option value="Fail">Fail (Paint Lifted)</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowFpaModal(false)}
-                  className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer hover:bg-[#fafafb] transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 sm:px-6 py-2 sm:py-2.5 rounded-full bg-[#c09748] text-[#17191c] font-semibold shadow-xs hover:bg-[#a97e35] cursor-pointer transition active:scale-95"
-                >
-                  Submit FPA Sign-Off
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
       {/* MODAL 5: UNIVERSAL PRE-SPRAY SUBSTRATE IQC MODAL */}
       {showUniversalIqcModal && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
@@ -4507,101 +4384,115 @@ export const QAView: React.FC = () => {
 
       {/* MODAL 7: MASTER IQC INSPECTION & VERIFICATION MODAL (MULTI-STEP WIZARD) */}
       {showMasterIqcModal && (
-        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-5 overflow-y-auto">
-          <div className="bg-white rounded-[18px] sm:rounded-[20px] max-w-3xl w-full p-4 sm:p-7 md:p-8 shadow-2xl border border-[#ececec] flex flex-col justify-between max-h-[92vh] sm:max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150 relative">
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 md:p-6 overflow-y-auto">
+          <div className="bg-white sm:rounded-[24px] max-w-4xl w-full h-full sm:h-auto p-4 sm:p-7 md:p-8 shadow-2xl border-0 sm:border border-[#e2e4e9] flex flex-col justify-between max-h-screen sm:max-h-[92vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150 relative">
             
             {/* Top Close Button */}
             <button 
               onClick={() => setShowMasterIqcModal(false)}
-              className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition z-10"
+              className="absolute top-4 right-4 sm:top-5 sm:right-5 w-8 h-8 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] hover:text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition z-10 active:scale-95 shadow-2xs"
               title="Close Form"
             >
-              <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <X className="w-4 h-4" />
             </button>
 
             {/* Form Title & Guided Subtitle */}
-            <div className="text-center space-y-1 pb-3 sm:pb-4 pr-6 sm:pr-0">
-              <h2 className="text-lg sm:text-2xl font-bold text-[#17191c] tracking-tight">
+            <div className="text-center space-y-1.5 pb-3 sm:pb-4 pr-8 sm:pr-0 border-b border-[#f0f0f2]">
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-xs font-mono font-bold uppercase tracking-wider">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#c09748]" />
+                PK-QA-IQC-001 • INCOMING QUALITY CONTROL
+              </div>
+              <h2 className="text-xl sm:text-2xl font-serif font-normal text-[#17191c] tracking-tight">
                 Incoming Quality Control (IQC) Inspection
               </h2>
-              <p className="text-[11px] sm:text-xs text-[#777b86]">
+              <p className="text-xs text-[#777b86] max-w-xl mx-auto">
                 Verify incoming materials from <span className="font-semibold text-[#17191c]">{masterIqcForm.vendorCustomer}</span> against Challan #{masterIqcForm.invoiceChallanNo}
               </p>
             </div>
 
-            {/* Step Stepper Indicator (Plain & Simple Connected Pills matching Inward Form) */}
-            <div className="flex items-center gap-1.5 sm:gap-3 py-2 border-b border-[#f0f0f2] mb-3 sm:mb-5 overflow-x-auto no-scrollbar justify-start sm:justify-center w-full px-1">
-              {/* Step 1 Pill */}
-              <button
-                type="button"
-                onClick={() => setIqcModalStep(1)}
-                className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 sm:gap-2 border shrink-0 ${
-                  iqcModalStep === 1
-                    ? 'border-[#c09748] text-[#17191c] bg-[#fafafb] shadow-2xs'
-                    : 'border-[#dcdfe4] text-[#777b86] hover:border-gray-400'
-                }`}
-              >
-                <span className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full text-[11px] sm:text-[11px] font-bold flex items-center justify-center shrink-0 ${
-                  iqcModalStep === 1 ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]' : 'bg-gray-100 text-[#777b86]'
-                }`}>
-                  1
-                </span>
-                <span className="truncate">
-                  <span className="hidden sm:inline">Materials</span><span className="sm:hidden">Items</span> ({masterIqcForm.verifiedItems.length})
-                </span>
-              </button>
+            {/* Stepper Header (Clear Full-Width Step Cards with No Cutoff / Text Clipping) */}
+            <div className="py-3 sm:py-4">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full">
+                {/* Step 1 Tab Card */}
+                <button
+                  type="button"
+                  onClick={() => setIqcModalStep(1)}
+                  className={`p-2.5 sm:p-3 rounded-[14px] text-left transition cursor-pointer border flex flex-col justify-between ${
+                    iqcModalStep === 1
+                      ? 'bg-[#faf3e0]/60 border-[#c09748] shadow-2xs ring-1 ring-[#c09748]/30'
+                      : 'bg-[#fafafb] border-[#e2e4e9] hover:border-[#cbd0d8]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center ${
+                      iqcModalStep === 1 ? 'bg-[#c09748] text-white shadow-2xs' : 'bg-gray-200 text-[#777b86]'
+                    }`}>
+                      1
+                    </span>
+                    <span className="text-[11px] font-mono text-[#777b86]">Part 1</span>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-[#17191c] truncate">Material Intake</div>
+                    <div className="text-[11px] text-[#777b86] truncate">9 Fields & Physical Count</div>
+                  </div>
+                </button>
 
-              <div className="w-3 sm:w-8 h-px bg-[#dcdfe4] shrink-0" />
+                {/* Step 2 Tab Card */}
+                <button
+                  type="button"
+                  onClick={handleStep1Next}
+                  className={`p-2.5 sm:p-3 rounded-[14px] text-left transition cursor-pointer border flex flex-col justify-between ${
+                    iqcModalStep === 2
+                      ? 'bg-[#faf3e0]/60 border-[#c09748] shadow-2xs ring-1 ring-[#c09748]/30'
+                      : 'bg-[#fafafb] border-[#e2e4e9] hover:border-[#cbd0d8]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center ${
+                      iqcModalStep === 2 ? 'bg-[#c09748] text-white shadow-2xs' : 'bg-gray-200 text-[#777b86]'
+                    }`}>
+                      2
+                    </span>
+                    <span className="text-[11px] font-mono text-[#777b86]">Part 2</span>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-[#17191c] truncate">Quality Aspects</div>
+                    <div className="text-[11px] text-[#777b86] truncate">{masterIqcForm.aspects.length} Core Tests</div>
+                  </div>
+                </button>
 
-              {/* Step 2 Pill */}
-              <button
-                type="button"
-                onClick={handleStep1Next}
-                className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 sm:gap-2 border shrink-0 ${
-                  iqcModalStep === 2
-                    ? 'border-[#c09748] text-[#17191c] bg-[#fafafb] shadow-2xs'
-                    : 'border-[#dcdfe4] text-[#777b86] hover:border-gray-400'
-                }`}
-              >
-                <span className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full text-[11px] sm:text-[11px] font-bold flex items-center justify-center shrink-0 ${
-                  iqcModalStep === 2 ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]' : 'bg-gray-100 text-[#777b86]'
-                }`}>
-                  2
-                </span>
-                <span className="truncate">
-                  <span className="hidden sm:inline">Quality Aspects</span><span className="sm:hidden">Aspects</span> ({masterIqcForm.aspects.length})
-                </span>
-              </button>
-
-              <div className="w-3 sm:w-8 h-px bg-[#dcdfe4] shrink-0" />
-
-              {/* Step 3 Pill */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (iqcModalStep === 1) handleStep1Next();
-                  else setIqcModalStep(3);
-                }}
-                className={`px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 sm:gap-2 border shrink-0 ${
-                  iqcModalStep === 3
-                    ? 'border-[#c09748] text-[#17191c] bg-[#fafafb] shadow-2xs'
-                    : 'border-[#dcdfe4] text-[#777b86] hover:border-gray-400'
-                }`}
-              >
-                <span className={`w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full text-[11px] sm:text-[11px] font-bold flex items-center justify-center shrink-0 ${
-                  iqcModalStep === 3 ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]' : 'bg-gray-100 text-[#777b86]'
-                }`}>
-                  3
-                </span>
-                <span className="truncate">
-                  <span className="hidden sm:inline">20% Sampling & CAPA</span><span className="sm:hidden">Sampling</span>
-                </span>
-              </button>
+                {/* Step 3 Tab Card */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (iqcModalStep === 1) handleStep1Next();
+                    else setIqcModalStep(3);
+                  }}
+                  className={`p-2.5 sm:p-3 rounded-[14px] text-left transition cursor-pointer border flex flex-col justify-between ${
+                    iqcModalStep === 3
+                      ? 'bg-[#faf3e0]/60 border-[#c09748] shadow-2xs ring-1 ring-[#c09748]/30'
+                      : 'bg-[#fafafb] border-[#e2e4e9] hover:border-[#cbd0d8]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center ${
+                      iqcModalStep === 3 ? 'bg-[#c09748] text-white shadow-2xs' : 'bg-gray-200 text-[#777b86]'
+                    }`}>
+                      3
+                    </span>
+                    <span className="text-[11px] font-mono text-[#777b86]">Part 3</span>
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-[#17191c] truncate">20% Sampling</div>
+                    <div className="text-[11px] text-[#777b86] truncate">1% Rule & Sign-off</div>
+                  </div>
+                </button>
+              </div>
             </div>
 
             {/* Validation Error Banner */}
             {iqcFormError && (
-              <div className="p-2.5 sm:p-3 rounded-[10px] bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 mb-3 sm:mb-4">
+              <div className="p-3 rounded-[12px] bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2 mb-3">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{iqcFormError}</span>
               </div>
@@ -4621,34 +4512,59 @@ export const QAView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Clean Inward Reference Summary Card */}
+                  {/* Clean Inward Reference Summary Card (9 Identification Fields Auto-filled) */}
                   <div className="p-3.5 sm:p-4 rounded-[14px] bg-[#fafafb] border border-[#cbd0d8] shadow-xs sm:shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                     <div>
-                      <span className="text-[11px] text-[#777b86] uppercase font-semibold block mb-0.5">Supplier / Party</span>
+                      <span className="text-[11px] text-[#777b86] uppercase font-semibold block mb-0.5">1. Inward Ref / Sr.</span>
+                      <strong className="font-mono text-[#c09748] truncate block font-bold">{masterIqcForm.inwardSrNo || 'DIRECT-GATE'}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-[#777b86] uppercase font-semibold block mb-0.5">2. Supplier / Party</span>
                       <strong className="text-[#17191c] truncate block font-semibold">{masterIqcForm.vendorCustomer}</strong>
                     </div>
                     <div>
-                      <span className="text-[11px] text-[#777b86] uppercase font-semibold block mb-0.5">Challan No & Date</span>
+                      <span className="text-[11px] text-[#777b86] uppercase font-semibold block mb-0.5">3. Challan No & Date</span>
                       <span className="font-mono text-[#17191c] font-semibold">{masterIqcForm.invoiceChallanNo}</span>
                       <span className="text-[11px] text-[#777b86] block">({formatDateDDMMYYYY(masterIqcForm.invoiceChallanDate)})</span>
                     </div>
                     <div>
-                      <span className="text-[11px] text-[#777b86] uppercase font-semibold block mb-0.5">Vehicle Number</span>
+                      <span className="text-[11px] text-[#777b86] uppercase font-semibold block mb-0.5">4. Vehicle Number</span>
                       <span className="font-mono text-[#17191c] font-semibold">{selectedInwardForIqc?.vehicleNo || 'At Gate'}</span>
                     </div>
                     <div>
-                      <span className="text-[11px] text-[#777b86] uppercase font-semibold block mb-0.5">Total Inward Qty</span>
+                      <span className="text-[11px] text-[#777b86] uppercase font-semibold block mb-0.5">5. Total Inward Qty</span>
                       <span className="font-mono font-bold text-[#c09748] text-xs sm:text-sm">
                         {masterIqcForm.invQuantity.toLocaleString()} {masterIqcForm.uom}
                       </span>
                     </div>
+                    <div>
+                      <span className="text-[11px] text-[#777b86] uppercase font-semibold block mb-0.5">6. Plant Unit</span>
+                      <span className="font-semibold text-[#17191c]">{activePlant}</span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-[#777b86] uppercase font-semibold block mb-0.5">7. Primary Material</span>
+                      <span className="text-[#17191c] font-medium truncate block">{masterIqcForm.partDescription}</span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] text-[#777b86] uppercase font-semibold block mb-0.5">8. Material Ownership</span>
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                        masterIqcForm.materialCategory === 'Internal Company'
+                          ? 'bg-blue-50 text-blue-800 border-blue-200'
+                          : 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be]'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          masterIqcForm.materialCategory === 'Internal Company' ? 'bg-blue-600' : 'bg-[#c09748]'
+                        }`} />
+                        <span>{masterIqcForm.materialCategory === 'Internal Company' ? 'Company (Internal)' : 'Party Material (Client)'}</span>
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Editable Batch / Lot No, Report No & Inspection Date */}
+                  {/* Editable Batch / Lot No, Report No & Inspection Date (Field #9 & Parameters) */}
                   <div className="p-3.5 sm:p-4 rounded-[14px] bg-white border border-[#cbd0d8] shadow-xs sm:shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-[11px] text-[#777b86] font-semibold uppercase tracking-wider mb-1">
-                        Report Number
+                        Report Number (Auto-Gen)
                       </label>
                       <input
                         type="text"
@@ -4659,7 +4575,7 @@ export const QAView: React.FC = () => {
                     </div>
                     <div>
                       <label className="block text-[11px] text-[#777b86] font-semibold uppercase tracking-wider mb-1">
-                        Batch / Lot No. <span className="text-[#c09748]">*</span>
+                        9. Batch / Lot No. <span className="text-[#c09748]">*</span>
                       </label>
                       <input
                         type="text"
@@ -4671,7 +4587,7 @@ export const QAView: React.FC = () => {
                     </div>
                     <div>
                       <label className="block text-[11px] text-[#777b86] font-semibold uppercase tracking-wider mb-1">
-                        Inspection Date
+                        Inspection Date & Time
                       </label>
                       <PaintkingDatePicker
                         value={masterIqcForm.inspectionDate}
@@ -4681,15 +4597,18 @@ export const QAView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Section Title */}
-                  <div className="pt-0.5">
+                  {/* Section Title with Helper Badge */}
+                  <div className="flex items-center justify-between pt-1">
                     <h4 className="font-semibold text-[#17191c] text-xs uppercase tracking-wider flex items-center gap-1.5">
                       <Package className="w-3.5 h-3.5 text-[#c09748]" />
                       <span>Security Inward Line Items Verification ({masterIqcForm.verifiedItems.length} Materials)</span>
                     </h4>
+                    <span className="text-[11px] font-mono text-[#777b86]">
+                      Physical Intake vs Challan
+                    </span>
                   </div>
 
-                  {/* Line Items Checklist Cards */}
+                  {/* Line Items Checklist Cards - Compact Slim Luxury Industrial Layout */}
                   <div className="space-y-2.5">
                     {masterIqcForm.verifiedItems.map((item, idx) => {
                       const isFullMatch = item.shortageQty === 0 && item.actualQty === item.challanQty;
@@ -4698,94 +4617,102 @@ export const QAView: React.FC = () => {
                       return (
                         <div 
                           key={item.id || idx}
-                          className={`p-3.5 sm:p-4 rounded-[14px] border transition-all space-y-3 ${
+                          className={`rounded-[14px] border p-2.5 sm:p-3 transition-all space-y-2 ${
                             hasDiscrepancy
-                              ? 'bg-amber-50/20 border-amber-300 shadow-sm'
-                              : 'bg-white border-[#cbd0d8] shadow-xs sm:shadow-sm'
+                              ? 'bg-amber-50/20 border-amber-300 shadow-xs'
+                              : 'bg-white border-[#dcdfe4] hover:border-[#c09748]/50 shadow-2xs'
                           }`}
                         >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                            {/* Material Name & Index */}
-                            <div className="flex items-start gap-2.5 flex-1 min-w-0">
-                              <span className="w-5 h-5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                          {/* Row 1: Item Index, Material Name, Challan Badge & 2 Action Buttons */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="w-5 h-5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold text-[11px] flex items-center justify-center shrink-0">
                                 {idx + 1}
                               </span>
-                              <div className="min-w-0">
-                                <h5 className="font-bold text-xs text-[#17191c] truncate">{item.materialName}</h5>
-                                <div className="text-[11px] text-[#777b86] flex items-center gap-2 mt-0.5">
-                                  <span>Challan Qty: <strong className="font-mono text-[#17191c] font-semibold">{item.challanQty} {item.unit}</strong></span>
-                                </div>
+                              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                <h5 className="font-bold text-xs sm:text-[13px] text-[#17191c] truncate">
+                                  {item.materialName}
+                                </h5>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#fafafb] border border-[#dcdfe4] text-[11px] font-semibold text-[#777b86]">
+                                  Challan: <strong className="font-mono text-[#17191c]">{item.challanQty.toLocaleString()} {item.unit}</strong>
+                                </span>
                               </div>
                             </div>
 
-                            {/* 2 Verification Action Buttons */}
-                            <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 shrink-0 w-full sm:w-auto">
+                            {/* 2 Fast Verification Action Pills */}
+                            <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
                               <button
                                 type="button"
                                 onClick={() => handleItemMarkFullMatch(item.id)}
-                                className={`px-2.5 sm:px-3 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold cursor-pointer transition-all flex items-center justify-center gap-1 sm:gap-1.5 ${
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold cursor-pointer transition-all flex items-center justify-center gap-1 active:scale-95 ${
                                   isFullMatch
                                     ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold shadow-2xs'
                                     : 'bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] hover:text-[#17191c] border border-[#dcdfe4]'
                                 }`}
                               >
-                                <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${isFullMatch ? 'text-[#c09748]' : 'text-[#777b86]'}`} />
-                                <span className="truncate">✓ Match ({item.challanQty})</span>
+                                <CheckCircle2 className={`w-3 h-3 shrink-0 ${isFullMatch ? 'text-[#c09748]' : 'text-[#777b86]'}`} />
+                                <span>✓ Match ({item.challanQty})</span>
                               </button>
 
                               <button
                                 type="button"
                                 onClick={() => handleItemMarkMismatch(item.id)}
-                                className={`px-2.5 sm:px-3 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold cursor-pointer transition-all flex items-center justify-center gap-1 sm:gap-1.5 ${
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold cursor-pointer transition-all flex items-center justify-center gap-1 active:scale-95 ${
                                   hasDiscrepancy
-                                    ? 'bg-amber-50 text-amber-900 border border-amber-300 ring-1 ring-amber-200 font-bold shadow-2xs'
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold shadow-2xs'
                                     : 'bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] hover:text-[#17191c] border border-[#dcdfe4]'
                                 }`}
                               >
-                                <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${hasDiscrepancy ? 'text-amber-600' : 'text-[#777b86]'}`} />
-                                <span className="truncate">Flag Shortage</span>
+                                <AlertTriangle className={`w-3 h-3 shrink-0 ${hasDiscrepancy ? 'text-amber-700' : 'text-[#777b86]'}`} />
+                                <span>Flag Shortage</span>
                               </button>
                             </div>
                           </div>
 
-                          {/* Inputs: Physical Count & Shortage Badge */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 border-t border-[#ececec]">
-                            <div>
-                              <label className="block text-[11px] text-[#777b86] font-semibold uppercase tracking-wider mb-1">
-                                Physical Received Qty <span className="text-[#17191c]">*</span>
-                              </label>
-                              <div className="relative">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={item.actualQty}
-                                  onChange={e => handleItemActualQtyChange(item.id, Number(e.target.value))}
-                                  placeholder="Kitne mile? Type karein"
-                                  className={`w-full h-9 px-3 pr-12 rounded-[8px] border bg-white font-mono font-bold text-xs text-[#17191c] focus:outline-none transition-colors ${
-                                    hasDiscrepancy 
-                                      ? 'border-amber-400 focus:border-amber-600 ring-1 ring-amber-200' 
-                                      : 'border-[#dcdfe4] focus:border-[#17191c]'
-                                  }`}
-                                />
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-[#777b86] font-medium pointer-events-none">
-                                  {item.unit}
-                                </span>
-                              </div>
+                          {/* Row 2: Compact Inline Inputs (Single Strip) */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-[#f0f0f2]">
+                            {/* Input Field: Physical Received Count */}
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min={0}
+                                value={item.actualQty}
+                                onChange={e => handleItemActualQtyChange(item.id, Number(e.target.value))}
+                                placeholder="Physical Qty"
+                                className={`w-full h-8 px-3 pr-12 rounded-[8px] border bg-[#fafafb] focus:bg-white font-mono font-bold text-xs text-[#17191c] focus:outline-none transition ${
+                                  hasDiscrepancy 
+                                    ? 'border-amber-400 focus:border-amber-600 ring-1 ring-amber-100' 
+                                    : 'border-[#dcdfe4] focus:border-[#17191c]'
+                                }`}
+                              />
+                              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-medium text-[#777b86] pointer-events-none">
+                                {item.unit}
+                              </span>
                             </div>
 
-                            <div>
-                              <label className="block text-[11px] text-[#777b86] font-semibold uppercase tracking-wider mb-1">
-                                Shortage / Excess Status
-                              </label>
-                              <div className={`h-9 px-3 rounded-[8px] flex items-center justify-center font-mono font-bold text-xs border ${
-                                item.shortageQty > 0
-                                  ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                  : 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be]'
-                              }`}>
-                                {item.shortageQty > 0 
-                                  ? `-${item.shortageQty} ${item.unit} SHORT` 
-                                  : '✓ Match (Nil Shortage)'}
+                            {/* Status Indicator Bar */}
+                            <div className={`h-8 px-2.5 rounded-[8px] flex items-center justify-between font-mono text-[11px] font-bold border transition ${
+                              item.shortageQty > 0
+                                ? 'bg-rose-50 text-rose-700 border-rose-300'
+                                : item.actualQty > item.challanQty
+                                ? 'bg-blue-50 text-blue-700 border-blue-300'
+                                : 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be]'
+                            }`}>
+                              <div className="flex items-center gap-1.5 truncate">
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                  item.shortageQty > 0 ? 'bg-rose-600' : item.actualQty > item.challanQty ? 'bg-blue-600' : 'bg-[#c09748]'
+                                }`} />
+                                <span className="truncate">
+                                  {item.shortageQty > 0 
+                                    ? `Shortage of ${item.shortageQty} ${item.unit}`
+                                    : item.actualQty > item.challanQty
+                                    ? `Excess of +${item.actualQty - item.challanQty} ${item.unit}`
+                                    : 'Full Inward Match'}
+                                </span>
                               </div>
+                              <span className="text-[10px] font-semibold uppercase tracking-wider shrink-0 ml-1">
+                                {item.shortageQty > 0 ? 'Short' : item.actualQty > item.challanQty ? 'Excess' : '100% OK'}
+                              </span>
                             </div>
                           </div>
                         </div>
