@@ -17,9 +17,12 @@ import {
   Sliders,
   Lock,
   AlertTriangle,
-  AlertCircle
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight
 } from 'lucide-react';
 import { downloadStandardIPQCPdf, formatDateDDMMYYYY } from '../utils/pdfStandardHeader';
+import { PaintkingDatePicker } from './PaintkingDatePicker';
 
 interface IPQCModalProps {
   isOpen: boolean;
@@ -102,7 +105,12 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
   jobCard,
   onSuccess
 }) => {
-  const { addIPQCRecord, activePlant, currentUser, materialRequisitions } = usePortalStore();
+  const { addIPQCRecord, activePlant, currentUser, materialRequisitions, ipqcRecords, paintMixing, fpaRecords } = usePortalStore();
+
+  // Multi-step Wizard Navigation: Exactly 2 Parts
+  // Part 1: Inspection Observation Matrix (Kya kya check ho rha hai)
+  // Part 2: Personnel Sign-Off & Verification (Kisne check kiya - Shift A, Shift B, Verified By)
+  const [currentStep, setCurrentStep] = useState<1 | 2>(1);
 
   // Header & Job identification
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -113,7 +121,6 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
 
   const [partDescription, setPartDescription] = useState<string>('Car AC Vent Bezel Substrate (ABS)');
   const [partCode, setPartCode] = useState<string>('RP-8841');
-  const [family, setFamily] = useState<string>('Auto Vent Bezel Family (Mould-01)');
   const [customer, setCustomer] = useState<string>('ROOP POLYMERS LTD');
   const [woNo, setWoNo] = useState<string>('WO-1042');
   const [color, setColor] = useState<string>('Monza Red Gloss');
@@ -132,6 +139,31 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
 
   // Active Time Slot Tab (Auto-selected according to current live plant time)
   const [activeSlotKey, setActiveSlotKey] = useState<IPQCTimeSlotKey>(() => getDefaultActiveSlotKey());
+
+  // Existing IPQC records for this job card / work order
+  const existingJobReports = ipqcRecords.filter(r => {
+    const jcNo = jobCard?.jobCardNo;
+    const wNum = woNo || jobCard?.woNo || jobCard?.wNo;
+    return (jcNo && r.jobCardNo === jcNo) || (wNum && (r.woNo === wNum || r.workOrderNo === wNum));
+  });
+
+  // Helper: check if a specific time slot already has an official recorded report
+  const isSlotAlreadyLogged = (slotKey: IPQCTimeSlotKey): boolean => {
+    return existingJobReports.some(r => {
+      if (r.loggedSlotKey === slotKey) return true;
+      const slotData = r.timeSlots?.[slotKey];
+      return !!(slotData && (slotData.bubble || slotData.L));
+    });
+  };
+
+  // Helper: get the existing recorded report for this slot if any
+  const getExistingReportForSlot = (slotKey: IPQCTimeSlotKey): IPQCRecord | undefined => {
+    return existingJobReports.find(r => {
+      if (r.loggedSlotKey === slotKey) return true;
+      const slotData = r.timeSlots?.[slotKey];
+      return !!(slotData && (slotData.bubble || slotData.L));
+    });
+  };
 
   // 8 Time-Slot Observations
   const [timeSlots, setTimeSlots] = useState<Record<IPQCTimeSlotKey, IPQCSlotObservation>>({
@@ -251,7 +283,6 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
       setWoNo(jobCard.woNo || jobCard.wNo || 'WO-1042');
       setPartCode(jobCard.partCode || 'RP-8841');
       setPartDescription(jobCard.partDescription || `${jobCard.partCode || 'RP-8841'} Component`);
-      setFamily(jobCard.family || `${jobCard.partDescription || jobCard.partCode || 'Auto'} Family`);
       setCustomer(jobCard.customer || 'ROOP POLYMERS LTD');
       setColor(jobCard.color || 'Monza Red Gloss');
       setPaintDescription(jobCard.paintDescription || `${jobCard.color || '2K PU'} Basecoat`);
@@ -267,20 +298,22 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
       ) || jobCard.issuedMaterials?.[2];
 
       const matchingRequisition = materialRequisitions.find(r => r.jobCardNo === jobCard.jobCardNo);
+      const matchingPmx = paintMixing.find(p => p.woNo === jobCard.woNo || p.color === jobCard.color);
 
       const resolvedPaintBatch = 
         jobCard.paintBatch || 
         matchingRequisition?.issuedBatchLines?.find(b => !/thinner|solvent|reducer/i.test(b.supplierBatchNo || ''))?.supplierBatchNo ||
+        matchingPmx?.batchNo ||
         paintMat?.batchNo || 
         paintMat?.batchLines?.[0]?.supplierBatchNo || 
-        '';
+        'BAT-PPG-2609-R4';
 
       const resolvedThinnerBatch = 
         jobCard.thinnerBatch || 
         matchingRequisition?.issuedBatchLines?.find(b => /thinner|solvent|reducer/i.test(b.supplierBatchNo || ''))?.supplierBatchNo ||
         thinnerMat?.batchNo || 
         thinnerMat?.batchLines?.[0]?.supplierBatchNo || 
-        '';
+        'THN-2609-02';
 
       setPaintBatchNumber(resolvedPaintBatch);
       setThinnerBatchNumber(resolvedThinnerBatch);
@@ -325,6 +358,24 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
 
     const reportNo = `PK-IPQ-2026-${Math.floor(1000 + Math.random() * 9000)}`;
     const currentActiveSlot = timeSlots[activeSlotKey];
+    const now = new Date();
+    const exactAuditTime = now.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+    const generatedTimestamp = `${formatDateDDMMYYYY(date)}, ${exactAuditTime}`;
+
+    // Lookup matching approved FPA record for Master LAB benchmark
+    const activeFpa = fpaRecords.find(f => 
+      (jobCard?.jobCardNo && f.jobCardNo === jobCard.jobCardNo) ||
+      (woNo && (f.woNo === woNo || (f as any).workOrderNo === woNo))
+    );
+    const masterL = activeFpa?.masterLab?.masterL ?? activeFpa?.masterL ?? 42.00;
+    const masterA = activeFpa?.masterLab?.masterA ?? activeFpa?.masterA ?? 54.00;
+    const masterB = activeFpa?.masterLab?.masterB ?? activeFpa?.masterB ?? 28.00;
+    const masterPlaqueRef = activeFpa?.masterLab?.masterPlaqueRef || 'OEM Approved Plaque #01';
 
     const newRecord: IPQCRecord = {
       reportNo,
@@ -336,7 +387,6 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
       revDate,
       partDescription,
       partCode,
-      family,
       customer,
       workOrderNo: woNo,
       woNo,
@@ -355,14 +405,21 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
       supervisorShiftA,
       supervisorShiftB,
       timeSlots,
+      loggedSlotKey: activeSlotKey,
       commentOfQualityEngineer,
       remarks: commentOfQualityEngineer,
       inspectedByShiftA,
       inspectedByShiftB,
       verifiedBy,
+      // Master Colorimetry Benchmark
+      masterL,
+      masterA,
+      masterB,
+      masterPlaqueRef,
       // Backward compatibility summary values
       shift: 'Day 12H',
-      checkTime: TIME_SLOTS.find(s => s.key === activeSlotKey)?.label || '08:00 - 11:00',
+      checkTime: exactAuditTime,
+      exactAuditTime,
       bubble: (currentActiveSlot?.bubble === 'OK' || currentActiveSlot?.bubble === 'Pass') ? 'Pass' : 'Fail',
       dustSpot: (currentActiveSlot?.dustSpot === 'OK' || currentActiveSlot?.dustSpot === 'Pass') ? 'Pass' : 'Fail',
       overPaint: (currentActiveSlot?.overPaint === 'OK' || currentActiveSlot?.overPaint === 'Pass') ? 'Pass' : 'Fail',
@@ -374,7 +431,9 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
       overallFinishing: 'Pass',
       adhesionTest: 'Pass',
       result: 'Pass',
-      inspector: inspectedByShiftA
+      inspector: inspectedByShiftA,
+      generatedTimestamp,
+      createdAt: now.toISOString()
     };
 
     addIPQCRecord(newRecord);
@@ -456,206 +515,79 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
           /* ========================================================================= */
           <form onSubmit={handleSubmit} className="space-y-4">
             
-            {/* Modal Header */}
-            <div className="space-y-1 pb-3 border-b border-[#ececec] pr-8">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-[#c09748]" />
-                  <span>PK-QA-IPQ-001 • IN-PROCESS INSPECTION</span>
-                </span>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#17191c] text-[10px] font-mono font-semibold">
-                  Issue Date: 01.01.2021 • Rev: 00
-                </span>
-              </div>
-              <h2 className="text-xl sm:text-2xl font-serif text-[#17191c] font-normal tracking-tight">
-                In-Process Inspection Report (IPQC)
-              </h2>
-              <p className="text-xs text-[#777b86]">
-                Record hourly line audits across Shift A (08:00 - 20:00) and Shift B (20:00 - 08:00) for visual defects, colorimetry (LAB), and coating adhesion.
-              </p>
-            </div>
-
-            {/* PART 1: IDENTIFICATION & PAINT MIX DETAILS (SCREENSHOT TOP SECTION) */}
-            <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-[#c09748]" />
-                  <span>1. Job Identification & Paint Mixing Parameters</span>
-                </span>
-                <span className="text-[10px] font-mono text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">
-                  ✓ Pre-filled from Batch
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Date</label>
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={e => setDate(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c] outline-none"
-                    required
-                  />
+            {/* MODAL HEADER (CLEAN EDITORIAL AESTHETIC) */}
+            <div className="flex items-center justify-between pb-3.5 border-b border-[#ececec]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-center shrink-0 shadow-2xs">
+                  <Clock className="w-5 h-5 text-[#c09748]" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Part Description</label>
-                  <input
-                    type="text"
-                    value={partDescription}
-                    onChange={e => setPartDescription(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Part Code</label>
-                  <input
-                    type="text"
-                    value={partCode}
-                    onChange={e => setPartCode(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Component Family</label>
-                  <input
-                    type="text"
-                    value={family}
-                    onChange={e => setFamily(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Customer Name</label>
-                  <input
-                    type="text"
-                    value={customer}
-                    onChange={e => setCustomer(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Work Order No</label>
-                  <input
-                    type="text"
-                    value={woNo}
-                    onChange={e => setWoNo(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-0.5">
-                    <label className="block text-[10px] font-semibold text-[#777b86]">Paint Batch Number</label>
-                    <span className="text-[9px] font-mono font-bold text-[#8a6521] bg-[#faf7ed] border border-[#f4e5be] px-1.5 py-0.2 rounded">
-                      ✓ MIN Batch
-                    </span>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold uppercase tracking-wider mb-0.5">
+                    DOC: PK-QA-IPQ-001 • QUALITY GATE 3
                   </div>
-                  <input
-                    type="text"
-                    value={paintBatchNumber}
-                    onChange={e => setPaintBatchNumber(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
-                    placeholder="e.g. BATCH-PPG-RED-001"
-                    required
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-0.5">
-                    <label className="block text-[10px] font-semibold text-[#777b86]">Thinner Batch Number</label>
-                    <span className="text-[9px] font-mono font-bold text-[#8a6521] bg-[#faf7ed] border border-[#f4e5be] px-1.5 py-0.2 rounded">
-                      ✓ MIN Batch
-                    </span>
-                  </div>
-                  <input
-                    type="text"
-                    value={thinnerBatchNumber}
-                    onChange={e => setThinnerBatchNumber(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
-                    placeholder="e.g. BATCH-THN-PU-001"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Paint Viscosity (FC4 sec)</label>
-                  <input
-                    type="number"
-                    value={paintViscosity}
-                    onChange={e => setPaintViscosity(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Painting Booth</label>
-                  <input
-                    type="text"
-                    value={paintingBooth}
-                    onChange={e => setPaintingBooth(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Painter Name</label>
-                  <input
-                    type="text"
-                    value={painter}
-                    onChange={e => setPainter(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c] outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Color Tone / Shade</label>
-                  <input
-                    type="text"
-                    value={color}
-                    onChange={e => setColor(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-semibold text-[#17191c] outline-none"
-                    required
-                  />
+                  <h2 className="text-xl font-serif text-[#17191c] font-normal tracking-tight">
+                    In-Process Inspection Report
+                  </h2>
                 </div>
               </div>
 
-              {/* Shift Supervisors */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 border-t border-[#ececec]">
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Supervisor - (A Shift)</label>
-                  <input
-                    type="text"
-                    value={supervisorShiftA}
-                    onChange={e => setSupervisorShiftA(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-medium text-[#17191c]"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Supervisor - (B Shift)</label>
-                  <input
-                    type="text"
-                    value={supervisorShiftB}
-                    onChange={e => setSupervisorShiftB(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-medium text-[#17191c]"
-                    required
-                  />
+              {/* Clean Active Job Info Pill (Replaces old Rev No/Date box) */}
+              <div className="hidden sm:flex items-center gap-2 pr-10">
+                <div className="px-3 py-1.5 rounded-full bg-[#fafafb] border border-[#dcdfe4] text-[11px] font-mono text-[#17191c] flex items-center gap-2 shadow-2xs">
+                  <span className="text-[#777b86]">Job:</span>
+                  <span className="font-bold text-[#c09748]">{woNo || jobCard?.jobCardNo}</span>
+                  <span className="w-1 h-1 rounded-full bg-[#cbd0d8]"></span>
+                  <span className="text-[#777b86]">Part:</span>
+                  <span className="font-bold">{partCode}</span>
                 </div>
               </div>
             </div>
 
-            {/* PART 2: 8 TIME-SLOT MATRIX OBSERVATION (SCREENSHOT TABLE SECTION) */}
-            <div className="p-4 rounded-[20px] bg-white border border-[#ececec] space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            {/* 2-PART RESPONSIVE STEPPER CARDS (EXACT REQUIREMENT: CHECKS + SIGN-OFF) */}
+            <div className="py-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 w-full">
+                {[
+                  { num: 1, part: 'PART 1', title: 'Inspection Observations', subtitle: '10 Quality Parameters across Shift Slots' },
+                  { num: 2, part: 'PART 2', title: 'Inspector & Shift Sign-Off', subtitle: 'Comments & Department Verification' }
+                ].map(s => {
+                  const isActive = currentStep === s.num;
+                  return (
+                    <button
+                      key={s.num}
+                      type="button"
+                      onClick={() => setCurrentStep(s.num as any)}
+                      className={`p-3 rounded-[16px] text-left transition cursor-pointer border flex items-center justify-between gap-3 ${
+                        isActive
+                          ? 'bg-[#faf3e0]/70 border-[#c09748] shadow-2xs ring-1 ring-[#c09748]/30'
+                          : 'bg-[#fafafb] border-[#e2e4e9] hover:border-[#cbd0d8]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center shrink-0 ${
+                          isActive ? 'bg-[#c09748] text-white shadow-2xs' : 'bg-gray-200 text-[#777b86]'
+                        }`}>
+                          {s.num}
+                        </span>
+                        <div>
+                          <div className="text-[10px] font-mono text-[#777b86] uppercase font-bold">{s.part}</div>
+                          <div className="text-xs font-bold text-[#17191c]">{s.title}</div>
+                        </div>
+                      </div>
+                      <span className="text-[11px] text-[#777b86] hidden sm:inline text-right">{s.subtitle}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* PART 1: 10-PARAMETER MATRIX OBSERVATION ACROSS SHIFT SLOTS */}
+            {currentStep === 1 && (
+            <div className="p-4 rounded-[20px] bg-white border border-[#ececec] space-y-3.5 animate-in fade-in duration-150">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#f2f2f3]">
                 <div>
                   <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
                     <Sliders className="w-4 h-4 text-[#c09748]" />
-                    <span>2. 10-Parameter Inspection Matrix across 8 Shift Slots</span>
+                    <span>Part 1: 10-Parameter Inspection Matrix (Hourly Quality Audits)</span>
                   </span>
                   <div className="text-[10px] text-[#777b86] flex items-center gap-1.5 mt-0.5">
                     <Clock className="w-3 h-3 text-[#c09748]" />
@@ -683,9 +615,8 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
                 <div className="grid grid-cols-2 xs:grid-cols-4 sm:grid-cols-8 gap-2">
                   {TIME_SLOTS.map((slot) => {
                     const isSelected = activeSlotKey === slot.key;
-                    const slotData = timeSlots[slot.key];
-                    const hasValues = !!(slotData?.bubble || slotData?.L);
                     const slotInfo = getSlotTimeInfo(slot.key);
+                    const alreadyLogged = isSlotAlreadyLogged(slot.key);
 
                     // Future Slot (Locked)
                     if (slotInfo.isFuture) {
@@ -705,7 +636,31 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
                       );
                     }
 
-                    // Current Live Active Slot
+                    // Already Logged Slot (Official Report Created -> Locked from duplicate generation)
+                    if (alreadyLogged) {
+                      return (
+                        <button
+                          key={slot.key}
+                          type="button"
+                          onClick={() => setActiveSlotKey(slot.key)}
+                          title="Report already generated for this time slot. Click to view logged data."
+                          className={`p-2 rounded-[14px] text-center transition cursor-pointer border ${
+                            isSelected
+                              ? 'bg-emerald-100 text-emerald-950 border-2 border-emerald-600 shadow-xs ring-1 ring-emerald-500/30'
+                              : 'bg-emerald-50/80 border-emerald-300 text-emerald-900 hover:border-emerald-500'
+                          }`}
+                        >
+                          <div className="text-[9px] font-bold uppercase">{slot.shift}</div>
+                          <div className="text-[10px] font-mono font-bold mt-0.5">{slot.label}</div>
+                          <div className="inline-flex items-center gap-0.5 text-[8px] text-emerald-800 font-bold bg-emerald-200/70 px-1.5 py-0.5 rounded-full mt-0.5">
+                            <Check className="w-2.5 h-2.5 text-emerald-800" />
+                            <span>Logged</span>
+                          </div>
+                        </button>
+                      );
+                    }
+
+                    // Current Live Active Slot (Pending Report)
                     if (slotInfo.isCurrent) {
                       return (
                         <button
@@ -722,30 +677,7 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
                           <div className="text-[10px] font-mono font-bold mt-0.5">{slot.label}</div>
                           <div className="inline-flex items-center gap-1 text-[8px] font-bold text-[#8a6521] bg-[#f4e5be]/70 px-1.5 py-0.5 rounded-full mt-0.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-[#c09748] animate-pulse"></span>
-                            <span>{hasValues ? '✓ Live (Logged)' : '● Live Now'}</span>
-                          </div>
-                        </button>
-                      );
-                    }
-
-                    // Past Slot with Logged Data
-                    if (hasValues) {
-                      return (
-                        <button
-                          key={slot.key}
-                          type="button"
-                          onClick={() => setActiveSlotKey(slot.key)}
-                          className={`p-2 rounded-[14px] text-center transition cursor-pointer border ${
-                            isSelected
-                              ? 'bg-[#faf3e0] text-[#8a6521] border-2 border-[#c09748] shadow-xs'
-                              : 'bg-emerald-50/70 border-emerald-300 text-emerald-900 hover:border-emerald-400'
-                          }`}
-                        >
-                          <div className="text-[9px] font-bold uppercase">{slot.shift}</div>
-                          <div className="text-[10px] font-mono font-bold mt-0.5">{slot.label}</div>
-                          <div className="inline-flex items-center gap-0.5 text-[8px] text-emerald-700 font-bold bg-emerald-100/80 px-1.5 py-0.5 rounded-full mt-0.5">
-                            <Check className="w-2.5 h-2.5 text-emerald-700" />
-                            <span>Logged</span>
+                            <span>● Live Now</span>
                           </div>
                         </button>
                       );
@@ -777,254 +709,454 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
               </div>
 
               {/* Active Slot Form Grid (Parameters 1 to 10) */}
-              <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-3">
+              <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-3.5">
                 <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
                   <span className="font-bold text-xs text-[#17191c] font-mono flex items-center gap-2">
                     <span>Editing Slot:</span>
                     <strong className="text-[#c09748]">{TIME_SLOTS.find(s => s.key === activeSlotKey)?.label}</strong>
                     <span className="text-[#777b86]">({TIME_SLOTS.find(s => s.key === activeSlotKey)?.shift})</span>
-                    {getSlotTimeInfo(activeSlotKey).isCurrent && (
+                    {isSlotAlreadyLogged(activeSlotKey) ? (
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-[10px] font-bold border border-emerald-300 flex items-center gap-1">
+                        <Check className="w-3 h-3 text-emerald-700" />
+                        <span>Official Report Recorded (Locked)</span>
+                      </span>
+                    ) : getSlotTimeInfo(activeSlotKey).isCurrent ? (
                       <span className="px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] text-[10px] font-bold border border-[#f4e5be]">
                         ● Current Live Window
                       </span>
-                    )}
-                    {getSlotTimeInfo(activeSlotKey).isPast && !timeSlots[activeSlotKey]?.bubble && !timeSlots[activeSlotKey]?.L && (
+                    ) : getSlotTimeInfo(activeSlotKey).isPast ? (
                       <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold border border-rose-200">
                         ⚠️ Overdue Missing Slot
                       </span>
-                    )}
+                    ) : null}
                   </span>
                   <span className="text-[10px] text-[#777b86]">Standard 10 Parameters</span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {/* Parameter 1: Bubble */}
-                  <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] space-y-1">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-bold text-[#17191c]">1. Bubble</span>
-                      <span className="text-gray-400 font-mono">Visual</span>
+                {/* Banner if Slot is Already Logged */}
+                {isSlotAlreadyLogged(activeSlotKey) && (
+                  <div className="p-3 rounded-[14px] bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-emerald-900">
+                      <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                      <span>
+                        An official IPQC report (<strong>{getExistingReportForSlot(activeSlotKey)?.reportNo}</strong>) has already been generated for this slot. Duplicate generation is locked.
+                      </span>
                     </div>
-                    <select
-                      value={currentSlotData.bubble || 'OK'}
-                      onChange={e => handleUpdateSlotField(activeSlotKey, 'bubble', e.target.value)}
-                      className="w-full p-1.5 rounded-[8px] border border-[#ececec] text-xs font-bold text-emerald-800 bg-white"
+                    {getExistingReportForSlot(activeSlotKey) && (
+                      <button
+                        type="button"
+                        onClick={() => downloadStandardIPQCPdf(getExistingReportForSlot(activeSlotKey)!)}
+                        className="px-3 py-1.5 rounded-full bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shadow-2xs transition"
+                      >
+                        <Download className="w-3 h-3 text-emerald-700" />
+                        <span>Download Logged PDF</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Section A: Visual & Adhesion Checks (2 Columns with One-Click OK / NOT OK Toggle) */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-[#777b86] uppercase tracking-wider font-mono">
+                      Visual &amp; Physical Quality Checks
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleUpdateSlotField(activeSlotKey, 'bubble', 'Pass');
+                        handleUpdateSlotField(activeSlotKey, 'dustSpot', 'Pass');
+                        handleUpdateSlotField(activeSlotKey, 'overPaint', 'Pass');
+                        handleUpdateSlotField(activeSlotKey, 'paintMissing', 'Pass');
+                        handleUpdateSlotField(activeSlotKey, 'overallFinishing', 'Pass');
+                        handleUpdateSlotField(activeSlotKey, 'adhesionTest', 'Pass');
+                      }}
+                      className="px-2.5 py-0.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
                     >
-                      <option value="OK">OK (Nil)</option>
-                      <option value="Not Allowed">Not Allowed (Fail)</option>
-                    </select>
+                      <Check className="w-3 h-3 text-emerald-700" />
+                      <span>✓ Quick Mark: All 6 Checks OK</span>
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Parameter 1: Bubble */}
+                    <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] flex items-center justify-between gap-3 shadow-2xs">
+                      <div>
+                        <div className="font-bold text-xs text-[#17191c]">1. Bubble</div>
+                        <div className="text-[10px] text-gray-400 font-mono">Visual Inspection</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const isOk = !currentSlotData.bubble || currentSlotData.bubble === 'Pass' || currentSlotData.bubble === 'OK';
+                          handleUpdateSlotField(activeSlotKey, 'bubble', isOk ? 'Fail' : 'Pass');
+                        }}
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer active:scale-95 border ${
+                          (!currentSlotData.bubble || currentSlotData.bubble === 'Pass' || currentSlotData.bubble === 'OK')
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200/70'
+                            : 'bg-rose-100 text-rose-900 border-rose-300 hover:bg-rose-200/70'
+                        }`}
+                      >
+                        {(!currentSlotData.bubble || currentSlotData.bubble === 'Pass' || currentSlotData.bubble === 'OK') ? 'OK' : 'NOT OK'}
+                      </button>
+                    </div>
+
+                    {/* Parameter 2: Dust Spot */}
+                    <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] flex items-center justify-between gap-3 shadow-2xs">
+                      <div>
+                        <div className="font-bold text-xs text-[#17191c]">2. Dust Spot</div>
+                        <div className="text-[10px] text-gray-400 font-mono">Visual Inspection</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const isOk = !currentSlotData.dustSpot || currentSlotData.dustSpot === 'Pass' || currentSlotData.dustSpot === 'OK';
+                          handleUpdateSlotField(activeSlotKey, 'dustSpot', isOk ? 'Fail' : 'Pass');
+                        }}
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer active:scale-95 border ${
+                          (!currentSlotData.dustSpot || currentSlotData.dustSpot === 'Pass' || currentSlotData.dustSpot === 'OK')
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200/70'
+                            : 'bg-rose-100 text-rose-900 border-rose-300 hover:bg-rose-200/70'
+                        }`}
+                      >
+                        {(!currentSlotData.dustSpot || currentSlotData.dustSpot === 'Pass' || currentSlotData.dustSpot === 'OK') ? 'OK' : 'NOT OK'}
+                      </button>
+                    </div>
+
+                    {/* Parameter 3: Over Paint */}
+                    <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] flex items-center justify-between gap-3 shadow-2xs">
+                      <div>
+                        <div className="font-bold text-xs text-[#17191c]">3. Over Paint</div>
+                        <div className="text-[10px] text-gray-400 font-mono">Visual Inspection</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const isOk = !currentSlotData.overPaint || currentSlotData.overPaint === 'Pass' || currentSlotData.overPaint === 'OK';
+                          handleUpdateSlotField(activeSlotKey, 'overPaint', isOk ? 'Fail' : 'Pass');
+                        }}
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer active:scale-95 border ${
+                          (!currentSlotData.overPaint || currentSlotData.overPaint === 'Pass' || currentSlotData.overPaint === 'OK')
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200/70'
+                            : 'bg-rose-100 text-rose-900 border-rose-300 hover:bg-rose-200/70'
+                        }`}
+                      >
+                        {(!currentSlotData.overPaint || currentSlotData.overPaint === 'Pass' || currentSlotData.overPaint === 'OK') ? 'OK' : 'NOT OK'}
+                      </button>
+                    </div>
+
+                    {/* Parameter 4: Paint Missing */}
+                    <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] flex items-center justify-between gap-3 shadow-2xs">
+                      <div>
+                        <div className="font-bold text-xs text-[#17191c]">4. Paint Missing</div>
+                        <div className="text-[10px] text-gray-400 font-mono">Visual Inspection</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const isOk = !currentSlotData.paintMissing || currentSlotData.paintMissing === 'Pass' || currentSlotData.paintMissing === 'OK';
+                          handleUpdateSlotField(activeSlotKey, 'paintMissing', isOk ? 'Fail' : 'Pass');
+                        }}
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer active:scale-95 border ${
+                          (!currentSlotData.paintMissing || currentSlotData.paintMissing === 'Pass' || currentSlotData.paintMissing === 'OK')
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200/70'
+                            : 'bg-rose-100 text-rose-900 border-rose-300 hover:bg-rose-200/70'
+                        }`}
+                      >
+                        {(!currentSlotData.paintMissing || currentSlotData.paintMissing === 'Pass' || currentSlotData.paintMissing === 'OK') ? 'OK' : 'NOT OK'}
+                      </button>
+                    </div>
+
+                    {/* Parameter 5: Overall Finishing */}
+                    <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] flex items-center justify-between gap-3 shadow-2xs">
+                      <div>
+                        <div className="font-bold text-xs text-[#17191c]">5. Overall Finishing</div>
+                        <div className="text-[10px] text-gray-400 font-mono">Visual Inspection</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const isOk = !currentSlotData.overallFinishing || currentSlotData.overallFinishing === 'Pass' || currentSlotData.overallFinishing === 'Perfect' || currentSlotData.overallFinishing === 'OK';
+                          handleUpdateSlotField(activeSlotKey, 'overallFinishing', isOk ? 'Fail' : 'Pass');
+                        }}
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer active:scale-95 border ${
+                          (!currentSlotData.overallFinishing || currentSlotData.overallFinishing === 'Pass' || currentSlotData.overallFinishing === 'Perfect' || currentSlotData.overallFinishing === 'OK')
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200/70'
+                            : 'bg-rose-100 text-rose-900 border-rose-300 hover:bg-rose-200/70'
+                        }`}
+                      >
+                        {(!currentSlotData.overallFinishing || currentSlotData.overallFinishing === 'Pass' || currentSlotData.overallFinishing === 'Perfect' || currentSlotData.overallFinishing === 'OK') ? 'OK' : 'NOT OK'}
+                      </button>
+                    </div>
+
+                    {/* Parameter 6: Adhesion Test */}
+                    <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] flex items-center justify-between gap-3 shadow-2xs">
+                      <div>
+                        <div className="font-bold text-xs text-[#17191c]">6. Adhesion Test</div>
+                        <div className="text-[10px] text-gray-400 font-mono">Physical Tape Peel</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const isOk = !currentSlotData.adhesionTest || currentSlotData.adhesionTest === 'Pass' || currentSlotData.adhesionTest === 'Perfect' || currentSlotData.adhesionTest?.includes?.('Pass');
+                          handleUpdateSlotField(activeSlotKey, 'adhesionTest', isOk ? 'Fail' : 'Pass');
+                        }}
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition cursor-pointer active:scale-95 border ${
+                          (!currentSlotData.adhesionTest || currentSlotData.adhesionTest === 'Pass' || currentSlotData.adhesionTest === 'Perfect' || currentSlotData.adhesionTest?.includes?.('Pass'))
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200/70'
+                            : 'bg-rose-100 text-rose-900 border-rose-300 hover:bg-rose-200/70'
+                        }`}
+                      >
+                        {(!currentSlotData.adhesionTest || currentSlotData.adhesionTest === 'Pass' || currentSlotData.adhesionTest === 'Perfect' || currentSlotData.adhesionTest?.includes?.('Pass')) ? 'OK' : 'NOT OK'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section B: Spectrophotometer Color Feed (Strictly 4 Columns at Bottom - No numbers) */}
+                <div className="space-y-1.5 pt-2 border-t border-[#ececec]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-[#8a6521] uppercase tracking-wider font-mono flex items-center gap-1.5">
+                      <span>Spectrometer Color Delta Readings</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
+                      Tolerance: ΔE ≤ 0.70
+                    </span>
                   </div>
 
-                  {/* Parameter 2: Dust Spot */}
-                  <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] space-y-1">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-bold text-[#17191c]">2. Dust Spot</span>
-                      <span className="text-gray-400 font-mono">Visual</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {/* L (Lightness) */}
+                    <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] space-y-1 shadow-2xs">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-bold text-[#17191c]">L (Lightness)</span>
+                        <span className="text-gray-400 font-mono">Target: 42.0</span>
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={currentSlotData.L ?? 42.15}
+                        onChange={e => handleUpdateSlotField(activeSlotKey, 'L', e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-[8px] border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none focus:border-[#c09748]"
+                      />
                     </div>
-                    <select
-                      value={currentSlotData.dustSpot || 'OK'}
-                      onChange={e => handleUpdateSlotField(activeSlotKey, 'dustSpot', e.target.value)}
-                      className="w-full p-1.5 rounded-[8px] border border-[#ececec] text-xs font-bold text-emerald-800 bg-white"
-                    >
-                      <option value="OK">OK (Nil)</option>
-                      <option value="Not Allowed">Not Allowed (Fail)</option>
-                    </select>
-                  </div>
 
-                  {/* Parameter 3: Over Paint */}
-                  <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] space-y-1">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-bold text-[#17191c]">3. Over Paint</span>
-                      <span className="text-gray-400 font-mono">Visual</span>
+                    {/* A (Red/Green) */}
+                    <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] space-y-1 shadow-2xs">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-bold text-[#17191c]">A (Red/Green)</span>
+                        <span className="text-gray-400 font-mono">Target: 54.0</span>
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={currentSlotData.a ?? 54.30}
+                        onChange={e => handleUpdateSlotField(activeSlotKey, 'a', e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-[8px] border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none focus:border-[#c09748]"
+                      />
                     </div>
-                    <select
-                      value={currentSlotData.overPaint || 'OK'}
-                      onChange={e => handleUpdateSlotField(activeSlotKey, 'overPaint', e.target.value)}
-                      className="w-full p-1.5 rounded-[8px] border border-[#ececec] text-xs font-bold text-emerald-800 bg-white"
-                    >
-                      <option value="OK">OK (Nil)</option>
-                      <option value="Not Allowed">Not Allowed (Fail)</option>
-                    </select>
-                  </div>
 
-                  {/* Parameter 4: Paint Missing */}
-                  <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] space-y-1">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-bold text-[#17191c]">4. Paint Missing</span>
-                      <span className="text-gray-400 font-mono">Visual</span>
+                    {/* B (Yellow/Blue) */}
+                    <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] space-y-1 shadow-2xs">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-bold text-[#17191c]">B (Yellow/Blue)</span>
+                        <span className="text-gray-400 font-mono">Target: 28.0</span>
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={currentSlotData.b ?? 28.10}
+                        onChange={e => handleUpdateSlotField(activeSlotKey, 'b', e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-[8px] border border-[#ececec] text-xs font-mono font-bold text-[#17191c] outline-none focus:border-[#c09748]"
+                      />
                     </div>
-                    <select
-                      value={currentSlotData.paintMissing || 'OK'}
-                      onChange={e => handleUpdateSlotField(activeSlotKey, 'paintMissing', e.target.value)}
-                      className="w-full p-1.5 rounded-[8px] border border-[#ececec] text-xs font-bold text-emerald-800 bg-white"
-                    >
-                      <option value="OK">OK (Nil)</option>
-                      <option value="Not Allowed">Not Allowed (Fail)</option>
-                    </select>
-                  </div>
 
-                  {/* Parameter 5: L */}
-                  <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] space-y-1">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-bold text-[#17191c]">5. L (Lightness)</span>
-                      <span className="text-[#8a6521] font-mono">Spectrometer</span>
+                    {/* ΔE (Delta Value) */}
+                    <div className="p-2.5 rounded-[12px] bg-[#faf7ed] border border-[#f4e5be] space-y-1 shadow-2xs">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-bold text-[#8a6521]">ΔE (Delta Value)</span>
+                        <span className="text-[#8a6521] font-mono font-bold">≤ 0.70</span>
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={currentSlotData.deltaE ?? 0.38}
+                        onChange={e => handleUpdateSlotField(activeSlotKey, 'deltaE', e.target.value)}
+                        className={`w-full px-2.5 py-1.5 rounded-[8px] border bg-white text-xs font-mono font-bold outline-none ${
+                          Number(currentSlotData.deltaE || 0) > 0.70 
+                            ? 'border-rose-300 text-rose-700' 
+                            : 'border-[#f4e5be] text-emerald-800'
+                        }`}
+                      />
                     </div>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentSlotData.L ?? 42.15}
-                      onChange={e => handleUpdateSlotField(activeSlotKey, 'L', e.target.value)}
-                      className="w-full p-1.5 rounded-[8px] border border-[#ececec] text-xs font-mono font-bold text-[#17191c]"
-                    />
-                  </div>
-
-                  {/* Parameter 6: A */}
-                  <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] space-y-1">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-bold text-[#17191c]">6. A (Red/Green)</span>
-                      <span className="text-[#8a6521] font-mono">Spectrometer</span>
-                    </div>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentSlotData.a ?? 54.30}
-                      onChange={e => handleUpdateSlotField(activeSlotKey, 'a', e.target.value)}
-                      className="w-full p-1.5 rounded-[8px] border border-[#ececec] text-xs font-mono font-bold text-[#17191c]"
-                    />
-                  </div>
-
-                  {/* Parameter 7: B */}
-                  <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] space-y-1">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-bold text-[#17191c]">7. B (Yellow/Blue)</span>
-                      <span className="text-[#8a6521] font-mono">Spectrometer</span>
-                    </div>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentSlotData.b ?? 28.10}
-                      onChange={e => handleUpdateSlotField(activeSlotKey, 'b', e.target.value)}
-                      className="w-full p-1.5 rounded-[8px] border border-[#ececec] text-xs font-mono font-bold text-[#17191c]"
-                    />
-                  </div>
-
-                  {/* Parameter 8: Delta-E */}
-                  <div className="p-2.5 rounded-[12px] bg-[#faf7ed] border border-[#f4e5be] space-y-1">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-bold text-[#8a6521]">8. ΔE (Delta Value)</span>
-                      <span className="text-[#8a6521] font-mono">≤ 0.70</span>
-                    </div>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={currentSlotData.deltaE ?? 0.38}
-                      onChange={e => handleUpdateSlotField(activeSlotKey, 'deltaE', e.target.value)}
-                      className="w-full p-1.5 rounded-[8px] border border-[#f4e5be] bg-white text-xs font-mono font-bold text-[#17191c]"
-                    />
-                  </div>
-
-                  {/* Parameter 9: Overall Finishing */}
-                  <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] space-y-1">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-bold text-[#17191c]">9. Overall Finishing</span>
-                      <span className="text-gray-400 font-mono">Visual</span>
-                    </div>
-                    <select
-                      value={currentSlotData.overallFinishing || 'Perfect'}
-                      onChange={e => handleUpdateSlotField(activeSlotKey, 'overallFinishing', e.target.value)}
-                      className="w-full p-1.5 rounded-[8px] border border-[#ececec] text-xs font-bold text-emerald-800 bg-white"
-                    >
-                      <option value="Perfect">Perfect</option>
-                      <option value="OK">OK</option>
-                      <option value="Defective">Defective</option>
-                    </select>
-                  </div>
-
-                  {/* Parameter 10: Adhesion Test */}
-                  <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] space-y-1">
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-bold text-[#17191c]">10. Adhesion Test</span>
-                      <span className="text-gray-400 font-mono">Physical</span>
-                    </div>
-                    <select
-                      value={currentSlotData.adhesionTest || 'Perfect'}
-                      onChange={e => handleUpdateSlotField(activeSlotKey, 'adhesionTest', e.target.value)}
-                      className="w-full p-2.5 rounded-[8px] border border-[#ececec] text-xs font-bold text-emerald-800 bg-white"
-                    >
-                      <option value="Perfect">Perfect (100%)</option>
-                      <option value="Pass">Pass</option>
-                      <option value="Fail">Fail</option>
-                    </select>
                   </div>
                 </div>
               </div>
             </div>
+            )}
 
-            {/* PART 3: COMMENTS & MULTI-SHIFT SIGNATURES (SCREENSHOT BOTTOM SECTION) */}
-            <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-3">
-              <div>
-                <label className="block text-[10px] font-semibold text-[#777b86] mb-1">
+            {/* PART 2: PERSONNEL SIGN-OFF & VERIFICATION (KISNE CHECK KIYA) */}
+            {currentStep === 2 && (
+            <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-4 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between pb-1.5 border-b border-[#e2e4e8]">
+                <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-[#c09748]" />
+                  <span>Part 2: Shift Leads &amp; Quality Engineer Sign-Off</span>
+                </span>
+                <span className="text-[10px] font-mono text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">
+                  ✓ Linked to Job Card: {woNo || jobCard?.jobCardNo}
+                </span>
+              </div>
+
+              {/* Quality Comments */}
+              <div className="bg-white p-3.5 rounded-[16px] border border-[#ececec] space-y-1.5 shadow-2xs">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[#777b86]">
                   Comment of Quality Engineer :-
                 </label>
                 <input
                   type="text"
                   value={commentOfQualityEngineer}
                   onChange={e => setCommentOfQualityEngineer(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-[12px] bg-white border border-[#ececec] text-xs text-[#17191c] font-medium outline-none"
+                  className="w-full px-3.5 py-2 rounded-[12px] bg-[#fafafb] border border-[#ececec] text-xs text-[#17191c] font-medium outline-none focus:bg-white focus:border-[#17191c]"
+                  placeholder="e.g. Visual and Spectrometer checks pass all parameters. Surface finish clean, atomization and 100% tape adhesion verified."
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Inspected By : (Shift A)</label>
+              {/* Inspector Names & Floor Supervisors Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="bg-white p-3 rounded-[16px] border border-[#ececec] space-y-1.5 shadow-2xs">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#777b86]">
+                    Inspected By : (Shift A)
+                  </label>
                   <input
                     type="text"
                     value={inspectedByShiftA}
                     onChange={e => setInspectedByShiftA(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-medium text-[#17191c]"
+                    className="w-full px-3 py-1.5 rounded-[10px] bg-[#fafafb] border border-[#ececec] text-xs font-semibold text-[#17191c] outline-none focus:bg-white"
+                    placeholder="Shift A Inspector"
                     required
                   />
+                  <span className="text-[10px] text-[#777b86] block">Shift A QA Inspector</span>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Inspected By : (Shift B)</label>
+
+                <div className="bg-white p-3 rounded-[16px] border border-[#ececec] space-y-1.5 shadow-2xs">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#777b86]">
+                    Inspected By : (Shift B)
+                  </label>
                   <input
                     type="text"
                     value={inspectedByShiftB}
                     onChange={e => setInspectedByShiftB(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-medium text-[#17191c]"
+                    className="w-full px-3 py-1.5 rounded-[10px] bg-[#fafafb] border border-[#ececec] text-xs font-semibold text-[#17191c] outline-none focus:bg-white"
+                    placeholder="Shift B Inspector"
                     required
                   />
+                  <span className="text-[10px] text-[#777b86] block">Shift B QA Inspector</span>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Verified By :-</label>
+
+                <div className="bg-white p-3 rounded-[16px] border border-[#ececec] space-y-1.5 shadow-2xs sm:col-span-2 lg:col-span-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-[#777b86]">
+                    Verified By :-
+                  </label>
                   <input
                     type="text"
                     value={verifiedBy}
                     onChange={e => setVerifiedBy(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs font-medium text-[#17191c]"
+                    className="w-full px-3 py-1.5 rounded-[10px] bg-[#fafafb] border border-[#ececec] text-xs font-semibold text-[#17191c] outline-none focus:bg-white"
+                    placeholder="Quality / Plant Head"
                     required
                   />
+                  <span className="text-[10px] text-[#777b86] block">Quality / Plant Head Sign-off</span>
+                </div>
+              </div>
+
+              {/* Shift Floor Supervisors in Part 2 */}
+              <div className="bg-white p-3.5 rounded-[16px] border border-[#ececec] space-y-2 shadow-2xs">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#777b86] block">
+                  Production Floor Shift Leads
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Supervisor -(A Shift)</label>
+                    <input
+                      type="text"
+                      value={supervisorShiftA}
+                      onChange={e => setSupervisorShiftA(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[10px] bg-[#fafafb] border border-[#ececec] text-xs font-semibold text-[#17191c] outline-none focus:bg-white"
+                      placeholder="Shift A Supervisor"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-[#777b86] mb-0.5">Supervisor -(B Shift)</label>
+                    <input
+                      type="text"
+                      value={supervisorShiftB}
+                      onChange={e => setSupervisorShiftB(e.target.value)}
+                      className="w-full px-3 py-1.5 rounded-[10px] bg-[#fafafb] border border-[#ececec] text-xs font-semibold text-[#17191c] outline-none focus:bg-white"
+                      placeholder="Shift B Supervisor"
+                      required
+                    />
+                  </div>
                 </div>
               </div>
             </div>
+            )}
 
-            {/* Footer Actions */}
+            {/* Stepper Navigation Footer Actions */}
             <div className="flex items-center justify-between pt-2 border-t border-[#ececec]">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-5 py-2.5 rounded-full bg-[#f4f4f6] hover:bg-[#ececee] text-[#17191c] text-xs font-semibold transition cursor-pointer"
-              >
-                Cancel
-              </button>
+              <div>
+                {currentStep === 2 ? (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(1)}
+                    className="px-4 py-2 rounded-full bg-[#f4f4f6] hover:bg-[#ececee] text-[#17191c] text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Previous: Part 1 (Observations)</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-5 py-2.5 rounded-full bg-[#f4f4f6] hover:bg-[#ececee] text-[#17191c] text-xs font-semibold transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
 
-              <button
-                type="submit"
-                className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white font-bold text-xs shadow-xs transition flex items-center gap-2 cursor-pointer active:scale-95"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>✓ Save In-Process Inspection Report</span>
-              </button>
+              <div>
+                {currentStep === 1 ? (
+                  isSlotAlreadyLogged(activeSlotKey) ? (
+                    <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3.5 py-2 rounded-full flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>Slot Already Logged (Locked)</span>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setCurrentStep(2)}
+                      className="px-5 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                    >
+                      <span>Next: Part 2 (Inspector Sign-Off)</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  )
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={isSlotAlreadyLogged(activeSlotKey)}
+                    className={`px-6 py-2.5 rounded-full font-bold text-xs shadow-xs transition flex items-center gap-2 ${
+                      isSlotAlreadyLogged(activeSlotKey)
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60'
+                        : 'bg-[#c09748] hover:bg-[#a97e35] text-white cursor-pointer active:scale-95'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>✓ Save In-Process Inspection Report</span>
+                  </button>
+                )}
+              </div>
             </div>
           </form>
         )}

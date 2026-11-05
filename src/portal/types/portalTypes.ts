@@ -1090,10 +1090,12 @@ export interface IPQCRecord {
   
   // 8 Time-Slot Observations Grid
   timeSlots?: Partial<Record<IPQCTimeSlotKey, IPQCSlotObservation>>;
+  loggedSlotKey?: IPQCTimeSlotKey;  // The specific slot recorded in this report
   
   // Backward-compatible single-slot summary fields
   shift?: ShiftType | 'Day' | 'Night' | 'Day 12H';
   checkTime?: string;              // e.g. 09:00, 11:00, 14:00
+  exactAuditTime?: string;         // Exact creation / execution clock time, e.g. "02:28 PM"
   bubble?: 'Pass' | 'Fail';
   dustSpot?: 'Pass' | 'Fail';
   overPaint?: 'Pass' | 'Fail';
@@ -1106,6 +1108,12 @@ export interface IPQCRecord {
   adhesionTest?: 'Pass' | 'Fail';
   result?: 'Pass' | 'Fail' | 'Hold';
   
+  // Master Colorimetry Benchmark (Inherited from FPA / Job Card)
+  masterL?: number | string;
+  masterA?: number | string;
+  masterB?: number | string;
+  masterPlaqueRef?: string;
+  
   // Signatures & Comments
   commentOfQualityEngineer?: string;
   remarks?: string;
@@ -1113,6 +1121,8 @@ export interface IPQCRecord {
   inspectedByShiftB?: string;
   verifiedBy?: string;
   inspector?: string;
+  generatedTimestamp?: string;
+  createdAt?: string;
 }
 
 // 7. Packing & Box Traceability (PK-STR-PKG-001)
@@ -1134,25 +1144,106 @@ export interface PackingSlipRecord {
 }
 
 // 8. OQC & PDI Final Quality Release (PK-QA-OQC-001 & PK-QA-PDI-001)
+export interface OQCSampleObservationItem {
+  damage: 'Pass' | 'Fail';
+  scratch: 'Pass' | 'Fail';
+  sinkMark: 'Pass' | 'Fail';
+  shortFill: 'Pass' | 'Fail';
+  bubble: 'Pass' | 'Fail';
+  pinMark: 'Pass' | 'Fail';
+  dustSpot: 'Pass' | 'Fail';
+  overPaint: 'Pass' | 'Fail';
+  paintMissing: 'Pass' | 'Fail';
+  colour: 'Pass' | 'Fail';
+  overallFinishing: 'Pass' | 'Fail';
+}
+
 export interface FinalQualityRelease {
   releaseId: string;
+  reportNo?: string;          // e.g. "PK-OQC-2026-081"
   date: string;
   plant: PlantLocation;
   woNo: string;
   customer: string;
   partCode: string;
+  partDescription?: string;
+  model?: string;
   color: string;
   offeredQty: number;
   sampledQty: number;
   passedQty: number;
   rejectedQty: number;
-  // Technical Coating Specs (OQC)
+  
+  // Official Excel OQC Checklist (A to K)
+  samplesObservation?: OQCSampleObservationItem[];
+  sample1?: 'Pass' | 'Fail';
+  sample2?: 'Pass' | 'Fail';
+  sample3?: 'Pass' | 'Fail';
+  sample4?: 'Pass' | 'Fail';
+  sample5?: 'Pass' | 'Fail';
+  
+  // Delta Value Test (Spectrometer) - Master benchmarks & 5 Samples (S1 - S5)
+  masterL?: number | string;
+  masterA?: number | string;
+  masterB?: number | string;
+  L?: number;
+  a?: number;
+  b?: number;
+  deltaE: number;
+  sampleSpectro?: {
+    s1: { L: number | string; a: number | string; b: number | string; deltaE: number | string };
+    s2: { L: number | string; a: number | string; b: number | string; deltaE: number | string };
+    s3: { L: number | string; a: number | string; b: number | string; deltaE: number | string };
+    s4: { L: number | string; a: number | string; b: number | string; deltaE: number | string };
+    s5: { L: number | string; a: number | string; b: number | string; deltaE: number | string };
+  };
+  
+  // Acceptance & Signatures
+  lotAcceptance?: 'Accepted' | 'Rejected' | 'Hold';
+  productionInchargeSign?: string;
+  qualityEngineerSign?: string;
+  managerQASign?: string;
+  generatedTimestamp?: string;
+  createdAt?: string;
+
+  // Official Excel PDI Inspection Format (PK-QA-PDI-001)
+  pdiReportNo?: string;
+  paintBatchNumber?: string;
+  paintDescription?: string;
+  paintViscosity?: string | number;
+  lotSize?: number;
+  boxQty?: number;
+  invoiceNumber?: string;
+  // Asthetical Values (1 to 5)
+  boxBinCondition?: 'Pass' | 'Fail' | string;
+  polybagCondition?: 'Pass' | 'Fail' | string;
+  identificationSlip?: 'Pass' | 'Fail' | string;
+  shortExcess?: 'Pass' | 'Fail' | 'Perfect' | string;
+  paintingDefects?: 'Pass' | 'Fail' | string;
+  // Adhesion Test
+  crossCutTapeTest?: 'OK' | 'NOT OK' | 'Pass' | 'Fail';
+  // Delta Values Test (Spectrometer)
+  pdiMasterL?: number | string;
+  pdiMasterA?: number | string;
+  pdiMasterB?: number | string;
+  pdiL?: number | string;
+  pdiA?: number | string;
+  pdiB?: number | string;
+  pdiDeltaE?: number | string;
+  // PDI Sampling & Lot Acceptance
+  pdiCheckedSample?: number;
+  pdiRejectedNos?: number;
+  pdiDefectDetails?: string;
+  pdiLotAcceptance?: 'Accepted' | 'Rejected' | 'Hold';
+  pdiQualityEngineerSign?: string;
+  pdiManagerQASign?: string;
+
+  // Technical Coating Specs (OQC Legacy / Compatibility)
   dftMicrons?: number;
   glossGU?: number;
   physicalInspection: 'Pass' | 'Fail';
   conductivity: 'Pass' | 'Fail' | 'N/A';
   adhesion: 'Pass' | 'Fail';
-  deltaE: number;
   oqcStatus: 'Accepted' | 'Rejected' | 'Hold';
   oqcDate?: string;
   oqcInspector?: string;

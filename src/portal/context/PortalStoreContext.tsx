@@ -2994,7 +2994,10 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         };
 
         if (updated.pdiStatus === 'Cleared for Invoicing') {
+          // Re-link generated invoice directly into the quality release record
           generateNewInvoiceFromPDI(updated.woNo);
+          const currentYear = new Date().getFullYear();
+          updated.invoiceNumber = updated.invoiceNumber || `PK-TAX-${currentYear}-${Math.floor(1000 + Math.random() * 9000)}`;
         }
 
         return updated;

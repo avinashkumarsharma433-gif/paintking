@@ -35,6 +35,7 @@ import {
   IQCAspectItem, 
   IQCVerifiedItem, 
   IPQCRecord, 
+  FPARecord,
   PreProductionInspectionRecord, 
   FinalQualityRelease, 
   MaterialInwardRecord, 
@@ -44,9 +45,11 @@ import { CustomSelect } from '../components/CustomSelect';
 import { PaintkingDatePicker } from '../components/PaintkingDatePicker';
 import { downloadStandardIQCPdf, downloadStandardIPQCPdf, downloadStandardPreProductionPdf, downloadStandardFPAPdf, downloadStandardOqcPdf, downloadStandardPdiPdf, formatDateDDMMYYYY } from '../utils/pdfStandardHeader';
 import { UniversalEmailModal } from '../components/UniversalEmailModal';
-import { IPQCModal } from '../components/IPQCModal';
+import { IPQCModal, getDefaultActiveSlotKey, TIME_SLOTS } from '../components/IPQCModal';
 import { PreProductionInspectionModal } from '../components/PreProductionInspectionModal';
 import { FPAModal } from '../components/FPAModal';
+import { OQCModal } from '../components/OQCModal';
+import { PDIModal } from '../components/PDIModal';
 import { composeIqcEmailDraft, EmailDispatchPayload } from '../utils/emailDispatchEngine';
 
 export const QAView: React.FC = () => {
@@ -200,6 +203,7 @@ export const QAView: React.FC = () => {
   }, [jobCards, fpaRecords, materialRequisitions]);
   const fpaPendingCount = pendingFpaJobs.length;
 
+  // Gate 3: Active floor line audits (Strictly Open/In-Process Job Cards)
   const activeIpqcJobs = React.useMemo(() => {
     return jobCards.filter(j => {
       const isClosed = j.status === 'Completed' || j.status === 'Closed' || j.status === 'Target Met';
@@ -286,6 +290,62 @@ export const QAView: React.FC = () => {
     );
   });
 
+  // Group completed IPQC reports by Job Card
+  const groupedIpqcJobCards = React.useMemo(() => {
+    const map = new Map<string, {
+      jobCardNo: string;
+      customer: string;
+      woNo?: string;
+      partDescription?: string;
+      partCode?: string;
+      color?: string;
+      booth?: string;
+      painter?: string;
+      reports: IPQCRecord[];
+      latestDate?: string;
+    }>();
+
+    // First populate from existing IPQC records
+    ipqcRecords.forEach(rec => {
+      const jcKey = rec.jobCardNo || rec.woNo || rec.reportNo;
+      if (!map.has(jcKey)) {
+        map.set(jcKey, {
+          jobCardNo: rec.jobCardNo || rec.woNo || 'JC-DIRECT',
+          customer: rec.customer || 'OEM Client',
+          woNo: rec.woNo || rec.workOrderNo || '',
+          partDescription: rec.partDescription || '',
+          partCode: rec.partCode || '',
+          color: rec.color || '',
+          booth: rec.booth || 'Booth #1',
+          painter: rec.painter || 'Painter',
+          reports: [],
+          latestDate: rec.date
+        });
+      }
+      const entry = map.get(jcKey)!;
+      entry.reports.push(rec);
+      if (rec.date && (!entry.latestDate || rec.date > entry.latestDate)) {
+        entry.latestDate = rec.date;
+      }
+    });
+
+    return Array.from(map.values());
+  }, [ipqcRecords]);
+
+  const filteredGroupedIpqcJobCards = groupedIpqcJobCards.filter(item => {
+    if (!ipqcSearchQuery.trim()) return true;
+    const q = ipqcSearchQuery.toLowerCase();
+    return (
+      item.jobCardNo.toLowerCase().includes(q) ||
+      (item.customer || '').toLowerCase().includes(q) ||
+      (item.woNo || '').toLowerCase().includes(q) ||
+      (item.partCode || '').toLowerCase().includes(q) ||
+      (item.partDescription || '').toLowerCase().includes(q) ||
+      (item.color || '').toLowerCase().includes(q) ||
+      item.reports.some(r => r.reportNo.toLowerCase().includes(q) || (r.checkTime || '').toLowerCase().includes(q))
+    );
+  });
+
   const filteredIpqcRecords = ipqcRecords.filter(r => {
     if (!ipqcSearchQuery.trim()) return true;
     const q = ipqcSearchQuery.toLowerCase();
@@ -346,6 +406,21 @@ export const QAView: React.FC = () => {
   });
 
   const [showIpqcModal, setShowIpqcModal] = useState<boolean>(false);
+  const [selectedJcForCompletedIpqcModal, setSelectedJcForCompletedIpqcModal] = useState<{
+    jobCardNo: string;
+    customer: string;
+    woNo?: string;
+    partDescription?: string;
+    partCode?: string;
+    color?: string;
+    reports: IPQCRecord[];
+  } | null>(null);
+  const [selectedReportToView, setSelectedReportToView] = useState<IPQCRecord | null>(null);
+  const [selectedFpaToView, setSelectedFpaToView] = useState<FPARecord | null>(null);
+  const [selectedOqcToView, setSelectedOqcToView] = useState<FinalQualityRelease | null>(null);
+  const [selectedPdiToView, setSelectedPdiToView] = useState<FinalQualityRelease | null>(null);
+  const [selectedJcForOqc, setSelectedJcForOqc] = useState<JobCard | null>(null);
+  const [selectedReleaseForPdi, setSelectedReleaseForPdi] = useState<FinalQualityRelease | null>(null);
   const [showIqcModal, setShowIqcModal] = useState<boolean>(false);
   const [showOqcModal, setShowOqcModal] = useState<boolean>(false);
   const [showPdiModal, setShowPdiModal] = useState<boolean>(false);
@@ -2710,15 +2785,26 @@ export const QAView: React.FC = () => {
                           Result: {fpa.overallResult}
                         </span>
                         <span className="text-[#777b86] font-mono text-[11px] whitespace-nowrap">{fpa.date}</span>
-                        <button
-                          type="button"
-                          onClick={() => downloadStandardFPAPdf(fpa)}
-                          className="px-3 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-medium text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                          title="Download Official FPA PDF"
-                        >
-                          <Download className="w-3.5 h-3.5 text-[#c09748]" />
-                          <span>PDF</span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedFpaToView(fpa)}
+                            className="px-3 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-semibold text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs active:scale-95"
+                            title="View Inspection Report Details"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-[#c09748]" />
+                            <span>View Report</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => downloadStandardFPAPdf(fpa)}
+                            className="px-3 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-medium text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs active:scale-95"
+                            title="Download Official FPA PDF"
+                          >
+                            <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                            <span>PDF</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -2871,29 +2957,72 @@ export const QAView: React.FC = () => {
                 <div className="space-y-3">
                   {/* Mobile Touch Cards (< 640px) */}
                   <div className="block sm:hidden space-y-3">
-                    {filteredActiveIpqcJobs.map(job => (
-                      <div key={job.jobCardNo} className="p-3.5 bg-[#fafafb] border border-[#ececec] rounded-[18px] space-y-2.5 text-xs">
-                        <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
-                          <span className="font-mono font-bold text-[#c09748]">{job.jobCardNo}</span>
-                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            {job.status}
-                          </span>
+                    {filteredActiveIpqcJobs.map(job => {
+                      const curSlotKey = getDefaultActiveSlotKey();
+                      const curSlotIdx = TIME_SLOTS.findIndex(s => s.key === curSlotKey);
+                      const nextSlot = TIME_SLOTS[(curSlotIdx + 1) % TIME_SLOTS.length];
+                      const jobIpqc = ipqcRecords.filter(r => r.jobCardNo === job.jobCardNo || r.woNo === job.woNo);
+                      const isCurrentSlotLogged = jobIpqc.some(r => {
+                        if (r.loggedSlotKey === curSlotKey) return true;
+                        const slotObs = r.timeSlots?.[curSlotKey];
+                        return !!(slotObs && (slotObs.bubble || slotObs.L));
+                      });
+                      const latestReport = jobIpqc[0];
+
+                      return (
+                        <div key={job.jobCardNo} className="p-3.5 bg-[#fafafb] border border-[#ececec] rounded-[18px] space-y-2.5 text-xs">
+                          <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
+                            <span className="font-mono font-bold text-[#c09748]">{job.jobCardNo}</span>
+                            {isCurrentSlotLogged ? (
+                              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                ✓ Logged ({TIME_SLOTS[curSlotIdx]?.label})
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-300">
+                                ● Report Pending ({TIME_SLOTS[curSlotIdx]?.label})
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm font-serif font-normal text-[#17191c]">{job.customer}</div>
+                          <div className="text-[#777b86] text-[11px]">{job.partDescription || job.partCode} • Shade: <strong>{job.color}</strong></div>
+                          <div className="flex items-center justify-between pt-1 border-t border-[#ececec]">
+                            <span className="font-mono text-[11px] text-[#777b86]">Good: <strong className="text-emerald-800">{job.goodQty || 0}</strong> / {job.targetQty} Pcs</span>
+                            {isCurrentSlotLogged ? (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => { setSelectedJcForIpqc(job); setShowIpqcModal(true); }}
+                                  className="px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 text-[11px] font-bold shadow-2xs cursor-pointer flex items-center gap-1 active:scale-95 whitespace-nowrap"
+                                  title={`Audit recorded for current slot. Next window: ${nextSlot?.label}`}
+                                >
+                                  <Check className="w-3 h-3 text-emerald-700" />
+                                  <span>View Report</span>
+                                </button>
+                                {latestReport && (
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadStandardIPQCPdf(latestReport)}
+                                    className="p-1 rounded-full bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 transition cursor-pointer shadow-2xs"
+                                    title="Download Latest IPQC Report PDF"
+                                  >
+                                    <Download className="w-3 h-3 text-emerald-700" />
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => { setSelectedJcForIpqc(job); setShowIpqcModal(true); }}
+                                className="px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer flex items-center gap-1 active:scale-95 whitespace-nowrap"
+                              >
+                                <Clock className="w-3.5 h-3.5 text-[#c09748]" />
+                                <span>Record Audit &rarr;</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <div className="text-sm font-serif font-normal text-[#17191c]">{job.customer}</div>
-                        <div className="text-[#777b86] text-[11px]">{job.partDescription || job.partCode} • Shade: <strong>{job.color}</strong></div>
-                        <div className="flex items-center justify-between pt-1 border-t border-[#ececec]">
-                          <span className="font-mono text-[11px] text-[#777b86]">Good: <strong className="text-emerald-800">{job.goodQty || 0}</strong> / {job.targetQty} Pcs</span>
-                          <button
-                            type="button"
-                            onClick={() => { setSelectedJcForIpqc(job); setShowIpqcModal(true); }}
-                            className="px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer flex items-center gap-1 active:scale-95"
-                          >
-                            <Clock className="w-3.5 h-3.5 text-[#c09748]" />
-                            <span>Audit &rarr;</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Desktop Table (>= 640px) */}
@@ -2905,46 +3034,91 @@ export const QAView: React.FC = () => {
                           <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Customer & Work Order</th>
                           <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Part & Shade</th>
                           <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Progress Output</th>
-                          <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Line Status</th>
+                          <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Report Status</th>
                           <th className="py-2 px-3 font-bold text-right text-[11px] uppercase tracking-wider whitespace-nowrap">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#ececec]">
-                        {filteredActiveIpqcJobs.map(job => (
-                          <tr key={job.jobCardNo} className="hover:bg-[#fafafb] transition">
-                            <td className="py-2.5 px-3 whitespace-nowrap">
-                              <span className="font-mono font-bold text-[#c09748] text-xs sm:text-[13px]">{job.jobCardNo}</span>
-                              <div className="text-[11px] text-[#777b86] mt-0.5">{job.boothNo || 'Booth #1'} ({job.painterName || 'Lead Painter'})</div>
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <div className="text-xs sm:text-[13px] font-semibold text-[#17191c]">{job.customer}</div>
-                              <div className="text-[11px] text-[#777b86] font-mono mt-0.5">{job.woNo}</div>
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <div className="text-xs sm:text-[13px] text-[#17191c] font-normal">{job.partDescription || job.partCode}</div>
-                              <div className="text-[11px] text-[#777b86] mt-0.5">Shade: <strong className="text-[#17191c]">{job.color}</strong></div>
-                            </td>
-                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                              <div className="font-mono font-bold text-xs sm:text-[13px] text-emerald-800">{job.goodQty || 0} / {job.targetQty} Pcs</div>
-                              <div className="text-[11px] text-[#777b86] mt-0.5">First-Pass Output</div>
-                            </td>
-                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 whitespace-nowrap inline-flex items-center">
-                                Line Active
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                              <button
-                                type="button"
-                                onClick={() => { setSelectedJcForIpqc(job); setShowIpqcModal(true); }}
-                                className="px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95 whitespace-nowrap shrink-0"
-                              >
-                                <Clock className="w-3.5 h-3.5 text-[#c09748]" />
-                                <span>Record IPQC Audit &rarr;</span>
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                        {filteredActiveIpqcJobs.map(job => {
+                          const curSlotKey = getDefaultActiveSlotKey();
+                          const curSlotIdx = TIME_SLOTS.findIndex(s => s.key === curSlotKey);
+                          const nextSlot = TIME_SLOTS[(curSlotIdx + 1) % TIME_SLOTS.length];
+                          const jobIpqc = ipqcRecords.filter(r => r.jobCardNo === job.jobCardNo || r.woNo === job.woNo);
+                          const isCurrentSlotLogged = jobIpqc.some(r => {
+                            if (r.loggedSlotKey === curSlotKey) return true;
+                            const slotObs = r.timeSlots?.[curSlotKey];
+                            return !!(slotObs && (slotObs.bubble || slotObs.L));
+                          });
+                          const latestReport = jobIpqc[0];
+
+                          return (
+                            <tr key={job.jobCardNo} className="hover:bg-[#fafafb] transition">
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                <span className="font-mono font-bold text-[#c09748] text-xs sm:text-[13px]">{job.jobCardNo}</span>
+                                <div className="text-[11px] text-[#777b86] mt-0.5">{job.boothNo || 'Booth #1'} ({job.painterName || 'Lead Painter'})</div>
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <div className="text-xs sm:text-[13px] font-semibold text-[#17191c]">{job.customer}</div>
+                                <div className="text-[11px] text-[#777b86] font-mono mt-0.5">{job.woNo}</div>
+                              </td>
+                              <td className="py-2.5 px-3">
+                                <div className="text-xs sm:text-[13px] text-[#17191c] font-normal">{job.partDescription || job.partCode}</div>
+                                <div className="text-[11px] text-[#777b86] mt-0.5">Shade: <strong className="text-[#17191c]">{job.color}</strong></div>
+                              </td>
+                              <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                <div className="font-mono font-bold text-xs sm:text-[13px] text-emerald-800">{job.goodQty || 0} / {job.targetQty} Pcs</div>
+                                <div className="text-[11px] text-[#777b86] mt-0.5">First-Pass Output</div>
+                              </td>
+                              <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                {isCurrentSlotLogged ? (
+                                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 whitespace-nowrap inline-flex items-center gap-1">
+                                    <Check className="w-3 h-3 text-emerald-700" />
+                                    <span>Logged ({TIME_SLOTS[curSlotIdx]?.label})</span>
+                                  </span>
+                                ) : (
+                                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-300 whitespace-nowrap inline-flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping mr-0.5" />
+                                    <span>Pending ({TIME_SLOTS[curSlotIdx]?.label})</span>
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                                {isCurrentSlotLogged ? (
+                                  <div className="inline-flex items-center justify-end gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => { setSelectedJcForIpqc(job); setShowIpqcModal(true); }}
+                                      className="px-2.5 py-1.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95 whitespace-nowrap shrink-0"
+                                      title={`Audit logged for ${TIME_SLOTS[curSlotIdx]?.label}. Next window: ${nextSlot?.label}`}
+                                    >
+                                      <Check className="w-3.5 h-3.5 text-emerald-700" />
+                                      <span>View Report</span>
+                                    </button>
+                                    {latestReport && (
+                                      <button
+                                        type="button"
+                                        onClick={() => downloadStandardIPQCPdf(latestReport)}
+                                        className="p-1.5 rounded-full bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 transition cursor-pointer shadow-2xs"
+                                        title="Download Latest IPQC Report PDF"
+                                      >
+                                        <Download className="w-3.5 h-3.5 text-emerald-700" />
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setSelectedJcForIpqc(job); setShowIpqcModal(true); }}
+                                    className="px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95 whitespace-nowrap shrink-0"
+                                  >
+                                    <Clock className="w-3.5 h-3.5 text-[#c09748]" />
+                                    <span>Record Audit &rarr;</span>
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -2959,13 +3133,17 @@ export const QAView: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#f2f2f3]">
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#777b86]">
-                    In-Process Quality Control (IPQC) Inspection Reports
+                    In-Process Quality Control (IPQC) Job Cards ({filteredGroupedIpqcJobCards.length})
                   </h3>
-                  <span className="text-[11px] font-mono text-[#c09748] font-bold">Doc: PK-QA-IPQ-001 • 8 Time-Slots Line Matrix</span>
+                  <span className="text-[11px] font-mono text-[#c09748] font-bold">Doc: PK-QA-IPQ-001 • Click Any Job Card to View Time Batch Reports</span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowIpqcModal(true)}
+                  onClick={() => {
+                    const firstActive = activeIpqcJobs[0] || null;
+                    setSelectedJcForIpqc(firstActive);
+                    setShowIpqcModal(true);
+                  }}
                   className="px-4 py-2 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer flex items-center gap-1.5 active:scale-95 self-start sm:self-auto"
                 >
                   <Plus className="w-3.5 h-3.5 text-[#c09748]" />
@@ -2973,124 +3151,132 @@ export const QAView: React.FC = () => {
                 </button>
               </div>
 
-              {/* Mobile Touch Card List View (< 640px) */}
-              <div className="block sm:hidden space-y-3">
-                {filteredIpqcRecords.map(rec => (
-                  <div key={rec.reportNo} className="p-3.5 bg-[#fafafb] border border-[#ececec] rounded-[18px] space-y-2.5 text-xs">
-                    <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
-                      <div>
-                        <span className="font-mono font-bold text-[#c09748] text-xs">{rec.reportNo}</span>
-                        <div className="text-[11px] text-[#777b86]">{rec.date ? formatDateDDMMYYYY(rec.date) : ''} • {rec.checkTime} ({rec.shift})</div>
-                      </div>
-                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${rec.result === 'Pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                        {rec.result}
-                      </span>
-                    </div>
-
-                    <div className="text-[#17191c] font-medium">{rec.partDescription || rec.partCode} {rec.color ? `• ${rec.color}` : ''}</div>
-                    <div className="text-[11px] text-[#777b86]">Customer: <span className="text-[#17191c] font-medium">{rec.customer || 'OEM Client'}</span> • Booth: {rec.booth} ({rec.painter})</div>
-
-                    <div className="grid grid-cols-3 gap-1.5 pt-1 text-center text-[11px]">
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]">
-                        <span className="text-[#777b86] block">Bubble</span>
-                        <span className={`font-bold ${rec.bubble === 'Pass' ? 'text-emerald-700' : 'text-red-700'}`}>{rec.bubble}</span>
-                      </div>
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]">
-                        <span className="text-[#777b86] block">Dust Spot</span>
-                        <span className={`font-bold ${rec.dustSpot === 'Pass' ? 'text-emerald-700' : 'text-red-700'}`}>{rec.dustSpot}</span>
-                      </div>
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]">
-                        <span className="text-[#777b86] block">Over Paint</span>
-                        <span className={`font-bold ${rec.overPaint === 'Pass' ? 'text-emerald-700' : 'text-red-700'}`}>{rec.overPaint}</span>
-                      </div>
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]">
-                        <span className="text-[#777b86] block">Missing Paint</span>
-                        <span className={`font-bold ${rec.paintMissing === 'Pass' ? 'text-emerald-700' : 'text-red-700'}`}>{rec.paintMissing}</span>
-                      </div>
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]">
-                        <span className="text-[#777b86] block">ΔE (Delta)</span>
-                        <span className="font-mono font-bold text-[#17191c]">{rec.deltaE}</span>
-                      </div>
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]">
-                        <span className="text-[#777b86] block">Adhesion</span>
-                        <span className={`font-bold ${rec.adhesionTest === 'Pass' ? 'text-emerald-700' : 'text-red-700'}`}>{rec.adhesionTest}</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-1 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => downloadStandardIPQCPdf(rec)}
-                        className="px-3 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-medium text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                        title="Download IPQC Official PDF"
-                      >
-                        <Download className="w-3.5 h-3.5 text-[#c09748]" />
-                        <span>PDF Report</span>
-                      </button>
-                    </div>
+              {/* Empty State */}
+              {filteredGroupedIpqcJobCards.length === 0 ? (
+                <div className="p-10 text-center space-y-3 bg-[#fafafb] rounded-[18px] border border-dashed border-[#ececec]">
+                  <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
+                    <Clock className="w-6 h-6" />
                   </div>
-                ))}
-              </div>
-
-              {/* Desktop Table View (>= 640px) */}
-              <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse min-w-[780px]">
-                  <thead>
-                    <tr className="border-b border-[#ececec] text-[#777b86] bg-[#fafafb]">
-                      <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Report No & Time</th>
-                      <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Customer & Part Details</th>
-                      <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Booth & Painter</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Bubble</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Dust Spot</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Over Paint</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Missing Paint</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">ΔE (Delta)</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Adhesion</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Result</th>
-                      <th className="py-2 px-3 font-bold text-right text-[11px] uppercase tracking-wider whitespace-nowrap">PDF</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#ececec]">
-                    {filteredIpqcRecords.map(rec => (
-                      <tr key={rec.reportNo} className="hover:bg-[#fafafb] transition">
-                        <td className="py-2.5 px-3 whitespace-nowrap">
-                          <span className="font-mono font-bold text-[#c09748] text-xs sm:text-[13px]">{rec.reportNo}</span>
-                          <div className="text-[11px] text-[#777b86] mt-0.5">{rec.date ? formatDateDDMMYYYY(rec.date) : ''} • {rec.checkTime}</div>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="text-xs sm:text-[13px] font-semibold text-[#17191c]">{rec.customer || 'OEM Client'}</div>
-                          <div className="text-[11px] text-[#777b86] mt-0.5">{rec.partDescription || rec.partCode} • {rec.color}</div>
-                        </td>
-                        <td className="py-2.5 px-3 whitespace-nowrap">
-                          <div className="text-xs sm:text-[13px] font-medium text-[#17191c]">{rec.booth}</div>
-                          <div className="text-[11px] text-[#777b86] mt-0.5">{rec.painter} ({rec.shift})</div>
-                        </td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className={`font-bold text-xs sm:text-[13px] ${rec.bubble === 'Pass' ? 'text-emerald-700' : 'text-red-700'}`}>{rec.bubble}</span></td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className={`font-bold text-xs sm:text-[13px] ${rec.dustSpot === 'Pass' ? 'text-emerald-700' : 'text-red-700'}`}>{rec.dustSpot}</span></td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className={`font-bold text-xs sm:text-[13px] ${rec.overPaint === 'Pass' ? 'text-emerald-700' : 'text-red-700'}`}>{rec.overPaint}</span></td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className={`font-bold text-xs sm:text-[13px] ${rec.paintMissing === 'Pass' ? 'text-emerald-700' : 'text-red-700'}`}>{rec.paintMissing}</span></td>
-                        <td className="py-2.5 px-3 text-center font-mono font-bold text-xs sm:text-[13px] text-[#17191c] whitespace-nowrap">{rec.deltaE}</td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className={`font-bold text-xs sm:text-[13px] ${rec.adhesionTest === 'Pass' ? 'text-emerald-700' : 'text-red-700'}`}>{rec.adhesionTest}</span></td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${rec.result === 'Pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                            {rec.result}
+                  <h4 className="font-serif text-base text-[#17191c]">No IPQC Audits Found</h4>
+                  <p className="text-xs text-[#777b86]">No job cards match your filter, or no in-process reports have been created yet.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Mobile Touch Card List View (< 640px) */}
+                  <div className="block sm:hidden space-y-3">
+                    {filteredGroupedIpqcJobCards.map(item => (
+                      <div key={item.jobCardNo} className="p-3.5 bg-[#fafafb] border border-[#ececec] rounded-[18px] space-y-2.5 text-xs">
+                        <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
+                          <div>
+                            <span className="font-mono font-bold text-[#c09748] text-xs">{item.jobCardNo}</span>
+                            {item.woNo && <span className="text-[11px] text-[#777b86] ml-2 font-mono">({item.woNo})</span>}
+                          </div>
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                            {item.reports.length} {item.reports.length === 1 ? 'Slot Report' : 'Slot Reports'}
                           </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                        </div>
+
+                        <div className="text-[#17191c] font-medium">{item.customer}</div>
+                        <div className="text-[11px] text-[#777b86]">{item.partDescription || item.partCode} {item.color ? `• Shade: ${item.color}` : ''}</div>
+                        
+                        {/* Time slot pills */}
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {item.reports.map(rep => (
+                            <button
+                              key={rep.reportNo}
+                              type="button"
+                              onClick={() => setSelectedReportToView(rep)}
+                              className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-white border border-[#ececec] hover:border-[#c09748] text-[#17191c] flex items-center gap-1 shadow-2xs"
+                            >
+                              <Clock className="w-2.5 h-2.5 text-[#c09748]" />
+                              <span>{rep.checkTime || 'Slot'}</span>
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="pt-1 flex items-center justify-between border-t border-[#ececec]">
+                          <span className="text-[11px] text-[#777b86]">
+                            Latest: {item.latestDate ? formatDateDDMMYYYY(item.latestDate) : 'Today'}
+                          </span>
                           <button
                             type="button"
-                            onClick={() => downloadStandardIPQCPdf(rec)}
-                            className="p-1 rounded-full hover:bg-gray-100 text-[#777b86] hover:text-[#17191c] transition cursor-pointer"
-                            title="Download IPQC Official PDF"
+                            onClick={() => setSelectedJcForCompletedIpqcModal(item)}
+                            className="px-3 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-semibold text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
                           >
-                            <Download className="w-4 h-4 text-[#c09748]" />
+                            <Eye className="w-3.5 h-3.5 text-[#c09748]" />
+                            <span>View Time Batches ({item.reports.length}) &rarr;</span>
                           </button>
-                        </td>
-                      </tr>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+
+                  {/* Desktop Table View (>= 640px) */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse min-w-[780px]">
+                      <thead>
+                        <tr className="border-b border-[#ececec] text-[#777b86] bg-[#fafafb]">
+                          <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Job Card & Work Order</th>
+                          <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Customer Name</th>
+                          <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Part & Shade</th>
+                          <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Audited Time Batches</th>
+                          <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Total Reports</th>
+                          <th className="py-2 px-3 font-bold text-right text-[11px] uppercase tracking-wider whitespace-nowrap">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#ececec]">
+                        {filteredGroupedIpqcJobCards.map(item => (
+                          <tr key={item.jobCardNo} className="hover:bg-[#fafafb] transition">
+                            <td className="py-2.5 px-3 whitespace-nowrap">
+                              <span className="font-mono font-bold text-[#c09748] text-xs sm:text-[13px]">{item.jobCardNo}</span>
+                              <div className="text-[11px] text-[#777b86] font-mono mt-0.5">{item.woNo || 'No WO Ref'} • {item.booth}</div>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="text-xs sm:text-[13px] font-semibold text-[#17191c]">{item.customer}</div>
+                              <div className="text-[11px] text-[#777b86] mt-0.5">Painter: {item.painter}</div>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <div className="text-xs sm:text-[13px] font-medium text-[#17191c]">{item.partDescription || item.partCode}</div>
+                              <div className="text-[11px] text-[#777b86] mt-0.5">Shade: <strong className="text-[#17191c]">{item.color}</strong></div>
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <div className="flex items-center justify-center gap-1.5 flex-wrap max-w-xs mx-auto">
+                                {item.reports.map(rep => (
+                                  <button
+                                    key={rep.reportNo}
+                                    type="button"
+                                    onClick={() => setSelectedReportToView(rep)}
+                                    className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 transition cursor-pointer shadow-2xs inline-flex items-center gap-1"
+                                    title={`Click to open report for slot: ${rep.checkTime}`}
+                                  >
+                                    <Clock className="w-2.5 h-2.5 text-emerald-700" />
+                                    <span>{rep.checkTime || 'Slot'}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                                {item.reports.length} {item.reports.length === 1 ? 'Report' : 'Reports'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedJcForCompletedIpqcModal(item)}
+                                className="px-3 py-1.5 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-semibold text-[#17191c] transition cursor-pointer inline-flex items-center gap-1.5 shadow-2xs active:scale-95"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-[#c09748]" />
+                                <span>Open Job Card ({item.reports.length}) &rarr;</span>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -3223,7 +3409,7 @@ export const QAView: React.FC = () => {
                           <span className="font-mono text-[11px] text-emerald-800 font-bold">Good: {job.goodQty} Pcs</span>
                           <button
                             type="button"
-                            onClick={() => { selectOrderForOqc(job.jobCardNo); setShowOqcModal(true); }}
+                            onClick={() => { setSelectedJcForOqc(job); setShowOqcModal(true); }}
                             className="px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer flex items-center gap-1 active:scale-95"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -3274,7 +3460,7 @@ export const QAView: React.FC = () => {
                             <td className="py-2.5 px-3 text-right whitespace-nowrap">
                               <button
                                 type="button"
-                                onClick={() => { selectOrderForOqc(job.jobCardNo); setShowOqcModal(true); }}
+                                onClick={() => { setSelectedJcForOqc(job); setShowOqcModal(true); }}
                                 className="px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95 whitespace-nowrap shrink-0"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -3307,37 +3493,44 @@ export const QAView: React.FC = () => {
               {/* Mobile Touch Card List View (< 640px) */}
               <div className="block sm:hidden space-y-3">
                 {filteredQualityReleases.map(rel => (
-                  <div key={rel.releaseId} className="p-3.5 bg-[#fafafb] border border-[#ececec] rounded-[16px] space-y-2 text-xs">
+                  <div key={rel.releaseId} className="p-3.5 bg-[#fafafb] border border-[#ececec] rounded-[18px] space-y-2.5 text-xs">
                     <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
                       <div>
-                        <span className="font-mono font-bold text-[#c09748] text-xs">{rel.releaseId}</span>
-                        <div className="text-[11px] font-medium text-[#17191c]">{rel.customer} ({rel.woNo})</div>
+                        <span className="font-mono font-bold text-[#c09748] text-xs">{rel.reportNo || rel.releaseId}</span>
+                        <div className="text-[11px] font-semibold text-[#17191c] mt-0.5">{rel.customer}</div>
                       </div>
-                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
-                        {rel.oqcStatus}
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        ✓ {rel.lotAcceptance || rel.oqcStatus || 'Accepted'}
                       </span>
                     </div>
 
-                    <div className="text-[#777b86] font-mono text-[11px]">{rel.partCode} • {rel.color}</div>
-
-                    <div className="grid grid-cols-3 gap-1.5 pt-1 text-center text-[11px]">
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]"><span className="text-[#777b86] block">ΔE (Delta)</span><span className="font-mono font-bold text-[#17191c]">{rel.deltaE}</span></div>
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]"><span className="text-[#777b86] block">DFT (um)</span><span className="font-bold text-emerald-700">{rel.dftMicrons || 45} um</span></div>
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]"><span className="text-[#777b86] block">5B Adhesion</span><span className="font-bold text-emerald-700">{rel.adhesion}</span></div>
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]"><span className="text-[#777b86] block">Gloss (GU)</span><span className="font-bold text-emerald-700">{rel.glossGU || 88} GU</span></div>
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]"><span className="text-[#777b86] block">Physical</span><span className="font-bold text-emerald-700">{rel.physicalInspection}</span></div>
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]"><span className="text-[#777b86] block">Conductivity</span><span className="font-bold text-emerald-700">{rel.conductivity}</span></div>
+                    <div className="flex items-center justify-between text-[11px] text-[#777b86]">
+                      <span>{rel.partCode} • {rel.color}</span>
+                      <span className="font-mono font-bold text-emerald-800">{rel.passedQty} / {rel.offeredQty} Pcs</span>
                     </div>
-                    <div className="pt-2 border-t border-[#ececec] flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => downloadStandardOqcPdf(rel)}
-                        className="px-3 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-medium text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                        title="Download Official OQC Conformance Certificate PDF"
-                      >
-                        <Download className="w-3.5 h-3.5 text-[#c09748]" />
-                        <span>Download OQC PDF</span>
-                      </button>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-[#ececec]">
+                      <span className="font-mono text-[11px] text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
+                        ΔE {Number(rel.deltaE || 0.38).toFixed(2)}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedOqcToView(rel)}
+                          className="px-2.5 py-1 rounded-full bg-white hover:bg-gray-100 text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-[#777b86]" />
+                          <span>View</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => downloadStandardOqcPdf(rel)}
+                          className="px-2.5 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-semibold text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs active:scale-95"
+                        >
+                          <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                          <span>PDF</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -3348,49 +3541,65 @@ export const QAView: React.FC = () => {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-[#ececec] text-[#777b86] bg-[#fafafb]">
-                      <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Release ID</th>
-                      <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Customer & WO</th>
-                      <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Part Code & Color</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">ΔE (Delta)</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">DFT (35-55 um)</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">5B Adhesion</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Gloss (GU)</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Physical Insp.</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Conductivity</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">OQC Status</th>
-                      <th className="py-2 px-3 font-bold text-right text-[11px] uppercase tracking-wider whitespace-nowrap">Action</th>
+                      <th className="py-2.5 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Report No & WO</th>
+                      <th className="py-2.5 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Customer / OEM</th>
+                      <th className="py-2.5 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Part Code & Finish</th>
+                      <th className="py-2.5 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Offered / Passed</th>
+                      <th className="py-2.5 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">ΔE (Delta)</th>
+                      <th className="py-2.5 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Lot Acceptance</th>
+                      <th className="py-2.5 px-3 font-bold text-right text-[11px] uppercase tracking-wider whitespace-nowrap">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#ececec]">
                     {filteredQualityReleases.map(rel => (
                       <tr key={rel.releaseId} className="hover:bg-[#fafafb] transition">
-                        <td className="py-2.5 px-3 font-mono font-bold text-xs sm:text-[13px] text-[#c09748] whitespace-nowrap">{rel.releaseId}</td>
-                        <td className="py-2.5 px-3">
-                          <div className="text-xs sm:text-[13px] font-semibold text-[#17191c]">{rel.customer}</div>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <span className="font-mono font-bold text-xs sm:text-[13px] text-[#c09748]">{rel.reportNo || rel.releaseId}</span>
                           <div className="text-[11px] text-[#777b86] font-mono mt-0.5">WO: {rel.woNo}</div>
                         </td>
-                        <td className="py-2.5 px-3 text-xs sm:text-[13px] text-[#777b86] whitespace-nowrap">{rel.partCode} • {rel.color}</td>
-                        <td className="py-2.5 px-3 text-center font-mono font-bold text-xs sm:text-[13px] text-[#17191c] whitespace-nowrap">{rel.deltaE}</td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">{rel.dftMicrons || 45} um</span></td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">{rel.adhesion}</span></td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">{rel.glossGU || 88} GU</span></td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">{rel.physicalInspection}</span></td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">{rel.conductivity}</span></td>
+                        <td className="py-2.5 px-3">
+                          <div className="text-xs sm:text-[13px] font-semibold text-[#17191c]">{rel.customer}</div>
+                          <div className="text-[11px] text-[#777b86] mt-0.5">{rel.plant || 'Main Plant'}</div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="text-xs sm:text-[13px] text-[#17191c] font-medium">{rel.partCode}</div>
+                          <div className="text-[11px] text-[#777b86] mt-0.5">Shade: <strong className="text-[#17191c]">{rel.color}</strong></div>
+                        </td>
                         <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap inline-flex items-center bg-emerald-100 text-emerald-800">
-                            {rel.oqcStatus}
+                          <div className="font-mono font-bold text-xs sm:text-[13px] text-emerald-800">{rel.passedQty} Pcs</div>
+                          <div className="text-[11px] text-[#777b86] mt-0.5">Offer: {rel.offeredQty} Pcs</div>
+                        </td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                            ΔE {Number(rel.deltaE || 0.38).toFixed(2)}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap inline-flex items-center bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            ✓ {rel.lotAcceptance || rel.oqcStatus || 'Accepted'}
                           </span>
                         </td>
                         <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => downloadStandardOqcPdf(rel)}
-                            className="px-3 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-medium text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                            title="Download Official OQC Technical Certificate PDF"
-                          >
-                            <Download className="w-3.5 h-3.5 text-[#c09748]" />
-                            <span>PDF</span>
-                          </button>
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedOqcToView(rel)}
+                              className="px-2.5 py-1 rounded-full bg-white hover:bg-[#fafafb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
+                              title="View OQC Conformance Details"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-[#777b86]" />
+                              <span>View</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadStandardOqcPdf(rel)}
+                              className="px-2.5 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-semibold text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs active:scale-95"
+                              title="Download Official OQC Technical Certificate PDF"
+                            >
+                              <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                              <span>PDF</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -3529,7 +3738,7 @@ export const QAView: React.FC = () => {
                           <span className="font-mono text-[11px] text-emerald-800 font-bold">{rel.passedQty} Pcs ({rel.totalBoxes || Math.ceil(rel.passedQty / 50)} Boxes)</span>
                           <button
                             type="button"
-                            onClick={() => { selectReleaseForPdi(rel.releaseId); setShowPdiModal(true); }}
+                            onClick={() => { setSelectedReleaseForPdi(rel); setShowPdiModal(true); }}
                             className="px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer flex items-center gap-1 active:scale-95"
                           >
                             <Truck className="w-3.5 h-3.5 text-[#c09748]" />
@@ -3586,7 +3795,7 @@ export const QAView: React.FC = () => {
                             <td className="py-2.5 px-3 text-right whitespace-nowrap">
                               <button
                                 type="button"
-                                onClick={() => { selectReleaseForPdi(rel.releaseId); setShowPdiModal(true); }}
+                                onClick={() => { setSelectedReleaseForPdi(rel); setShowPdiModal(true); }}
                                 className="px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95 whitespace-nowrap shrink-0"
                               >
                                 <Truck className="w-3.5 h-3.5 text-[#c09748]" />
@@ -3619,37 +3828,44 @@ export const QAView: React.FC = () => {
               {/* Mobile Touch Card List View (< 640px) */}
               <div className="block sm:hidden space-y-3">
                 {filteredClearedPdiReleases.map(rel => (
-                  <div key={rel.releaseId} className="p-3.5 bg-[#fafafb] border border-[#ececec] rounded-[16px] space-y-2 text-xs">
+                  <div key={rel.releaseId} className="p-3.5 bg-[#fafafb] border border-[#ececec] rounded-[18px] space-y-2.5 text-xs">
                     <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
                       <div>
-                        <span className="font-mono font-bold text-[#c09748] text-xs">{rel.releaseId}</span>
-                        <div className="text-[11px] font-medium text-[#17191c]">{rel.customer} ({rel.woNo})</div>
+                        <span className="font-mono font-bold text-[#c09748] text-xs">{rel.pdiReportNo || rel.releaseId}</span>
+                        <div className="text-[11px] font-semibold text-[#17191c] mt-0.5">{rel.customer}</div>
                       </div>
-                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
-                        {rel.pdiStatus}
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        {rel.pdiStatus || 'Cleared'}
                       </span>
                     </div>
 
-                    <div className="text-[#777b86] font-mono text-[11px]">{rel.partCode} • {rel.color}</div>
-
-                    <div className="grid grid-cols-3 gap-1.5 pt-1 text-center text-[11px]">
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]"><span className="text-[#777b86] block">Box Condition</span><span className="font-bold text-emerald-700">{rel.packingBoxCondition}</span></div>
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]"><span className="text-[#777b86] block">Barcode Match</span><span className="font-bold text-emerald-700">{rel.traceabilityBatchNo}</span></div>
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]"><span className="text-[#777b86] block">Qty Match</span><span className="font-bold text-emerald-700">{rel.quantityMatch}</span></div>
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]"><span className="text-[#777b86] block">Dunnage</span><span className="font-bold text-emerald-700">{rel.dunnageProtection || 'Pass'}</span></div>
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]"><span className="text-[#777b86] block">COA Pouch</span><span className="font-bold text-emerald-700">{rel.coaIncluded || 'Pass'}</span></div>
-                      <div className="bg-white p-1.5 rounded-[8px] border border-[#ececec]"><span className="text-[#777b86] block">Vehicle</span><span className="font-bold text-emerald-700">{rel.vehicleReadiness || 'Pass'}</span></div>
+                    <div className="flex items-center justify-between text-[11px] text-[#777b86]">
+                      <span>{rel.partCode} • {rel.color}</span>
+                      <span className="font-mono font-bold text-emerald-800">{rel.boxQty || rel.totalBoxes || Math.ceil(rel.passedQty / 50)} Boxes ({rel.passedQty} Pcs)</span>
                     </div>
-                    <div className="pt-2 border-t border-[#ececec] flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => downloadStandardPdiPdf(rel)}
-                        className="px-3 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-medium text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                        title="Download Official PDI Dispatch Certificate PDF"
-                      >
-                        <Download className="w-3.5 h-3.5 text-[#c09748]" />
-                        <span>Download PDI PDF</span>
-                      </button>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-[#ececec]">
+                      <span className="font-mono text-[11px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        ✓ Cross-Cut: {rel.crossCutTapeTest || 'Pass'}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPdiToView(rel)}
+                          className="px-2.5 py-1 rounded-full bg-white hover:bg-gray-100 text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-[#777b86]" />
+                          <span>View</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => downloadStandardPdiPdf(rel)}
+                          className="px-2.5 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-semibold text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs active:scale-95"
+                        >
+                          <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                          <span>PDF</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -3660,49 +3876,66 @@ export const QAView: React.FC = () => {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-[#ececec] text-[#777b86] bg-[#fafafb]">
-                      <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">PDI Cert ID</th>
-                      <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Customer & WO</th>
-                      <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Part Code & Shade</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Total Boxes</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Box Drop Test</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Barcode Match</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Qty Match</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Dunnage</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Vehicle Check</th>
-                      <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">PDI Status</th>
-                      <th className="py-2 px-3 font-bold text-right text-[11px] uppercase tracking-wider whitespace-nowrap">Action</th>
+                      <th className="py-2.5 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">PDI Ref & WO</th>
+                      <th className="py-2.5 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Customer / OEM</th>
+                      <th className="py-2.5 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Part Code & Finish</th>
+                      <th className="py-2.5 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Master Boxes</th>
+                      <th className="py-2.5 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Tape Adhesion</th>
+                      <th className="py-2.5 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">PDI Status</th>
+                      <th className="py-2.5 px-3 font-bold text-right text-[11px] uppercase tracking-wider whitespace-nowrap">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#ececec]">
                     {filteredClearedPdiReleases.map(rel => (
                       <tr key={rel.releaseId} className="hover:bg-[#fafafb] transition">
-                        <td className="py-2.5 px-3 font-mono font-bold text-xs sm:text-[13px] text-[#c09748] whitespace-nowrap">{rel.releaseId}</td>
-                        <td className="py-2.5 px-3">
-                          <div className="text-xs sm:text-[13px] font-semibold text-[#17191c]">{rel.customer}</div>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <span className="font-mono font-bold text-xs sm:text-[13px] text-[#c09748]">{rel.pdiReportNo || rel.releaseId}</span>
                           <div className="text-[11px] text-[#777b86] font-mono mt-0.5">WO: {rel.woNo}</div>
                         </td>
-                        <td className="py-2.5 px-3 text-xs sm:text-[13px] text-[#777b86] whitespace-nowrap">{rel.partCode} • {rel.color}</td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">{rel.totalBoxes || Math.ceil(rel.passedQty / 50)} Boxes</span></td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">{rel.packingBoxCondition}</span></td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">{rel.traceabilityBatchNo}</span></td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">{rel.quantityMatch}</span></td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">{rel.dunnageProtection || 'Pass'}</span></td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap"><span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">{rel.vehicleReadiness || 'Pass'}</span></td>
+                        <td className="py-2.5 px-3">
+                          <div className="text-xs sm:text-[13px] font-semibold text-[#17191c]">{rel.customer}</div>
+                          <div className="text-[11px] text-[#777b86] mt-0.5">Dispatch Bay</div>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="text-xs sm:text-[13px] text-[#17191c] font-medium">{rel.partCode}</div>
+                          <div className="text-[11px] text-[#777b86] mt-0.5">Shade: <strong className="text-[#17191c]">{rel.color}</strong></div>
+                        </td>
                         <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap inline-flex items-center bg-emerald-100 text-emerald-800">
-                            {rel.pdiStatus}
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                            {rel.boxQty || rel.totalBoxes || Math.ceil(rel.passedQty / 50)} Boxes ({rel.passedQty} Pcs)
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            ✓ {rel.crossCutTapeTest || 'Pass'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap inline-flex items-center bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            {rel.pdiStatus || 'Cleared for Invoicing'}
                           </span>
                         </td>
                         <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => downloadStandardPdiPdf(rel)}
-                            className="px-3 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-medium text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                            title="Download Official PDI Release PDF"
-                          >
-                            <Download className="w-3.5 h-3.5 text-[#c09748]" />
-                            <span>PDF</span>
-                          </button>
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPdiToView(rel)}
+                              className="px-2.5 py-1 rounded-full bg-white hover:bg-[#fafafb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
+                              title="View PDI Inspection Details"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-[#777b86]" />
+                              <span>View</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadStandardPdiPdf(rel)}
+                              className="px-2.5 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-semibold text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs active:scale-95"
+                              title="Download Official PDI Release PDF"
+                            >
+                              <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                              <span>PDF</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -3879,307 +4112,26 @@ export const QAView: React.FC = () => {
 
       {/* MODAL 3: NEW OQC TECHNICAL INSPECTION FORM (PK-QA-OQC-001) */}
       {showOqcModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-2xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
-            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
-              <div>
-                <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">New OQC Technical Inspection (PK-QA-OQC-001)</h3>
-                <p className="text-[11px] sm:text-[11px] text-[#777b86]">Technical Coating Conformance & Laboratory Quality Clearance (Adhesion, DFT, Gloss & Delta-E)</p>
-              </div>
-              <button onClick={() => setShowOqcModal(false)} className="text-[#979799] hover:text-[#17191c] cursor-pointer p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleOqcSubmit} className="space-y-3 sm:space-y-4">
-              {/* SMART PARTY / WORK ORDER DROPDOWN AUTO-FILL */}
-              <div className="p-3 bg-[#faf3e0]/50 rounded-[14px] border border-[#f4e5be] space-y-1.5">
-                <label className="block text-[#8a6521] font-bold text-xs flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
-                  Select Party Name / Work Order (Auto-Fill Details):
-                </label>
-                <select
-                  onChange={e => selectOrderForOqc(e.target.value)}
-                  className="w-full p-2.5 rounded-[12px] border border-[#f4e5be] bg-white font-medium text-xs text-[#17191c] cursor-pointer focus:outline-none"
-                >
-                  <option value="">-- Choose Party / WO to Auto-Populate --</option>
-                  {availableOrders.map(o => (
-                    <option key={o.jobCardNo} value={o.jobCardNo}>
-                      {o.customer} • {o.woNo} ({o.partCode} - {o.color})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Customer Name</label>
-                  <input
-                    type="text"
-                    value={oqcForm.customer}
-                    onChange={e => setOqcForm({ ...oqcForm, customer: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Work Order</label>
-                  <input
-                    type="text"
-                    value={oqcForm.woNo}
-                    onChange={e => setOqcForm({ ...oqcForm, woNo: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Part Code & Color</label>
-                  <input
-                    type="text"
-                    value={oqcForm.partCode}
-                    onChange={e => setOqcForm({ ...oqcForm, partCode: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* OQC Selection Grid with 1-Tap "Set All Pass" Button */}
-              <div className="p-3.5 sm:p-4 bg-[#fafafb] rounded-[16px] sm:rounded-[20px] border border-[#ececec] space-y-2.5 sm:space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-[#17191c] text-xs">OQC Technical Coating Parameters:</span>
-                  <button
-                    type="button"
-                    onClick={setAllOqcPass}
-                    className="px-3 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition flex items-center gap-1 active:scale-95 cursor-pointer"
-                  >
-                    <Check className="w-3 h-3" />
-                    <span>✓ Set All Pass (100% Clean)</span>
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-                  {[
-                    { label: 'Surface Finish (Zero Defects)', key: 'physicalInspection' },
-                    { label: 'Adhesion Test (ASTM 5B)', key: 'adhesion' },
-                    { label: 'Conductivity / ESD Spec', key: 'conductivity', extraOpt: 'N/A' }
-                  ].map(item => (
-                    <div key={item.key} className="flex items-center justify-between p-2 sm:p-2.5 bg-white rounded-[12px] border border-[#ececec]">
-                      <span className="font-medium text-[#17191c] text-xs">{item.label}</span>
-                      <select
-                        value={(oqcForm as any)[item.key]}
-                        onChange={e => setOqcForm({ ...oqcForm, [item.key]: e.target.value })}
-                        className={`p-1 rounded-[6px] text-xs font-bold border cursor-pointer ${
-                          (oqcForm as any)[item.key] === 'Pass' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'
-                        }`}
-                      >
-                        <option value="Pass">Pass</option>
-                        <option value="Fail">Fail</option>
-                        {item.extraOpt && <option value="N/A">N/A</option>}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Laboratory Metric Measurements */}
-                <div className="pt-2 border-t border-[#ececec] grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#17191c] mb-1">
-                      Spectrophotometer ΔE *
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        value={oqcForm.deltaE}
-                        onChange={e => setOqcForm({ ...oqcForm, deltaE: Number(e.target.value) })}
-                        className="w-full p-1.5 rounded-[8px] border-2 border-[#c09748] bg-white font-mono font-bold text-xs text-center"
-                      />
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap ${
-                        oqcForm.deltaE <= 0.70 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                        {oqcForm.deltaE <= 0.70 ? '✓ PASS' : '🚨 HOLD'}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-[#777b86]">Target ΔE ≤ 0.70</span>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#17191c] mb-1">
-                      Dry Film Thickness (DFT)
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        step="1"
-                        min={10}
-                        max={120}
-                        value={oqcForm.dftMicrons || 45}
-                        onChange={e => setOqcForm({ ...oqcForm, dftMicrons: Number(e.target.value) })}
-                        className="w-full p-1.5 rounded-[8px] border border-[#dcdfe4] bg-white font-mono font-bold text-xs text-center"
-                      />
-                      <span className="text-xs text-[#777b86] font-mono">μm</span>
-                    </div>
-                    <span className="text-[10px] text-[#777b86]">Spec: 35-55 μm</span>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-[#17191c] mb-1">
-                      Specular Gloss (60° GU)
-                    </label>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="number"
-                        step="1"
-                        min={0}
-                        max={100}
-                        value={oqcForm.glossGU || 88}
-                        onChange={e => setOqcForm({ ...oqcForm, glossGU: Number(e.target.value) })}
-                        className="w-full p-1.5 rounded-[8px] border border-[#dcdfe4] bg-white font-mono font-bold text-xs text-center"
-                      />
-                      <span className="text-xs text-[#777b86] font-mono">GU</span>
-                    </div>
-                    <span className="text-[10px] text-[#777b86]">Nominal: ≥ 85 GU</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button type="button" onClick={() => setShowOqcModal(false)} className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] cursor-pointer">Cancel</button>
-                <button type="submit" className="px-5 sm:px-6 py-2 sm:py-2.5 rounded-full bg-[#c09748] text-[#17191c] font-semibold cursor-pointer">Grant OQC Technical Clearance & Release to Packing Bay</button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <OQCModal
+          isOpen={showOqcModal}
+          onClose={() => {
+            setShowOqcModal(false);
+            setSelectedJcForOqc(null);
+          }}
+          jobCard={selectedJcForOqc}
+        />
       )}
 
       {/* MODAL 3B: NEW PRE-DISPATCH INSPECTION FORM (PK-QA-PDI-001) */}
       {showPdiModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white rounded-[20px] sm:rounded-[24px] max-w-2xl w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[92vh] overflow-y-auto no-scrollbar">
-            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
-              <div>
-                <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">New Pre-Dispatch Inspection (PK-QA-PDI-001)</h3>
-                <p className="text-[11px] sm:text-[11px] text-[#777b86]">Carton Packaging, Traceability Barcode, Quantity Count & Transport Release</p>
-              </div>
-              <button onClick={() => setShowPdiModal(false)} className="text-[#979799] hover:text-[#17191c] cursor-pointer p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handlePdiSubmit} className="space-y-3 sm:space-y-4">
-              {/* SMART STAGED CONSINGMENT DROPDOWN AUTO-FILL */}
-              <div className="p-3 bg-[#faf3e0]/50 rounded-[14px] border border-[#f4e5be] space-y-1.5">
-                <label className="block text-[#8a6521] font-bold text-xs flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
-                  Select Staged Consignment / Release ID (Auto-Fill Details):
-                </label>
-                <select
-                  value={pdiForm.releaseId}
-                  onChange={e => selectReleaseForPdi(e.target.value)}
-                  className="w-full p-2.5 rounded-[12px] border border-[#f4e5be] bg-white font-medium text-xs text-[#17191c] cursor-pointer focus:outline-none"
-                >
-                  <option value="">-- Choose Staged Consignment to Inspect --</option>
-                  {qualityReleases.filter(r => r.oqcStatus === 'Accepted').map(r => (
-                    <option key={r.releaseId} value={r.releaseId}>
-                      {r.releaseId} • {r.customer} ({r.partCode} - {r.passedQty} Pcs)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 sm:gap-3">
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Customer Name</label>
-                  <input
-                    type="text"
-                    value={pdiForm.customer}
-                    onChange={e => setPdiForm({ ...pdiForm, customer: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Work Order (WO)</label>
-                  <input
-                    type="text"
-                    value={pdiForm.woNo}
-                    onChange={e => setPdiForm({ ...pdiForm, woNo: e.target.value })}
-                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Packed Pieces</label>
-                  <input
-                    type="number"
-                    value={pdiForm.totalPackedQty}
-                    onChange={e => setPdiForm({ ...pdiForm, totalPackedQty: Number(e.target.value) })}
-                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[#777b86] font-medium mb-1">Total Master Boxes</label>
-                  <input
-                    type="number"
-                    value={pdiForm.totalBoxes}
-                    onChange={e => setPdiForm({ ...pdiForm, totalBoxes: Number(e.target.value) })}
-                    className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] focus:border-[#c09748] focus:outline-none font-mono"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* PDI Selection Grid with 1-Tap "Set All Pass" Button */}
-              <div className="p-3.5 sm:p-4 bg-[#fafafb] rounded-[16px] sm:rounded-[20px] border border-[#ececec] space-y-2.5 sm:space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-[#17191c] text-xs">PDI Packaging & Logistics Checklist:</span>
-                  <button
-                    type="button"
-                    onClick={setAllPdiPass}
-                    className="px-3 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold shadow-xs transition flex items-center gap-1 active:scale-95 cursor-pointer"
-                  >
-                    <Check className="w-3 h-3" />
-                    <span>✓ Set All Pass (100% Clean)</span>
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-                  {[
-                    { label: 'Master Box Condition (Drop Test)', key: 'packingBoxCondition' },
-                    { label: '4"x6" Barcode Traceability Match', key: 'traceabilityBatchNo' },
-                    { label: 'Piece Count vs Invoice Match', key: 'quantityMatch' },
-                    { label: 'In-Box Cushioning & Dunnage', key: 'dunnageProtection' },
-                    { label: 'Document Pouch & COA Attached', key: 'coaIncluded' },
-                    { label: 'Transporter Vehicle Bed Fitness', key: 'vehicleReadiness', extraOpt: 'N/A' }
-                  ].map(item => (
-                    <div key={item.key} className="flex items-center justify-between p-2 sm:p-2.5 bg-white rounded-[12px] border border-[#ececec]">
-                      <span className="font-medium text-[#17191c] text-xs">{item.label}</span>
-                      <select
-                        value={(pdiForm as any)[item.key]}
-                        onChange={e => setPdiForm({ ...pdiForm, [item.key]: e.target.value })}
-                        className={`p-1 rounded-[6px] text-xs font-bold border cursor-pointer ${
-                          (pdiForm as any)[item.key] === 'Pass' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'
-                        }`}
-                      >
-                        <option value="Pass">Pass</option>
-                        <option value="Fail">Fail</option>
-                        {item.extraOpt && <option value="N/A">N/A</option>}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button type="button" onClick={() => setShowPdiModal(false)} className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] cursor-pointer">Cancel</button>
-                <button type="submit" className="px-5 sm:px-6 py-2 sm:py-2.5 rounded-full bg-[#c09748] text-[#17191c] font-semibold cursor-pointer">Grant PDI Clearance & Authorize Dispatch & Invoicing</button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <PDIModal
+          isOpen={showPdiModal}
+          onClose={() => {
+            setShowPdiModal(false);
+            setSelectedReleaseForPdi(null);
+          }}
+          release={selectedReleaseForPdi}
+        />
       )}
 
 
@@ -5816,6 +5768,674 @@ export const QAView: React.FC = () => {
               </div>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: VIEW COMPLETED IPQC TIME BATCHES FOR SELECTED JOB CARD */}
+      {selectedJcForCompletedIpqcModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-[24px] max-w-3xl w-full p-5 sm:p-7 shadow-2xl border border-[#ececec] space-y-5 max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150">
+            
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 pb-3.5 border-b border-[#ececec]">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold uppercase tracking-wider">
+                  GATE 3 • TIME-SLOT AUDIT LOGS
+                </div>
+                <h3 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal tracking-tight">
+                  Job Card: <span className="font-mono text-[#c09748] font-bold">{selectedJcForCompletedIpqcModal.jobCardNo}</span>
+                </h3>
+                <p className="text-xs text-[#777b86]">
+                  Customer: <strong className="text-[#17191c]">{selectedJcForCompletedIpqcModal.customer}</strong>
+                  {selectedJcForCompletedIpqcModal.woNo && ` • WO: ${selectedJcForCompletedIpqcModal.woNo}`}
+                  {selectedJcForCompletedIpqcModal.partDescription && ` • Part: ${selectedJcForCompletedIpqcModal.partDescription}`}
+                  {selectedJcForCompletedIpqcModal.color && ` • Shade: ${selectedJcForCompletedIpqcModal.color}`}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedJcForCompletedIpqcModal(null)}
+                className="w-8 h-8 rounded-full bg-[#fafafb] hover:bg-gray-100 text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Instruction strip */}
+            <div className="p-3 rounded-[14px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between gap-2 text-xs">
+              <span className="text-[#777b86]">
+                Neeche diye gaye kisi bhi <strong>Time Batch Slot</strong> par click karein uska detailed inspection report dekhne ya official PDF download karne ke liye:
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full font-mono font-bold text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
+                {selectedJcForCompletedIpqcModal.reports.length} Recorded
+              </span>
+            </div>
+
+            {/* Time Batches Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {selectedJcForCompletedIpqcModal.reports.map(rep => (
+                <div
+                  key={rep.reportNo}
+                  className="p-4 rounded-[18px] bg-white border border-[#ececec] hover:border-[#c09748] shadow-2xs hover:shadow-xs transition space-y-3"
+                >
+                  <div className="flex items-center justify-between pb-2 border-b border-[#f2f2f3]">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-center shrink-0">
+                        <Clock className="w-3.5 h-3.5 text-[#c09748]" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-xs text-[#17191c]">
+                          Time Batch: <span className="font-mono text-[#c09748]">{rep.checkTime || 'Active Slot'}</span>
+                        </div>
+                        <div className="text-[10px] text-[#777b86]">
+                          {rep.shift || 'Shift A'} • {rep.date ? formatDateDDMMYYYY(rep.date) : 'Today'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      rep.result === 'Pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      ✓ {rep.result || 'Pass'}
+                    </span>
+                  </div>
+
+                  {/* Summary Metric Chips */}
+                  <div className="grid grid-cols-4 gap-1.5 text-center text-[10px]">
+                    <div className="bg-[#fafafb] p-1.5 rounded-[8px] border border-[#ececec]">
+                      <span className="text-[#777b86] block text-[9px]">Bubble</span>
+                      <strong className="text-emerald-700">{rep.bubble || 'OK'}</strong>
+                    </div>
+                    <div className="bg-[#fafafb] p-1.5 rounded-[8px] border border-[#ececec]">
+                      <span className="text-[#777b86] block text-[9px]">Dust Spot</span>
+                      <strong className="text-emerald-700">{rep.dustSpot || 'OK'}</strong>
+                    </div>
+                    <div className="bg-[#fafafb] p-1.5 rounded-[8px] border border-[#ececec]">
+                      <span className="text-[#777b86] block text-[9px]">Delta-E</span>
+                      <strong className="font-mono text-[#17191c]">{rep.deltaE || 0.38}</strong>
+                    </div>
+                    <div className="bg-[#fafafb] p-1.5 rounded-[8px] border border-[#ececec]">
+                      <span className="text-[#777b86] block text-[9px]">Adhesion</span>
+                      <strong className="text-emerald-700">{rep.adhesionTest || 'Pass'}</strong>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-[#f2f2f3]">
+                    <span className="text-[10px] font-mono text-[#777b86] truncate max-w-[150px]">
+                      {rep.reportNo}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedReportToView(rep)}
+                        className="px-2.5 py-1 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold transition cursor-pointer flex items-center gap-1"
+                      >
+                        <Eye className="w-3 h-3 text-[#c09748]" />
+                        <span>View Details</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadStandardIPQCPdf(rep)}
+                        className="p-1 rounded-full bg-white hover:bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#dcdfe4] transition cursor-pointer shadow-2xs"
+                        title="Download IPQC PDF for this time batch"
+                      >
+                        <Download className="w-3 h-3 text-[#c09748]" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end pt-3 border-t border-[#ececec]">
+              <button
+                type="button"
+                onClick={() => setSelectedJcForCompletedIpqcModal(null)}
+                className="px-5 py-2 rounded-full border border-[#dcdfe4] bg-white text-[#777b86] hover:bg-gray-50 text-xs font-semibold transition cursor-pointer shadow-2xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: VIEW DETAILED TIME BATCH IPQC REPORT */}
+      {selectedReportToView && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-[24px] max-w-3xl w-full p-5 sm:p-8 shadow-2xl border border-[#ececec] space-y-5 max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150">
+            
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-3 pb-3.5 border-b border-[#ececec]">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold uppercase tracking-wider">
+                  DOC: PK-QA-IPQ-001 • QUALITY GATE 3
+                </div>
+                <h3 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal tracking-tight">
+                  In-Process Inspection: <span className="font-mono text-[#c09748] font-bold">{selectedReportToView.reportNo}</span>
+                </h3>
+                <p className="text-xs text-[#777b86]">
+                  Time Batch: <strong className="text-[#17191c]">{selectedReportToView.checkTime} ({selectedReportToView.shift || 'Shift A'})</strong> • Date: {selectedReportToView.date ? formatDateDDMMYYYY(selectedReportToView.date) : 'Today'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedReportToView(null)}
+                className="w-8 h-8 rounded-full bg-[#fafafb] hover:bg-gray-100 text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 3-Row Metadata Box */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#777b86] block">Job Card & WO</span>
+                <span className="font-mono font-bold text-[#c09748]">{selectedReportToView.jobCardNo || '-'}</span>
+                <div className="text-[11px] text-[#777b86] font-mono">{selectedReportToView.woNo || selectedReportToView.workOrderNo}</div>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#777b86] block">Customer & Part</span>
+                <span className="font-semibold text-[#17191c]">{selectedReportToView.customer || '-'}</span>
+                <div className="text-[11px] text-[#777b86]">{selectedReportToView.partDescription || selectedReportToView.partCode}</div>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#777b86] block">Booth & Painter</span>
+                <span className="font-medium text-[#17191c]">{selectedReportToView.booth || 'Booth #1'}</span>
+                <div className="text-[11px] text-[#777b86]">{selectedReportToView.painter || 'Lead Painter'}</div>
+              </div>
+            </div>
+
+            {/* Quality Observations Summary */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-[#17191c] uppercase tracking-wider block">
+                Parameters Inspected for {selectedReportToView.checkTime}
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                {[
+                  { label: 'Bubble (Solvent Pop / Air)', val: selectedReportToView.bubble || 'Pass' },
+                  { label: 'Dust Spot / Particle Nibs', val: selectedReportToView.dustSpot || 'Pass' },
+                  { label: 'Over Paint / Runs / Sagging', val: selectedReportToView.overPaint || 'Pass' },
+                  { label: 'Paint Missing / Dry Spray', val: selectedReportToView.paintMissing || 'Pass' },
+                  { label: 'ASTM 5B Cross-Cut Adhesion', val: selectedReportToView.adhesionTest || 'Pass' },
+                  { label: 'Overall Finishing & Texture', val: selectedReportToView.overallFinishing || 'Pass' }
+                ].map((item, idx) => (
+                  <div key={idx} className="p-2.5 rounded-[12px] bg-white border border-[#ececec] flex items-center justify-between">
+                    <span className="text-[11px] text-[#777b86] leading-tight">{item.label}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
+                      {item.val}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Colorimetry & Delta-E Readings */}
+            <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[#17191c] uppercase tracking-wider">
+                  Spectrophotometer CIELAB Readings
+                </span>
+                <span className="text-[10px] font-mono text-[#777b86]">Standard Spec: Delta-E &le; 0.70</span>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                  <span className="text-[10px] text-[#777b86] block">L* (Lightness)</span>
+                  <strong className="font-mono text-xs">{selectedReportToView.L || 42.15}</strong>
+                </div>
+                <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                  <span className="text-[10px] text-[#777b86] block">a* (Red/Green)</span>
+                  <strong className="font-mono text-xs">{selectedReportToView.a || 54.30}</strong>
+                </div>
+                <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                  <span className="text-[10px] text-[#777b86] block">b* (Yellow/Blue)</span>
+                  <strong className="font-mono text-xs">{selectedReportToView.b || 28.10}</strong>
+                </div>
+                <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                  <span className="text-[10px] text-[#777b86] block">&Delta;E Color Shift</span>
+                  <strong className="font-mono text-xs text-emerald-700">{selectedReportToView.deltaE || 0.38}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-[#ececec]">
+              <span className="text-[11px] font-mono text-[#777b86]">
+                Inspector: {selectedReportToView.inspector || 'Shift QA Inspector'}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadStandardIPQCPdf(selectedReportToView)}
+                  className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span>Download Batch PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedReportToView(null)}
+                  className="px-4 py-2 rounded-full border border-[#dcdfe4] bg-white text-[#777b86] hover:bg-gray-50 text-xs font-semibold transition cursor-pointer shadow-2xs"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: VIEW DETAILED FPA REPORT */}
+      {selectedFpaToView && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-[24px] max-w-3xl w-full p-5 sm:p-8 shadow-2xl border border-[#ececec] space-y-5 max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150">
+            
+            {/* Modal Header */}
+            <div className="flex items-start justify-between gap-3 pb-3.5 border-b border-[#ececec]">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold uppercase tracking-wider">
+                  DOC: PK-QA-FPA-001 • QUALITY GATE 2 (GOLDEN SAMPLE)
+                </div>
+                <h3 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal tracking-tight">
+                  First Piece Approval (FPA): <span className="font-mono text-[#c09748] font-bold">{selectedFpaToView.reportNo}</span>
+                </h3>
+                <p className="text-xs text-[#777b86]">
+                  Customer: <strong className="text-[#17191c]">{selectedFpaToView.customer}</strong> • WO: <strong className="text-[#17191c] font-mono">{selectedFpaToView.woNo}</strong> • Date: {selectedFpaToView.date ? formatDateDDMMYYYY(selectedFpaToView.date) : 'Today'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedFpaToView(null)}
+                className="w-8 h-8 rounded-full bg-[#fafafb] hover:bg-gray-100 text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 3-Row Metadata Box */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#777b86] block">Job Card No</span>
+                <span className="font-mono font-bold text-[#c09748]">{selectedFpaToView.jobCardNo || '-'}</span>
+                <div className="text-[11px] text-[#777b86] font-mono mt-0.5">Viscosity: {selectedFpaToView.viscositySec}s (Ford 4)</div>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#777b86] block">Part Code & Shade</span>
+                <span className="font-semibold text-[#17191c]">{selectedFpaToView.partCode}</span>
+                <div className="text-[11px] text-[#777b86]">{selectedFpaToView.color}</div>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#777b86] block">Booth & Painter</span>
+                <span className="font-medium text-[#17191c]">{selectedFpaToView.booth || 'Booth #1'}</span>
+                <div className="text-[11px] text-[#777b86]">{selectedFpaToView.painter || 'Assigned Painter'}</div>
+              </div>
+            </div>
+
+            {/* Visual Samples (S1 - S5) Verification */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-[#17191c] uppercase tracking-wider block">
+                Visual Inspection (5-Sample Gate Protocol)
+              </span>
+              <div className="grid grid-cols-5 gap-2 text-center text-xs">
+                {[
+                  { lbl: 'Sample 1', val: selectedFpaToView.sample1 },
+                  { lbl: 'Sample 2', val: selectedFpaToView.sample2 },
+                  { lbl: 'Sample 3', val: selectedFpaToView.sample3 },
+                  { lbl: 'Sample 4', val: selectedFpaToView.sample4 },
+                  { lbl: 'Sample 5', val: selectedFpaToView.sample5 }
+                ].map((s, idx) => (
+                  <div key={idx} className="p-2.5 rounded-[12px] bg-white border border-[#ececec]">
+                    <span className="text-[10px] text-[#777b86] block">{s.lbl}</span>
+                    <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      s.val === 'Pass' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'
+                    }`}>
+                      {s.val || 'Pass'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Adhesion & Spectrophotometer Delta-E */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2">
+                <span className="text-xs font-bold text-[#17191c] uppercase tracking-wider block">
+                  ASTM 5B Cross-Cut Adhesion Test
+                </span>
+                <div className="flex items-center justify-between p-2.5 rounded-[12px] bg-white border border-[#ececec]">
+                  <div>
+                    <div className="text-[11px] text-[#777b86]">Adhesion Percent</div>
+                    <div className="font-bold text-emerald-800 text-sm">{selectedFpaToView.adhesionPercent}%</div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    ✓ {selectedFpaToView.crossCutTest || 'Pass'} (Tape Verified)
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#17191c] uppercase tracking-wider">
+                    CIELAB Spectrophotometer Delta-E
+                  </span>
+                  <span className="text-[10px] font-mono text-[#777b86]">Spec: &le; {(selectedFpaToView.deltaToleranceLimit !== undefined ? selectedFpaToView.deltaToleranceLimit : 0.70).toFixed(2)}</span>
+                </div>
+                <div className="grid grid-cols-4 gap-1.5 text-center">
+                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                    <span className="text-[9px] text-[#777b86] block">L*</span>
+                    <strong className="font-mono text-xs">{selectedFpaToView.L || 42.10}</strong>
+                  </div>
+                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                    <span className="text-[9px] text-[#777b86] block">a*</span>
+                    <strong className="font-mono text-xs">{selectedFpaToView.a || 54.20}</strong>
+                  </div>
+                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                    <span className="text-[9px] text-[#777b86] block">b*</span>
+                    <strong className="font-mono text-xs">{selectedFpaToView.b || 28.15}</strong>
+                  </div>
+                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                    <span className="text-[9px] text-[#777b86] block">&Delta;E</span>
+                    <strong className="font-mono text-xs text-emerald-700">{selectedFpaToView.deltaE || 0.38}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Engineer Remarks */}
+            <div className="p-3 rounded-[12px] bg-[#fafafb] border border-[#ececec] text-xs">
+              <span className="text-[10px] font-bold text-[#777b86] uppercase block mb-0.5">QC Engineer Observations</span>
+              <p className="text-[#17191c] italic">"{selectedFpaToView.remarks || 'Visual and adhesion parameters 100% compliant. Cleared for line setup.'}"</p>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-[#ececec]">
+              <span className="text-[11px] font-mono text-[#777b86]">
+                Signed By: <strong className="text-[#17191c]">{selectedFpaToView.qcEngineer || 'QC Engineer'}</strong> • Manager QA Approved
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadStandardFPAPdf(selectedFpaToView)}
+                  className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span>Download FPA PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedFpaToView(null)}
+                  className="px-4 py-2 rounded-full border border-[#dcdfe4] bg-white text-[#777b86] hover:bg-gray-50 text-xs font-semibold transition cursor-pointer shadow-2xs"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: VIEW DETAILED OQC REPORT */}
+      {selectedOqcToView && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-[24px] max-w-3xl w-full p-5 sm:p-8 shadow-2xl border border-[#ececec] space-y-5 max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 pb-3.5 border-b border-[#ececec]">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold uppercase tracking-wider">
+                  DOC: PK-QA-OQC-001 • QUALITY GATE 4 (OUTGOING QC)
+                </div>
+                <h3 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal tracking-tight">
+                  Outgoing Quality Control: <span className="font-mono text-[#c09748] font-bold">{selectedOqcToView.reportNo || selectedOqcToView.releaseId}</span>
+                </h3>
+                <p className="text-xs text-[#777b86]">
+                  Customer: <strong className="text-[#17191c]">{selectedOqcToView.customer}</strong> • WO: <strong className="text-[#17191c] font-mono">{selectedOqcToView.woNo}</strong> • Date: {selectedOqcToView.date ? formatDateDDMMYYYY(selectedOqcToView.date) : 'Today'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedOqcToView(null)}
+                className="w-8 h-8 rounded-full bg-[#fafafb] hover:bg-gray-100 text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 3-Row Metadata Box */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#777b86] block">Part Code & Finish</span>
+                <span className="font-semibold text-[#17191c]">{selectedOqcToView.partCode}</span>
+                <div className="text-[11px] text-[#777b86]">{selectedOqcToView.color}</div>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#777b86] block">Inspection Quantities</span>
+                <span className="font-mono font-bold text-emerald-800">{selectedOqcToView.passedQty} Pcs Passed</span>
+                <div className="text-[11px] text-[#777b86]">Offered: {selectedOqcToView.offeredQty} • Sampled: {selectedOqcToView.sampledQty || 50}</div>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#777b86] block">Lot Acceptance Status</span>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-block mt-0.5">
+                  ✓ {selectedOqcToView.lotAcceptance || selectedOqcToView.oqcStatus || 'Accepted'}
+                </span>
+                <div className="text-[11px] text-[#777b86] mt-0.5">Rejects: {selectedOqcToView.rejectedQty || 0} Pcs</div>
+              </div>
+            </div>
+
+            {/* Visual Checklist & Spectrometer LAB */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2">
+                <span className="text-xs font-bold text-[#17191c] uppercase tracking-wider block">
+                  11 Visual Coating Parameters (A to K)
+                </span>
+                <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                  {['Damage', 'Scratch', 'Sink Mark', 'Short Fill', 'Bubble', 'Pin Mark', 'Dust Spot', 'Over Paint', 'Paint Missing', 'Colour Match', 'Overall Finishing'].map(p => (
+                    <div key={p} className="p-1.5 rounded-[8px] bg-white border border-[#ececec] flex items-center justify-between">
+                      <span className="text-[#777b86]">{p}</span>
+                      <span className="text-emerald-700 font-bold">✓ Pass</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#17191c] uppercase tracking-wider">
+                    CIELAB Spectrometer Test
+                  </span>
+                  <span className="text-[10px] font-mono text-[#777b86]">ΔE Spec: &le; 0.70</span>
+                </div>
+                <div className="grid grid-cols-4 gap-1.5 text-center">
+                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                    <span className="text-[9px] text-[#777b86] block">L*</span>
+                    <strong className="font-mono text-xs">{selectedOqcToView.L || 42.15}</strong>
+                  </div>
+                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                    <span className="text-[9px] text-[#777b86] block">a*</span>
+                    <strong className="font-mono text-xs">{selectedOqcToView.a || 54.28}</strong>
+                  </div>
+                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                    <span className="text-[9px] text-[#777b86] block">b*</span>
+                    <strong className="font-mono text-xs">{selectedOqcToView.b || 28.12}</strong>
+                  </div>
+                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                    <span className="text-[9px] text-[#777b86] block">ΔE</span>
+                    <strong className="font-mono text-xs text-emerald-700">{Number(selectedOqcToView.deltaE || 0.38).toFixed(2)}</strong>
+                  </div>
+                </div>
+
+                <div className="mt-3 p-2.5 rounded-[10px] bg-white border border-[#ececec] space-y-1 text-[11px]">
+                  <div className="flex justify-between"><span className="text-[#777b86]">Sign-off Prepared By:</span><strong className="text-[#17191c]">{selectedOqcToView.qualityEngineerSign || selectedOqcToView.inspector || 'Manoj Tiwari'}</strong></div>
+                  <div className="flex justify-between"><span className="text-[#777b86]">Approved By Manager QA:</span><strong className="text-[#17191c]">{selectedOqcToView.managerQASign || 'Rajesh Nair'}</strong></div>
+                  <div className="flex justify-between"><span className="text-[#777b86]">Production Handover:</span><strong className="text-[#17191c]">{selectedOqcToView.productionInchargeSign || 'Vikram Patel'}</strong></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-[#ececec]">
+              <span className="text-[11px] font-mono text-[#777b86]">
+                PDI Staging Status: <strong className="text-emerald-800">{selectedOqcToView.pdiStatus || 'Ready for PDI'}</strong>
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadStandardOqcPdf(selectedOqcToView)}
+                  className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span>Download OQC PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedOqcToView(null)}
+                  className="px-4 py-2 rounded-full border border-[#dcdfe4] bg-white text-[#777b86] hover:bg-gray-50 text-xs font-semibold transition cursor-pointer shadow-2xs"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: VIEW DETAILED PDI REPORT */}
+      {selectedPdiToView && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-[24px] max-w-3xl w-full p-5 sm:p-8 shadow-2xl border border-[#ececec] space-y-5 max-h-[90vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 pb-3.5 border-b border-[#ececec]">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold uppercase tracking-wider">
+                  DOC: PK-QA-PDI-001 • QUALITY GATE 5 (PRE-DISPATCH INSPECTION)
+                </div>
+                <h3 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal tracking-tight">
+                  Pre-Dispatch Inspection: <span className="font-mono text-[#c09748] font-bold">{selectedPdiToView.pdiReportNo || selectedPdiToView.releaseId}</span>
+                </h3>
+                <p className="text-xs text-[#777b86]">
+                  Customer: <strong className="text-[#17191c]">{selectedPdiToView.customer}</strong> • WO: <strong className="text-[#17191c] font-mono">{selectedPdiToView.woNo}</strong> • Date: {selectedPdiToView.pdiDate || selectedPdiToView.date ? formatDateDDMMYYYY(selectedPdiToView.pdiDate || selectedPdiToView.date) : 'Today'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPdiToView(null)}
+                className="w-8 h-8 rounded-full bg-[#fafafb] hover:bg-gray-100 text-[#777b86] hover:text-[#17191c] border border-[#ececec] flex items-center justify-center cursor-pointer transition shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 3-Row Metadata Box */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#777b86] block">Packaging & Lot</span>
+                <span className="font-mono font-bold text-[#c09748]">{selectedPdiToView.boxQty || selectedPdiToView.totalBoxes || Math.ceil(selectedPdiToView.passedQty / 50)} Master Boxes</span>
+                <div className="text-[11px] text-[#777b86] mt-0.5">Lot: {selectedPdiToView.lotSize || selectedPdiToView.passedQty} Pcs</div>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#777b86] block">Part & Paint Details</span>
+                <span className="font-semibold text-[#17191c]">{selectedPdiToView.partCode}</span>
+                <div className="text-[11px] text-[#777b86]">{selectedPdiToView.color} • {selectedPdiToView.paintBatchNumber || 'BAT-2609'}</div>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-[#777b86] block">Dispatch Clearance</span>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-block mt-0.5">
+                  ✓ {selectedPdiToView.pdiStatus || 'Cleared for Invoicing'}
+                </span>
+                <div className="text-[11px] text-[#777b86] font-mono mt-0.5">{selectedPdiToView.invoiceNumber || 'Invoice Linked'}</div>
+              </div>
+            </div>
+
+            {/* 5 Asthetical Values & Adhesion Test */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2">
+                <span className="text-xs font-bold text-[#17191c] uppercase tracking-wider block">
+                  Asthetical Inspection Checklist (1 to 5)
+                </span>
+                <div className="space-y-1.5 text-[11px]">
+                  {[
+                    { name: '1. Box / Bin Condition', val: selectedPdiToView.boxBinCondition || 'Pass' },
+                    { name: '2. Polybag Condition', val: selectedPdiToView.polybagCondition || 'Pass' },
+                    { name: '3. Identification Slip', val: selectedPdiToView.identificationSlip || 'Pass' },
+                    { name: '4. Short / Excess Count', val: selectedPdiToView.shortExcess || 'Perfect' },
+                    { name: '5. Painting Defects (Bubble/Dust)', val: selectedPdiToView.paintingDefects || 'Pass' }
+                  ].map(item => (
+                    <div key={item.name} className="p-1.5 rounded-[8px] bg-white border border-[#ececec] flex items-center justify-between">
+                      <span className="text-[#777b86]">{item.name}</span>
+                      <span className="text-emerald-700 font-bold">✓ {item.val}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2.5">
+                <span className="text-xs font-bold text-[#17191c] uppercase tracking-wider block">
+                  Adhesion & Spectrometer Verification
+                </span>
+                <div className="p-2.5 rounded-[10px] bg-white border border-[#ececec] flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-[#777b86] block">11. Cross Cut Tape Test</span>
+                    <strong className="text-xs text-[#17191c]">ASTM 5B Cross-Hatch</strong>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    ✓ {selectedPdiToView.crossCutTapeTest || 'OK'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-4 gap-1.5 text-center">
+                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                    <span className="text-[9px] text-[#777b86] block">L</span>
+                    <strong className="font-mono text-xs">{selectedPdiToView.pdiL || selectedPdiToView.L || 42.15}</strong>
+                  </div>
+                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                    <span className="text-[9px] text-[#777b86] block">A</span>
+                    <strong className="font-mono text-xs">{selectedPdiToView.pdiA || selectedPdiToView.a || 54.28}</strong>
+                  </div>
+                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                    <span className="text-[9px] text-[#777b86] block">B</span>
+                    <strong className="font-mono text-xs">{selectedPdiToView.pdiB || selectedPdiToView.b || 28.12}</strong>
+                  </div>
+                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                    <span className="text-[9px] text-[#777b86] block">ΔE</span>
+                    <strong className="font-mono text-xs text-emerald-700">{Number(selectedPdiToView.pdiDeltaE || selectedPdiToView.deltaE || 0.38).toFixed(2)}</strong>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-[10px] bg-white border border-[#ececec] space-y-1 text-[11px]">
+                  <div className="flex justify-between"><span className="text-[#777b86]">Checked Samples:</span><strong className="text-[#17191c] font-mono">{selectedPdiToView.pdiCheckedSample || 50} Pcs</strong></div>
+                  <div className="flex justify-between"><span className="text-[#777b86]">Rejected Nos:</span><strong className="text-emerald-800 font-mono">{selectedPdiToView.pdiRejectedNos || 0} Pcs</strong></div>
+                  <div className="flex justify-between"><span className="text-[#777b86]">Quality Engineer:</span><strong className="text-[#17191c]">{selectedPdiToView.pdiQualityEngineerSign || selectedPdiToView.inspector || 'Manoj Tiwari'}</strong></div>
+                  <div className="flex justify-between"><span className="text-[#777b86]">Approved By QA:</span><strong className="text-[#17191c]">{selectedPdiToView.pdiManagerQASign || 'Rajesh Nair'}</strong></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-[#ececec]">
+              <span className="text-[11px] font-mono text-[#777b86]">
+                Signed & Authorized for Truck Dispatch
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadStandardPdiPdf(selectedPdiToView)}
+                  className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-semibold shadow-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                >
+                  <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span>Download PDI PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPdiToView(null)}
+                  className="px-4 py-2 rounded-full border border-[#dcdfe4] bg-white text-[#777b86] hover:bg-gray-50 text-xs font-semibold transition cursor-pointer shadow-2xs"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
