@@ -8,9 +8,15 @@ import {
   ShieldCheck, 
   Sparkles, 
   AlertCircle,
-  Zap,
-  Play,
-  AlertTriangle
+  AlertTriangle,
+  Smile,
+  Glasses,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  UserCheck,
+  ChevronRight,
+  Sun
 } from 'lucide-react';
 import { Employee } from '../../types/hrAttendanceTypes';
 import { 
@@ -28,6 +34,16 @@ interface HREnrollFaceModalProps {
   onSaveFaceDescriptors: (empId: string, descriptors: number[][], avatarUrl?: string) => void;
 }
 
+// 6 Guided Professional Poses for Maximum Biometric Accuracy
+interface PoseInstruction {
+  id: number;
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  guideVisual: string; // Arrow / Target hint
+  tip: string;
+}
+
 export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   employee,
   allEmployees = [],
@@ -35,19 +51,68 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   onClose,
   onSaveFaceDescriptors,
 }) => {
-  const [activeTab, setActiveTab] = useState<'BURST' | 'STEP' | 'UPLOAD'>('BURST');
-  const [capturedPoses, setCapturedPoses] = useState<{ label: string; descriptor: number[]; imgDataUrl: string }[]>([]);
+  const [activeTab, setActiveTab] = useState<'GUIDED' | 'UPLOAD'>('GUIDED');
+  const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
+  const [capturedPoses, setCapturedPoses] = useState<{ stepId: number; label: string; descriptor: number[]; imgDataUrl: string }[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isBurstActive, setIsBurstActive] = useState(false);
-  const [burstCount, setBurstCount] = useState(0);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<{ name: string; id: string; confidence: number } | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const burstIntervalRef = useRef<number | null>(null);
 
-  const TARGET_BURST_PHOTOS = 20;
+  const POSE_STEPS: PoseInstruction[] = [
+    {
+      id: 1,
+      title: 'Pose 1: Straight & Neutral',
+      subtitle: 'Look directly into camera lens without smiling',
+      icon: <UserCheck size={28} className="text-[#c09748]" />,
+      guideVisual: 'CENTER',
+      tip: 'Keep your chin level and look directly at the center oval.',
+    },
+    {
+      id: 2,
+      title: 'Pose 2: Natural Smile',
+      subtitle: 'Smile naturally while keeping eyes open',
+      icon: <Smile size={28} className="text-[#c09748]" />,
+      guideVisual: 'CENTER_SMILE',
+      tip: 'Helps recognize when greeting colleagues or expressing emotion.',
+    },
+    {
+      id: 3,
+      title: 'Pose 3: Turn Head Left (20°)',
+      subtitle: 'Slightly turn head to your left side, eyes towards camera',
+      icon: <ArrowLeft size={28} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_LEFT',
+      tip: 'Turn your nose towards the left indicator.',
+    },
+    {
+      id: 4,
+      title: 'Pose 4: Turn Head Right (20°)',
+      subtitle: 'Slightly turn head to your right side, eyes towards camera',
+      icon: <ArrowRight size={28} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_RIGHT',
+      tip: 'Turn your nose towards the right indicator.',
+    },
+    {
+      id: 5,
+      title: 'Pose 5: Chin Slightly Up (15°)',
+      subtitle: 'Tilt chin slightly upward for biometric jawline angle',
+      icon: <ArrowUp size={28} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_UP',
+      tip: 'Raise chin slightly to capture bottom jaw contours.',
+    },
+    {
+      id: 6,
+      title: 'Pose 6: Glasses or Expression Check',
+      subtitle: 'Wear glasses if you use them daily, or blink & look straight',
+      icon: <Glasses size={28} className="text-[#c09748]" />,
+      guideVisual: 'CENTER_GLASSES',
+      tip: 'Final verification pose for daily work wear compatibility.',
+    },
+  ];
+
+  const currentPose = POSE_STEPS[currentStepIndex];
 
   useEffect(() => {
     loadFaceModels();
@@ -89,57 +154,36 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
       }
-      if (burstIntervalRef.current) {
-        clearInterval(burstIntervalRef.current);
-      }
     };
   }, [isOpen, activeTab]);
 
   if (!isOpen) return null;
 
-  // Single Frame Capture Helper
-  const captureFrame = async (): Promise<{ descriptor: number[]; imgDataUrl: string } | null> => {
-    if (!videoRef.current) return null;
-    const video = videoRef.current;
-    if (video.readyState !== 4) return null;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    const descriptor = await extractFaceDescriptorFromCanvas(canvas);
-    if (!descriptor) return null;
-
-    const imgDataUrl = canvas.toDataURL('image/jpeg', 0.80);
-    return { descriptor, imgDataUrl };
-  };
-
-  // Start Automatic 20-Photo Rapid Burst Capture
-  const handleStartRapidBurst = async () => {
-    if (isBurstActive || !videoRef.current) return;
-    setIsBurstActive(true);
+  // Capture Current Step Pose
+  const handleCapturePose = async () => {
+    if (!videoRef.current || isProcessing) return;
+    setIsProcessing(true);
     setDuplicateWarning(null);
-    setCapturedPoses([]);
-    setBurstCount(0);
 
-    const collected: { label: string; descriptor: number[]; imgDataUrl: string }[] = [];
-    let count = 0;
+    try {
+      const video = videoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-    burstIntervalRef.current = window.setInterval(async () => {
-      if (count >= TARGET_BURST_PHOTOS) {
-        if (burstIntervalRef.current) clearInterval(burstIntervalRef.current);
-        setIsBurstActive(false);
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Check duplicate face against existing company profiles
-        if (collected.length > 0 && allEmployees.length > 0) {
-          const sampleVec = collected[0].descriptor;
-          const dup = checkDuplicateFace(sampleVec, allEmployees, employee.id);
+      const descriptor = await extractFaceDescriptorFromCanvas(canvas);
+      const imgDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+      if (descriptor) {
+        // If step 1, check duplicate face
+        if (currentStepIndex === 0 && allEmployees.length > 0) {
+          const dup = checkDuplicateFace(descriptor, allEmployees, employee.id);
           if (dup.isDuplicate && dup.matchedEmployee) {
             setDuplicateWarning({
               name: dup.matchedEmployee.name,
@@ -148,21 +192,29 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             });
           }
         }
-        return;
-      }
 
-      const res = await captureFrame();
-      if (res) {
-        count++;
-        setBurstCount(count);
-        collected.push({
-          label: `Frame ${count}`,
-          descriptor: res.descriptor,
-          imgDataUrl: res.imgDataUrl,
-        });
-        setCapturedPoses([...collected]);
+        const newPose = {
+          stepId: currentPose.id,
+          label: currentPose.title,
+          descriptor,
+          imgDataUrl,
+        };
+
+        const updatedPoses = [...capturedPoses.filter(p => p.stepId !== currentPose.id), newPose];
+        setCapturedPoses(updatedPoses);
+
+        // Move to next step if not final
+        if (currentStepIndex < POSE_STEPS.length - 1) {
+          setCurrentStepIndex(prev => prev + 1);
+        }
+      } else {
+        alert('Face not clearly detected. Please ensure your face is well-lit and inside the oval guide.');
       }
-    }, 180); // Captures 1 frame every 180ms (~3.5 seconds total)
+    } catch {
+      // extraction error
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -185,6 +237,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         if (descriptor) {
           setCapturedPoses([
             {
+              stepId: 1,
               label: 'Uploaded Photo Profile',
               descriptor,
               imgDataUrl: event.target?.result as string,
@@ -204,7 +257,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     if (capturedPoses.length === 0) return;
     const rawDescriptors = capturedPoses.map((p) => p.descriptor);
 
-    // Compute Master Vector from up to 20 vectors
+    // Compute Master Vector from all captured poses
     const masterVector = computeMasterVector(rawDescriptors);
     const combinedDescriptors = [masterVector, ...rawDescriptors];
 
@@ -214,26 +267,26 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   };
 
   const handleReset = () => {
-    if (burstIntervalRef.current) clearInterval(burstIntervalRef.current);
-    setIsBurstActive(false);
     setCapturedPoses([]);
-    setBurstCount(0);
+    setCurrentStepIndex(0);
     setDuplicateWarning(null);
   };
 
+  const isAllPosesDone = capturedPoses.length >= POSE_STEPS.length;
+
   return (
     <div className="fixed inset-0 z-50 bg-[#17191c]/50 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-[24px] border border-[#ececec] shadow-xl w-full max-w-xl overflow-hidden animate-in fade-in duration-200">
+      <div className="bg-white rounded-[24px] border border-[#ececec] shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in duration-200">
         
         {/* Header */}
         <div className="p-5 border-b border-[#ececec] flex items-center justify-between bg-[#fafafb]">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c09748]">
-                In-House AI Biometrics
+                Interactive Biometric Trainer
               </span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] font-semibold border border-[#f4e5be]">
-                20-Photo Rapid Burst Engine
+                6 Guided Master Poses
               </span>
             </div>
             <h3 className="text-lg font-serif text-[#17191c] mt-0.5">
@@ -252,17 +305,17 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         <div className="px-5 pt-3 flex gap-2 border-b border-[#f2f2f3]">
           <button
             onClick={() => {
-              setActiveTab('BURST');
+              setActiveTab('GUIDED');
               handleReset();
             }}
             className={`pb-2.5 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition cursor-pointer ${
-              activeTab === 'BURST'
+              activeTab === 'GUIDED'
                 ? 'border-[#c09748] text-[#17191c]'
                 : 'border-transparent text-[#777b86] hover:text-[#17191c]'
             }`}
           >
-            <Zap size={14} className={activeTab === 'BURST' ? 'text-[#c09748]' : 'text-[#979799]'} />
-            <span>Auto 20-Photo Rapid Scan (3 Sec)</span>
+            <Camera size={14} className={activeTab === 'GUIDED' ? 'text-[#c09748]' : 'text-[#979799]'} />
+            <span>Interactive Guided Pose Calibration</span>
           </button>
           <button
             onClick={() => {
@@ -280,7 +333,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
           </button>
         </div>
 
-        {/* Duplicate Face Warning Banner */}
+        {/* Duplicate Face Warning */}
         {duplicateWarning && (
           <div className="m-5 mb-0 p-3.5 rounded-[16px] bg-[#fff1f2] border border-[#fecdd3] text-[#9f1239] text-xs flex items-start gap-2.5 animate-in slide-in-from-top">
             <AlertTriangle size={18} className="shrink-0 mt-0.5 text-[#e11d48]" />
@@ -289,15 +342,15 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
               <span>
                 This face is {duplicateWarning.confidence}% identical to existing employee: {' '}
                 <strong>{duplicateWarning.name} ({duplicateWarning.id})</strong>. 
-                Please ensure you are not enrolling the same person under multiple profiles.
+                Please verify identity before saving.
               </span>
             </div>
           </div>
         )}
 
-        {/* Body Content */}
+        {/* Modal Body */}
         <div className="p-5 space-y-4">
-          {activeTab === 'BURST' ? (
+          {activeTab === 'GUIDED' ? (
             <div>
               {cameraError ? (
                 <div className="p-4 rounded-[16px] bg-[#fff1f2] border border-[#fecdd3] text-[#9f1239] text-xs flex items-center gap-2">
@@ -305,28 +358,63 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                   <span>{cameraError}</span>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   
-                  {/* Progress Pill Bar */}
-                  <div className="flex items-center justify-between bg-[#fafafb] p-3 rounded-[16px] border border-[#ececec]">
-                    <div>
-                      <span className="text-[10px] font-semibold text-[#c09748] uppercase tracking-wider block">
-                        {isBurstActive ? 'Capturing 20 Facial Angles...' : capturedPoses.length === 20 ? '20 Photos Successfully Captured!' : 'Rapid Multi-Angle Enrollment'}
-                      </span>
-                      <p className="text-xs text-[#17191c] font-medium mt-0.5">
-                        {isBurstActive ? 'Slowly rotate head slightly while laser scans' : 'Click "Start Rapid Scan" for automatic 3-second 20-photo capture.'}
-                      </p>
+                  {/* Step Stepper Bar with Icons */}
+                  <div className="grid grid-cols-6 gap-1.5 bg-[#fafafb] p-2 rounded-[18px] border border-[#ececec]">
+                    {POSE_STEPS.map((step, idx) => {
+                      const isCompleted = capturedPoses.some(p => p.stepId === step.id);
+                      const isCurrent = idx === currentStepIndex;
+
+                      return (
+                        <button
+                          key={step.id}
+                          onClick={() => setCurrentStepIndex(idx)}
+                          className={`p-2 rounded-[14px] flex flex-col items-center justify-center transition-all cursor-pointer ${
+                            isCurrent
+                              ? 'bg-[#faf3e0] border border-[#c09748] text-[#8a6521] shadow-2xs'
+                              : isCompleted
+                              ? 'bg-white border border-[#dcdfe4] text-emerald-700'
+                              : 'bg-transparent text-[#979799] opacity-60'
+                          }`}
+                        >
+                          <div className="text-xs mb-1">
+                            {isCompleted ? <Check size={14} className="text-emerald-600" /> : step.icon}
+                          </div>
+                          <span className="text-[10px] font-bold">Pose {step.id}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* ACTIVE POSE INSTRUCTION HERO CARD */}
+                  <div className="p-3.5 bg-[#faf3e0] border border-[#f4e5be] rounded-[20px] flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-12 w-12 rounded-full bg-white border border-[#f4e5be] flex items-center justify-center shrink-0 shadow-2xs">
+                        {currentPose.icon}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#8a6521] text-white uppercase tracking-wider">
+                            Step {currentPose.id} of {POSE_STEPS.length}
+                          </span>
+                          <span className="text-xs font-bold text-[#17191c]">
+                            {currentPose.title}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#8a6521] font-medium mt-0.5">
+                          {currentPose.subtitle}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="text-right">
-                      <span className="text-sm font-bold font-mono text-[#c09748]">
-                        {burstCount} / {TARGET_BURST_PHOTOS}
-                      </span>
+                    <div className="hidden sm:block text-right text-[11px] text-[#777b86] max-w-[170px] leading-tight">
+                      Tip: {currentPose.tip}
                     </div>
                   </div>
 
-                  {/* Video Viewport with HUD Overlay */}
-                  <div className="relative rounded-[20px] overflow-hidden bg-[#17191c] h-[260px] flex items-center justify-center border border-[#ececec]">
+                  {/* Video Viewport with Interactive Visual Overlay Guidance */}
+                  <div className="relative rounded-[20px] overflow-hidden bg-[#17191c] h-[280px] flex items-center justify-center border border-[#ececec]">
                     <video
                       ref={videoRef}
                       autoPlay
@@ -335,31 +423,54 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                       className="w-full h-full object-cover scale-x-[-1]"
                     />
 
-                    {/* Central Gold Oval Target Guide */}
+                    {/* Central Face Target Oval Guide */}
                     <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                      <div className={`w-[160px] h-[200px] rounded-[50%] border-2 transition-all ${
-                        isBurstActive 
-                          ? 'border-emerald-400 border-solid animate-pulse scale-105' 
-                          : 'border-[#c09748] border-dashed opacity-80'
-                      } flex items-center justify-center`}>
+                      <div className="relative w-[170px] h-[210px] rounded-[50%] border-2 border-dashed border-[#c09748] opacity-80 animate-pulse flex items-center justify-center">
                         <span className="text-[10px] text-white/90 bg-[#17191c]/70 px-2 py-0.5 rounded-full font-mono">
-                          {isBurstActive ? `Scanning ${burstCount}/20...` : 'Keep Face in Oval'}
+                          Fit Face In Oval
                         </span>
+
+                        {/* Interactive Directional Arrows based on Pose */}
+                        {currentPose.guideVisual === 'ARROW_LEFT' && (
+                          <div className="absolute -left-12 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[#c09748] font-bold text-xs bg-[#17191c]/80 px-2 py-1 rounded-full animate-bounce">
+                            <ArrowLeft size={16} />
+                            <span>Turn Left</span>
+                          </div>
+                        )}
+
+                        {currentPose.guideVisual === 'ARROW_RIGHT' && (
+                          <div className="absolute -right-12 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[#c09748] font-bold text-xs bg-[#17191c]/80 px-2 py-1 rounded-full animate-bounce">
+                            <span>Turn Right</span>
+                            <ArrowRight size={16} />
+                          </div>
+                        )}
+
+                        {currentPose.guideVisual === 'ARROW_UP' && (
+                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex items-center gap-1 text-[#c09748] font-bold text-xs bg-[#17191c]/80 px-2 py-1 rounded-full animate-bounce">
+                            <ArrowUp size={16} />
+                            <span>Tilt Chin Up</span>
+                          </div>
+                        )}
+
+                        {currentPose.guideVisual === 'CENTER_SMILE' && (
+                          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 text-[#c09748] font-bold text-xs bg-[#17191c]/80 px-2.5 py-1 rounded-full">
+                            <Smile size={14} />
+                            <span>Smile Naturally</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    {/* Progress Bar Overlay during Burst */}
-                    {isBurstActive && (
-                      <div className="absolute bottom-0 inset-x-0 h-1.5 bg-black/40">
-                        <div 
-                          className="h-full bg-emerald-400 transition-all duration-150"
-                          style={{ width: `${(burstCount / TARGET_BURST_PHOTOS) * 100}%` }}
-                        />
+                    {/* Pose Completion Pill Indicator */}
+                    {capturedPoses.some(p => p.stepId === currentPose.id) && (
+                      <div className="absolute top-3 right-3 bg-emerald-600 text-white text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-md">
+                        <Check size={12} />
+                        <span>Pose {currentPose.id} Captured</span>
                       </div>
                     )}
                   </div>
 
-                  {/* Controls */}
+                  {/* Pose Action Buttons */}
                   <div className="flex items-center justify-between pt-1">
                     <button
                       type="button"
@@ -367,25 +478,31 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                       className="px-3 py-1.5 text-xs text-[#777b86] hover:text-[#17191c] flex items-center gap-1 cursor-pointer"
                     >
                       <RefreshCw size={13} />
-                      <span>Retake Scan</span>
+                      <span>Retake All</span>
                     </button>
 
-                    {capturedPoses.length < TARGET_BURST_PHOTOS ? (
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={handleStartRapidBurst}
-                        disabled={isBurstActive}
+                        onClick={handleCapturePose}
+                        disabled={isProcessing}
                         className="px-5 py-2.5 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer active:scale-95 flex items-center gap-2"
                       >
-                        <Zap size={15} className="text-[#c09748]" />
-                        <span>{isBurstActive ? 'Capturing 20 Angles...' : 'Start 20-Photo Rapid Scan'}</span>
+                        <Camera size={15} className="text-[#c09748]" />
+                        <span>{isProcessing ? 'Analyzing Facial Vectors...' : `Click to Capture Pose ${currentPose.id}`}</span>
                       </button>
-                    ) : (
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-[#8a6521] bg-[#faf3e0] px-3 py-1.5 rounded-full border border-[#f4e5be]">
-                        <Check size={14} className="text-[#c09748]" />
-                        <span>20 Biometric Angles Ready!</span>
-                      </div>
-                    )}
+
+                      {currentStepIndex < POSE_STEPS.length - 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setCurrentStepIndex(prev => prev + 1)}
+                          className="px-3 py-2 text-xs text-[#777b86] hover:text-[#17191c] flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>Next</span>
+                          <ChevronRight size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -407,32 +524,21 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             </div>
           )}
 
-          {/* Captured Thumbnails Strip (Up to 20 Photos) */}
+          {/* Captured Poses Thumbnails Strip */}
           {capturedPoses.length > 0 && (
             <div className="pt-2 border-t border-[#f2f2f3]">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-[#979799]">
-                  Captured Biometric Frames ({capturedPoses.length} Photos)
-                </span>
-                <span className="text-[10px] text-emerald-700 font-semibold">
-                  Synthesizing Master Profile
-                </span>
-              </div>
-              
-              <div className="flex gap-1.5 overflow-x-auto pb-1">
-                {capturedPoses.slice(0, 15).map((p, idx) => (
-                  <div key={idx} className="relative rounded-[10px] overflow-hidden border border-[#ececec] w-12 h-12 bg-[#fafafb] shrink-0">
-                    <img src={p.imgDataUrl} alt="" className="w-full h-full object-cover" />
-                    <span className="absolute bottom-0 inset-x-0 bg-[#17191c]/70 text-[7px] text-white text-center py-0.5">
-                      #{idx + 1}
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#979799] block mb-2">
+                Captured Pose Thumbnails ({capturedPoses.length} / {POSE_STEPS.length})
+              </span>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {capturedPoses.map((p) => (
+                  <div key={p.stepId} className="relative rounded-[12px] overflow-hidden border border-[#ececec] w-16 h-16 bg-[#fafafb] shrink-0">
+                    <img src={p.imgDataUrl} alt={p.label} className="w-full h-full object-cover" />
+                    <span className="absolute bottom-0 inset-x-0 bg-[#17191c]/70 text-[8px] text-white text-center py-0.5 truncate">
+                      P{p.stepId}
                     </span>
                   </div>
                 ))}
-                {capturedPoses.length > 15 && (
-                  <div className="rounded-[10px] border border-[#ececec] w-12 h-12 bg-[#faf3e0] text-[#8a6521] flex items-center justify-center text-[10px] font-bold shrink-0">
-                    +{capturedPoses.length - 15}
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -442,7 +548,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         <div className="p-5 border-t border-[#ececec] flex items-center justify-between bg-[#fafafb]">
           <div className="flex items-center gap-1.5 text-[11px] text-[#777b86]">
             <ShieldCheck size={14} className="text-[#c09748]" />
-            <span>20-Vector Noise Reduction L2 Norm</span>
+            <span>Master Profile: {capturedPoses.length} poses calibrated</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -462,10 +568,11 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
               }`}
             >
               <Sparkles size={14} className={capturedPoses.length > 0 ? 'text-[#c09748]' : 'text-[#979799]'} />
-              <span>Save & Complete Master Profile</span>
+              <span>Save & Complete Master Enrollment</span>
             </button>
           </div>
         </div>
+
       </div>
     </div>
   );
