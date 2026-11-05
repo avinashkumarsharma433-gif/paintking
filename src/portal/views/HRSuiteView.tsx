@@ -1,0 +1,349 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  ScanFace, 
+  Users, 
+  CalendarCheck, 
+  FileText, 
+  MapPin, 
+  ShieldCheck, 
+  Clock 
+} from 'lucide-react';
+import { HREmployeeDirectory } from '../modules/hr/HREmployeeDirectory';
+import { HREnrollFaceModal } from '../modules/hr/HREnrollFaceModal';
+import { HRAttendanceTerminal } from '../modules/hr/HRAttendanceTerminal';
+import { HRAttendanceRegister } from '../modules/hr/HRAttendanceRegister';
+import { HRLeaveView } from './HRLeaveView';
+import { 
+  Employee, 
+  AttendanceRecord, 
+  LocationStamp 
+} from '../types/hrAttendanceTypes';
+
+// Initial Mock Employees for PaintKing
+const INITIAL_EMPLOYEES: Employee[] = [
+  {
+    id: 'PK-EMP-0101',
+    name: 'Rahul Sharma',
+    designation: 'Senior Spray Coater',
+    department: 'Liquid Coating',
+    shift: 'General (09:00 - 18:00)',
+    phone: '+91 95945 91313',
+    email: 'rahul.s@paintking.in',
+    joinDate: '2023-04-15',
+    faceEnrolled: false,
+    status: 'ACTIVE',
+  },
+  {
+    id: 'PK-EMP-0102',
+    name: 'Pooja Vishwakarma',
+    designation: 'Quality Control Inspector',
+    department: 'Quality Assurance',
+    shift: 'Morning Shift A (06:00 - 14:30)',
+    phone: '+91 98200 45678',
+    email: 'pooja.v@paintking.in',
+    joinDate: '2024-01-10',
+    faceEnrolled: false,
+    status: 'ACTIVE',
+  },
+  {
+    id: 'PK-EMP-0103',
+    name: 'Amit Patel',
+    designation: 'Hydrographic Dipping Specialist',
+    department: 'Hydrographics',
+    shift: 'General (09:00 - 18:00)',
+    phone: '+91 91678 12345',
+    email: 'amit.p@paintking.in',
+    joinDate: '2022-08-01',
+    faceEnrolled: false,
+    status: 'ACTIVE',
+  },
+  {
+    id: 'PK-EMP-0104',
+    name: 'Suresh Chauhan',
+    designation: 'Injection Moulding Operator',
+    department: 'Injection Moulding',
+    shift: 'Evening Shift B (14:00 - 22:30)',
+    phone: '+91 98920 87654',
+    email: 'suresh.c@paintking.in',
+    joinDate: '2023-11-20',
+    faceEnrolled: false,
+    status: 'ACTIVE',
+  },
+];
+
+export const HRSuiteView: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'TERMINAL' | 'REGISTER' | 'DIRECTORY' | 'LEAVE'>('TERMINAL');
+
+  // Load from localStorage or initialize
+  const [employees, setEmployees] = useState<Employee[]>(() => {
+    try {
+      const saved = localStorage.getItem('pk_hr_employees');
+      return saved ? JSON.parse(saved) : INITIAL_EMPLOYEES;
+    } catch {
+      return INITIAL_EMPLOYEES;
+    }
+  });
+
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('pk_hr_attendance_records');
+      if (saved) return JSON.parse(saved);
+
+      // Default mock records for today
+      const today = new Date().toISOString().split('T')[0];
+      return [
+        {
+          id: `REC-${Date.now()}-1`,
+          employeeId: 'PK-EMP-0101',
+          employeeName: 'Rahul Sharma',
+          department: 'Liquid Coating',
+          date: today,
+          inTime: '08:54:12',
+          shiftName: 'General (09:00 - 18:00)',
+          status: 'PRESENT',
+          inLocation: {
+            lat: 19.2094833,
+            lng: 72.8256194,
+            accuracy: 8,
+            distanceToHQ: 14,
+            isHQVerified: true,
+            locationName: 'Mumbai Head Office & R&D Lab',
+          },
+        },
+        {
+          id: `REC-${Date.now()}-2`,
+          employeeId: 'PK-EMP-0102',
+          employeeName: 'Pooja Vishwakarma',
+          department: 'Quality Assurance',
+          date: today,
+          inTime: '09:22:45',
+          shiftName: 'Morning Shift A (06:00 - 14:30)',
+          status: 'LATE',
+          inLocation: {
+            lat: 19.2094833,
+            lng: 72.8256194,
+            accuracy: 12,
+            distanceToHQ: 22,
+            isHQVerified: true,
+            locationName: 'Mumbai Head Office & R&D Lab',
+          },
+        },
+      ];
+    } catch {
+      return [];
+    }
+  });
+
+  // Save changes to localStorage
+  useEffect(() => {
+    localStorage.setItem('pk_hr_employees', JSON.stringify(employees));
+  }, [employees]);
+
+  useEffect(() => {
+    localStorage.setItem('pk_hr_attendance_records', JSON.stringify(attendanceRecords));
+  }, [attendanceRecords]);
+
+  // Face Enrollment Modal State
+  const [enrollingEmployee, setEnrollingEmployee] = useState<Employee | null>(null);
+
+  // Add new employee
+  const handleAddEmployee = (empData: Omit<Employee, 'id' | 'faceEnrolled' | 'faceDescriptors' | 'status'>) => {
+    const nextNum = employees.length + 101;
+    const newEmp: Employee = {
+      ...empData,
+      id: `PK-EMP-${String(nextNum).padStart(4, '0')}`,
+      faceEnrolled: false,
+      status: 'ACTIVE',
+    };
+    setEmployees((prev) => [newEmp, ...prev]);
+  };
+
+  // Save Face Descriptors
+  const handleSaveFaceDescriptors = (empId: string, descriptors: number[][], avatarUrl?: string) => {
+    setEmployees((prev) =>
+      prev.map((e) =>
+        e.id === empId
+          ? {
+              ...e,
+              faceEnrolled: true,
+              faceDescriptors: descriptors,
+              avatarUrl: avatarUrl || e.avatarUrl,
+            }
+          : e
+      )
+    );
+  };
+
+  // Record In / Out Punch from Terminal
+  const handleRecordPunch = (
+    employee: Employee, 
+    type: 'IN' | 'OUT', 
+    locationStamp: LocationStamp
+  ) => {
+    const today = new Date().toISOString().split('T')[0];
+    const timeStr = new Date().toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+
+    setAttendanceRecords((prev) => {
+      const existing = prev.find((r) => r.employeeId === employee.id && r.date === today);
+
+      if (existing) {
+        // Update OUT punch
+        return prev.map((r) =>
+          r.id === existing.id
+            ? {
+                ...r,
+                outTime: timeStr,
+                outLocation: locationStamp,
+              }
+            : r
+        );
+      } else {
+        // Create new IN punch
+        // Check if late (after 09:15 for general shift)
+        const isLate = timeStr > '09:15:00';
+        const newRecord: AttendanceRecord = {
+          id: `REC-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          employeeId: employee.id,
+          employeeName: employee.name,
+          department: employee.department,
+          date: today,
+          inTime: timeStr,
+          inLocation: locationStamp,
+          status: isLate ? 'LATE' : 'PRESENT',
+          shiftName: employee.shift,
+        };
+        return [newRecord, ...prev];
+      }
+    });
+  };
+
+  // Manual Override from Register
+  const handleManualOverride = (
+    recordId: string, 
+    inTime: string, 
+    outTime: string, 
+    reason: string
+  ) => {
+    setAttendanceRecords((prev) =>
+      prev.map((r) =>
+        r.id === recordId
+          ? {
+              ...r,
+              inTime,
+              outTime,
+              isManualOverride: true,
+              overrideReason: reason,
+              overrideBy: 'HR Manager',
+            }
+          : r
+      )
+    );
+  };
+
+  const handleAddManualRecord = (newRec: Omit<AttendanceRecord, 'id'>) => {
+    const record: AttendanceRecord = {
+      ...newRec,
+      id: `REC-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    };
+    setAttendanceRecords((prev) => [record, ...prev]);
+  };
+
+  return (
+    <div className="space-y-6 pb-16">
+      {/* Top HR Navigation Navigation Strip */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-[#fafafb] border border-[#ececec] rounded-[24px]">
+        <button
+          onClick={() => setActiveTab('TERMINAL')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+            activeTab === 'TERMINAL'
+              ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
+              : 'text-[#777b86] hover:text-[#17191c]'
+          }`}
+        >
+          <ScanFace size={15} className={activeTab === 'TERMINAL' ? 'text-[#c09748]' : 'text-[#979799]'} />
+          <span>Live Face Terminal</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('REGISTER')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+            activeTab === 'REGISTER'
+              ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
+              : 'text-[#777b86] hover:text-[#17191c]'
+          }`}
+        >
+          <CalendarCheck size={15} className={activeTab === 'REGISTER' ? 'text-[#c09748]' : 'text-[#979799]'} />
+          <span>Attendance Register</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('DIRECTORY')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+            activeTab === 'DIRECTORY'
+              ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
+              : 'text-[#777b86] hover:text-[#17191c]'
+          }`}
+        >
+          <Users size={15} className={activeTab === 'DIRECTORY' ? 'text-[#c09748]' : 'text-[#979799]'} />
+          <span>Employee Master & Biometrics</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('LEAVE')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+            activeTab === 'LEAVE'
+              ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
+              : 'text-[#777b86] hover:text-[#17191c]'
+          }`}
+        >
+          <FileText size={15} className={activeTab === 'LEAVE' ? 'text-[#c09748]' : 'text-[#979799]'} />
+          <span>Leave Sanctions (PK-HR-LV-01)</span>
+        </button>
+      </div>
+
+      {/* Active Tab View */}
+      {activeTab === 'TERMINAL' && (
+        <HRAttendanceTerminal
+          employees={employees}
+          attendanceRecords={attendanceRecords}
+          onRecordPunch={handleRecordPunch}
+        />
+      )}
+
+      {activeTab === 'REGISTER' && (
+        <HRAttendanceRegister
+          records={attendanceRecords}
+          employees={employees}
+          onManualOverride={handleManualOverride}
+          onAddManualRecord={handleAddManualRecord}
+        />
+      )}
+
+      {activeTab === 'DIRECTORY' && (
+        <HREmployeeDirectory
+          employees={employees}
+          onAddEmployee={handleAddEmployee}
+          onOpenFaceEnroll={(emp) => setEnrollingEmployee(emp)}
+        />
+      )}
+
+      {activeTab === 'LEAVE' && <HRLeaveView />}
+
+      {/* Face Enrollment Modal */}
+      {enrollingEmployee && (
+        <HREnrollFaceModal
+          employee={enrollingEmployee}
+          allEmployees={employees}
+          isOpen={!!enrollingEmployee}
+          onClose={() => setEnrollingEmployee(null)}
+          onSaveFaceDescriptors={handleSaveFaceDescriptors}
+        />
+      )}
+    </div>
+  );
+};

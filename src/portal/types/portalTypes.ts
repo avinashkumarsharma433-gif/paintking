@@ -670,6 +670,9 @@ export interface JobCard {
   partCode: string;
   partDescription: string;
   model?: string;
+  family?: string;
+  batchNo?: string;
+  dcNumber?: string;
   color: string;
   targetQty: number;        // Target Cap e.g. 250
   sprayedQty: number;       // Actual sprayed count
@@ -1168,6 +1171,9 @@ export interface FinalQualityRelease {
   partCode: string;
   partDescription?: string;
   model?: string;
+  family?: string;
+  batchNo?: string;
+  dcNumber?: string;
   color: string;
   offeredQty: number;
   sampledQty: number;
@@ -1256,7 +1262,7 @@ export interface FinalQualityRelease {
   dunnageProtection?: 'Pass' | 'Fail';
   coaIncluded?: 'Pass' | 'Fail';
   vehicleReadiness?: 'Pass' | 'Fail' | 'N/A';
-  pdiStatus: 'Cleared for Invoicing' | 'Hold';
+  pdiStatus: 'Cleared for Invoicing' | 'Hold' | 'Awaiting PDI';
   pdiDate?: string;
   pdiInspector?: string;
   inspector: string;

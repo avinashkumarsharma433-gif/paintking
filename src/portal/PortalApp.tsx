@@ -12,7 +12,7 @@ import { PaintMixingView } from './views/PaintMixingView';
 import { PackingView } from './views/PackingView';
 import { GatePassView } from './views/GatePassView';
 import { ProductionOfferingView } from './views/ProductionOfferingView';
-import { HRLeaveView } from './views/HRLeaveView';
+import { HRSuiteView } from './views/HRSuiteView';
 import { CalibrationView } from './views/CalibrationView';
 import { PainterWorkspaceView } from './views/PainterWorkspaceView';
 import { UserRole } from './types/portalTypes';
@@ -215,7 +215,7 @@ const PortalInner: React.FC<PortalAppProps> = ({ onBackToWebsite }) => {
       case 'production_offering':
         return <ProductionOfferingView />;
       case 'hr_leave':
-        return <HRLeaveView />;
+        return <HRSuiteView />;
       case 'calibration':
         return <CalibrationView />;
       default:

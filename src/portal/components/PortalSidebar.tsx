@@ -46,7 +46,7 @@ export const TAB_LABELS: Record<PortalTab, string> = {
   packing: 'Packing & Box QR',
   gatepass: 'Gate Security & Inward',
   production_offering: 'Production Offering',
-  hr_leave: 'HR Leave Desk',
+  hr_leave: 'HR Suite & Attendance',
   calibration: 'Equipment Calibration'
 };
 
