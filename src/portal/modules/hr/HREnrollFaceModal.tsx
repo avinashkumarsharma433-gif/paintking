@@ -56,6 +56,8 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   onClose,
   onSaveFaceDescriptors,
 }) => {
+  if (!employee || !employee.id) return null;
+
   const [activeTab, setActiveTab] = useState<'GUIDED' | 'UPLOAD'>('GUIDED');
   const [consentGiven, setConsentGiven] = useState<boolean>(true);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
@@ -131,7 +133,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     },
   ];
 
-  const currentPose = POSE_STEPS[currentStepIndex];
+  const currentPose = POSE_STEPS[Math.min(currentStepIndex, POSE_STEPS.length - 1)] || POSE_STEPS[0];
 
   useEffect(() => {
     loadFaceModels();
