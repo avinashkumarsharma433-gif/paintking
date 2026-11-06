@@ -467,7 +467,7 @@ export async function detectMultipleFacesFromCanvas(
   if (!modelsLoaded) return [];
 
   const detections = await faceapi
-    .detectAllFaces(input, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.38 }))
+    .detectAllFaces(input, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.32 }))
     .withFaceLandmarks()
     .withFaceDescriptors();
 
@@ -479,8 +479,8 @@ export async function detectMultipleFacesFromCanvas(
     const descriptor = Array.from(det.descriptor);
     const ear = calculateEyeAspectRatio(det.landmarks);
 
-    // Adjusted distance threshold: detects from farther distances (minimum 32px box width/height)
-    const isLive = !requireLiveness || (ear > 0.12 && box.width > 32 && box.height > 32);
+    // Long-Range Distance Gate: Supports 5MP (2560x1920) deep optical detection down to 24px face crop
+    const isLive = !requireLiveness || (ear > 0.10 && box.width >= 24 && box.height >= 24);
     const match = findBestFaceMatch(descriptor, enrolledEmployees, threshold, isLive, minMargin);
 
     let status: DetectedFaceSlot['status'] = 'UNKNOWN';

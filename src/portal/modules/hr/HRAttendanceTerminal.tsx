@@ -227,18 +227,18 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
 
         let stream: MediaStream | null = null;
 
-        // Try primary constraints (1080p Full HD priority, fallback to 720p HD)
+        // Try primary constraints: Full 5MP Ultra-HD (2560x1920 / 2560x1440) -> 1080p Full HD -> 720p HD
         const primaryConstraints: MediaStreamConstraints = {
           video: selectedCameraId
             ? {
                 deviceId: { exact: selectedCameraId },
-                width: { ideal: 1920, min: 1280 },
-                height: { ideal: 1080, min: 720 },
+                width: { ideal: 2560, min: 1280 },
+                height: { ideal: 1920, min: 720 },
               }
             : {
                 facingMode: 'user',
-                width: { ideal: 1920, min: 1280 },
-                height: { ideal: 1080, min: 720 },
+                width: { ideal: 2560, min: 1280 },
+                height: { ideal: 1920, min: 720 },
               },
           audio: false,
         };
