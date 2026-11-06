@@ -1,5 +1,15 @@
 # WORKING SET
 
+- 2026-11-06: Industrial HR Payroll, Overtime (OT) Engine & Monthly Payslip PDF Generator
+  - Files touched:
+    - `src/portal/services/payrollCalculationService.ts` (Daily rate calculation, 8.0h normal shift, 1.5x OT computation, day-by-day punch breakdown & CSV export)
+    - `src/portal/services/payrollPdfService.ts` (Universal standard PaintKing monthly payslip PDF with daily punch log and Form IV compliance)
+    - `src/portal/modules/hr/HRPayrollView.tsx` (Plant payroll register with metrics, search, department filter, editable daily rate modal, and 30-day log modal)
+    - `src/portal/views/HRSuiteView.tsx` (Added "Payroll & OT Wages" tab)
+    - `src/portal/types/hrAttendanceTypes.ts` (Employee dailyRate, otHourlyRate, EmployeeMonthlyPayrollSummary, DailyAttendanceSummary)
+  - Search string: `PK-OS Industrial Payroll`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-06: Dynamic Responsive Face Detection Corner Bracket Overlay
   - Files touched:
     - `src/portal/modules/hr/HREnrollFaceModal.tsx` (Live bounding box tracker mapped to actual face position with mirror alignment, animated corner brackets, and dynamic gold-to-emerald status transitions)
