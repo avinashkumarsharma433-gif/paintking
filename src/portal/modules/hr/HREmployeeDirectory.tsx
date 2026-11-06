@@ -43,6 +43,7 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
   const [shift, setShift] = useState<Employee['shift']>('General (09:00 - 18:00)');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [dailyRate, setDailyRate] = useState<number>(750);
   const [joinDate, setJoinDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   const filteredEmployees = (employees || []).filter((emp) => {
@@ -72,6 +73,7 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
       shift,
       phone: phone.trim() || '+91 98000 00000',
       email: email.trim() || `${name.toLowerCase().replace(/\s+/g, '')}@paintking.in`,
+      dailyRate: Number(dailyRate) || 750,
       joinDate,
     });
 
@@ -418,15 +420,18 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
 
                 <div>
                   <label className="block text-[11px] font-semibold text-[#17191c] mb-1">
-                    Official Email
+                    Daily Wage Rate (₹ / Day) *
                   </label>
                   <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="emp@paintking.in"
-                    className="w-full px-3.5 py-2.5 text-xs bg-[#fafafb] border border-[#ececec] rounded-[16px] text-[#17191c] focus:outline-none focus:border-[#c09748] focus:bg-white"
+                    type="number"
+                    min="100"
+                    step="50"
+                    value={dailyRate}
+                    onChange={(e) => setDailyRate(Number(e.target.value))}
+                    placeholder="750"
+                    className="w-full px-3.5 py-2.5 text-xs bg-[#fafafb] border border-[#ececec] rounded-[16px] text-[#17191c] font-semibold focus:outline-none focus:border-[#c09748] focus:bg-white"
                   />
+                  <span className="text-[10px] text-[#979799]">Base pay for 8-hour shift</span>
                 </div>
               </div>
 
