@@ -1,29 +1,21 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
-  Camera, 
   X, 
   Check, 
   RefreshCw, 
-  Upload, 
-  ShieldCheck, 
-  Sparkles, 
   AlertCircle,
-  AlertTriangle,
   Smile,
   Glasses,
   ArrowLeft,
   ArrowRight,
   ArrowUp,
   UserCheck,
-  ChevronRight,
-  ChevronLeft,
-  Sun,
   ShieldAlert,
-  Lock
+  Sparkles,
+  CheckCircle2
 } from 'lucide-react';
 import { Employee, EnrollmentQualityDetails } from '../../types/hrAttendanceTypes';
 import { 
-  extractFaceDescriptorFromCanvas, 
   loadFaceModels,
   computeMasterVector,
   checkDuplicateFace,
@@ -39,14 +31,13 @@ interface HREnrollFaceModalProps {
   onSaveFaceDescriptors: (empId: string, descriptors: number[][], avatarUrl?: string) => void;
 }
 
-// 6 Guided Professional Poses for Maximum Biometric Accuracy
 interface PoseInstruction {
   id: number;
   title: string;
   subtitle: string;
+  hindiInstruction: string;
   icon: React.ReactNode;
-  guideVisual: string; // Arrow / Target hint
-  tip: string;
+  guideVisual: string;
 }
 
 export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
@@ -58,8 +49,6 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
 }) => {
   if (!employee || !employee.id) return null;
 
-  const [activeTab, setActiveTab] = useState<'GUIDED' | 'UPLOAD'>('GUIDED');
-  const [consentGiven, setConsentGiven] = useState<boolean>(true);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const currentStepIndexRef = useRef<number>(0);
   useEffect(() => {
@@ -71,22 +60,22 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   useEffect(() => {
     capturedPosesRef.current = capturedPoses;
   }, [capturedPoses]);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+
   // Real-time quality gate & auto-capture
   const [qualityDetails, setQualityDetails] = useState<EnrollmentQualityDetails | null>(null);
-  const [steadyHoldProgress, setSteadyHoldProgress] = useState<number>(0); // 0 to 100%
-  const [autoCaptureEnabled, setAutoCaptureEnabled] = useState<boolean>(true);
+  const [steadyHoldProgress, setSteadyHoldProgress] = useState<number>(0);
 
-  // Duplicate face block state (requires HR Admin written override)
+  // Duplicate face block state
   const [duplicateBlock, setDuplicateBlock] = useState<{
     matchedEmployee: Employee;
     distance: number;
     pendingPose: { stepId: number; label: string; descriptor: number[]; imgDataUrl: string };
   } | null>(null);
   const [overrideReason, setOverrideReason] = useState<string>('');
-  const [overrideHistory, setOverrideHistory] = useState<{ poseId: number; reason: string; timestamp: string }[]>([]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -94,51 +83,51 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   const POSE_STEPS: PoseInstruction[] = [
     {
       id: 1,
-      title: 'Pose 1: Straight & Neutral',
-      subtitle: 'Look directly into camera lens without smiling',
-      icon: <UserCheck size={28} className="text-[#c09748]" />,
+      title: 'Straight & Neutral',
+      subtitle: 'Look directly at camera',
+      hindiInstruction: 'सीधा कैमरे की तरफ देखें',
+      icon: <UserCheck size={24} className="text-[#c09748]" />,
       guideVisual: 'CENTER',
-      tip: 'Keep your chin level and look directly at the center oval.',
     },
     {
       id: 2,
-      title: 'Pose 2: Natural Smile',
-      subtitle: 'Smile naturally while keeping eyes open',
-      icon: <Smile size={28} className="text-[#c09748]" />,
+      title: 'Natural Smile',
+      subtitle: 'Smile naturally with eyes open',
+      hindiInstruction: 'हल्की मुस्कान दें (Smile)',
+      icon: <Smile size={24} className="text-[#c09748]" />,
       guideVisual: 'CENTER_SMILE',
-      tip: 'Helps recognize when greeting colleagues or expressing emotion.',
     },
     {
       id: 3,
-      title: 'Pose 3: Turn Head Left (20°)',
-      subtitle: 'Slightly turn head to your left side, eyes towards camera',
-      icon: <ArrowLeft size={28} className="text-[#c09748]" />,
+      title: 'Turn Head Left',
+      subtitle: 'Turn head slightly left (20°)',
+      hindiInstruction: 'चेहरे को थोड़ा बायीं तरफ घुमाएं',
+      icon: <ArrowLeft size={24} className="text-[#c09748]" />,
       guideVisual: 'ARROW_LEFT',
-      tip: 'Turn your nose towards the left indicator.',
     },
     {
       id: 4,
-      title: 'Pose 4: Turn Head Right (20°)',
-      subtitle: 'Slightly turn head to your right side, eyes towards camera',
-      icon: <ArrowRight size={28} className="text-[#c09748]" />,
+      title: 'Turn Head Right',
+      subtitle: 'Turn head slightly right (20°)',
+      hindiInstruction: 'चेहरे को थोड़ा दायीं तरफ घुमाएं',
+      icon: <ArrowRight size={24} className="text-[#c09748]" />,
       guideVisual: 'ARROW_RIGHT',
-      tip: 'Turn your nose towards the right indicator.',
     },
     {
       id: 5,
-      title: 'Pose 5: Chin Slightly Up (15°)',
-      subtitle: 'Tilt chin slightly upward for biometric jawline angle',
-      icon: <ArrowUp size={28} className="text-[#c09748]" />,
+      title: 'Chin Slightly Up',
+      subtitle: 'Tilt chin slightly upward',
+      hindiInstruction: 'ठोड़ी (Chin) को थोड़ा ऊपर उठाएं',
+      icon: <ArrowUp size={24} className="text-[#c09748]" />,
       guideVisual: 'ARROW_UP',
-      tip: 'Raise chin slightly to capture bottom jaw contours.',
     },
     {
       id: 6,
-      title: 'Pose 6: Glasses or Expression Check',
-      subtitle: 'Wear glasses if you use them daily, or blink & look straight',
-      icon: <Glasses size={28} className="text-[#c09748]" />,
+      title: 'Final Verification',
+      subtitle: 'Look straight with daily glasses or expression',
+      hindiInstruction: 'सीधा देखें - अंतिम सत्यापन',
+      icon: <Glasses size={24} className="text-[#c09748]" />,
       guideVisual: 'CENTER_GLASSES',
-      tip: 'Final verification pose for daily work wear compatibility.',
     },
   ];
 
@@ -150,40 +139,28 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
 
   // Start Camera Stream
   useEffect(() => {
-    if (!isOpen || activeTab === 'UPLOAD') return;
+    if (!isOpen) return;
 
     let isMounted = true;
     const startCamera = async () => {
       try {
         setCameraError(null);
-
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          if (typeof window !== 'undefined' && !window.isSecureContext) {
-            throw new Error(
-              'Mobile browsers require HTTPS or localhost for camera access. On plain HTTP IP, camera is blocked.'
-            );
-          }
-          throw new Error('Camera access API is not supported on this browser.');
+          throw new Error('Camera permission not available.');
         }
 
         let stream: MediaStream | null = null;
         try {
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+            video: {
+              facingMode: 'user',
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
             audio: false,
           });
         } catch {
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: 'user' },
-              audio: false,
-            });
-          } catch {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: true,
-              audio: false,
-            });
-          }
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         }
 
         if (isMounted && stream) {
@@ -191,14 +168,12 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
             videoRef.current.setAttribute('playsinline', 'true');
-            videoRef.current.setAttribute('webkit-playsinline', 'true');
-            videoRef.current.play().catch((e) => console.warn('Video play deferred:', e));
+            await videoRef.current.play().catch(() => {});
           }
         }
-      } catch (err: unknown) {
+      } catch (err) {
         if (isMounted) {
-          const errMsg = err instanceof Error ? err.message : 'Camera access denied';
-          setCameraError(`Camera error: ${errMsg}. Check device permissions.`);
+          setCameraError(err instanceof Error ? err.message : 'Unable to access camera.');
         }
       }
     };
@@ -212,11 +187,27 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         streamRef.current = null;
       }
     };
-  }, [isOpen, activeTab]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  // Capture Current Step Pose (Strictly Non-Mirrored Image)
+  // Complete and save enrollment
+  const finalizeEnrollment = (allPoses: typeof capturedPoses) => {
+    if (allPoses.length === 0) return;
+    const rawDescriptors = allPoses.map((p) => p.descriptor);
+    const masterVector = computeMasterVector(rawDescriptors);
+    const combinedDescriptors = [masterVector, ...rawDescriptors];
+    const avatarUrl = allPoses[0].imgDataUrl;
+
+    setIsSuccessModalOpen(true);
+
+    setTimeout(() => {
+      onSaveFaceDescriptors(employee.id, combinedDescriptors, avatarUrl);
+      onClose();
+    }, 2200);
+  };
+
+  // Capture Current Step Pose
   const handleCapturePose = useCallback(async () => {
     if (!videoRef.current || isProcessing) return;
     setIsProcessing(true);
@@ -232,7 +223,6 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Draw original non-mirrored frame
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       const detection = await faceapi
@@ -240,12 +230,8 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         .withFaceLandmarks()
         .withFaceDescriptor();
 
-      if (!detection) {
-        alert('Face not clearly detected. Ensure face is well-lit and inside the oval guide.');
-        return;
-      }
+      if (!detection) return;
 
-      // Quality Gate Assessment
       const quality = assessEnrollmentQuality(
         detection,
         ctx,
@@ -254,10 +240,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         targetPose.id
       );
 
-      if (!quality.passed) {
-        alert(`Quality Check Failed:\n• ${quality.reasons.join('\n• ')}`);
-        return;
-      }
+      if (!quality.passed) return;
 
       const descriptor = Array.from(detection.descriptor);
       const imgDataUrl = canvas.toDataURL('image/jpeg', 0.85);
@@ -269,11 +252,10 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         imgDataUrl,
       };
 
-      // Duplicate Face Check on EVERY pose (Strict 0.40 threshold)
+      // Duplicate Check
       if (allEmployees.length > 0) {
         const dup = checkDuplicateFace(descriptor, allEmployees, employee.id, 0.40);
         if (dup.isDuplicate && dup.matchedEmployee) {
-          // Block enrollment until admin provides written authorization
           setDuplicateBlock({
             matchedEmployee: dup.matchedEmployee,
             distance: dup.distance,
@@ -288,20 +270,22 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       setCapturedPoses(updatedPoses);
       setSteadyHoldProgress(0);
 
-      // Move strictly to next step
-      if (activeIdx < POSE_STEPS.length - 1) {
+      // Check if this was the last pose
+      if (activeIdx >= POSE_STEPS.length - 1) {
+        finalizeEnrollment(updatedPoses);
+      } else {
         setCurrentStepIndex(activeIdx + 1);
       }
     } catch {
-      // extraction error
+      // extraction fail ignored
     } finally {
       setIsProcessing(false);
     }
   }, [allEmployees, employee.id, isProcessing]);
 
-  // Live Quality Gate & Auto-Capture Loop
+  // Live Auto-Capture Loop
   useEffect(() => {
-    if (!isOpen || activeTab !== 'GUIDED' || isProcessing || duplicateBlock) {
+    if (!isOpen || isProcessing || duplicateBlock || isSuccessModalOpen) {
       return;
     }
 
@@ -318,7 +302,6 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         const ctx = offscreen.getContext('2d');
         if (!ctx) return;
 
-        // Draw original raw frame
         ctx.drawImage(video, 0, 0, offscreen.width, offscreen.height);
 
         const activeIdx = currentStepIndexRef.current;
@@ -338,9 +321,9 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
           );
           setQualityDetails(quality);
 
-          if (quality.passed && autoCaptureEnabled) {
+          if (quality.passed) {
             setSteadyHoldProgress((prev) => {
-              const next = prev + 25; // 4 ticks of 250ms = 1000ms steady hold
+              const next = prev + 25;
               if (next >= 100 && !isCapturing) {
                 isCapturing = true;
                 handleCapturePose().finally(() => {
@@ -358,26 +341,15 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
           setSteadyHoldProgress(0);
         }
       } catch {
-        // Frame processing glitch ignored
+        // scan frame glitch ignored
       }
     }, 280);
 
     return () => clearInterval(interval);
-  }, [isOpen, activeTab, isProcessing, duplicateBlock, currentStepIndex, autoCaptureEnabled, handleCapturePose]);
+  }, [isOpen, isProcessing, duplicateBlock, isSuccessModalOpen, currentStepIndex, handleCapturePose]);
 
-  // HR Admin Duplicate Override Handler
   const handleAdminOverrideConfirm = () => {
     if (!duplicateBlock || !overrideReason.trim()) return;
-
-    setOverrideHistory((prev) => [
-      ...prev,
-      {
-        poseId: duplicateBlock.pendingPose.stepId,
-        reason: overrideReason.trim(),
-        timestamp: new Date().toISOString(),
-      },
-    ]);
-
     const updatedPoses = [
       ...capturedPoses.filter((p) => p.stepId !== duplicateBlock.pendingPose.stepId),
       duplicateBlock.pendingPose,
@@ -386,58 +358,12 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     setDuplicateBlock(null);
     setOverrideReason('');
 
-    if (currentStepIndex < POSE_STEPS.length - 1) {
-      setCurrentStepIndex((prev) => prev + 1);
+    const activeIdx = currentStepIndexRef.current;
+    if (activeIdx >= POSE_STEPS.length - 1) {
+      finalizeEnrollment(updatedPoses);
+    } else {
+      setCurrentStepIndex(activeIdx + 1);
     }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsProcessing(true);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const img = new Image();
-      img.onload = async () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        ctx.drawImage(img, 0, 0);
-
-        const descriptor = await extractFaceDescriptorFromCanvas(canvas);
-        if (descriptor) {
-          setCapturedPoses([
-            {
-              stepId: 1,
-              label: 'Uploaded Photo Profile',
-              descriptor,
-              imgDataUrl: event.target?.result as string,
-            },
-          ]);
-        } else {
-          alert('Face not detected. Please upload a clear front-facing portrait.');
-        }
-        setIsProcessing(false);
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleSaveAndEnroll = () => {
-    if (capturedPoses.length === 0) return;
-    const rawDescriptors = capturedPoses.map((p) => p.descriptor);
-
-    // Compute Master Vector from all captured poses
-    const masterVector = computeMasterVector(rawDescriptors);
-    const combinedDescriptors = [masterVector, ...rawDescriptors];
-
-    const avatarUrl = capturedPoses[0].imgDataUrl;
-    onSaveFaceDescriptors(employee.id, combinedDescriptors, avatarUrl);
-    onClose();
   };
 
   const handleReset = () => {
@@ -447,444 +373,178 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     setSteadyHoldProgress(0);
   };
 
-  const isAllPosesDone = capturedPoses.length >= POSE_STEPS.length;
-
   return (
-    <div className="fixed inset-0 z-[9999] bg-[#17191c]/80 backdrop-blur-sm flex items-center justify-center p-0 sm:p-3 md:p-6 overflow-hidden">
-      <div className="bg-white rounded-none sm:rounded-[24px] border-0 sm:border border-[#ececec] shadow-2xl w-screen h-[100dvh] sm:w-[94vw] sm:h-auto sm:max-h-[94vh] lg:max-w-4xl flex flex-col overflow-hidden">
-        
-        {/* Header */}
-        <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-[#ececec] flex items-center justify-between bg-[#fafafb] shrink-0">
+    <div className="fixed inset-0 z-[9999] bg-[#17191c] flex flex-col justify-between overflow-hidden select-none">
+      
+      {/* FULL SCREEN CAMERA PREVIEW */}
+      <div className="relative flex-1 w-full h-full overflow-hidden flex items-center justify-center bg-black">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="w-full h-full object-cover scale-x-[-1]"
+        />
+
+        {/* TOP COMPACT BAR: Employee Name & Close Button */}
+        <div className="absolute top-0 inset-x-0 p-4 pt-6 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center justify-between z-20">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c09748]">
-                Interactive Biometric Trainer
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] font-semibold border border-[#f4e5be]">
-                6 Guided Poses
-              </span>
-            </div>
-            <h3 className="text-sm sm:text-base md:text-lg font-serif text-[#17191c] mt-0.5 truncate max-w-[240px] sm:max-w-none">
-              Enroll Face: <span className="font-sans font-bold">{employee.name}</span> ({employee.id})
+            <h3 className="text-white font-bold text-base sm:text-lg flex items-center gap-2 drop-shadow-md">
+              <span>{employee.name}</span>
+              <span className="text-xs text-white/70 font-mono font-normal">({employee.id})</span>
             </h3>
+            <div className="flex items-center gap-1.5 mt-1">
+              {POSE_STEPS.map((s, idx) => (
+                <div
+                  key={s.id}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    capturedPoses.some((p) => p.stepId === s.id)
+                      ? 'w-6 bg-emerald-400'
+                      : idx === currentStepIndex
+                      ? 'w-6 bg-[#c09748]'
+                      : 'w-2.5 bg-white/30'
+                  }`}
+                />
+              ))}
+            </div>
           </div>
+
           <button
             onClick={onClose}
-            className="h-8 w-8 sm:h-9 sm:w-9 rounded-full flex items-center justify-center bg-white border border-[#ececec] text-[#777b86] hover:text-[#17191c] cursor-pointer shrink-0 shadow-2xs active:scale-95"
-            title="Close Modal"
+            className="h-10 w-10 rounded-full flex items-center justify-center bg-black/50 text-white/90 hover:text-white border border-white/20 backdrop-blur-md cursor-pointer active:scale-95 transition"
           >
-            <X size={16} />
+            <X size={20} />
           </button>
         </div>
 
-        {/* Tab switch */}
-        <div className="px-3 sm:px-6 pt-2 sm:pt-3 flex gap-2 border-b border-[#f2f2f3] shrink-0 overflow-x-auto no-scrollbar">
-          <button
-            onClick={() => {
-              setActiveTab('GUIDED');
-              handleReset();
-            }}
-            className={`pb-2.5 text-xs font-semibold flex items-center gap-1.5 border-b-2 whitespace-nowrap transition cursor-pointer ${
-              activeTab === 'GUIDED'
-                ? 'border-[#c09748] text-[#17191c]'
-                : 'border-transparent text-[#777b86] hover:text-[#17191c]'
+        {/* CENTRAL OVAL GUIDE */}
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
+          <div
+            className={`relative w-[210px] h-[270px] xs:w-[240px] xs:h-[310px] rounded-[50%] border-2 transition-all duration-300 flex items-center justify-center ${
+              qualityDetails?.passed
+                ? 'border-emerald-400 shadow-[0_0_30px_rgba(52,211,153,0.3)]'
+                : 'border-white/50 border-dashed'
             }`}
           >
-            <Camera size={14} className={activeTab === 'GUIDED' ? 'text-[#c09748]' : 'text-[#979799]'} />
-            <span>Interactive Guided Pose Calibration</span>
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab('UPLOAD');
-              handleReset();
-            }}
-            className={`pb-2.5 text-xs font-semibold flex items-center gap-1.5 border-b-2 whitespace-nowrap transition cursor-pointer ${
-              activeTab === 'UPLOAD'
-                ? 'border-[#c09748] text-[#17191c]'
-                : 'border-transparent text-[#777b86] hover:text-[#17191c]'
-            }`}
-          >
-            <Upload size={14} className={activeTab === 'UPLOAD' ? 'text-[#c09748]' : 'text-[#979799]'} />
-            <span>Upload Photo File</span>
-          </button>
+            {/* Guide Arrows for Turn Pose */}
+            {currentPose.guideVisual === 'ARROW_LEFT' && (
+              <div className="absolute -left-14 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[#c09748] font-bold text-xs bg-black/80 px-2.5 py-1.5 rounded-full border border-[#c09748] animate-bounce">
+                <ArrowLeft size={16} />
+                <span>Turn Left</span>
+              </div>
+            )}
+
+            {currentPose.guideVisual === 'ARROW_RIGHT' && (
+              <div className="absolute -right-14 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[#c09748] font-bold text-xs bg-black/80 px-2.5 py-1.5 rounded-full border border-[#c09748] animate-bounce">
+                <span>Turn Right</span>
+                <ArrowRight size={16} />
+              </div>
+            )}
+
+            {currentPose.guideVisual === 'ARROW_UP' && (
+              <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center gap-1 text-[#c09748] font-bold text-xs bg-black/80 px-2.5 py-1.5 rounded-full border border-[#c09748] animate-bounce">
+                <ArrowUp size={16} />
+                <span>Chin Up</span>
+              </div>
+            )}
+
+            {currentPose.guideVisual === 'CENTER_SMILE' && (
+              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/80 px-3 py-1 rounded-full border border-amber-400">
+                <Smile size={16} />
+                <span>Smile Naturally</span>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Modal Body: Scrollable on mobile */}
-        <div className="p-3.5 sm:p-5 space-y-3 sm:space-y-4 flex-1 overflow-y-auto">
-          {activeTab === 'GUIDED' ? (
-            <div>
-              {cameraError ? (
-                <div className="p-4 rounded-[16px] bg-[#fff1f2] border border-[#fecdd3] text-[#9f1239] text-xs flex items-center gap-2">
-                  <AlertCircle size={16} className="shrink-0" />
-                  <span>{cameraError}</span>
-                </div>
-              ) : (
-                <div className="space-y-3 sm:space-y-4">
-                  
-                  {/* Step Stepper Bar with Icons (Strict Sequential Navigation) */}
-                  <div className="flex sm:grid sm:grid-cols-6 gap-1 sm:gap-1.5 bg-[#fafafb] p-1.5 sm:p-2 rounded-[18px] border border-[#ececec] overflow-x-auto no-scrollbar">
-                    {POSE_STEPS.map((step, idx) => {
-                      const isCompleted = capturedPoses.some(p => p.stepId === step.id);
-                      const isCurrent = idx === currentStepIndex;
-                      // Step can only be visited if it's Pose 1 or all preceding poses are captured
-                      const canNavigate = idx === 0 || POSE_STEPS.slice(0, idx).every(s => capturedPoses.some(p => p.stepId === s.id));
-
-                      return (
-                        <button
-                          key={step.id}
-                          type="button"
-                          disabled={!canNavigate}
-                          onClick={() => {
-                            if (canNavigate) {
-                              setCurrentStepIndex(idx);
-                            }
-                          }}
-                          className={`min-w-[60px] sm:min-w-0 flex-1 p-1.5 sm:p-2 rounded-[12px] sm:rounded-[14px] flex flex-col items-center justify-center transition-all shrink-0 ${
-                            isCurrent
-                              ? 'bg-[#faf3e0] border border-[#c09748] text-[#8a6521] shadow-2xs cursor-pointer'
-                              : isCompleted
-                              ? 'bg-white border border-[#dcdfe4] text-emerald-700 cursor-pointer hover:bg-slate-50'
-                              : canNavigate
-                              ? 'bg-transparent text-[#17191c] hover:bg-[#ececec] cursor-pointer'
-                              : 'bg-transparent text-[#979799] opacity-40 cursor-not-allowed'
-                          }`}
-                          title={!canNavigate ? `Capture Pose ${POSE_STEPS[idx - 1].id} first` : undefined}
-                        >
-                          <div className="text-xs mb-0.5 sm:mb-1">
-                            {isCompleted ? <Check size={13} className="text-emerald-600" /> : step.icon}
-                          </div>
-                          <span className="text-[9px] sm:text-[10px] font-bold">Pose {step.id}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* ACTIVE POSE INSTRUCTION HERO CARD */}
-                  <div className="p-3.5 bg-[#faf3e0] border border-[#f4e5be] rounded-[20px] flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-full bg-white border border-[#f4e5be] flex items-center justify-center shrink-0 shadow-2xs">
-                        {currentPose.icon}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#8a6521] text-white uppercase tracking-wider">
-                            Step {currentPose.id} of {POSE_STEPS.length}
-                          </span>
-                          <span className="text-xs font-bold text-[#17191c]">
-                            {currentPose.title}
-                          </span>
-                        </div>
-                        <p className="text-xs text-[#8a6521] font-medium mt-0.5">
-                          {currentPose.subtitle}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="hidden sm:block text-right text-[11px] text-[#777b86] max-w-[170px] leading-tight">
-                      Tip: {currentPose.tip}
-                    </div>
-                  </div>
-
-                  {/* Video Viewport with Interactive Visual Overlay Guidance & Live Quality Gate */}
-                  <div className="relative rounded-[20px] overflow-hidden bg-[#17191c] h-[46vh] sm:h-[400px] md:h-[420px] lg:h-[390px] w-full flex items-center justify-center border border-[#ececec] shadow-inner">
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover scale-x-[-1]"
-                    />
-
-                    {/* Quality Gate Live Feedback Header */}
-                    <div className="absolute top-3 inset-x-3 pointer-events-none flex items-center justify-between">
-                      {qualityDetails ? (
-                        <div
-                          className={`px-3 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1.5 shadow-md backdrop-blur-md ${
-                            qualityDetails.passed
-                              ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/30'
-                              : 'bg-amber-950/80 text-amber-300 border border-amber-500/30'
-                          }`}
-                        >
-                          {qualityDetails.passed ? (
-                            <>
-                              <Check size={12} className="text-emerald-400" />
-                              <span>Quality Gate: Optimal ({qualityDetails.qualityScore}%)</span>
-                            </>
-                          ) : (
-                            <>
-                              <AlertCircle size={12} className="text-amber-400" />
-                              <span>{qualityDetails.reasons[0] || 'Adjust pose & lighting'}</span>
-                            </>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="px-3 py-1 rounded-full text-[11px] font-semibold bg-[#17191c]/70 text-[#a3a6af] border border-white/10">
-                          Detecting face...
-                        </div>
-                      )}
-
-                      {/* Auto-Capture Steady Indicator */}
-                      {steadyHoldProgress > 0 && (
-                        <div className="px-3 py-1 rounded-full text-[11px] font-bold bg-[#c09748] text-white flex items-center gap-1.5 shadow-md animate-pulse">
-                          <Sparkles size={12} />
-                          <span>Hold Steady: Auto-capturing ({steadyHoldProgress}%)</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Central Face Target Oval Guide */}
-                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                      <div
-                        className={`relative w-[170px] h-[210px] rounded-[50%] border-2 border-dashed transition-colors duration-300 flex items-center justify-center ${
-                          qualityDetails?.passed ? 'border-emerald-400 opacity-90' : 'border-[#c09748] opacity-75'
-                        }`}
-                      >
-                        <span className="text-[10px] text-white/90 bg-[#17191c]/70 px-2 py-0.5 rounded-full font-mono">
-                          {qualityDetails?.passed ? 'Hold Steady' : 'Fit Face In Oval'}
-                        </span>
-
-                        {/* Interactive Directional Arrows based on Pose */}
-                        {currentPose.guideVisual === 'ARROW_LEFT' && (
-                          <div className="absolute -left-12 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[#c09748] font-bold text-xs bg-[#17191c]/80 px-2 py-1 rounded-full animate-bounce">
-                            <ArrowLeft size={16} />
-                            <span>Turn Left</span>
-                          </div>
-                        )}
-
-                        {currentPose.guideVisual === 'ARROW_RIGHT' && (
-                          <div className="absolute -right-12 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[#c09748] font-bold text-xs bg-[#17191c]/80 px-2 py-1 rounded-full animate-bounce">
-                            <span>Turn Right</span>
-                            <ArrowRight size={16} />
-                          </div>
-                        )}
-
-                        {currentPose.guideVisual === 'ARROW_UP' && (
-                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex items-center gap-1 text-[#c09748] font-bold text-xs bg-[#17191c]/80 px-2 py-1 rounded-full animate-bounce">
-                            <ArrowUp size={16} />
-                            <span>Tilt Chin Up</span>
-                          </div>
-                        )}
-
-                        {currentPose.guideVisual === 'CENTER_SMILE' && (
-                          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1 text-[#c09748] font-bold text-xs bg-[#17191c]/80 px-2.5 py-1 rounded-full">
-                            <Smile size={14} />
-                            <span>Smile Naturally</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Pose Completion Pill Indicator */}
-                    {capturedPoses.some(p => p.stepId === currentPose.id) && (
-                      <div className="absolute bottom-3 right-3 bg-emerald-600 text-white text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-md">
-                        <Check size={12} />
-                        <span>Pose {currentPose.id} Captured</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Steady Hold Progress Bar */}
-                  {steadyHoldProgress > 0 && (
-                    <div className="w-full bg-[#f2f2f3] h-1.5 rounded-full overflow-hidden">
-                      <div
-                        className="bg-[#c09748] h-full transition-all duration-200"
-                        style={{ width: `${steadyHoldProgress}%` }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Duplicate Block Warning Modal */}
-                  {duplicateBlock && (
-                    <div className="p-4 rounded-[20px] bg-[#fff1f2] border border-[#fecdd3] text-[#9f1239] space-y-3 animate-in fade-in">
-                      <div className="flex items-start gap-2.5">
-                        <ShieldAlert size={20} className="shrink-0 text-[#e11d48] mt-0.5" />
-                        <div>
-                          <h4 className="font-bold text-xs uppercase tracking-wider text-[#9f1239]">
-                            Enrollment Blocked: Duplicate Face Detected
-                          </h4>
-                          <p className="text-xs text-[#9f1239] mt-0.5 leading-relaxed">
-                            This face matches enrolled employee <strong>{duplicateBlock.matchedEmployee.name} ({duplicateBlock.matchedEmployee.id})</strong> with Euclidean distance {duplicateBlock.distance}. Duplicate enrollments are prohibited by default.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="p-3 bg-white rounded-[14px] border border-[#fecdd3] space-y-2">
-                        <label className="block text-[11px] font-semibold text-[#17191c]">
-                          HR Administrator Override Reason (Mandatory for bypass):
-                        </label>
-                        <input
-                          type="text"
-                          value={overrideReason}
-                          onChange={(e) => setOverrideReason(e.target.value)}
-                          placeholder="e.g. Identity reverification or documented look-alike authorized by HR Head"
-                          className="w-full text-xs p-2 rounded-[10px] border border-[#dcdfe4] focus:outline-none focus:ring-1 focus:ring-[#c09748]"
-                        />
-                        <div className="flex justify-end gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDuplicateBlock(null);
-                              setOverrideReason('');
-                            }}
-                            className="px-3 py-1.5 text-xs text-[#777b86] hover:text-[#17191c] cursor-pointer"
-                          >
-                            Cancel & Retake
-                          </button>
-                          <button
-                            type="button"
-                            disabled={!overrideReason.trim()}
-                            onClick={handleAdminOverrideConfirm}
-                            className={`px-4 py-1.5 text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer ${
-                              overrideReason.trim()
-                                ? 'bg-[#9f1239] text-white hover:bg-[#881337]'
-                                : 'bg-[#f2f2f3] text-[#979799] cursor-not-allowed'
-                            }`}
-                          >
-                            Authorize Admin Override
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Pose Action Buttons */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={handleReset}
-                      className="px-3 py-1.5 text-xs text-[#777b86] hover:text-[#17191c] flex items-center gap-1 cursor-pointer"
-                    >
-                      <RefreshCw size={13} />
-                      <span>Retake All</span>
-                    </button>
-
-                    <div className="flex items-center gap-1.5 sm:gap-2">
-                      {currentStepIndex > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setCurrentStepIndex(prev => prev - 1)}
-                          className="px-2.5 sm:px-3 py-2 text-xs text-[#777b86] hover:text-[#17191c] flex items-center gap-1 cursor-pointer"
-                        >
-                          <ChevronLeft size={14} />
-                          <span>Back</span>
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={handleCapturePose}
-                        disabled={isProcessing}
-                        className="px-4 sm:px-5 py-2.5 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer active:scale-95 flex items-center gap-1.5"
-                      >
-                        <Camera size={14} className="text-[#c09748]" />
-                        <span>{isProcessing ? 'Analyzing...' : `Capture Pose ${currentPose.id}`}</span>
-                      </button>
-
-                      {currentStepIndex < POSE_STEPS.length - 1 && (
-                        <button
-                          type="button"
-                          disabled={!capturedPoses.some(p => p.stepId === currentPose.id)}
-                          onClick={() => {
-                            if (capturedPoses.some(p => p.stepId === currentPose.id)) {
-                              setCurrentStepIndex(prev => prev + 1);
-                            }
-                          }}
-                          className={`px-2.5 sm:px-3 py-2 text-xs flex items-center gap-1 transition ${
-                            capturedPoses.some(p => p.stepId === currentPose.id)
-                              ? 'text-[#17191c] hover:text-[#c09748] cursor-pointer font-semibold'
-                              : 'text-[#979799] opacity-40 cursor-not-allowed'
-                          }`}
-                          title={!capturedPoses.some(p => p.stepId === currentPose.id) ? `Pose ${currentPose.id} must be captured before moving forward` : undefined}
-                        >
-                          <span>Next</span>
-                          <ChevronRight size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            /* UPLOAD TAB */
-            <div className="space-y-4">
-              <label className="border-2 border-dashed border-[#dcdfe4] hover:border-[#c09748] rounded-[20px] p-8 flex flex-col items-center justify-center text-center cursor-pointer bg-[#fafafb] transition">
-                <Upload size={32} className="text-[#c09748] mb-2" />
-                <span className="text-xs font-semibold text-[#17191c]">Click to upload employee face photo</span>
-                <span className="text-[11px] text-[#777b86] mt-0.5">JPEG or PNG under 5MB. Must be front-facing with clear lighting.</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-              </label>
-            </div>
-          )}
-
-          {/* Captured Poses Thumbnails Strip */}
-          {capturedPoses.length > 0 && (
-            <div className="pt-2 border-t border-[#f2f2f3]">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#979799] block mb-2">
-                Captured Pose Thumbnails ({capturedPoses.length} / {POSE_STEPS.length})
-              </span>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {capturedPoses.map((p) => (
-                  <div key={p.stepId} className="relative rounded-[12px] overflow-hidden border border-[#ececec] w-16 h-16 bg-[#fafafb] shrink-0">
-                    <img src={p.imgDataUrl} alt={p.label} className="w-full h-full object-cover" />
-                    <span className="absolute bottom-0 inset-x-0 bg-[#17191c]/70 text-[8px] text-white text-center py-0.5 truncate">
-                      P{p.stepId}
-                    </span>
-                  </div>
-                ))}
+        {/* DUPLICATE WARNING MODAL OVERLAY */}
+        {duplicateBlock && (
+          <div className="absolute inset-x-4 top-20 z-30 p-5 rounded-[22px] bg-rose-950/95 border border-rose-500 text-white shadow-2xl backdrop-blur-md animate-in fade-in space-y-3">
+            <div className="flex items-start gap-2.5">
+              <ShieldAlert size={22} className="text-rose-400 shrink-0" />
+              <div>
+                <h4 className="font-bold text-sm text-rose-200">Duplicate Face Match</h4>
+                <p className="text-xs text-rose-300/90 mt-0.5">
+                  Matches: <strong>{duplicateBlock.matchedEmployee.name} ({duplicateBlock.matchedEmployee.id})</strong>.
+                </p>
               </div>
             </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="p-3.5 sm:p-5 border-t border-[#ececec] flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#fafafb] shrink-0">
-          <div className="space-y-1">
-            <label className="flex items-center gap-2 cursor-pointer text-[11px] text-[#17191c] select-none">
-              <input
-                type="checkbox"
-                checked={consentGiven}
-                onChange={(e) => setConsentGiven(e.target.checked)}
-                className="rounded border-[#dcdfe4] text-[#c09748] focus:ring-[#c09748]"
-              />
-              <span className="font-medium">
-                Biometric Consent: Employee consents to encrypted AES-256 template storage for attendance.
-              </span>
-            </label>
-            <div className="flex items-center gap-1.5 text-[10px] text-[#777b86]">
-              <ShieldCheck size={13} className="text-[#c09748]" />
-              <span>Master Profile: {capturedPoses.length} / {POSE_STEPS.length} poses calibrated</span>
+            <input
+              type="text"
+              value={overrideReason}
+              onChange={(e) => setOverrideReason(e.target.value)}
+              placeholder="Admin override reason..."
+              className="w-full text-xs p-2.5 rounded-xl bg-black/40 border border-white/20 text-white focus:outline-none"
+            />
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={() => setDuplicateBlock(null)}
+                className="px-3 py-1.5 text-xs text-white/70 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!overrideReason.trim()}
+                onClick={handleAdminOverrideConfirm}
+                className="px-4 py-1.5 text-xs font-semibold rounded-full bg-rose-600 text-white disabled:opacity-50"
+              >
+                Authorize Override
+              </button>
             </div>
           </div>
+        )}
 
-          <div className="flex items-center justify-end w-full sm:w-auto gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-[#777b86] hover:text-[#17191c] cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSaveAndEnroll}
-              disabled={capturedPoses.length === 0 || !consentGiven}
-              className={`flex-1 sm:flex-none px-4 sm:px-5 py-2.5 text-xs font-semibold rounded-full shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                capturedPoses.length > 0 && consentGiven
-                  ? 'bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] active:scale-95'
-                  : 'bg-[#ececec] text-[#979799] cursor-not-allowed border border-[#e5e7eb]'
-              }`}
-            >
-              <Sparkles size={14} className={capturedPoses.length > 0 && consentGiven ? 'text-[#c09748]' : 'text-[#979799]'} />
-              <span>Save & Complete</span>
-            </button>
+        {/* FULL SCREEN SUCCESS MODAL WITH GREEN TICK */}
+        {isSuccessModalOpen && (
+          <div className="absolute inset-0 z-40 bg-black/90 flex flex-col items-center justify-center text-center p-6 animate-in fade-in zoom-in-95 duration-300">
+            <div className="h-24 w-24 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center mb-4 text-emerald-400 animate-bounce">
+              <CheckCircle2 size={54} />
+            </div>
+            <h2 className="text-2xl font-bold text-white">Enrollment Successful!</h2>
+            <p className="text-sm text-emerald-300 font-medium mt-1">चेहरा सफलतापूर्वक पंजीकृत हो गया</p>
+            <p className="text-xs text-white/70 mt-2 max-w-xs">
+              {employee.name} can now punch attendance using AI Face Recognition.
+            </p>
           </div>
+        )}
+      </div>
+
+      {/* BOTTOM INSTRUCTION PILL BAR (Clean & Uncluttered) */}
+      <div className="bg-[#17191c] border-t border-white/10 px-5 py-4 pb-8 z-20 flex flex-col items-center gap-3">
+        {/* Step Progress & Hindi Live Prompt */}
+        <div className="text-center space-y-1">
+          <div className="text-[11px] font-mono uppercase tracking-wider text-[#c09748]">
+            Pose {currentPose.id} of {POSE_STEPS.length}: {currentPose.title}
+          </div>
+          <div className="text-base sm:text-lg font-bold text-white flex items-center justify-center gap-2">
+            <span>{currentPose.hindiInstruction}</span>
+          </div>
+          <p className="text-xs text-white/60">{currentPose.subtitle}</p>
         </div>
 
+        {/* Steady Hold Progress Indicator */}
+        <div className="w-full max-w-xs bg-white/10 h-2 rounded-full overflow-hidden border border-white/20">
+          <div
+            className="bg-emerald-400 h-full transition-all duration-200"
+            style={{ width: `${steadyHoldProgress}%` }}
+          />
+        </div>
+
+        {/* Footer Actions: Retake All */}
+        <div className="flex items-center justify-between w-full max-w-xs pt-1 text-xs">
+          <button
+            onClick={handleReset}
+            className="text-white/60 hover:text-white flex items-center gap-1 cursor-pointer"
+          >
+            <RefreshCw size={12} />
+            <span>Retake All</span>
+          </button>
+          <span className="text-white/40 text-[11px]">
+            {capturedPoses.length} / {POSE_STEPS.length} Completed
+          </span>
+        </div>
       </div>
+
     </div>
   );
 };
