@@ -129,26 +129,26 @@ export function resolveShiftPunch(
     };
   }
 
-  // Record has IN, now checking OUT criteria
-  if (currentRecord.inTime && !currentRecord.outTime) {
-    // Check minimum gap between IN and OUT
+  // Record has IN, now updating/extending OUT punch
+  if (currentRecord.inTime) {
     const [inH, inM, inS] = currentRecord.inTime.split(':').map(Number);
     const inDate = new Date(currentRecord.date);
     inDate.setHours(inH || 0, inM || 0, inS || 0, 0);
     const elapsedMinutes = (nowMs - inDate.getTime()) / (1000 * 60);
 
-    if (elapsedMinutes < minGapMinutes) {
+    // Minimum gap to avoid immediate double trigger (e.g. standing in front of camera)
+    if (elapsedMinutes < minGapMinutes && !currentRecord.outTime) {
       const waitRemaining = Math.ceil(minGapMinutes - elapsedMinutes);
       return {
         allowed: false,
         action: 'REJECT',
-        reason: `Minimum shift punch gap enforced (${minGapMinutes}m). Please wait ${waitRemaining} more minute(s).`,
+        reason: `Minimum punch cooldown (${minGapMinutes}m). Please wait ${waitRemaining} more minute(s).`,
         shiftDate: currentRecord.date,
       };
     }
 
     if (elapsedMinutes > maxShiftHours * 60) {
-      // Over max shift length - start a fresh IN rather than linking to stale punch
+      // Over max shift length (16h) - start a fresh IN rather than updating stale punch
       return {
         allowed: true,
         action: 'IN',
@@ -157,6 +157,7 @@ export function resolveShiftPunch(
       };
     }
 
+    // Rolling OUT Punch: Updates outTime with the latest appearance
     return {
       allowed: true,
       action: 'OUT',
@@ -165,12 +166,11 @@ export function resolveShiftPunch(
     };
   }
 
-  // Record already has both IN and OUT
   return {
-    allowed: false,
-    action: 'REJECT',
-    reason: `Shift already completed: IN ${currentRecord.inTime} / OUT ${currentRecord.outTime}`,
-    shiftDate: currentRecord.date,
+    allowed: true,
+    action: 'IN',
+    shiftDate: operationalDate,
+    isLate: checkIfLate(now, shiftName),
   };
 }
 

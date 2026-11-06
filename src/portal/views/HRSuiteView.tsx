@@ -270,10 +270,14 @@ export const HRSuiteView: React.FC = () => {
 
     setAttendanceRecords((prev) => {
       const safePrev = Array.isArray(prev) ? prev.filter((r): r is AttendanceRecord => Boolean(r && r.id)) : [];
-      const existing = safePrev.find((r) => Boolean(r && r.employeeId === employee.id && r.date === today && !r.outTime));
+      const existing = safePrev.find((r) => Boolean(r && r.employeeId === employee.id && r.date === today));
 
       if (type === 'OUT' && existing) {
-        // Update OUT punch
+        // Rolling Update: Har baar jab camera ke aage aayega, outTime extend/update ho jayega
+        const [inH, inM] = (existing.inTime || '09:00').split(':').map(Number);
+        const [outH, outM] = timeStr.split(':').map(Number);
+        const totalMinutes = Math.max(0, (outH * 60 + outM) - (inH * 60 + inM));
+
         return safePrev.map((r) =>
           r && r.id === existing.id
             ? {
@@ -281,6 +285,8 @@ export const HRSuiteView: React.FC = () => {
                 outTime: timeStr,
                 outLocation: locationStamp,
                 outEvidence: evidence,
+                totalWorkMinutes: totalMinutes,
+                status: totalMinutes < 240 ? 'HALF_DAY' : r.status,
               }
             : r
         );
