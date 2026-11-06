@@ -44,6 +44,8 @@ import {
 } from '../../services/antiSpoofService';
 import { resolveShiftPunch } from '../../services/shiftPunchService';
 import { PunchEvidenceMetadata } from '../../types/hrAttendanceTypes';
+import { voiceEngine } from '../../services/voiceService';
+import { Volume2, VolumeX } from 'lucide-react';
 
 interface HRAttendanceTerminalProps {
   employees: Employee[];
@@ -81,6 +83,8 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
 
   const [requireLiveness, setRequireLiveness] = useState(true);
   const [activeChallengeMode, setActiveChallengeMode] = useState(false);
+  const [voiceGreetingEnabled, setVoiceGreetingEnabled] = useState(true);
+  const [voiceLanguage, setVoiceLanguage] = useState<'hi-IN' | 'en-IN'>('hi-IN');
   const [activeChallengeState, setActiveChallengeState] = useState<{
     prompt: string;
     hindiPrompt: string;
@@ -430,6 +434,13 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
 
                   playAttendanceConfirmationChime();
 
+                  // Phase 4: Industrial Speaker Voice Greeting
+                  if (voiceGreetingEnabled) {
+                    voiceEngine.speakAttendanceConfirmation(emp.name, resolution.action, timeStr, {
+                      language: voiceLanguage,
+                    });
+                  }
+
                   if (locationStamp && emp && emp.id) {
                     onRecordPunch(emp, resolution.action, locationStamp, evidence);
                   }
@@ -765,6 +776,33 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                 <span className="text-[#8a6521] font-semibold">Dev Bypass (Local Only)</span>
               </label>
             )}
+
+            {/* Voice Audio Speaker Settings */}
+            <div className="flex items-center gap-2 border-l border-[#dcdfe4] pl-3">
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+                <input
+                  type="checkbox"
+                  checked={voiceGreetingEnabled}
+                  onChange={(e) => setVoiceGreetingEnabled(e.target.checked)}
+                  className="rounded border-[#dcdfe4] text-[#c09748] focus:ring-[#c09748]"
+                />
+                <span className="font-semibold text-[#17191c] flex items-center gap-1">
+                  {voiceGreetingEnabled ? <Volume2 size={13} className="text-[#c09748]" /> : <VolumeX size={13} className="text-[#979799]" />}
+                  <span>Voice Speaker</span>
+                </span>
+              </label>
+
+              {voiceGreetingEnabled && (
+                <select
+                  value={voiceLanguage}
+                  onChange={(e) => setVoiceLanguage(e.target.value as any)}
+                  className="bg-[#fafafb] border border-[#dcdfe4] rounded-lg px-2 py-0.5 text-[11px] font-semibold text-[#17191c] focus:outline-none"
+                >
+                  <option value="hi-IN">हिन्दी (Hindi)</option>
+                  <option value="en-IN">English (Indian)</option>
+                </select>
+              )}
+            </div>
 
             {/* Shift Mode Selector */}
             <div className="flex items-center gap-1.5 ml-auto text-xs">
