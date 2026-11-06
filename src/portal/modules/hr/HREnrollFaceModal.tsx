@@ -61,7 +61,16 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   const [activeTab, setActiveTab] = useState<'GUIDED' | 'UPLOAD'>('GUIDED');
   const [consentGiven, setConsentGiven] = useState<boolean>(true);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
+  const currentStepIndexRef = useRef<number>(0);
+  useEffect(() => {
+    currentStepIndexRef.current = currentStepIndex;
+  }, [currentStepIndex]);
+
   const [capturedPoses, setCapturedPoses] = useState<{ stepId: number; label: string; descriptor: number[]; imgDataUrl: string }[]>([]);
+  const capturedPosesRef = useRef<{ stepId: number; label: string; descriptor: number[]; imgDataUrl: string }[]>([]);
+  useEffect(() => {
+    capturedPosesRef.current = capturedPoses;
+  }, [capturedPoses]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   
@@ -213,6 +222,9 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     setIsProcessing(true);
 
     try {
+      const activeIdx = currentStepIndexRef.current;
+      const targetPose = POSE_STEPS[Math.min(activeIdx, POSE_STEPS.length - 1)] || POSE_STEPS[0];
+
       const video = videoRef.current;
       const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth || 640;
@@ -239,7 +251,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         ctx,
         canvas.width,
         canvas.height,
-        currentPose.id
+        targetPose.id
       );
 
       if (!quality.passed) {
@@ -251,8 +263,8 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       const imgDataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
       const newPose = {
-        stepId: currentPose.id,
-        label: currentPose.title,
+        stepId: targetPose.id,
+        label: targetPose.title,
         descriptor,
         imgDataUrl,
       };
@@ -271,20 +283,21 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         }
       }
 
-      const updatedPoses = [...capturedPoses.filter((p) => p.stepId !== currentPose.id), newPose];
+      const currentList = capturedPosesRef.current;
+      const updatedPoses = [...currentList.filter((p) => p.stepId !== targetPose.id), newPose];
       setCapturedPoses(updatedPoses);
       setSteadyHoldProgress(0);
 
-      // Move to next step if not final
-      if (currentStepIndex < POSE_STEPS.length - 1) {
-        setCurrentStepIndex((prev) => prev + 1);
+      // Move strictly to next step
+      if (activeIdx < POSE_STEPS.length - 1) {
+        setCurrentStepIndex(activeIdx + 1);
       }
     } catch {
       // extraction error
     } finally {
       setIsProcessing(false);
     }
-  }, [allEmployees, capturedPoses, currentPose, currentStepIndex, employee.id, isProcessing]);
+  }, [allEmployees, employee.id, isProcessing]);
 
   // Live Quality Gate & Auto-Capture Loop
   useEffect(() => {
@@ -292,9 +305,11 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       return;
     }
 
+    let isCapturing = false;
+
     const interval = setInterval(async () => {
       const video = videoRef.current;
-      if (!video || video.readyState !== 4 || isProcessing) return;
+      if (!video || video.readyState !== 4 || isProcessing || isCapturing) return;
 
       try {
         const offscreen = document.createElement('canvas');
@@ -306,6 +321,9 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         // Draw original raw frame
         ctx.drawImage(video, 0, 0, offscreen.width, offscreen.height);
 
+        const activeIdx = currentStepIndexRef.current;
+        const targetPose = POSE_STEPS[Math.min(activeIdx, POSE_STEPS.length - 1)] || POSE_STEPS[0];
+
         const det = await faceapi
           .detectSingleFace(offscreen, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.50 }))
           .withFaceLandmarks();
@@ -316,16 +334,18 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             ctx,
             offscreen.width,
             offscreen.height,
-            currentPose.id
+            targetPose.id
           );
           setQualityDetails(quality);
 
           if (quality.passed && autoCaptureEnabled) {
             setSteadyHoldProgress((prev) => {
               const next = prev + 25; // 4 ticks of 250ms = 1000ms steady hold
-              if (next >= 100) {
-                // Auto capture trigger
-                setTimeout(() => handleCapturePose(), 10);
+              if (next >= 100 && !isCapturing) {
+                isCapturing = true;
+                handleCapturePose().finally(() => {
+                  isCapturing = false;
+                });
                 return 0;
               }
               return next;
@@ -343,7 +363,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     }, 280);
 
     return () => clearInterval(interval);
-  }, [isOpen, activeTab, isProcessing, duplicateBlock, currentPose.id, autoCaptureEnabled, handleCapturePose]);
+  }, [isOpen, activeTab, isProcessing, duplicateBlock, currentStepIndex, autoCaptureEnabled, handleCapturePose]);
 
   // HR Admin Duplicate Override Handler
   const handleAdminOverrideConfirm = () => {
