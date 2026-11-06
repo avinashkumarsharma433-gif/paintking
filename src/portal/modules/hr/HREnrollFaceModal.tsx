@@ -427,27 +427,28 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   const isAllPosesDone = capturedPoses.length >= POSE_STEPS.length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#17191c]/80 backdrop-blur-xs flex items-center justify-center p-0 lg:p-4">
-      <div className="bg-white rounded-none lg:rounded-[24px] border-0 lg:border border-[#ececec] shadow-2xl w-full h-[100dvh] lg:h-auto lg:max-h-[92vh] lg:max-w-3xl flex flex-col animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[9999] bg-[#17191c] lg:bg-[#17191c]/70 lg:backdrop-blur-xs flex items-center justify-center p-0 lg:p-4 overflow-hidden">
+      <div className="bg-white rounded-none lg:rounded-[24px] border-0 lg:border border-[#ececec] shadow-2xl w-screen h-[100dvh] lg:w-full lg:h-auto lg:max-h-[92vh] lg:max-w-3xl flex flex-col overflow-hidden">
         
         {/* Header */}
-        <div className="p-3.5 sm:p-5 border-b border-[#ececec] flex items-center justify-between bg-[#fafafb] shrink-0">
+        <div className="px-4 py-3 sm:px-5 sm:py-4 border-b border-[#ececec] flex items-center justify-between bg-[#fafafb] shrink-0">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c09748]">
                 Interactive Biometric Trainer
               </span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] font-semibold border border-[#f4e5be]">
-                6 Guided Master Poses
+                6 Guided Poses
               </span>
             </div>
-            <h3 className="text-sm sm:text-lg font-serif text-[#17191c] mt-0.5">
+            <h3 className="text-base sm:text-lg font-serif text-[#17191c] mt-0.5">
               Enroll Face: {employee.name} ({employee.id})
             </h3>
           </div>
           <button
             onClick={onClose}
-            className="h-8 w-8 sm:h-9 sm:w-9 rounded-full flex items-center justify-center bg-white border border-[#ececec] text-[#777b86] hover:text-[#17191c] cursor-pointer shrink-0"
+            className="h-9 w-9 rounded-full flex items-center justify-center bg-white border border-[#ececec] text-[#777b86] hover:text-[#17191c] cursor-pointer shrink-0 shadow-2xs active:scale-95"
+            title="Close Full Screen Modal"
           >
             <X size={18} />
           </button>
@@ -562,7 +563,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                   </div>
 
                   {/* Video Viewport with Interactive Visual Overlay Guidance & Live Quality Gate */}
-                  <div className="relative rounded-[20px] overflow-hidden bg-[#17191c] h-[360px] sm:h-[420px] lg:h-[340px] flex items-center justify-center border border-[#ececec]">
+                  <div className="relative rounded-[20px] overflow-hidden bg-[#17191c] h-[340px] xs:h-[380px] sm:h-[440px] lg:h-[360px] flex items-center justify-center border border-[#ececec] shadow-inner">
                     <video
                       ref={videoRef}
                       autoPlay
