@@ -14,7 +14,8 @@ export interface Employee {
   status: 'ACTIVE' | 'ON_LEAVE' | 'INACTIVE';
   dailyRate?: number; // Per-day standard salary in INR (e.g. 750, 1000)
   monthlySalary?: number; // Standard monthly base salary in INR (e.g. 22000)
-  otHourlyRate?: number; // Optional custom OT hourly rate; defaults to 1.5x of dailyRate / 8
+  isOtEligible?: boolean; // Whether employee is eligible for Overtime (default true)
+  otHourlyRate?: number; // Optional custom OT hourly rate; defaults to (dailyRate / 8)
 }
 
 export interface DailyAttendanceSummary {

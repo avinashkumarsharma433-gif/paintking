@@ -49,6 +49,7 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [dailyRate, setDailyRate] = useState<number>(750);
+  const [isOtEligible, setIsOtEligible] = useState<boolean>(true);
   const [joinDate, setJoinDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   const openAddModal = () => {
@@ -60,6 +61,7 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
     setPhone('');
     setEmail('');
     setDailyRate(750);
+    setIsOtEligible(true);
     setJoinDate(new Date().toISOString().split('T')[0]);
     setIsModalOpen(true);
   };
@@ -73,6 +75,7 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
     setPhone(emp.phone);
     setEmail(emp.email);
     setDailyRate(emp.dailyRate || 750);
+    setIsOtEligible(emp.isOtEligible !== false);
     setJoinDate(emp.joinDate || new Date().toISOString().split('T')[0]);
     setIsModalOpen(true);
   };
@@ -107,6 +110,7 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
         phone: phone.trim() || '+91 98000 00000',
         email: email.trim() || `${name.toLowerCase().replace(/\s+/g, '')}@paintking.in`,
         dailyRate: Number(dailyRate) || 750,
+        isOtEligible,
         joinDate,
       });
     } else {
@@ -118,6 +122,7 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
         phone: phone.trim() || '+91 98000 00000',
         email: email.trim() || `${name.toLowerCase().replace(/\s+/g, '')}@paintking.in`,
         dailyRate: Number(dailyRate) || 750,
+        isOtEligible,
         joinDate,
       });
     }
@@ -491,6 +496,33 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
                   />
                   <span className="text-[10px] text-[#979799]">Base pay for 8-hour shift</span>
                 </div>
+              </div>
+
+              {/* OVERTIME (OT) ELIGIBILITY TOGGLE */}
+              <div className="p-3.5 rounded-[18px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-[#17191c]">Overtime (OT) Eligible</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                      {isOtEligible ? 'Enabled (Default)' : 'Disabled'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#777b86] mt-0.5">
+                    {isOtEligible
+                      ? `Extra hours calculated proportionately (₹${Math.round(dailyRate / 8)}/hr based on ₹${dailyRate}/8h)`
+                      : 'Fixed pay only, extra hours will not generate OT earnings'}
+                  </p>
+                </div>
+
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={isOtEligible}
+                    onChange={(e) => setIsOtEligible(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-[#dcdfe4] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[#ececec] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#c09748]" />
+                </label>
               </div>
 
               <div className="pt-4 border-t border-[#ececec] flex items-center justify-end gap-2.5">

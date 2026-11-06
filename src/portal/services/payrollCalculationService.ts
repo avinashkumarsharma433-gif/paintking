@@ -25,7 +25,9 @@ export function calculateEmployeeMonthlyPayroll(
   const totalDaysInMonth = new Date(year, month, 0).getDate();
   const dailyRate = employee.dailyRate || (employee.monthlySalary ? Math.round(employee.monthlySalary / 26) : DEFAULT_DAILY_RATE);
   const hourlyBaseRate = dailyRate / STANDARD_WORK_HOURS_PER_DAY;
-  const otHourlyRate = employee.otHourlyRate || (hourlyBaseRate * 1.5);
+  // Default exact proportional rate: e.g. 800/8 = 100/hr, so 2h OT = 200
+  const isOtEligible = employee.isOtEligible !== false; // default true
+  const otHourlyRate = isOtEligible ? (employee.otHourlyRate || hourlyBaseRate) : 0;
 
   let presentDays = 0;
   let halfDays = 0;
@@ -73,8 +75,8 @@ export function calculateEmployeeMonthlyPayroll(
       if (status === 'LATE') lateDays++;
       presentDays++;
 
-      // OT Calculation: work beyond 8 hours
-      if (workHours > STANDARD_WORK_HOURS_PER_DAY) {
+      // OT Calculation: work beyond 8 hours (only if eligible)
+      if (isOtEligible && workHours > STANDARD_WORK_HOURS_PER_DAY) {
         otHours = Math.round((workHours - STANDARD_WORK_HOURS_PER_DAY) * 10) / 10;
       }
 
