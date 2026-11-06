@@ -467,7 +467,7 @@ export async function detectMultipleFacesFromCanvas(
   if (!modelsLoaded) return [];
 
   const detections = await faceapi
-    .detectAllFaces(input, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.50 }))
+    .detectAllFaces(input, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.38 }))
     .withFaceLandmarks()
     .withFaceDescriptors();
 
@@ -479,7 +479,8 @@ export async function detectMultipleFacesFromCanvas(
     const descriptor = Array.from(det.descriptor);
     const ear = calculateEyeAspectRatio(det.landmarks);
 
-    const isLive = !requireLiveness || (ear > 0.14 && box.width > 50 && box.height > 50);
+    // Adjusted distance threshold: detects from farther distances (minimum 32px box width/height)
+    const isLive = !requireLiveness || (ear > 0.12 && box.width > 32 && box.height > 32);
     const match = findBestFaceMatch(descriptor, enrolledEmployees, threshold, isLive, minMargin);
 
     let status: DetectedFaceSlot['status'] = 'UNKNOWN';

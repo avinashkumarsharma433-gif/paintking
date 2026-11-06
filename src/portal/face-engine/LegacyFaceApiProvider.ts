@@ -49,7 +49,7 @@ export class LegacyFaceApiProvider implements IFaceEngineProvider {
     options?: RecognitionOptions
   ): Promise<FaceDetectionResult[]> {
     await this.initialize();
-    const threshold = options?.det_prob_threshold ?? 0.50;
+    const threshold = options?.det_prob_threshold ?? 0.38;
     const detections = await faceapi
       .detectAllFaces(image, new faceapi.SsdMobilenetv1Options({ minConfidence: threshold }))
       .withFaceLandmarks();
