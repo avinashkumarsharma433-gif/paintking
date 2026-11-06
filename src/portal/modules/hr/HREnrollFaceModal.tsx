@@ -374,7 +374,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-[#17191c] flex flex-col justify-between overflow-hidden select-none">
+    <div className="fixed inset-0 z-[9999] bg-black flex flex-col justify-between overflow-hidden select-none">
       
       {/* FULL SCREEN CAMERA PREVIEW */}
       <div className="relative flex-1 w-full h-full overflow-hidden flex items-center justify-center bg-black">
@@ -386,32 +386,26 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
           className="w-full h-full object-cover scale-x-[-1]"
         />
 
-        {/* TOP COMPACT BAR: Employee Name & Close Button */}
-        <div className="absolute top-0 inset-x-0 p-4 pt-6 bg-gradient-to-b from-black/80 via-black/40 to-transparent flex items-center justify-between z-20">
-          <div>
-            <h3 className="text-white font-bold text-base sm:text-lg flex items-center gap-2 drop-shadow-md">
-              <span>{employee.name}</span>
-              <span className="text-xs text-white/70 font-mono font-normal">({employee.id})</span>
-            </h3>
-            <div className="flex items-center gap-1.5 mt-1">
-              {POSE_STEPS.map((s, idx) => (
-                <div
-                  key={s.id}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    capturedPoses.some((p) => p.stepId === s.id)
-                      ? 'w-6 bg-emerald-400'
-                      : idx === currentStepIndex
-                      ? 'w-6 bg-[#c09748]'
-                      : 'w-2.5 bg-white/30'
-                  }`}
-                />
-              ))}
+        {/* TOP BAR: Clean & Minimal - Name, Step Counter & Close */}
+        <div className="absolute top-0 inset-x-0 p-4 sm:p-6 bg-gradient-to-b from-black/80 via-black/30 to-transparent flex items-center justify-between z-20">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-white/10 backdrop-blur-md border border-white/15 flex items-center justify-center text-white font-bold text-sm">
+              {employee.name.charAt(0)}
+            </div>
+            <div>
+              <h3 className="text-white font-bold text-base sm:text-lg drop-shadow-md leading-tight">
+                {employee.name}
+              </h3>
+              <p className="text-xs text-white/60 font-mono">
+                {employee.id} • Step {currentPose.id} of {POSE_STEPS.length}
+              </p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="h-10 w-10 rounded-full flex items-center justify-center bg-black/50 text-white/90 hover:text-white border border-white/20 backdrop-blur-md cursor-pointer active:scale-95 transition"
+            aria-label="Close"
+            className="h-10 w-10 rounded-full flex items-center justify-center bg-black/40 text-white/80 hover:text-white border border-white/15 backdrop-blur-md cursor-pointer active:scale-95 transition"
           >
             <X size={20} />
           </button>
@@ -420,40 +414,97 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         {/* CENTRAL OVAL GUIDE */}
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
           <div
-            className={`relative w-[210px] h-[270px] xs:w-[240px] xs:h-[310px] rounded-[50%] border-2 transition-all duration-300 flex items-center justify-center ${
+            className={`relative w-[220px] h-[290px] sm:w-[260px] sm:h-[340px] rounded-[50%] border-2 transition-all duration-300 flex items-center justify-center ${
               qualityDetails?.passed
-                ? 'border-emerald-400 shadow-[0_0_30px_rgba(52,211,153,0.3)]'
-                : 'border-white/50 border-dashed'
+                ? 'border-emerald-400 shadow-[0_0_35px_rgba(52,211,153,0.35)]'
+                : 'border-white/40 border-dashed'
             }`}
           >
             {/* Guide Arrows for Turn Pose */}
             {currentPose.guideVisual === 'ARROW_LEFT' && (
-              <div className="absolute -left-14 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[#c09748] font-bold text-xs bg-black/80 px-2.5 py-1.5 rounded-full border border-[#c09748] animate-bounce">
+              <div className="absolute -left-14 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/80 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce">
                 <ArrowLeft size={16} />
                 <span>Turn Left</span>
               </div>
             )}
 
             {currentPose.guideVisual === 'ARROW_RIGHT' && (
-              <div className="absolute -right-14 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[#c09748] font-bold text-xs bg-black/80 px-2.5 py-1.5 rounded-full border border-[#c09748] animate-bounce">
+              <div className="absolute -right-14 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/80 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce">
                 <span>Turn Right</span>
                 <ArrowRight size={16} />
               </div>
             )}
 
             {currentPose.guideVisual === 'ARROW_UP' && (
-              <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center gap-1 text-[#c09748] font-bold text-xs bg-black/80 px-2.5 py-1.5 rounded-full border border-[#c09748] animate-bounce">
+              <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/80 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce">
                 <ArrowUp size={16} />
                 <span>Chin Up</span>
               </div>
             )}
 
             {currentPose.guideVisual === 'CENTER_SMILE' && (
-              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/80 px-3 py-1 rounded-full border border-amber-400">
+              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/80 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce">
                 <Smile size={16} />
                 <span>Smile Naturally</span>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* BOTTOM INSTRUCTION OVERLAY (Directly over camera stream) */}
+        <div className="absolute bottom-0 inset-x-0 p-5 pb-8 sm:pb-10 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex flex-col items-center z-20">
+          <div className="w-full max-w-sm flex flex-col items-center text-center space-y-3">
+            {/* Main Instruction */}
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-wide drop-shadow-md">
+                {currentPose.hindiInstruction}
+              </h2>
+              <p className="text-sm text-white/70 mt-0.5 font-medium">
+                {currentPose.subtitle}
+              </p>
+            </div>
+
+            {/* Hold Progress Bar */}
+            <div className="w-full bg-white/20 h-2.5 rounded-full overflow-hidden p-0.5 backdrop-blur-sm border border-white/10">
+              <div
+                className="h-full rounded-full bg-emerald-400 transition-all duration-150 shadow-[0_0_12px_rgba(52,211,153,0.8)]"
+                style={{ width: `${steadyHoldProgress}%` }}
+              />
+            </div>
+
+            {/* Simple Step Dots & Reset */}
+            <div className="flex items-center justify-between w-full pt-1 px-1">
+              <button
+                onClick={handleReset}
+                className="text-xs text-white/50 hover:text-white flex items-center gap-1.5 cursor-pointer transition active:scale-95"
+              >
+                <RefreshCw size={13} />
+                <span>Reset</span>
+              </button>
+
+              <div className="flex items-center gap-1.5">
+                {POSE_STEPS.map((s, idx) => {
+                  const isDone = capturedPoses.some((p) => p.stepId === s.id);
+                  const isCurrent = idx === currentStepIndex;
+                  return (
+                    <div
+                      key={s.id}
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        isDone
+                          ? 'w-5 bg-emerald-400'
+                          : isCurrent
+                          ? 'w-5 bg-amber-400'
+                          : 'w-2 bg-white/30'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+
+              <span className="text-xs font-mono text-white/50">
+                {capturedPoses.length}/6
+              </span>
+            </div>
           </div>
         </div>
 
@@ -507,89 +558,6 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             </p>
           </div>
         )}
-      </div>
-
-      {/* FLOATING MODERN BIOMETRIC INSTRUCTION CARD (iOS/Tesla Kiosk Style) */}
-      <div className="z-20 p-4 sm:p-5 pt-0 bg-transparent">
-        <div className="max-w-md mx-auto rounded-[24px] bg-[#17191c]/80 backdrop-blur-xl border border-white/10 shadow-2xl p-4 sm:p-5 flex flex-col gap-3 relative overflow-hidden">
-          {/* Subtle Ambient Gold Gradient Glow */}
-          <div className="absolute -top-12 -left-12 w-32 h-32 bg-[#c09748]/15 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
-
-          {/* Top Row: Pose Step Pills & Active Pose Tag */}
-          <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2.5">
-            <div className="flex items-center gap-1.5 bg-[#c09748]/15 border border-[#c09748]/30 px-3 py-1 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#c09748] animate-ping" />
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#f4e5be]">
-                Pose {currentPose.id} / {POSE_STEPS.length}
-              </span>
-            </div>
-
-            {/* Step Mini Dots Indicator */}
-            <div className="flex items-center gap-1">
-              {POSE_STEPS.map((step, idx) => {
-                const isDone = capturedPoses.some((p) => p.stepId === step.id);
-                const isCurrent = step.id === currentPose.id;
-                return (
-                  <div
-                    key={step.id}
-                    title={step.title}
-                    className={`h-1.5 rounded-full transition-all duration-300 ${
-                      isDone
-                        ? 'w-4 bg-emerald-400'
-                        : isCurrent
-                        ? 'w-6 bg-[#c09748]'
-                        : 'w-1.5 bg-white/20'
-                    }`}
-                  />
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Pose Titles & Live Guidance Text */}
-          <div className="text-center py-0.5 space-y-0.5">
-            <h3 className="text-lg sm:text-xl font-bold text-white tracking-wide flex items-center justify-center gap-2">
-              <span>{currentPose.hindiInstruction}</span>
-            </h3>
-            <p className="text-xs text-[#a3a6af] font-medium flex items-center justify-center gap-1.5">
-              <span>{currentPose.subtitle}</span>
-              <span className="text-white/20">•</span>
-              <span className="text-[#c09748]/90 font-mono text-[11px]">{currentPose.title}</span>
-            </p>
-          </div>
-
-          {/* Steady Hold Progress Bar with Percentage */}
-          <div className="space-y-1.5 pt-0.5">
-            <div className="flex items-center justify-between text-[11px] font-mono">
-              <span className="text-[#a3a6af] flex items-center gap-1">
-                <span className={`w-1.5 h-1.5 rounded-full ${steadyHoldProgress > 0 ? 'bg-emerald-400' : 'bg-white/30'}`} />
-                {steadyHoldProgress > 0 ? 'Holding steady...' : 'Align face in frame'}
-              </span>
-              <span className="text-white/80 font-bold">{Math.round(steadyHoldProgress)}%</span>
-            </div>
-            <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden p-0.5 border border-white/10">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-[#c09748] to-emerald-400 transition-all duration-200 shadow-[0_0_12px_rgba(52,211,153,0.5)]"
-                style={{ width: `${steadyHoldProgress}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Footer Actions: Reset / Retake */}
-          <div className="flex items-center justify-between pt-1 border-t border-white/5 text-xs">
-            <button
-              onClick={handleReset}
-              className="bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition cursor-pointer active:scale-95"
-            >
-              <RefreshCw size={12} className="text-[#c09748]" />
-              <span className="text-[11px] font-medium">Retake All Poses</span>
-            </button>
-            <span className="text-[#777b86] text-[11px] font-medium">
-              {capturedPoses.length} of {POSE_STEPS.length} Enrolled
-            </span>
-          </div>
-        </div>
       </div>
 
     </div>
