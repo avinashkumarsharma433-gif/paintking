@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-06: Dynamic Responsive Face Detection Corner Bracket Overlay
+  - Files touched:
+    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (Live bounding box tracker mapped to actual face position with mirror alignment, animated corner brackets, and dynamic gold-to-emerald status transitions)
+  - Search string: `DYNAMIC FACE DETECTION TRACKER`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-06: Modern Floating Biometric Glassmorphic Control Bar for 6-Pose Enrollment
   - Files touched:
     - `src/portal/modules/hr/HREnrollFaceModal.tsx` (Replaced minimal dark strip with floating frosted glass card, step progress dots, gold/emerald gradient hold bar with percentage, and refined retake pill)
