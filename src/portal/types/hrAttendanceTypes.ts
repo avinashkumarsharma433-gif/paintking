@@ -12,6 +12,38 @@ export interface Employee {
   faceDescriptors?: number[][]; // 128-D or 512-D face embedding vectors (multiple angles)
   embeddingDimensions?: 128 | 512;
   status: 'ACTIVE' | 'ON_LEAVE' | 'INACTIVE';
+  dailyRate?: number; // Per-day standard salary in INR (e.g. 750, 1000)
+  monthlySalary?: number; // Standard monthly base salary in INR (e.g. 22000)
+  otHourlyRate?: number; // Optional custom OT hourly rate; defaults to 1.5x of dailyRate / 8
+}
+
+export interface DailyAttendanceSummary {
+  date: string;
+  dayName: string;
+  inTime?: string;
+  outTime?: string;
+  status: AttendanceStatus;
+  workHours: number; // e.g. 8.5
+  otHours: number; // hours beyond 8h shift
+  earnedAmount: number; // calculated day earnings
+}
+
+export interface EmployeeMonthlyPayrollSummary {
+  employee: Employee;
+  month: string; // YYYY-MM
+  totalDaysInMonth: number;
+  presentDays: number;
+  halfDays: number;
+  lateDays: number;
+  absentDays: number;
+  leaveDays: number;
+  totalWorkHours: number;
+  totalOtHours: number;
+  dailyRate: number;
+  baseSalaryEarned: number;
+  otEarnings: number;
+  totalGrossPayable: number;
+  dailyBreakdown: DailyAttendanceSummary[];
 }
 
 export type AttendanceStatus = 'PRESENT' | 'LATE' | 'HALF_DAY' | 'ABSENT' | 'ON_LEAVE';

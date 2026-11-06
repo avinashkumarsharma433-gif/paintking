@@ -7,7 +7,8 @@ import {
   MapPin, 
   ShieldCheck, 
   Clock,
-  Activity
+  Activity,
+  DollarSign
 } from 'lucide-react';
 import { usePortalStore } from '../context/PortalStoreContext';
 import { HREmployeeDirectory } from '../modules/hr/HREmployeeDirectory';
@@ -15,6 +16,7 @@ import { HREnrollFaceModal } from '../modules/hr/HREnrollFaceModal';
 import { HRAttendanceTerminal } from '../modules/hr/HRAttendanceTerminal';
 import { HRAttendanceRegister } from '../modules/hr/HRAttendanceRegister';
 import { RecognitionLab } from '../modules/hr/RecognitionLab';
+import { HRPayrollView } from '../modules/hr/HRPayrollView';
 import { HRLeaveView } from './HRLeaveView';
 import { 
   Employee, 
@@ -78,7 +80,7 @@ const INITIAL_EMPLOYEES: Employee[] = [
 
 export const HRSuiteView: React.FC = () => {
   const { activeSubTab } = usePortalStore();
-  const [activeTab, setActiveTab] = useState<'TERMINAL' | 'REGISTER' | 'DIRECTORY' | 'LEAVE' | 'LAB'>(() => {
+  const [activeTab, setActiveTab] = useState<'TERMINAL' | 'REGISTER' | 'DIRECTORY' | 'LEAVE' | 'LAB' | 'PAYROLL'>(() => {
     if (activeSubTab === 'LEAVE_APP') return 'LEAVE';
     if (activeSubTab === 'ATTENDANCE') return 'TERMINAL';
     if (activeSubTab === 'ROSTER') return 'REGISTER';
@@ -416,6 +418,18 @@ export const HRSuiteView: React.FC = () => {
           <Activity size={15} className={activeTab === 'LAB' ? 'text-[#c09748]' : 'text-[#979799]'} />
           <span>Recognition Lab (Admin)</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('PAYROLL')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+            activeTab === 'PAYROLL'
+              ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
+              : 'text-[#777b86] hover:text-[#17191c]'
+          }`}
+        >
+          <DollarSign size={15} className={activeTab === 'PAYROLL' ? 'text-[#c09748]' : 'text-[#979799]'} />
+          <span>Payroll & OT Wages</span>
+        </button>
       </div>
 
       {/* Active Tab View */}
@@ -448,6 +462,18 @@ export const HRSuiteView: React.FC = () => {
       {activeTab === 'LEAVE' && <HRLeaveView />}
 
       {activeTab === 'LAB' && <RecognitionLab employees={employees} />}
+
+      {activeTab === 'PAYROLL' && (
+        <HRPayrollView
+          employees={employees}
+          attendanceRecords={attendanceRecords}
+          onUpdateEmployeeRate={(empId, newRate) => {
+            const updated = employees.map((e) => (e.id === empId ? { ...e, dailyRate: newRate } : e));
+            setEmployees(updated);
+            localStorage.setItem('pk_portal_employees_v1', JSON.stringify(updated));
+          }}
+        />
+      )}
 
       {/* Face Enrollment Modal */}
       {enrollingEmployee && (
