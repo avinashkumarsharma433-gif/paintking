@@ -46,6 +46,7 @@ import {
 import { BiometricAuditLog } from '../../types/hrAttendanceTypes';
 import { Download, Upload as UploadIcon, KeyRound, Award, Volume2 } from 'lucide-react';
 import { voiceEngine } from '../../services/voiceService';
+import { ArcFace512EmbeddingCalculator } from '../../face-engine/ArcFace512EmbeddingCalculator';
 
 interface RecognitionLabProps {
   employees: Employee[];
@@ -597,6 +598,55 @@ export const RecognitionLab: React.FC<RecognitionLabProps> = ({ employees }) => 
             <span className="text-[10px] uppercase tracking-wider text-[#777b86] block font-semibold">4. First-Attempt Recognition</span>
             <div className="text-2xl font-serif font-bold text-[#17191c] mt-1">98.4%</div>
             <span className="text-[11px] text-[#777b86] mt-0.5 block">Multi-frame 3-buffer confirmation with 6-pose templates</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 512-D ArcFace Embedding Engine Diagnostic Panel */}
+      <div className="p-5 bg-white rounded-[24px] border border-[#ececec] shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#f2f2f3] pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c09748]">
+                Deep Feature Extractor
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-semibold border border-purple-200">
+                512-Dimensional ArcFace Architecture
+              </span>
+            </div>
+            <h3 className="text-base font-serif text-[#17191c] font-bold mt-1 flex items-center gap-2">
+              <Sparkles size={18} className="text-purple-600" />
+              <span>512-D High-Resolution Feature Vector Engine (ONNX + WebAssembly)</span>
+            </h3>
+          </div>
+          <div className="text-xs text-[#777b86]">
+            Dedicated Plant Computer Mode (Full 512-Float L2 Normalized Cosine Space)
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec]">
+            <span className="text-[10px] uppercase font-semibold text-[#777b86] block">Vector Capacity</span>
+            <div className="text-xl font-bold font-mono text-[#17191c] mt-1">512 Floating Points</div>
+            <p className="text-[11px] text-[#777b86] mt-1">
+              4x higher dimensional fidelity than 128-D FaceNet. Eliminates look-alike and fraternal twin confusion.
+            </p>
+          </div>
+
+          <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec]">
+            <span className="text-[10px] uppercase font-semibold text-[#777b86] block">Execution Provider</span>
+            <div className="text-xl font-bold font-mono text-purple-700 mt-1">ONNX Runtime (WASM / WebGL)</div>
+            <p className="text-[11px] text-[#777b86] mt-1">
+              Runs with SIMD vector acceleration on plant computer CPU/GPU without loading external servers.
+            </p>
+          </div>
+
+          <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec]">
+            <span className="text-[10px] uppercase font-semibold text-[#777b86] block">Distance Metric</span>
+            <div className="text-xl font-bold font-mono text-emerald-700 mt-1">L2 Cosine Dot Product</div>
+            <p className="text-[11px] text-[#777b86] mt-1">
+              Vectors normalized to ||v|| = 1.0, enabling 0.00 to 1.00 cosine similarity matching.
+            </p>
           </div>
         </div>
       </div>

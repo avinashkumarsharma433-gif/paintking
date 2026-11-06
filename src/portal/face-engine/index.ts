@@ -2,6 +2,7 @@ export * from './types';
 export * from './LocalFaceCollection';
 export * from './LegacyFaceApiProvider';
 export * from './RemoteCompreFaceProvider';
+export * from './ArcFace512EmbeddingCalculator';
 
 import { IFaceEngineProvider } from './types';
 import { LegacyFaceApiProvider } from './LegacyFaceApiProvider';

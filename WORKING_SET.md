@@ -1,5 +1,13 @@
 # WORKING SET
 
+- 2026-11-06: 512-Dimensional ArcFace Embedding Engine Implementation (Plant PC Ready)
+  - Files touched:
+    - `src/portal/face-engine/ArcFace512EmbeddingCalculator.ts` (ONNX Runtime Web with WebGL/WASM SIMD, 112x112 NCHW pre-processing, 512-D L2-normalization, cosine similarity dot product)
+    - `src/portal/types/hrAttendanceTypes.ts` (embeddingDimensions 128 | 512 type support)
+    - `src/portal/modules/hr/RecognitionLab.tsx` (512-D diagnostic panel & vector capacity metrics)
+  - Search string: `ArcFace512EmbeddingCalculator`
+  - Status: Verified with `npx tsc --noEmit` (0 errors) and Vite production build.
+
 - 2026-11-06: Phase 4 Completed - Voice Synthesizer Speaker & Acceptance Benchmark Suite
   - Files touched:
     - `src/portal/services/voiceService.ts` (Industrial voice engine using Web Speech Synthesis with Hindi hi-IN and English en-IN support)

@@ -9,7 +9,8 @@ export interface Employee {
   joinDate: string; // YYYY-MM-DD
   avatarUrl?: string;
   faceEnrolled: boolean;
-  faceDescriptors?: number[][]; // 128-dimensional face embedding vectors (multiple angles)
+  faceDescriptors?: number[][]; // 128-D or 512-D face embedding vectors (multiple angles)
+  embeddingDimensions?: 128 | 512;
   status: 'ACTIVE' | 'ON_LEAVE' | 'INACTIVE';
 }
 
