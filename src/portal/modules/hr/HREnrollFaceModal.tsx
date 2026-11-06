@@ -68,6 +68,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   // Real-time quality gate & auto-capture
   const [qualityDetails, setQualityDetails] = useState<EnrollmentQualityDetails | null>(null);
   const [steadyHoldProgress, setSteadyHoldProgress] = useState<number>(0);
+  const [detectedBox, setDetectedBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   // Duplicate face block state
   const [duplicateBlock, setDuplicateBlock] = useState<{
@@ -312,6 +313,13 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
           .withFaceLandmarks();
 
         if (det) {
+          const box = det.detection.box;
+          const pctX = (box.x / offscreen.width) * 100;
+          const pctY = (box.y / offscreen.height) * 100;
+          const pctW = (box.width / offscreen.width) * 100;
+          const pctH = (box.height / offscreen.height) * 100;
+          setDetectedBox({ x: pctX, y: pctY, width: pctW, height: pctH });
+
           const quality = assessEnrollmentQuality(
             det,
             ctx,
@@ -337,6 +345,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             setSteadyHoldProgress(0);
           }
         } else {
+          setDetectedBox(null);
           setQualityDetails(null);
           setSteadyHoldProgress(0);
         }
@@ -410,6 +419,57 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             <X size={20} />
           </button>
         </div>
+
+        {/* DYNAMIC FACE DETECTION TRACKER (Cyber / Biometric Corner Bracket Design) */}
+        {detectedBox && (
+          <div
+            style={{
+              left: `${Math.max(0, Math.min(100, 100 - detectedBox.x - detectedBox.width))}%`,
+              top: `${detectedBox.y}%`,
+              width: `${detectedBox.width}%`,
+              height: `${detectedBox.height}%`,
+            }}
+            className={`absolute pointer-events-none transition-all duration-150 z-15 ${
+              qualityDetails?.passed
+                ? 'shadow-[0_0_25px_rgba(52,211,153,0.35)]'
+                : 'shadow-[0_0_15px_rgba(192,151,72,0.25)]'
+            }`}
+          >
+            {/* Top-Left Corner Bracket */}
+            <div
+              className={`absolute top-0 left-0 w-4 h-4 sm:w-6 sm:h-6 border-t-2 border-l-2 rounded-tl-lg transition-colors duration-200 ${
+                qualityDetails?.passed ? 'border-emerald-400' : 'border-[#c09748]'
+              }`}
+            />
+            {/* Top-Right Corner Bracket */}
+            <div
+              className={`absolute top-0 right-0 w-4 h-4 sm:w-6 sm:h-6 border-t-2 border-r-2 rounded-tr-lg transition-colors duration-200 ${
+                qualityDetails?.passed ? 'border-emerald-400' : 'border-[#c09748]'
+              }`}
+            />
+            {/* Bottom-Left Corner Bracket */}
+            <div
+              className={`absolute bottom-0 left-0 w-4 h-4 sm:w-6 sm:h-6 border-b-2 border-l-2 rounded-bl-lg transition-colors duration-200 ${
+                qualityDetails?.passed ? 'border-emerald-400' : 'border-[#c09748]'
+              }`}
+            />
+            {/* Bottom-Right Corner Bracket */}
+            <div
+              className={`absolute bottom-0 right-0 w-4 h-4 sm:w-6 sm:h-6 border-b-2 border-r-2 rounded-br-lg transition-colors duration-200 ${
+                qualityDetails?.passed ? 'border-emerald-400' : 'border-[#c09748]'
+              }`}
+            />
+
+            {/* Subtle Tracking Center Crosshair / Pulse Glow */}
+            <div
+              className={`absolute inset-0 rounded-xl transition-colors duration-200 ${
+                qualityDetails?.passed
+                  ? 'bg-emerald-500/10 border border-emerald-400/30'
+                  : 'bg-[#c09748]/5 border border-[#c09748]/20'
+              }`}
+            />
+          </div>
+        )}
 
         {/* CENTRAL OVAL GUIDE */}
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
