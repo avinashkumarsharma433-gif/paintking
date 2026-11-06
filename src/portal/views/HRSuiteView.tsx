@@ -19,8 +19,10 @@ import { HRLeaveView } from './HRLeaveView';
 import { 
   Employee, 
   AttendanceRecord, 
-  LocationStamp 
+  LocationStamp,
+  PunchEvidenceMetadata
 } from '../types/hrAttendanceTypes';
+import { biometricVault, recordBiometricAudit } from '../services/secureBiometricStorage';
 
 // Initial Mock Employees for PaintKing
 const INITIAL_EMPLOYEES: Employee[] = [
@@ -191,8 +193,21 @@ export const HRSuiteView: React.FC = () => {
     setEmployees((prev) => [newEmp, ...prev]);
   };
 
-  // Save Face Descriptors
-  const handleSaveFaceDescriptors = (empId: string, descriptors: number[][], avatarUrl?: string) => {
+  // Save Face Descriptors with Encrypted Vault and Audit Logging
+  const handleSaveFaceDescriptors = async (empId: string, descriptors: number[][], avatarUrl?: string) => {
+    // 1. Save to encrypted IndexedDB Vault
+    await biometricVault.saveEncryptedBiometrics(empId, descriptors, avatarUrl);
+
+    // 2. Audit Trail
+    const targetEmp = employees.find((e) => e.id === empId);
+    recordBiometricAudit(
+      'ENROLL',
+      empId,
+      targetEmp?.name || 'Staff',
+      'HR Admin',
+      `Enrolled biometric templates with AES-256 encryption. Examples: ${descriptors.length}`
+    );
+
     setEmployees((prev) =>
       prev.map((e) =>
         e.id === empId
@@ -207,8 +222,21 @@ export const HRSuiteView: React.FC = () => {
     );
   };
 
-  // Delete Face Biometrics
-  const handleDeleteFaceBiometrics = (empId: string) => {
+  // Delete Face Biometrics with Encrypted Purge and Audit Logging
+  const handleDeleteFaceBiometrics = async (empId: string) => {
+    // 1. Purge from Encrypted Vault
+    await biometricVault.deleteBiometrics(empId);
+
+    // 2. Audit Trail
+    const targetEmp = employees.find((e) => e.id === empId);
+    recordBiometricAudit(
+      'DELETE',
+      empId,
+      targetEmp?.name || 'Staff',
+      'HR Admin',
+      'Permanent biometric deletion on employee departure / data consent revocation'
+    );
+
     setEmployees((prev) =>
       prev.map((e) =>
         e.id === empId
@@ -223,11 +251,12 @@ export const HRSuiteView: React.FC = () => {
     );
   };
 
-  // Record In / Out Punch from Terminal
+  // Record In / Out Punch from Terminal with Evidence Support
   const handleRecordPunch = (
     employee: Employee, 
     type: 'IN' | 'OUT', 
-    locationStamp: LocationStamp
+    locationStamp: LocationStamp,
+    evidence?: PunchEvidenceMetadata
   ) => {
     if (!employee || !employee.id) return;
 
@@ -241,9 +270,9 @@ export const HRSuiteView: React.FC = () => {
 
     setAttendanceRecords((prev) => {
       const safePrev = Array.isArray(prev) ? prev.filter((r): r is AttendanceRecord => Boolean(r && r.id)) : [];
-      const existing = safePrev.find((r) => Boolean(r && r.employeeId === employee.id && r.date === today));
+      const existing = safePrev.find((r) => Boolean(r && r.employeeId === employee.id && r.date === today && !r.outTime));
 
-      if (existing) {
+      if (type === 'OUT' && existing) {
         // Update OUT punch
         return safePrev.map((r) =>
           r && r.id === existing.id
@@ -251,6 +280,7 @@ export const HRSuiteView: React.FC = () => {
                 ...r,
                 outTime: timeStr,
                 outLocation: locationStamp,
+                outEvidence: evidence,
               }
             : r
         );
@@ -266,6 +296,7 @@ export const HRSuiteView: React.FC = () => {
           date: today,
           inTime: timeStr,
           inLocation: locationStamp,
+          inEvidence: evidence,
           status: isLate ? 'LATE' : 'PRESENT',
           shiftName: employee.shift || 'General',
         };
@@ -281,6 +312,17 @@ export const HRSuiteView: React.FC = () => {
     outTime: string, 
     reason: string
   ) => {
+    const targetRec = attendanceRecords.find((r) => r.id === recordId);
+    if (targetRec) {
+      recordBiometricAudit(
+        'MANUAL_OVERRIDE',
+        targetRec.employeeId,
+        targetRec.employeeName,
+        'HR Manager',
+        `Adjusted punch times: IN ${inTime || '--'} / OUT ${outTime || '--'}. Reason: ${reason}`
+      );
+    }
+
     setAttendanceRecords((prev) =>
       prev.map((r) =>
         r.id === recordId

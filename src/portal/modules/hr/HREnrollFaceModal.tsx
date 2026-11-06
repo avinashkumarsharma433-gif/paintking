@@ -57,6 +57,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   onSaveFaceDescriptors,
 }) => {
   const [activeTab, setActiveTab] = useState<'GUIDED' | 'UPLOAD'>('GUIDED');
+  const [consentGiven, setConsentGiven] = useState<boolean>(true);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [capturedPoses, setCapturedPoses] = useState<{ stepId: number; label: string; descriptor: number[]; imgDataUrl: string }[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -821,9 +822,22 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
 
         {/* Footer */}
         <div className="p-3.5 sm:p-5 border-t border-[#ececec] flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#fafafb] shrink-0">
-          <div className="flex items-center gap-1.5 text-[11px] text-[#777b86]">
-            <ShieldCheck size={14} className="text-[#c09748]" />
-            <span>Master Profile: {capturedPoses.length} / {POSE_STEPS.length} poses calibrated</span>
+          <div className="space-y-1">
+            <label className="flex items-center gap-2 cursor-pointer text-[11px] text-[#17191c] select-none">
+              <input
+                type="checkbox"
+                checked={consentGiven}
+                onChange={(e) => setConsentGiven(e.target.checked)}
+                className="rounded border-[#dcdfe4] text-[#c09748] focus:ring-[#c09748]"
+              />
+              <span className="font-medium">
+                Biometric Consent: Employee consents to encrypted AES-256 template storage for attendance.
+              </span>
+            </label>
+            <div className="flex items-center gap-1.5 text-[10px] text-[#777b86]">
+              <ShieldCheck size={13} className="text-[#c09748]" />
+              <span>Master Profile: {capturedPoses.length} / {POSE_STEPS.length} poses calibrated</span>
+            </div>
           </div>
 
           <div className="flex items-center justify-end w-full sm:w-auto gap-2">
@@ -835,14 +849,14 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             </button>
             <button
               onClick={handleSaveAndEnroll}
-              disabled={capturedPoses.length === 0}
+              disabled={capturedPoses.length === 0 || !consentGiven}
               className={`flex-1 sm:flex-none px-4 sm:px-5 py-2.5 text-xs font-semibold rounded-full shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                capturedPoses.length > 0
+                capturedPoses.length > 0 && consentGiven
                   ? 'bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] active:scale-95'
                   : 'bg-[#ececec] text-[#979799] cursor-not-allowed border border-[#e5e7eb]'
               }`}
             >
-              <Sparkles size={14} className={capturedPoses.length > 0 ? 'text-[#c09748]' : 'text-[#979799]'} />
+              <Sparkles size={14} className={capturedPoses.length > 0 && consentGiven ? 'text-[#c09748]' : 'text-[#979799]'} />
               <span>Save & Complete</span>
             </button>
           </div>

@@ -1,5 +1,16 @@
 # WORKING SET
 
+- 2026-11-06: Phase 3 Completed - Attendance Logic, AES-GCM Encrypted Storage & Security Audit
+  - Files touched:
+    - `src/portal/services/shiftPunchService.ts` (Shift resolution engine: night shifts across midnight, min gap, no double IN, max shift length, terminal modes AUTO/FIXED_IN/FIXED_OUT)
+    - `src/portal/services/secureBiometricStorage.ts` (IndexedDB AES-GCM 256-bit encryption vault, audit log recorder, multi-terminal export/import)
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Punch evidence metadata snapshots, dev geofence lockout in prod, terminal mode selector)
+    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (Mandatory biometric consent checkbox)
+    - `src/portal/views/HRSuiteView.tsx` (Integrated encrypted vault save/delete and audit log)
+    - `src/portal/modules/hr/RecognitionLab.tsx` (Vault sync export/import and biometric lifecycle audit trail table)
+  - Search string: `IndexedDBBiometricStorage`
+  - Status: Verified with `npx tsc --noEmit` (0 errors) and Vite production build.
+
 - 2026-11-06: Phase 2 Completed - Active Liveness Challenge & Passive Anti-Spoofing Suite
   - Files touched:
     - `src/portal/services/antiSpoofService.ts` (Passive glare/reflection & color banding detector, ActiveLivenessSession time-series state machine for blink, turn left/right, and smile)

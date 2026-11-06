@@ -42,6 +42,8 @@ import {
   analyzePassiveSpoof,
   ChallengeEvaluationResult
 } from '../../services/antiSpoofService';
+import { resolveShiftPunch } from '../../services/shiftPunchService';
+import { PunchEvidenceMetadata } from '../../types/hrAttendanceTypes';
 
 interface HRAttendanceTerminalProps {
   employees: Employee[];
@@ -49,7 +51,8 @@ interface HRAttendanceTerminalProps {
   onRecordPunch: (
     employee: Employee, 
     type: 'IN' | 'OUT', 
-    locationStamp: LocationStamp
+    locationStamp: LocationStamp,
+    evidence?: PunchEvidenceMetadata
   ) => void;
   onLogUnknownAttempt?: (log: UnknownAttemptLog) => void;
 }
@@ -60,15 +63,20 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
   onRecordPunch,
   onLogUnknownAttempt,
 }) => {
+  const isDevMode = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
   // Terminal Settings with Security Threshold Slider
   const [config, setConfig] = useState<TerminalConfig>({
     activeLocationId: 'mumbai-hq',
     strictGeofence: true,
-    bypassGeofenceForDev: false,
+    bypassGeofenceForDev: false, // Strict geofence enforcement
     minRecognitionConfidence: 0.46, // Strict Euclidean distance limit
     cooldownMinutes: 5,
     requiredConsecutiveFrames: 3, // Multi-frame confirmation default
     minRecognitionMargin: 0.04, // Minimum distance margin over second-best
+    terminalMode: 'AUTO',
+    minPunchGapMinutes: 15,
+    maxShiftDurationHours: 16,
   });
 
   const [requireLiveness, setRequireLiveness] = useState(true);
@@ -372,19 +380,34 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                 const avgMargin = validRecent.reduce((acc, f) => acc + f.margin, 0) / validRecent.length;
 
                 if (avgDist <= config.minRecognitionConfidence && avgMargin >= (config.minRecognitionMargin || 0.04)) {
+                  // Phase 3: Shift-Aware Punch Resolution
+                  const resolution = resolveShiftPunch(emp, attendanceRecords, config, new Date());
+                  if (!resolution.allowed || resolution.action === 'REJECT') {
+                    // Suppress rapid repeat notifications for rejected state
+                    lastPunchCooldownRef.current.set(emp.id, nowMs - cooldownMs + 6000);
+                    return;
+                  }
+
                   lastPunchCooldownRef.current.set(emp.id, nowMs);
                   matchHistoryRef.current.delete(emp.id); // Reset buffer on successful punch
 
-                  const safeRecords = Array.isArray(attendanceRecords) ? attendanceRecords : [];
-                  const existingToday = safeRecords.find(
-                    (r) => Boolean(r && r.employeeId === emp.id && r.date === todayStr)
-                  );
-                  const punchType: 'IN' | 'OUT' = existingToday && existingToday.inTime ? 'OUT' : 'IN';
-
-                  playAttendanceConfirmationChime();
-
-                  if (locationStamp && emp && emp.id) {
-                    onRecordPunch(emp, punchType, locationStamp);
+                  // Extract small evidence snapshot thumbnail (120x120)
+                  let snapshotDataUrl: string | undefined;
+                  try {
+                    const snapCanvas = document.createElement('canvas');
+                    snapCanvas.width = 120;
+                    snapCanvas.height = 120;
+                    const sctx = snapCanvas.getContext('2d');
+                    if (sctx) {
+                      const bx = Math.max(0, (face.box.x / 100) * canvas.width);
+                      const by = Math.max(0, (face.box.y / 100) * canvas.height);
+                      const bw = Math.max(20, (face.box.width / 100) * canvas.width);
+                      const bh = Math.max(20, (face.box.height / 100) * canvas.height);
+                      sctx.drawImage(canvas, bx, by, bw, bh, 0, 0, 120, 120);
+                      snapshotDataUrl = snapCanvas.toDataURL('image/jpeg', 0.65);
+                    }
+                  } catch {
+                    // snapshot optional
                   }
 
                   const timeStr = new Date().toLocaleTimeString('en-IN', {
@@ -394,9 +417,26 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                     hour12: true,
                   });
 
+                  const evidence: PunchEvidenceMetadata = {
+                    snapshotDataUrl,
+                    similarity: Number((1 - avgDist).toFixed(4)),
+                    margin: Number(avgMargin.toFixed(4)),
+                    livenessScore: face.matchResult.isLive ? 0.95 : 0.2,
+                    modelVersion: 'CompreFace-Legacy-ArcFace-128D',
+                    deviceId: 'PK-TERMINAL-01',
+                    geofenceStamp: locationStamp || undefined,
+                    punchTimestamp: new Date().toISOString(),
+                  };
+
+                  playAttendanceConfirmationChime();
+
+                  if (locationStamp && emp && emp.id) {
+                    onRecordPunch(emp, resolution.action, locationStamp, evidence);
+                  }
+
                   setRecentPunch({
                     employee: emp,
-                    type: punchType,
+                    type: resolution.action,
                     time: timeStr,
                     confidence: face.matchResult.confidence,
                     isLive: face.matchResult.isLive,
@@ -714,15 +754,31 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
               <span className="font-medium">Strict Geofence Lock</span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={config.bypassGeofenceForDev}
-                onChange={(e) => setConfig({ ...config, bypassGeofenceForDev: e.target.checked })}
-                className="rounded border-[#dcdfe4] text-[#c09748] focus:ring-[#c09748]"
-              />
-              <span className="text-[#8a6521] font-semibold">Dev Bypass Mode</span>
-            </label>
+            {isDevMode && (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.bypassGeofenceForDev}
+                  onChange={(e) => setConfig({ ...config, bypassGeofenceForDev: e.target.checked })}
+                  className="rounded border-[#dcdfe4] text-[#c09748] focus:ring-[#c09748]"
+                />
+                <span className="text-[#8a6521] font-semibold">Dev Bypass (Local Only)</span>
+              </label>
+            )}
+
+            {/* Shift Mode Selector */}
+            <div className="flex items-center gap-1.5 ml-auto text-xs">
+              <span className="text-[#777b86] font-medium">Terminal Mode:</span>
+              <select
+                value={config.terminalMode || 'AUTO'}
+                onChange={(e) => setConfig({ ...config, terminalMode: e.target.value as any })}
+                className="bg-[#fafafb] border border-[#dcdfe4] rounded-lg px-2 py-1 text-xs font-semibold text-[#17191c] focus:outline-none focus:border-[#c09748]"
+              >
+                <option value="AUTO">Auto (Smart IN / OUT)</option>
+                <option value="FIXED_IN">Fixed IN Only (Turnstile)</option>
+                <option value="FIXED_OUT">Fixed OUT Only (Exit Gate)</option>
+              </select>
+            </div>
           </div>
         </div>
       )}

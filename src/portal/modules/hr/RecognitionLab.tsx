@@ -39,6 +39,12 @@ import {
   ActiveLivenessSession,
   LIVENESS_CHALLENGES
 } from '../../services/antiSpoofService';
+import {
+  biometricVault,
+  getBiometricAuditLogs
+} from '../../services/secureBiometricStorage';
+import { BiometricAuditLog } from '../../types/hrAttendanceTypes';
+import { Download, Upload as UploadIcon, KeyRound } from 'lucide-react';
 
 interface RecognitionLabProps {
   employees: Employee[];
@@ -81,15 +87,18 @@ export const RecognitionLab: React.FC<RecognitionLabProps> = ({ employees }) => 
   const [isProfiling, setIsProfiling] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [unknownAttempts, setUnknownAttempts] = useState<UnknownAttemptLog[]>([]);
+  const [auditLogs, setAuditLogs] = useState<BiometricAuditLog[]>([]);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Load unknown attempts from localStorage
+  // Load unknown attempts and biometric audit logs
   useEffect(() => {
     try {
       const logs = JSON.parse(localStorage.getItem('pk_hr_unknown_attempts') || '[]');
       setUnknownAttempts(logs);
+      setAuditLogs(getBiometricAuditLogs());
     } catch {
       // ignored
     }
@@ -238,6 +247,35 @@ export const RecognitionLab: React.FC<RecognitionLabProps> = ({ employees }) => 
   const handleClearUnknownLogs = () => {
     localStorage.removeItem('pk_hr_unknown_attempts');
     setUnknownAttempts([]);
+  };
+
+  const handleExportVault = async () => {
+    try {
+      const dataStr = await biometricVault.exportEncryptedArchive();
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pk_biometric_vault_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Failed to export biometric archive: ' + String(err));
+    }
+  };
+
+  const handleImportVault = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const res = await biometricVault.importEncryptedArchive(text);
+      setImportNotice(`Successfully synchronized ${res.importedCount} encrypted biometric profiles`);
+      setAuditLogs(getBiometricAuditLogs());
+      setTimeout(() => setImportNotice(null), 5000);
+    } catch {
+      alert('Invalid or corrupted biometric archive format');
+    }
   };
 
   return (
@@ -582,6 +620,100 @@ export const RecognitionLab: React.FC<RecognitionLabProps> = ({ employees }) => 
               Flagged snapshots automatically archived to terminal audit trail below.
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* Phase 3: Encrypted Biometric Vault & Multi-Terminal Sync Strip */}
+      <div className="p-5 bg-white rounded-[24px] border border-[#ececec] shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#f2f2f3] pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c09748]">
+                Phase 3 Data Security & Audit
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200">
+                AES-GCM 256-Bit IndexedDB Vault
+              </span>
+            </div>
+            <h3 className="text-base font-serif text-[#17191c] font-bold mt-1 flex items-center gap-2">
+              <KeyRound size={18} className="text-[#c09748]" />
+              <span>Multi-Terminal Biometric Sync & Compliance Audit</span>
+            </h3>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportVault}
+              className="px-3.5 py-1.5 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+            >
+              <Download size={13} className="text-[#c09748]" />
+              <span>Export Vault</span>
+            </button>
+            <label className="px-3.5 py-1.5 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer flex items-center gap-1.5 active:scale-95">
+              <UploadIcon size={13} className="text-emerald-600" />
+              <span>Import Vault</span>
+              <input type="file" accept=".json" onChange={handleImportVault} className="hidden" />
+            </label>
+          </div>
+        </div>
+
+        {importNotice && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-[16px] text-xs font-medium text-emerald-800 flex items-center gap-2">
+            <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+            <span>{importNotice}</span>
+          </div>
+        )}
+
+        {/* Audit Log Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-[#f2f2f3] text-[11px] font-semibold text-[#777b86]">
+                <th className="py-2 px-3">Timestamp</th>
+                <th className="py-2 px-3">Action</th>
+                <th className="py-2 px-3">Employee</th>
+                <th className="py-2 px-3">Actor</th>
+                <th className="py-2 px-3">Audit Details</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#f2f2f3] text-xs">
+              {auditLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-6 text-center text-xs text-[#979799]">
+                    No biometric lifecycle actions recorded in this session.
+                  </td>
+                </tr>
+              ) : (
+                auditLogs.slice(0, 8).map((log) => (
+                  <tr key={log.id} className="hover:bg-[#fafafb]">
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-[#777b86]">
+                      {log.date} {log.timestamp}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <span
+                        className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                          log.action === 'ENROLL'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : log.action === 'DELETE'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}
+                      >
+                        {log.action}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 font-semibold text-[#17191c]">
+                      {log.employeeName} ({log.employeeId})
+                    </td>
+                    <td className="py-2.5 px-3 text-[#777b86]">{log.actor}</td>
+                    <td className="py-2.5 px-3 text-[#17191c] text-[11px] truncate max-w-xs" title={log.details}>
+                      {log.details}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

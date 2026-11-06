@@ -24,6 +24,17 @@ export interface LocationStamp {
   locationName: string;
 }
 
+export interface PunchEvidenceMetadata {
+  snapshotDataUrl?: string;
+  similarity: number;
+  margin: number;
+  livenessScore: number;
+  modelVersion: string;
+  deviceId: string;
+  geofenceStamp?: LocationStamp;
+  punchTimestamp: string;
+}
+
 export interface AttendanceRecord {
   id: string;
   employeeId: string;
@@ -34,12 +45,25 @@ export interface AttendanceRecord {
   outTime?: string; // HH:mm:ss
   inLocation?: LocationStamp;
   outLocation?: LocationStamp;
+  inEvidence?: PunchEvidenceMetadata;
+  outEvidence?: PunchEvidenceMetadata;
   status: AttendanceStatus;
   shiftName: string;
   totalWorkMinutes?: number;
   isManualOverride?: boolean;
   overrideReason?: string;
   overrideBy?: string;
+}
+
+export interface BiometricAuditLog {
+  id: string;
+  timestamp: string;
+  date: string;
+  action: 'ENROLL' | 'DELETE' | 'MANUAL_OVERRIDE' | 'EXPORT' | 'IMPORT';
+  employeeId: string;
+  employeeName: string;
+  actor: string;
+  details: string;
 }
 
 export interface GeofenceTarget {
@@ -60,6 +84,9 @@ export interface TerminalConfig {
   selectedCameraId?: string;
   requiredConsecutiveFrames?: number; // multi-frame confirmation (default 3)
   minRecognitionMargin?: number; // margin over second-best (default 0.05)
+  terminalMode?: 'AUTO' | 'FIXED_IN' | 'FIXED_OUT';
+  minPunchGapMinutes?: number; // default 15 minutes minimum gap between IN and OUT
+  maxShiftDurationHours?: number; // default 16 hours
 }
 
 export interface EnrollmentQualityDetails {
