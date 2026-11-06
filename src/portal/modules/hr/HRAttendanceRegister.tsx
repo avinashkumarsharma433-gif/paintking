@@ -45,22 +45,23 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
   const [overrideReason, setOverrideReason] = useState('');
 
   // Filter records by date, dept, status, search
-  const filteredRecords = records.filter((r) => {
+  const filteredRecords = (records || []).filter((r) => {
+    if (!r || !r.id) return false;
     const matchesDate = r.date === selectedDate;
     const matchesDept = deptFilter === 'ALL' || r.department === deptFilter;
     const matchesStatus = statusFilter === 'ALL' || r.status === statusFilter;
     const matchesSearch =
-      r.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.employeeId.toLowerCase().includes(searchQuery.toLowerCase());
+      (r.employeeName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (r.employeeId || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     return matchesDate && matchesDept && matchesStatus && matchesSearch;
   });
 
   // Calculate summary metrics for the day
-  const totalEmployees = employees.length;
-  const presentCount = records.filter((r) => r.date === selectedDate && (r.status === 'PRESENT' || r.status === 'LATE')).length;
-  const lateCount = records.filter((r) => r.date === selectedDate && r.status === 'LATE').length;
-  const onLeaveCount = records.filter((r) => r.date === selectedDate && r.status === 'ON_LEAVE').length;
+  const totalEmployees = (employees || []).filter((e) => Boolean(e && e.id)).length;
+  const presentCount = (records || []).filter((r) => Boolean(r && r.date === selectedDate && (r.status === 'PRESENT' || r.status === 'LATE'))).length;
+  const lateCount = (records || []).filter((r) => Boolean(r && r.date === selectedDate && r.status === 'LATE')).length;
+  const onLeaveCount = (records || []).filter((r) => Boolean(r && r.date === selectedDate && r.status === 'ON_LEAVE')).length;
   const absentCount = Math.max(0, totalEmployees - presentCount - onLeaveCount);
 
   const handleOpenEdit = (rec: AttendanceRecord) => {

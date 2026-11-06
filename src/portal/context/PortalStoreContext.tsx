@@ -1187,8 +1187,19 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Module A: HR Leave Applications State (Format A.12)
   const [hrLeaves, setHrLeaves] = useState<HRLeaveRecord[]>(() => {
-    const s = localStorage.getItem('pk_hr_leaves');
-    return s ? JSON.parse(s) : INITIAL_HR_LEAVE_RECORDS;
+    try {
+      const s = localStorage.getItem('pk_hr_leaves');
+      if (s) {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const valid = parsed.filter((l): l is HRLeaveRecord => Boolean(l && l.id));
+          if (valid.length > 0) return valid;
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return INITIAL_HR_LEAVE_RECORDS;
   });
 
   // Module K: Machine & Measuring Calibration Register State
@@ -3069,7 +3080,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     signerName?: string
   ) => {
     const timestamp = new Date().toLocaleString();
-    setHrLeaves(prev => prev.map(lv => {
+    setHrLeaves(prev => (prev || []).filter((l): l is HRLeaveRecord => Boolean(l && l.id)).map(lv => {
       if (lv.id !== id) return lv;
       if (stage === 'Dept Incharge') {
         return {

@@ -94,6 +94,19 @@ class PortalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
     }
   }
 
+  handleClearCorruptedCache = () => {
+    try {
+      localStorage.removeItem('pk_hr_employees');
+      localStorage.removeItem('pk_hr_attendance_records');
+      localStorage.removeItem('pk_hr_leaves');
+      localStorage.removeItem('pk_hr_unknown_attempts');
+    } catch {
+      // ignore
+    }
+    this.setState({ hasError: false, error: null });
+    this.props.onReset();
+  };
+
   render() {
     if (this.state.hasError) {
       return (
@@ -102,18 +115,32 @@ class PortalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
             ⚠️
           </div>
           <h2 className="text-xl font-serif font-normal text-[#17191c]">Module Loading Exception Caught</h2>
-          <p className="text-xs text-[#777b86] leading-relaxed">
+          <p className="text-xs text-rose-700 font-mono leading-relaxed bg-rose-50 p-2.5 rounded-lg border border-rose-200">
             {this.state.error?.message || "An unexpected error occurred while rendering this module."}
           </p>
-          <button
-            onClick={() => {
-              this.setState({ hasError: false, error: null });
-              this.props.onReset();
-            }}
-            className="px-5 py-2.5 rounded-full bg-[#17191c] text-[#c09748] font-bold text-xs cursor-pointer shadow-xs hover:bg-black transition"
-          >
-            Reset Module & Return to Home
-          </button>
+          {this.state.error?.stack && (
+            <div className="text-left bg-neutral-900 text-neutral-300 p-3 rounded-[16px] text-[10px] font-mono overflow-x-auto max-h-48 border border-neutral-700">
+              <div className="text-amber-400 font-bold mb-1">Stack Trace:</div>
+              <pre className="whitespace-pre-wrap">{this.state.error.stack}</pre>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+            <button
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+                this.props.onReset();
+              }}
+              className="px-5 py-2.5 rounded-full bg-[#17191c] text-[#c09748] font-bold text-xs cursor-pointer shadow-xs hover:bg-black transition"
+            >
+              Reset Module & Return to Home
+            </button>
+            <button
+              onClick={this.handleClearCorruptedCache}
+              className="px-4 py-2.5 rounded-full bg-[#fff1f2] border border-[#fecdd3] text-[#9f1239] font-semibold text-xs cursor-pointer hover:bg-[#ffe4e6] transition"
+            >
+              Clear HR Storage Cache & Reload
+            </button>
+          </div>
         </div>
       );
     }

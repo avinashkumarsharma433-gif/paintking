@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   Camera, 
   X, 
@@ -16,15 +16,20 @@ import {
   ArrowUp,
   UserCheck,
   ChevronRight,
-  Sun
+  ChevronLeft,
+  Sun,
+  ShieldAlert,
+  Lock
 } from 'lucide-react';
-import { Employee } from '../../types/hrAttendanceTypes';
+import { Employee, EnrollmentQualityDetails } from '../../types/hrAttendanceTypes';
 import { 
   extractFaceDescriptorFromCanvas, 
   loadFaceModels,
   computeMasterVector,
-  checkDuplicateFace
+  checkDuplicateFace,
+  assessEnrollmentQuality
 } from '../../services/faceRecognitionService';
+import * as faceapi from '@vladmandic/face-api';
 
 interface HREnrollFaceModalProps {
   employee: Employee;
@@ -56,7 +61,20 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   const [capturedPoses, setCapturedPoses] = useState<{ stepId: number; label: string; descriptor: number[]; imgDataUrl: string }[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [duplicateWarning, setDuplicateWarning] = useState<{ name: string; id: string; confidence: number } | null>(null);
+  
+  // Real-time quality gate & auto-capture
+  const [qualityDetails, setQualityDetails] = useState<EnrollmentQualityDetails | null>(null);
+  const [steadyHoldProgress, setSteadyHoldProgress] = useState<number>(0); // 0 to 100%
+  const [autoCaptureEnabled, setAutoCaptureEnabled] = useState<boolean>(true);
+
+  // Duplicate face block state (requires HR Admin written override)
+  const [duplicateBlock, setDuplicateBlock] = useState<{
+    matchedEmployee: Employee;
+    distance: number;
+    pendingPose: { stepId: number; label: string; descriptor: number[]; imgDataUrl: string };
+  } | null>(null);
+  const [overrideReason, setOverrideReason] = useState<string>('');
+  const [overrideHistory, setOverrideHistory] = useState<{ poseId: number; reason: string; timestamp: string }[]>([]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -159,11 +177,10 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Capture Current Step Pose
-  const handleCapturePose = async () => {
+  // Capture Current Step Pose (Strictly Non-Mirrored Image)
+  const handleCapturePose = useCallback(async () => {
     if (!videoRef.current || isProcessing) return;
     setIsProcessing(true);
-    setDuplicateWarning(null);
 
     try {
       const video = videoRef.current;
@@ -173,47 +190,154 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      ctx.translate(canvas.width, 0);
-      ctx.scale(-1, 1);
+      // Draw original non-mirrored frame
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      const descriptor = await extractFaceDescriptorFromCanvas(canvas);
+      const detection = await faceapi
+        .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.50 }))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!detection) {
+        alert('Face not clearly detected. Ensure face is well-lit and inside the oval guide.');
+        return;
+      }
+
+      // Quality Gate Assessment
+      const quality = assessEnrollmentQuality(
+        detection,
+        ctx,
+        canvas.width,
+        canvas.height,
+        currentPose.id
+      );
+
+      if (!quality.passed) {
+        alert(`Quality Check Failed:\n• ${quality.reasons.join('\n• ')}`);
+        return;
+      }
+
+      const descriptor = Array.from(detection.descriptor);
       const imgDataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
-      if (descriptor) {
-        // If step 1, check duplicate face
-        if (currentStepIndex === 0 && allEmployees.length > 0) {
-          const dup = checkDuplicateFace(descriptor, allEmployees, employee.id);
-          if (dup.isDuplicate && dup.matchedEmployee) {
-            setDuplicateWarning({
-              name: dup.matchedEmployee.name,
-              id: dup.matchedEmployee.id,
-              confidence: Math.round((1 - dup.distance / 0.6) * 100),
-            });
-          }
+      const newPose = {
+        stepId: currentPose.id,
+        label: currentPose.title,
+        descriptor,
+        imgDataUrl,
+      };
+
+      // Duplicate Face Check on EVERY pose (Strict 0.40 threshold)
+      if (allEmployees.length > 0) {
+        const dup = checkDuplicateFace(descriptor, allEmployees, employee.id, 0.40);
+        if (dup.isDuplicate && dup.matchedEmployee) {
+          // Block enrollment until admin provides written authorization
+          setDuplicateBlock({
+            matchedEmployee: dup.matchedEmployee,
+            distance: dup.distance,
+            pendingPose: newPose,
+          });
+          return;
         }
+      }
 
-        const newPose = {
-          stepId: currentPose.id,
-          label: currentPose.title,
-          descriptor,
-          imgDataUrl,
-        };
+      const updatedPoses = [...capturedPoses.filter((p) => p.stepId !== currentPose.id), newPose];
+      setCapturedPoses(updatedPoses);
+      setSteadyHoldProgress(0);
 
-        const updatedPoses = [...capturedPoses.filter(p => p.stepId !== currentPose.id), newPose];
-        setCapturedPoses(updatedPoses);
-
-        // Move to next step if not final
-        if (currentStepIndex < POSE_STEPS.length - 1) {
-          setCurrentStepIndex(prev => prev + 1);
-        }
-      } else {
-        alert('Face not clearly detected. Please ensure your face is well-lit and inside the oval guide.');
+      // Move to next step if not final
+      if (currentStepIndex < POSE_STEPS.length - 1) {
+        setCurrentStepIndex((prev) => prev + 1);
       }
     } catch {
       // extraction error
     } finally {
       setIsProcessing(false);
+    }
+  }, [allEmployees, capturedPoses, currentPose, currentStepIndex, employee.id, isProcessing]);
+
+  // Live Quality Gate & Auto-Capture Loop
+  useEffect(() => {
+    if (!isOpen || activeTab !== 'GUIDED' || isProcessing || duplicateBlock) {
+      return;
+    }
+
+    const interval = setInterval(async () => {
+      const video = videoRef.current;
+      if (!video || video.readyState !== 4 || isProcessing) return;
+
+      try {
+        const offscreen = document.createElement('canvas');
+        offscreen.width = video.videoWidth || 640;
+        offscreen.height = video.videoHeight || 480;
+        const ctx = offscreen.getContext('2d');
+        if (!ctx) return;
+
+        // Draw original raw frame
+        ctx.drawImage(video, 0, 0, offscreen.width, offscreen.height);
+
+        const det = await faceapi
+          .detectSingleFace(offscreen, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.50 }))
+          .withFaceLandmarks();
+
+        if (det) {
+          const quality = assessEnrollmentQuality(
+            det,
+            ctx,
+            offscreen.width,
+            offscreen.height,
+            currentPose.id
+          );
+          setQualityDetails(quality);
+
+          if (quality.passed && autoCaptureEnabled) {
+            setSteadyHoldProgress((prev) => {
+              const next = prev + 25; // 4 ticks of 250ms = 1000ms steady hold
+              if (next >= 100) {
+                // Auto capture trigger
+                setTimeout(() => handleCapturePose(), 10);
+                return 0;
+              }
+              return next;
+            });
+          } else {
+            setSteadyHoldProgress(0);
+          }
+        } else {
+          setQualityDetails(null);
+          setSteadyHoldProgress(0);
+        }
+      } catch {
+        // Frame processing glitch ignored
+      }
+    }, 280);
+
+    return () => clearInterval(interval);
+  }, [isOpen, activeTab, isProcessing, duplicateBlock, currentPose.id, autoCaptureEnabled, handleCapturePose]);
+
+  // HR Admin Duplicate Override Handler
+  const handleAdminOverrideConfirm = () => {
+    if (!duplicateBlock || !overrideReason.trim()) return;
+
+    setOverrideHistory((prev) => [
+      ...prev,
+      {
+        poseId: duplicateBlock.pendingPose.stepId,
+        reason: overrideReason.trim(),
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    const updatedPoses = [
+      ...capturedPoses.filter((p) => p.stepId !== duplicateBlock.pendingPose.stepId),
+      duplicateBlock.pendingPose,
+    ];
+    setCapturedPoses(updatedPoses);
+    setDuplicateBlock(null);
+    setOverrideReason('');
+
+    if (currentStepIndex < POSE_STEPS.length - 1) {
+      setCurrentStepIndex((prev) => prev + 1);
     }
   };
 
@@ -269,7 +393,8 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   const handleReset = () => {
     setCapturedPoses([]);
     setCurrentStepIndex(0);
-    setDuplicateWarning(null);
+    setDuplicateBlock(null);
+    setSteadyHoldProgress(0);
   };
 
   const isAllPosesDone = capturedPoses.length >= POSE_STEPS.length;
@@ -333,20 +458,6 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
           </button>
         </div>
 
-        {/* Duplicate Face Warning */}
-        {duplicateWarning && (
-          <div className="m-5 mb-0 p-3.5 rounded-[16px] bg-[#fff1f2] border border-[#fecdd3] text-[#9f1239] text-xs flex items-start gap-2.5 animate-in slide-in-from-top">
-            <AlertTriangle size={18} className="shrink-0 mt-0.5 text-[#e11d48]" />
-            <div>
-              <span className="font-bold block">Duplicate Face Detected!</span>
-              <span>
-                This face is {duplicateWarning.confidence}% identical to existing employee: {' '}
-                <strong>{duplicateWarning.name} ({duplicateWarning.id})</strong>. 
-                Please verify identity before saving.
-              </span>
-            </div>
-          </div>
-        )}
 
         {/* Modal Body */}
         <div className="p-5 space-y-4">
@@ -360,23 +471,34 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
               ) : (
                 <div className="space-y-4">
                   
-                  {/* Step Stepper Bar with Icons */}
+                  {/* Step Stepper Bar with Icons (Strict Sequential Navigation) */}
                   <div className="grid grid-cols-6 gap-1.5 bg-[#fafafb] p-2 rounded-[18px] border border-[#ececec]">
                     {POSE_STEPS.map((step, idx) => {
                       const isCompleted = capturedPoses.some(p => p.stepId === step.id);
                       const isCurrent = idx === currentStepIndex;
+                      // Step can only be visited if it's Pose 1 or all preceding poses are captured
+                      const canNavigate = idx === 0 || POSE_STEPS.slice(0, idx).every(s => capturedPoses.some(p => p.stepId === s.id));
 
                       return (
                         <button
                           key={step.id}
-                          onClick={() => setCurrentStepIndex(idx)}
-                          className={`p-2 rounded-[14px] flex flex-col items-center justify-center transition-all cursor-pointer ${
+                          type="button"
+                          disabled={!canNavigate}
+                          onClick={() => {
+                            if (canNavigate) {
+                              setCurrentStepIndex(idx);
+                            }
+                          }}
+                          className={`p-2 rounded-[14px] flex flex-col items-center justify-center transition-all ${
                             isCurrent
-                              ? 'bg-[#faf3e0] border border-[#c09748] text-[#8a6521] shadow-2xs'
+                              ? 'bg-[#faf3e0] border border-[#c09748] text-[#8a6521] shadow-2xs cursor-pointer'
                               : isCompleted
-                              ? 'bg-white border border-[#dcdfe4] text-emerald-700'
-                              : 'bg-transparent text-[#979799] opacity-60'
+                              ? 'bg-white border border-[#dcdfe4] text-emerald-700 cursor-pointer hover:bg-slate-50'
+                              : canNavigate
+                              ? 'bg-transparent text-[#17191c] hover:bg-[#ececec] cursor-pointer'
+                              : 'bg-transparent text-[#979799] opacity-40 cursor-not-allowed'
                           }`}
+                          title={!canNavigate ? `Capture Pose ${POSE_STEPS[idx - 1].id} first` : undefined}
                         >
                           <div className="text-xs mb-1">
                             {isCompleted ? <Check size={14} className="text-emerald-600" /> : step.icon}
@@ -413,8 +535,8 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Video Viewport with Interactive Visual Overlay Guidance */}
-                  <div className="relative rounded-[20px] overflow-hidden bg-[#17191c] h-[280px] flex items-center justify-center border border-[#ececec]">
+                  {/* Video Viewport with Interactive Visual Overlay Guidance & Live Quality Gate */}
+                  <div className="relative rounded-[20px] overflow-hidden bg-[#17191c] h-[300px] flex items-center justify-center border border-[#ececec]">
                     <video
                       ref={videoRef}
                       autoPlay
@@ -423,11 +545,52 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                       className="w-full h-full object-cover scale-x-[-1]"
                     />
 
+                    {/* Quality Gate Live Feedback Header */}
+                    <div className="absolute top-3 inset-x-3 pointer-events-none flex items-center justify-between">
+                      {qualityDetails ? (
+                        <div
+                          className={`px-3 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1.5 shadow-md backdrop-blur-md ${
+                            qualityDetails.passed
+                              ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/30'
+                              : 'bg-amber-950/80 text-amber-300 border border-amber-500/30'
+                          }`}
+                        >
+                          {qualityDetails.passed ? (
+                            <>
+                              <Check size={12} className="text-emerald-400" />
+                              <span>Quality Gate: Optimal ({qualityDetails.qualityScore}%)</span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertCircle size={12} className="text-amber-400" />
+                              <span>{qualityDetails.reasons[0] || 'Adjust pose & lighting'}</span>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="px-3 py-1 rounded-full text-[11px] font-semibold bg-[#17191c]/70 text-[#a3a6af] border border-white/10">
+                          Detecting face...
+                        </div>
+                      )}
+
+                      {/* Auto-Capture Steady Indicator */}
+                      {steadyHoldProgress > 0 && (
+                        <div className="px-3 py-1 rounded-full text-[11px] font-bold bg-[#c09748] text-white flex items-center gap-1.5 shadow-md animate-pulse">
+                          <Sparkles size={12} />
+                          <span>Hold Steady: Auto-capturing ({steadyHoldProgress}%)</span>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Central Face Target Oval Guide */}
                     <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                      <div className="relative w-[170px] h-[210px] rounded-[50%] border-2 border-dashed border-[#c09748] opacity-80 animate-pulse flex items-center justify-center">
+                      <div
+                        className={`relative w-[170px] h-[210px] rounded-[50%] border-2 border-dashed transition-colors duration-300 flex items-center justify-center ${
+                          qualityDetails?.passed ? 'border-emerald-400 opacity-90' : 'border-[#c09748] opacity-75'
+                        }`}
+                      >
                         <span className="text-[10px] text-white/90 bg-[#17191c]/70 px-2 py-0.5 rounded-full font-mono">
-                          Fit Face In Oval
+                          {qualityDetails?.passed ? 'Hold Steady' : 'Fit Face In Oval'}
                         </span>
 
                         {/* Interactive Directional Arrows based on Pose */}
@@ -463,12 +626,76 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
 
                     {/* Pose Completion Pill Indicator */}
                     {capturedPoses.some(p => p.stepId === currentPose.id) && (
-                      <div className="absolute top-3 right-3 bg-emerald-600 text-white text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-md">
+                      <div className="absolute bottom-3 right-3 bg-emerald-600 text-white text-[10px] font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-md">
                         <Check size={12} />
                         <span>Pose {currentPose.id} Captured</span>
                       </div>
                     )}
                   </div>
+
+                  {/* Steady Hold Progress Bar */}
+                  {steadyHoldProgress > 0 && (
+                    <div className="w-full bg-[#f2f2f3] h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className="bg-[#c09748] h-full transition-all duration-200"
+                        style={{ width: `${steadyHoldProgress}%` }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Duplicate Block Warning Modal */}
+                  {duplicateBlock && (
+                    <div className="p-4 rounded-[20px] bg-[#fff1f2] border border-[#fecdd3] text-[#9f1239] space-y-3 animate-in fade-in">
+                      <div className="flex items-start gap-2.5">
+                        <ShieldAlert size={20} className="shrink-0 text-[#e11d48] mt-0.5" />
+                        <div>
+                          <h4 className="font-bold text-xs uppercase tracking-wider text-[#9f1239]">
+                            Enrollment Blocked: Duplicate Face Detected
+                          </h4>
+                          <p className="text-xs text-[#9f1239] mt-0.5 leading-relaxed">
+                            This face matches enrolled employee <strong>{duplicateBlock.matchedEmployee.name} ({duplicateBlock.matchedEmployee.id})</strong> with Euclidean distance {duplicateBlock.distance}. Duplicate enrollments are prohibited by default.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-white rounded-[14px] border border-[#fecdd3] space-y-2">
+                        <label className="block text-[11px] font-semibold text-[#17191c]">
+                          HR Administrator Override Reason (Mandatory for bypass):
+                        </label>
+                        <input
+                          type="text"
+                          value={overrideReason}
+                          onChange={(e) => setOverrideReason(e.target.value)}
+                          placeholder="e.g. Identity reverification or documented look-alike authorized by HR Head"
+                          className="w-full text-xs p-2 rounded-[10px] border border-[#dcdfe4] focus:outline-none focus:ring-1 focus:ring-[#c09748]"
+                        />
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDuplicateBlock(null);
+                              setOverrideReason('');
+                            }}
+                            className="px-3 py-1.5 text-xs text-[#777b86] hover:text-[#17191c] cursor-pointer"
+                          >
+                            Cancel & Retake
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!overrideReason.trim()}
+                            onClick={handleAdminOverrideConfirm}
+                            className={`px-4 py-1.5 text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer ${
+                              overrideReason.trim()
+                                ? 'bg-[#9f1239] text-white hover:bg-[#881337]'
+                                : 'bg-[#f2f2f3] text-[#979799] cursor-not-allowed'
+                            }`}
+                          >
+                            Authorize Admin Override
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Pose Action Buttons */}
                   <div className="flex items-center justify-between pt-1">
@@ -492,11 +719,32 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                         <span>{isProcessing ? 'Analyzing Facial Vectors...' : `Click to Capture Pose ${currentPose.id}`}</span>
                       </button>
 
+                      {currentStepIndex > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setCurrentStepIndex(prev => prev - 1)}
+                          className="px-3 py-2 text-xs text-[#777b86] hover:text-[#17191c] flex items-center gap-1 cursor-pointer"
+                        >
+                          <ChevronLeft size={14} />
+                          <span>Back</span>
+                        </button>
+                      )}
+
                       {currentStepIndex < POSE_STEPS.length - 1 && (
                         <button
                           type="button"
-                          onClick={() => setCurrentStepIndex(prev => prev + 1)}
-                          className="px-3 py-2 text-xs text-[#777b86] hover:text-[#17191c] flex items-center gap-1 cursor-pointer"
+                          disabled={!capturedPoses.some(p => p.stepId === currentPose.id)}
+                          onClick={() => {
+                            if (capturedPoses.some(p => p.stepId === currentPose.id)) {
+                              setCurrentStepIndex(prev => prev + 1);
+                            }
+                          }}
+                          className={`px-3 py-2 text-xs flex items-center gap-1 transition ${
+                            capturedPoses.some(p => p.stepId === currentPose.id)
+                              ? 'text-[#17191c] hover:text-[#c09748] cursor-pointer font-semibold'
+                              : 'text-[#979799] opacity-40 cursor-not-allowed'
+                          }`}
+                          title={!capturedPoses.some(p => p.stepId === currentPose.id) ? `Pose ${currentPose.id} must be captured before moving forward` : undefined}
                         >
                           <span>Next</span>
                           <ChevronRight size={14} />

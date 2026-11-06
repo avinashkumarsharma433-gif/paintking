@@ -42,11 +42,12 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
   const [email, setEmail] = useState('');
   const [joinDate, setJoinDate] = useState(() => new Date().toISOString().split('T')[0]);
 
-  const filteredEmployees = employees.filter((emp) => {
+  const filteredEmployees = (employees || []).filter((emp) => {
+    if (!emp || !emp.id) return false;
     const matchesSearch =
-      emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.designation.toLowerCase().includes(searchTerm.toLowerCase());
+      (emp.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (emp.id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (emp.designation || '').toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesDept = departmentFilter === 'ALL' || emp.department === departmentFilter;
     const matchesEnroll =

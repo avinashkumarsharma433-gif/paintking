@@ -13,13 +13,16 @@ import {
   UserX,
   Users,
   Eye,
-  Sliders
+  Sliders,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { 
   Employee, 
   AttendanceRecord, 
   LocationStamp, 
-  TerminalConfig 
+  TerminalConfig,
+  UnknownAttemptLog
 } from '../../types/hrAttendanceTypes';
 import { 
   PAINTKING_LOCATIONS, 
@@ -41,12 +44,14 @@ interface HRAttendanceTerminalProps {
     type: 'IN' | 'OUT', 
     locationStamp: LocationStamp
   ) => void;
+  onLogUnknownAttempt?: (log: UnknownAttemptLog) => void;
 }
 
 export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
   employees,
   attendanceRecords,
   onRecordPunch,
+  onLogUnknownAttempt,
 }) => {
   // Terminal Settings with Security Threshold Slider
   const [config, setConfig] = useState<TerminalConfig>({
@@ -55,6 +60,8 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
     bypassGeofenceForDev: false,
     minRecognitionConfidence: 0.46, // Strict Euclidean distance limit
     cooldownMinutes: 5,
+    requiredConsecutiveFrames: 3, // Multi-frame confirmation default
+    minRecognitionMargin: 0.04, // Minimum distance margin over second-best
   });
 
   const [requireLiveness, setRequireLiveness] = useState(true);
@@ -91,9 +98,37 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
   // Cooldown tracker (empId -> timestamp ms)
   const lastPunchCooldownRef = useRef<Map<string, number>>(new Map());
 
+  // Multi-frame confirmation buffer (empId -> recent frames)
+  const matchHistoryRef = useRef<Map<string, { distance: number; margin: number; time: number }[]>>(new Map());
+
+  // Unknown face logging cooldown tracker
+  const lastUnknownLogTimeRef = useRef<number>(0);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const kioskContainerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Fullscreen Kiosk Handler
+  const toggleFullscreen = () => {
+    if (!kioskContainerRef.current) return;
+    if (!document.fullscreenElement) {
+      kioskContainerRef.current.requestFullscreen?.().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+      setIsFullscreen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -194,8 +229,9 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
       if (video.readyState !== 4) return;
 
       const canvas = canvasRef.current;
-      canvas.width = 640;
-      canvas.height = 480;
+      // Preserve native un-stretched aspect ratio of video stream
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
@@ -203,12 +239,13 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
       try {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // Neural multi-face detection with Anti-Spoofing & Liveness
+        // Neural multi-face detection with CompreFace-style margin & multi-sample evaluation
         const detected = await detectMultipleFacesFromCanvas(
           canvas,
           employees,
           config.minRecognitionConfidence,
-          requireLiveness
+          requireLiveness,
+          config.minRecognitionMargin || 0.04
         );
 
         setDetectedFaces(detected);
@@ -221,37 +258,97 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
             const cooldownMs = config.cooldownMinutes * 60 * 1000;
 
             if (nowMs - lastPunchTime > cooldownMs) {
-              lastPunchCooldownRef.current.set(emp.id, nowMs);
+              // Multi-frame confirmation: require N consecutive frames (default 3) agreeing on the same employee
+              const requiredFrames = config.requiredConsecutiveFrames || 3;
+              const history = matchHistoryRef.current.get(emp.id) || [];
+              const validRecent = history.filter((h) => nowMs - h.time < 3500); // 3.5s sliding window
 
-              const existingToday = attendanceRecords.find(
-                (r) => r.employeeId === emp.id && r.date === todayStr
-              );
-              const punchType: 'IN' | 'OUT' = existingToday && existingToday.inTime ? 'OUT' : 'IN';
+              validRecent.push({
+                distance: face.matchResult.distance,
+                margin: face.matchResult.margin || 0.05,
+                time: nowMs,
+              });
+              matchHistoryRef.current.set(emp.id, validRecent);
 
-              playAttendanceConfirmationChime();
+              if (validRecent.length >= requiredFrames) {
+                // Compute average distance and average margin across confirmed frames
+                const avgDist = validRecent.reduce((acc, f) => acc + f.distance, 0) / validRecent.length;
+                const avgMargin = validRecent.reduce((acc, f) => acc + f.margin, 0) / validRecent.length;
 
-              if (locationStamp) {
-                onRecordPunch(emp, punchType, locationStamp);
+                if (avgDist <= config.minRecognitionConfidence && avgMargin >= (config.minRecognitionMargin || 0.04)) {
+                  lastPunchCooldownRef.current.set(emp.id, nowMs);
+                  matchHistoryRef.current.delete(emp.id); // Reset buffer on successful punch
+
+                  const safeRecords = Array.isArray(attendanceRecords) ? attendanceRecords : [];
+                  const existingToday = safeRecords.find(
+                    (r) => Boolean(r && r.employeeId === emp.id && r.date === todayStr)
+                  );
+                  const punchType: 'IN' | 'OUT' = existingToday && existingToday.inTime ? 'OUT' : 'IN';
+
+                  playAttendanceConfirmationChime();
+
+                  if (locationStamp && emp && emp.id) {
+                    onRecordPunch(emp, punchType, locationStamp);
+                  }
+
+                  const timeStr = new Date().toLocaleTimeString('en-IN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true,
+                  });
+
+                  setRecentPunch({
+                    employee: emp,
+                    type: punchType,
+                    time: timeStr,
+                    confidence: face.matchResult.confidence,
+                    isLive: face.matchResult.isLive,
+                  });
+
+                  setTimeout(() => {
+                    setRecentPunch((prev) => (prev?.employee?.id === emp?.id ? null : prev));
+                  }, 4500);
+                }
               }
+            }
+          } else if (face.status === 'UNKNOWN' || face.status === 'SPOOF_SUSPECTED') {
+            // Log unknown or suspicious face attempts with thumbnail
+            const nowMs = Date.now();
+            if (nowMs - lastUnknownLogTimeRef.current > 12000) {
+              lastUnknownLogTimeRef.current = nowMs;
+              try {
+                const thumbCanvas = document.createElement('canvas');
+                thumbCanvas.width = 100;
+                thumbCanvas.height = 100;
+                const tctx = thumbCanvas.getContext('2d');
+                if (tctx) {
+                  const bx = Math.max(0, (face.box.x / 100) * canvas.width);
+                  const by = Math.max(0, (face.box.y / 100) * canvas.height);
+                  const bw = Math.max(20, (face.box.width / 100) * canvas.width);
+                  const bh = Math.max(20, (face.box.height / 100) * canvas.height);
+                  tctx.drawImage(canvas, bx, by, bw, bh, 0, 0, 100, 100);
+                  const thumbData = thumbCanvas.toDataURL('image/jpeg', 0.65);
 
-              const timeStr = new Date().toLocaleTimeString('en-IN', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true,
-              });
+                  const log: UnknownAttemptLog = {
+                    id: `UNK-${nowMs}`,
+                    timestamp: new Date().toLocaleTimeString('en-IN'),
+                    date: todayStr,
+                    thumbnailDataUrl: thumbData,
+                    bestDistance: face.matchResult.distance,
+                    closestEmployeeName: face.matchResult.secondBestEmployee?.name,
+                    reason: face.status === 'SPOOF_SUSPECTED' ? 'Liveness failure (photo/screen spoof alert)' : 'Unenrolled biometric face',
+                  };
 
-              setRecentPunch({
-                employee: emp,
-                type: punchType,
-                time: timeStr,
-                confidence: face.matchResult.confidence,
-                isLive: face.matchResult.isLive,
-              });
-
-              setTimeout(() => {
-                setRecentPunch((prev) => (prev?.employee.id === emp.id ? null : prev));
-              }, 4500);
+                  const existing: UnknownAttemptLog[] = JSON.parse(
+                    localStorage.getItem('pk_hr_unknown_attempts') || '[]'
+                  );
+                  localStorage.setItem('pk_hr_unknown_attempts', JSON.stringify([log, ...existing.slice(0, 49)]));
+                  onLogUnknownAttempt?.(log);
+                }
+              } catch {
+                // Thumbnail capture fail ignored
+              }
             }
           }
         }
@@ -260,7 +357,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
       } finally {
         setIsScanning(false);
       }
-    }, 1100);
+    }, 900);
 
     return () => clearInterval(interval);
   }, [
@@ -277,12 +374,12 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
     onRecordPunch
   ]);
 
-  const todayPunches = attendanceRecords
-    .filter((r) => r.date === todayStr)
+  const todayPunches = (attendanceRecords || [])
+    .filter((r) => r && r.id && r.date === todayStr)
     .sort((a, b) => (b.outTime || b.inTime || '').localeCompare(a.outTime || a.inTime || ''))
     .slice(0, 6);
 
-  const activeLocation = PAINTKING_LOCATIONS.find((l) => l.id === config.activeLocationId) || PAINTKING_LOCATIONS[0];
+  const activeLocation = PAINTKING_LOCATIONS.find((l) => l && l.id === config.activeLocationId) || PAINTKING_LOCATIONS[0];
   const isLockedOut = config.strictGeofence && !config.bypassGeofenceForDev && locationStamp && !locationStamp.isHQVerified;
 
   return (
@@ -328,6 +425,16 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="px-3.5 py-1.5 bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-xs font-semibold rounded-full hover:bg-[#f4e5be] transition cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
+            title="Expand Terminal Viewport to Full Screen Kiosk"
+          >
+            {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            <span>{isFullscreen ? 'Exit Full Screen' : 'Full Screen Kiosk'}</span>
+          </button>
+
           <button
             onClick={refreshGPS}
             className="px-3 py-1.5 bg-white text-xs font-semibold rounded-full border border-current/30 hover:bg-white/80 transition cursor-pointer flex items-center gap-1 shadow-2xs"
@@ -435,6 +542,35 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                 className="w-full px-3 py-2 text-xs bg-[#fafafb] border border-[#ececec] rounded-[16px] text-[#17191c] focus:outline-none focus:border-[#c09748]"
               />
             </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17191c] mb-1">
+                Multi-Frame Agreement (N Frames)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={config.requiredConsecutiveFrames || 3}
+                onChange={(e) => setConfig({ ...config, requiredConsecutiveFrames: parseInt(e.target.value) || 3 })}
+                className="w-full px-3 py-2 text-xs bg-[#fafafb] border border-[#ececec] rounded-[16px] text-[#17191c] focus:outline-none focus:border-[#c09748]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17191c] mb-1">
+                Top-2 Separation Margin (Min Gap)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                max="0.20"
+                value={config.minRecognitionMargin || 0.04}
+                onChange={(e) => setConfig({ ...config, minRecognitionMargin: parseFloat(e.target.value) || 0.04 })}
+                className="w-full px-3 py-2 text-xs bg-[#fafafb] border border-[#ececec] rounded-[16px] text-[#17191c] focus:outline-none focus:border-[#c09748]"
+              />
+            </div>
           </div>
 
           <div className="pt-2 flex flex-wrap items-center gap-6 text-xs text-[#17191c]">
@@ -445,9 +581,9 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                 onChange={(e) => setRequireLiveness(e.target.checked)}
                 className="rounded border-[#dcdfe4] text-[#c09748] focus:ring-[#c09748]"
               />
-              <span className="font-semibold text-emerald-800 flex items-center gap-1">
-                <Eye size={13} className="text-emerald-600" />
-                <span>Anti-Spoofing Liveness Detection (Prevents photo/screen spoofing)</span>
+              <span className="font-semibold text-[#8a6521] flex items-center gap-1">
+                <Eye size={13} className="text-[#c09748]" />
+                <span>Heuristic Liveness Gate (Basic EAR & Box Check - Under Lab Calibration)</span>
               </span>
             </label>
 
@@ -474,22 +610,24 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
         </div>
       )}
 
-      {/* Main Terminal Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left Column: Live Camera Kiosk Viewport */}
-        <div className="lg:col-span-8 space-y-4">
-          <div className="relative rounded-[24px] overflow-hidden bg-[#17191c] border border-[#ececec] shadow-md flex items-center justify-center min-h-[460px]">
-            
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className={`w-full h-[460px] object-cover scale-x-[-1] transition-opacity duration-300 ${
-                isLockedOut ? 'opacity-20 blur-sm' : 'opacity-100'
-              }`}
-            />
+      {/* Expanded Kiosk Viewport */}
+      <div
+        ref={kioskContainerRef}
+        className={`relative overflow-hidden bg-[#17191c] border border-[#ececec] shadow-md flex items-center justify-center transition-all duration-300 ${
+          isFullscreen
+            ? 'fixed inset-0 z-50 rounded-none w-screen h-screen'
+            : 'rounded-[24px] w-full min-h-[500px] h-[580px] sm:h-[620px]'
+        }`}
+      >
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={`w-full h-full object-cover scale-x-[-1] transition-opacity duration-300 ${
+            isLockedOut ? 'opacity-20 blur-sm' : 'opacity-100'
+          }`}
+        />
             
             <canvas ref={canvasRef} className="hidden" />
 
@@ -533,9 +671,21 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2 bg-[#17191c]/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-xs font-mono">
-                    <Clock size={13} className="text-[#c09748]" />
-                    <span>{new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 bg-[#17191c]/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-xs font-mono">
+                      <Clock size={13} className="text-[#c09748]" />
+                      <span>{new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={toggleFullscreen}
+                      className="flex items-center gap-1.5 bg-[#17191c]/70 hover:bg-[#17191c]/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/20 text-xs text-white transition pointer-events-auto cursor-pointer shadow-sm active:scale-95"
+                      title={isFullscreen ? 'Exit Full Screen' : 'Full Screen View'}
+                    >
+                      {isFullscreen ? <Minimize2 size={12} className="text-[#c09748]" /> : <Maximize2 size={12} className="text-[#c09748]" />}
+                      <span className="hidden sm:inline">{isFullscreen ? 'Exit' : 'Full Screen'}</span>
+                    </button>
                   </div>
                 </div>
 
@@ -546,11 +696,14 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                     const isSpoof = slot.status === 'SPOOF_SUSPECTED';
                     const empName = slot.matchResult.matchedEmployee?.name;
 
+                    // Mirror-align X coordinate with CSS scale-x-[-1] video preview
+                    const mirroredLeft = Math.max(0, Math.min(100, 100 - slot.box.x - slot.box.width));
+
                     return (
                       <div
                         key={index}
                         style={{
-                          left: `${slot.box.x}%`,
+                          left: `${mirroredLeft}%`,
                           top: `${slot.box.y}%`,
                           width: `${slot.box.width}%`,
                           height: `${slot.box.height}%`,
@@ -574,7 +727,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                           {isRecognized ? (
                             <>
                               <CheckCircle2 size={11} />
-                              <span>{empName} ({slot.matchResult.confidence}%)</span>
+                              <span>{empName} ({slot.matchResult.confidence}% • d={slot.matchResult.distance})</span>
                             </>
                           ) : isSpoof ? (
                             <>
@@ -671,49 +824,55 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
               </div>
             )}
           </div>
-        </div>
 
-        {/* Right Column: Today's Live Attendance Stream */}
-        <div className="lg:col-span-4 space-y-4">
-          <div className="p-5 bg-white rounded-[24px] border border-[#ececec] shadow-2xs h-full flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between border-b border-[#f2f2f3] pb-3">
-                <div>
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c09748] block">
-                    Today's Audit Trail
-                  </span>
-                  <h3 className="text-sm font-serif text-[#17191c] mt-0.5">
-                    Live Punch Stream
-                  </h3>
-                </div>
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#17191c] font-semibold">
+          {/* Today's Live Attendance Audit Trail */}
+          <div className="p-6 bg-white rounded-[24px] border border-[#ececec] shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#f2f2f3] pb-4 gap-2">
+              <div>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c09748] block">
+                  Today's Audit Trail
+                </span>
+                <h3 className="text-base font-serif text-[#17191c] mt-0.5">
+                  Live Punch Stream & Attendance Verification
+                </h3>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1.5 text-xs text-[#777b86]">
+                  <MapPin size={13} className="text-[#c09748]" />
+                  <span>Geofence 300m Active</span>
+                </span>
+                <span className="text-xs px-3 py-1 rounded-full bg-[#fafafb] border border-[#ececec] text-[#17191c] font-semibold">
                   {todayPunches.length} recorded
                 </span>
               </div>
+            </div>
 
-              {/* Punch Stream List */}
-              <div className="mt-3 space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
-                {todayPunches.map((rec) => (
+            {/* Punch Stream Grid: 3 columns on desktop, 1 on mobile */}
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[320px] overflow-y-auto pr-1">
+              {todayPunches.map((rec) => {
+                if (!rec || !rec.id) return null;
+                const initialChar = (rec.employeeName && rec.employeeName.trim()[0]) || 'E';
+                return (
                   <div
                     key={rec.id}
-                    className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between gap-3 text-xs"
+                    className="p-3.5 rounded-[18px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between gap-3 text-xs"
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className="h-8 w-8 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] flex items-center justify-center font-bold text-xs shrink-0">
-                        {rec.employeeName[0]}
+                      <div className="h-9 w-9 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] flex items-center justify-center font-bold text-xs shrink-0">
+                        {initialChar}
                       </div>
                       <div>
-                        <span className="font-semibold text-[#17191c] block truncate max-w-[120px]">
-                          {rec.employeeName}
+                        <span className="font-semibold text-[#17191c] block truncate max-w-[130px]">
+                          {rec.employeeName || 'Employee'}
                         </span>
                         <span className="text-[10px] text-[#777b86] block">
-                          {rec.department}
+                          {rec.department || 'Operations'}
                         </span>
                       </div>
                     </div>
 
                     <div className="text-right">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
                         rec.outTime
                           ? 'bg-amber-50 text-amber-800 border border-amber-200'
                           : rec.status === 'LATE'
@@ -727,16 +886,16 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                       </span>
                     </div>
                   </div>
-                ))}
+                );
+              })}
 
-                {todayPunches.length === 0 && (
-                  <div className="py-12 text-center text-[#979799]">
-                    <Clock size={28} className="mx-auto mb-2 opacity-50" />
-                    <p className="text-xs">No attendance punches recorded yet today</p>
-                    <p className="text-[11px] mt-0.5">Faces recognized at the terminal will appear here automatically.</p>
-                  </div>
-                )}
-              </div>
+              {todayPunches.length === 0 && (
+                <div className="col-span-full py-10 text-center text-[#979799]">
+                  <Clock size={28} className="mx-auto mb-2 opacity-50" />
+                  <p className="text-xs">No attendance punches recorded yet today</p>
+                  <p className="text-[11px] mt-0.5">Faces recognized at the terminal will appear here automatically.</p>
+                </div>
+              )}
             </div>
 
             <div className="mt-4 pt-3 border-t border-[#f2f2f3] flex items-center justify-between text-[11px] text-[#777b86]">
@@ -747,9 +906,6 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
               <span className="text-[#17191c] font-medium">Auto-Cooldown 5m</span>
             </div>
           </div>
-        </div>
-
-      </div>
     </div>
   );
 };

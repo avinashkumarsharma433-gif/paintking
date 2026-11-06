@@ -6,12 +6,15 @@ import {
   FileText, 
   MapPin, 
   ShieldCheck, 
-  Clock 
+  Clock,
+  Activity
 } from 'lucide-react';
+import { usePortalStore } from '../context/PortalStoreContext';
 import { HREmployeeDirectory } from '../modules/hr/HREmployeeDirectory';
 import { HREnrollFaceModal } from '../modules/hr/HREnrollFaceModal';
 import { HRAttendanceTerminal } from '../modules/hr/HRAttendanceTerminal';
 import { HRAttendanceRegister } from '../modules/hr/HRAttendanceRegister';
+import { RecognitionLab } from '../modules/hr/RecognitionLab';
 import { HRLeaveView } from './HRLeaveView';
 import { 
   Employee, 
@@ -72,13 +75,37 @@ const INITIAL_EMPLOYEES: Employee[] = [
 ];
 
 export const HRSuiteView: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'TERMINAL' | 'REGISTER' | 'DIRECTORY' | 'LEAVE'>('TERMINAL');
+  const { activeSubTab } = usePortalStore();
+  const [activeTab, setActiveTab] = useState<'TERMINAL' | 'REGISTER' | 'DIRECTORY' | 'LEAVE' | 'LAB'>(() => {
+    if (activeSubTab === 'LEAVE_APP') return 'LEAVE';
+    if (activeSubTab === 'ATTENDANCE') return 'TERMINAL';
+    if (activeSubTab === 'ROSTER') return 'REGISTER';
+    return 'TERMINAL';
+  });
 
-  // Load from localStorage or initialize
+  // Sync subTab from Sidebar navigation
+  useEffect(() => {
+    if (activeSubTab === 'LEAVE_APP') {
+      setActiveTab('LEAVE');
+    } else if (activeSubTab === 'ATTENDANCE') {
+      setActiveTab('TERMINAL');
+    } else if (activeSubTab === 'ROSTER') {
+      setActiveTab('REGISTER');
+    }
+  }, [activeSubTab]);
+
+  // Load from localStorage or initialize with strict validation
   const [employees, setEmployees] = useState<Employee[]>(() => {
     try {
       const saved = localStorage.getItem('pk_hr_employees');
-      return saved ? JSON.parse(saved) : INITIAL_EMPLOYEES;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const valid = parsed.filter((e): e is Employee => Boolean(e && e.id && e.name));
+          if (valid.length > 0) return valid;
+        }
+      }
+      return INITIAL_EMPLOYEES;
     } catch {
       return INITIAL_EMPLOYEES;
     }
@@ -87,51 +114,57 @@ export const HRSuiteView: React.FC = () => {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => {
     try {
       const saved = localStorage.getItem('pk_hr_attendance_records');
-      if (saved) return JSON.parse(saved);
-
-      // Default mock records for today
-      const today = new Date().toISOString().split('T')[0];
-      return [
-        {
-          id: `REC-${Date.now()}-1`,
-          employeeId: 'PK-EMP-0101',
-          employeeName: 'Rahul Sharma',
-          department: 'Liquid Coating',
-          date: today,
-          inTime: '08:54:12',
-          shiftName: 'General (09:00 - 18:00)',
-          status: 'PRESENT',
-          inLocation: {
-            lat: 19.2094833,
-            lng: 72.8256194,
-            accuracy: 8,
-            distanceToHQ: 14,
-            isHQVerified: true,
-            locationName: 'Mumbai Head Office & R&D Lab',
-          },
-        },
-        {
-          id: `REC-${Date.now()}-2`,
-          employeeId: 'PK-EMP-0102',
-          employeeName: 'Pooja Vishwakarma',
-          department: 'Quality Assurance',
-          date: today,
-          inTime: '09:22:45',
-          shiftName: 'Morning Shift A (06:00 - 14:30)',
-          status: 'LATE',
-          inLocation: {
-            lat: 19.2094833,
-            lng: 72.8256194,
-            accuracy: 12,
-            distanceToHQ: 22,
-            isHQVerified: true,
-            locationName: 'Mumbai Head Office & R&D Lab',
-          },
-        },
-      ];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const valid = parsed.filter((r): r is AttendanceRecord => Boolean(r && r.id && r.employeeId));
+          if (valid.length > 0) return valid;
+        }
+      }
     } catch {
-      return [];
+      // fallback
     }
+
+    // Default mock records for today
+    const today = new Date().toISOString().split('T')[0];
+    return [
+      {
+        id: `REC-${Date.now()}-1`,
+        employeeId: 'PK-EMP-0101',
+        employeeName: 'Rahul Sharma',
+        department: 'Liquid Coating',
+        date: today,
+        inTime: '08:54:12',
+        shiftName: 'General (09:00 - 18:00)',
+        status: 'PRESENT',
+        inLocation: {
+          lat: 19.2094833,
+          lng: 72.8256194,
+          accuracy: 8,
+          distanceToHQ: 14,
+          isHQVerified: true,
+          locationName: 'Mumbai Head Office & R&D Lab',
+        },
+      },
+      {
+        id: `REC-${Date.now()}-2`,
+        employeeId: 'PK-EMP-0102',
+        employeeName: 'Pooja Vishwakarma',
+        department: 'Quality Assurance',
+        date: today,
+        inTime: '09:22:45',
+        shiftName: 'Morning Shift A (06:00 - 14:30)',
+        status: 'LATE',
+        inLocation: {
+          lat: 19.2094833,
+          lng: 72.8256194,
+          accuracy: 12,
+          distanceToHQ: 22,
+          isHQVerified: true,
+          locationName: 'Mumbai Head Office & R&D Lab',
+        },
+      },
+    ];
   });
 
   // Save changes to localStorage
@@ -180,6 +213,8 @@ export const HRSuiteView: React.FC = () => {
     type: 'IN' | 'OUT', 
     locationStamp: LocationStamp
   ) => {
+    if (!employee || !employee.id) return;
+
     const today = new Date().toISOString().split('T')[0];
     const timeStr = new Date().toLocaleTimeString('en-IN', {
       hour: '2-digit',
@@ -189,12 +224,13 @@ export const HRSuiteView: React.FC = () => {
     });
 
     setAttendanceRecords((prev) => {
-      const existing = prev.find((r) => r.employeeId === employee.id && r.date === today);
+      const safePrev = Array.isArray(prev) ? prev.filter((r): r is AttendanceRecord => Boolean(r && r.id)) : [];
+      const existing = safePrev.find((r) => Boolean(r && r.employeeId === employee.id && r.date === today));
 
       if (existing) {
         // Update OUT punch
-        return prev.map((r) =>
-          r.id === existing.id
+        return safePrev.map((r) =>
+          r && r.id === existing.id
             ? {
                 ...r,
                 outTime: timeStr,
@@ -209,15 +245,15 @@ export const HRSuiteView: React.FC = () => {
         const newRecord: AttendanceRecord = {
           id: `REC-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
           employeeId: employee.id,
-          employeeName: employee.name,
-          department: employee.department,
+          employeeName: employee.name || 'Staff',
+          department: employee.department || 'Operations',
           date: today,
           inTime: timeStr,
           inLocation: locationStamp,
           status: isLate ? 'LATE' : 'PRESENT',
-          shiftName: employee.shift,
+          shiftName: employee.shift || 'General',
         };
-        return [newRecord, ...prev];
+        return [newRecord, ...safePrev];
       }
     });
   };
@@ -304,6 +340,18 @@ export const HRSuiteView: React.FC = () => {
           <FileText size={15} className={activeTab === 'LEAVE' ? 'text-[#c09748]' : 'text-[#979799]'} />
           <span>Leave Sanctions (PK-HR-LV-01)</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('LAB')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+            activeTab === 'LAB'
+              ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
+              : 'text-[#777b86] hover:text-[#17191c]'
+          }`}
+        >
+          <Activity size={15} className={activeTab === 'LAB' ? 'text-[#c09748]' : 'text-[#979799]'} />
+          <span>Recognition Lab (Admin)</span>
+        </button>
       </div>
 
       {/* Active Tab View */}
@@ -333,6 +381,8 @@ export const HRSuiteView: React.FC = () => {
       )}
 
       {activeTab === 'LEAVE' && <HRLeaveView />}
+
+      {activeTab === 'LAB' && <RecognitionLab employees={employees} />}
 
       {/* Face Enrollment Modal */}
       {enrollingEmployee && (

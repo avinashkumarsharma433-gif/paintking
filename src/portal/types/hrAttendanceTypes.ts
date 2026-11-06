@@ -55,7 +55,38 @@ export interface TerminalConfig {
   activeLocationId: string;
   strictGeofence: boolean;
   bypassGeofenceForDev: boolean;
-  minRecognitionConfidence: number; // 0.0 - 1.0 (e.g. 0.65)
+  minRecognitionConfidence: number; // 0.0 - 1.0 (e.g. 0.46)
   cooldownMinutes: number; // default 5 minutes
   selectedCameraId?: string;
+  requiredConsecutiveFrames?: number; // multi-frame confirmation (default 3)
+  minRecognitionMargin?: number; // margin over second-best (default 0.05)
+}
+
+export interface EnrollmentQualityDetails {
+  passed: boolean;
+  reasons: string[];
+  qualityScore: number; // 0 - 100
+  blurScore: number; // variance of Laplacian
+  exposureScore: number; // 0 - 255 luminance
+  eyeAspectRatio: number; // EAR
+  boxCoveragePct: number; // % of frame
+  detectedPose: 'NEUTRAL' | 'SMILE' | 'LEFT' | 'RIGHT' | 'UP' | 'GLASSES_EXPRESSION' | 'UNKNOWN';
+}
+
+export interface UnknownAttemptLog {
+  id: string;
+  timestamp: string;
+  date: string;
+  thumbnailDataUrl: string;
+  bestDistance: number;
+  closestEmployeeName?: string;
+  reason: string;
+}
+
+export interface RecognitionStageLatency {
+  detectionMs: number;
+  landmarksMs: number;
+  embeddingMs: number;
+  matchingMs: number;
+  totalPipelineMs: number;
 }
