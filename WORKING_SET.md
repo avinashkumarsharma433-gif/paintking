@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-06: Mobile responsive overhaul of Face Enrollment Modal in Employee Master
+  - Files touched:
+    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (`h-[100dvh]` container with `flex-col`, scrollable modal body `flex-1 overflow-y-auto`, horizontal scroll stepper bar `no-scrollbar`, wrapping action bar and responsive stacked footer)
+  - Search string: `w-full h-[100dvh] lg:h-auto lg:max-h-[92vh]`
+  - Status: Verified with `npx tsc --noEmit` (0 errors) and Vite production build.
+
 - 2026-11-06: Added biometric deletion option and full-page responsive modal for mobile/tablet
   - Files touched:
     - `src/portal/views/HRSuiteView.tsx` (`handleDeleteFaceBiometrics` handler resetting `faceEnrolled`, `faceDescriptors`, and `avatarUrl`)

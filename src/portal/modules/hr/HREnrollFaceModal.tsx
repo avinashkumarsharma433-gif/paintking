@@ -427,11 +427,11 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   const isAllPosesDone = capturedPoses.length >= POSE_STEPS.length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#17191c]/60 backdrop-blur-xs flex items-center justify-center p-0 lg:p-4">
-      <div className="bg-white rounded-none lg:rounded-[24px] border-0 lg:border border-[#ececec] shadow-2xl w-full h-full lg:h-auto lg:max-h-[92vh] lg:max-w-3xl overflow-hidden flex flex-col animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 bg-[#17191c]/80 backdrop-blur-xs flex items-center justify-center p-0 lg:p-4">
+      <div className="bg-white rounded-none lg:rounded-[24px] border-0 lg:border border-[#ececec] shadow-2xl w-full h-[100dvh] lg:h-auto lg:max-h-[92vh] lg:max-w-3xl flex flex-col animate-in fade-in duration-200">
         
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-[#ececec] flex items-center justify-between bg-[#fafafb] shrink-0">
+        <div className="p-3.5 sm:p-5 border-b border-[#ececec] flex items-center justify-between bg-[#fafafb] shrink-0">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c09748]">
@@ -441,26 +441,26 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                 6 Guided Master Poses
               </span>
             </div>
-            <h3 className="text-base sm:text-lg font-serif text-[#17191c] mt-0.5">
+            <h3 className="text-sm sm:text-lg font-serif text-[#17191c] mt-0.5">
               Enroll Face: {employee.name} ({employee.id})
             </h3>
           </div>
           <button
             onClick={onClose}
-            className="h-9 w-9 rounded-full flex items-center justify-center bg-white border border-[#ececec] text-[#777b86] hover:text-[#17191c] cursor-pointer"
+            className="h-8 w-8 sm:h-9 sm:w-9 rounded-full flex items-center justify-center bg-white border border-[#ececec] text-[#777b86] hover:text-[#17191c] cursor-pointer shrink-0"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Tab switch */}
-        <div className="px-5 pt-3 flex gap-2 border-b border-[#f2f2f3]">
+        <div className="px-3.5 sm:px-5 pt-2 sm:pt-3 flex gap-2 border-b border-[#f2f2f3] shrink-0 overflow-x-auto no-scrollbar">
           <button
             onClick={() => {
               setActiveTab('GUIDED');
               handleReset();
             }}
-            className={`pb-2.5 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition cursor-pointer ${
+            className={`pb-2 text-xs font-semibold flex items-center gap-1.5 border-b-2 whitespace-nowrap transition cursor-pointer ${
               activeTab === 'GUIDED'
                 ? 'border-[#c09748] text-[#17191c]'
                 : 'border-transparent text-[#777b86] hover:text-[#17191c]'
@@ -474,7 +474,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
               setActiveTab('UPLOAD');
               handleReset();
             }}
-            className={`pb-2.5 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition cursor-pointer ${
+            className={`pb-2 text-xs font-semibold flex items-center gap-1.5 border-b-2 whitespace-nowrap transition cursor-pointer ${
               activeTab === 'UPLOAD'
                 ? 'border-[#c09748] text-[#17191c]'
                 : 'border-transparent text-[#777b86] hover:text-[#17191c]'
@@ -485,9 +485,8 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
           </button>
         </div>
 
-
-        {/* Modal Body */}
-        <div className="p-5 space-y-4">
+        {/* Modal Body: Scrollable on mobile */}
+        <div className="p-3.5 sm:p-5 space-y-3 sm:space-y-4 flex-1 overflow-y-auto">
           {activeTab === 'GUIDED' ? (
             <div>
               {cameraError ? (
@@ -496,10 +495,10 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                   <span>{cameraError}</span>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   
                   {/* Step Stepper Bar with Icons (Strict Sequential Navigation) */}
-                  <div className="grid grid-cols-6 gap-1.5 bg-[#fafafb] p-2 rounded-[18px] border border-[#ececec]">
+                  <div className="flex sm:grid sm:grid-cols-6 gap-1 sm:gap-1.5 bg-[#fafafb] p-1.5 sm:p-2 rounded-[18px] border border-[#ececec] overflow-x-auto no-scrollbar">
                     {POSE_STEPS.map((step, idx) => {
                       const isCompleted = capturedPoses.some(p => p.stepId === step.id);
                       const isCurrent = idx === currentStepIndex;
@@ -516,7 +515,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                               setCurrentStepIndex(idx);
                             }
                           }}
-                          className={`p-2 rounded-[14px] flex flex-col items-center justify-center transition-all ${
+                          className={`min-w-[60px] sm:min-w-0 flex-1 p-1.5 sm:p-2 rounded-[12px] sm:rounded-[14px] flex flex-col items-center justify-center transition-all shrink-0 ${
                             isCurrent
                               ? 'bg-[#faf3e0] border border-[#c09748] text-[#8a6521] shadow-2xs cursor-pointer'
                               : isCompleted
@@ -527,10 +526,10 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                           }`}
                           title={!canNavigate ? `Capture Pose ${POSE_STEPS[idx - 1].id} first` : undefined}
                         >
-                          <div className="text-xs mb-1">
-                            {isCompleted ? <Check size={14} className="text-emerald-600" /> : step.icon}
+                          <div className="text-xs mb-0.5 sm:mb-1">
+                            {isCompleted ? <Check size={13} className="text-emerald-600" /> : step.icon}
                           </div>
-                          <span className="text-[10px] font-bold">Pose {step.id}</span>
+                          <span className="text-[9px] sm:text-[10px] font-bold">Pose {step.id}</span>
                         </button>
                       );
                     })}
@@ -725,7 +724,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                   )}
 
                   {/* Pose Action Buttons */}
-                  <div className="flex items-center justify-between pt-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                     <button
                       type="button"
                       onClick={handleReset}
@@ -735,27 +734,27 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                       <span>Retake All</span>
                     </button>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleCapturePose}
-                        disabled={isProcessing}
-                        className="px-5 py-2.5 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer active:scale-95 flex items-center gap-2"
-                      >
-                        <Camera size={15} className="text-[#c09748]" />
-                        <span>{isProcessing ? 'Analyzing Facial Vectors...' : `Click to Capture Pose ${currentPose.id}`}</span>
-                      </button>
-
+                    <div className="flex items-center gap-1.5 sm:gap-2">
                       {currentStepIndex > 0 && (
                         <button
                           type="button"
                           onClick={() => setCurrentStepIndex(prev => prev - 1)}
-                          className="px-3 py-2 text-xs text-[#777b86] hover:text-[#17191c] flex items-center gap-1 cursor-pointer"
+                          className="px-2.5 sm:px-3 py-2 text-xs text-[#777b86] hover:text-[#17191c] flex items-center gap-1 cursor-pointer"
                         >
                           <ChevronLeft size={14} />
                           <span>Back</span>
                         </button>
                       )}
+
+                      <button
+                        type="button"
+                        onClick={handleCapturePose}
+                        disabled={isProcessing}
+                        className="px-4 sm:px-5 py-2.5 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer active:scale-95 flex items-center gap-1.5"
+                      >
+                        <Camera size={14} className="text-[#c09748]" />
+                        <span>{isProcessing ? 'Analyzing...' : `Capture Pose ${currentPose.id}`}</span>
+                      </button>
 
                       {currentStepIndex < POSE_STEPS.length - 1 && (
                         <button
@@ -766,7 +765,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                               setCurrentStepIndex(prev => prev + 1);
                             }
                           }}
-                          className={`px-3 py-2 text-xs flex items-center gap-1 transition ${
+                          className={`px-2.5 sm:px-3 py-2 text-xs flex items-center gap-1 transition ${
                             capturedPoses.some(p => p.stepId === currentPose.id)
                               ? 'text-[#17191c] hover:text-[#c09748] cursor-pointer font-semibold'
                               : 'text-[#979799] opacity-40 cursor-not-allowed'
@@ -820,13 +819,13 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-5 border-t border-[#ececec] flex items-center justify-between bg-[#fafafb]">
+        <div className="p-3.5 sm:p-5 border-t border-[#ececec] flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#fafafb] shrink-0">
           <div className="flex items-center gap-1.5 text-[11px] text-[#777b86]">
             <ShieldCheck size={14} className="text-[#c09748]" />
-            <span>Master Profile: {capturedPoses.length} poses calibrated</span>
+            <span>Master Profile: {capturedPoses.length} / {POSE_STEPS.length} poses calibrated</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-end w-full sm:w-auto gap-2">
             <button
               onClick={onClose}
               className="px-4 py-2 text-xs font-semibold text-[#777b86] hover:text-[#17191c] cursor-pointer"
@@ -836,14 +835,14 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             <button
               onClick={handleSaveAndEnroll}
               disabled={capturedPoses.length === 0}
-              className={`px-5 py-2.5 text-xs font-semibold rounded-full shadow-2xs transition flex items-center gap-1.5 cursor-pointer ${
+              className={`flex-1 sm:flex-none px-4 sm:px-5 py-2.5 text-xs font-semibold rounded-full shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer ${
                 capturedPoses.length > 0
                   ? 'bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] active:scale-95'
                   : 'bg-[#ececec] text-[#979799] cursor-not-allowed border border-[#e5e7eb]'
               }`}
             >
               <Sparkles size={14} className={capturedPoses.length > 0 ? 'text-[#c09748]' : 'text-[#979799]'} />
-              <span>Save & Complete Master Enrollment</span>
+              <span>Save & Complete</span>
             </button>
           </div>
         </div>
