@@ -1,5 +1,15 @@
 # WORKING SET
 
+- 2026-11-06: Phase 1 Completed - CompreFace-style Face Engine Architecture
+  - Files touched:
+    - `src/portal/face-engine/types.ts` (Core interfaces: IFaceDetector, IEmbeddingCalculator, IFaceCollection, IFaceEngineProvider, RecognitionOptions, RecognitionPrediction)
+    - `src/portal/face-engine/LocalFaceCollection.ts` (Subjects & multi-example collection with model metadata, quality score, and persistent local storage)
+    - `src/portal/face-engine/LegacyFaceApiProvider.ts` (Local browser provider implementing CompreFace 0.0-1.0 cosine similarity, multi-example scoring, verification)
+    - `src/portal/face-engine/RemoteCompreFaceProvider.ts` (REST adapter for CompreFace server /api/v1/recognition with x-api-key support)
+    - `src/portal/face-engine/index.ts` (Unified engine factory createFaceEngine)
+  - Search string: `export class LegacyFaceApiProvider implements IFaceEngineProvider`
+  - Status: Verified with `npx tsc --noEmit` (0 errors) and Vite production build.
+
 - 2026-11-06: Mobile responsive overhaul of Face Enrollment Modal in Employee Master
   - Files touched:
     - `src/portal/modules/hr/HREnrollFaceModal.tsx` (`h-[100dvh]` container with `flex-col`, scrollable modal body `flex-1 overflow-y-auto`, horizontal scroll stepper bar `no-scrollbar`, wrapping action bar and responsive stacked footer)
