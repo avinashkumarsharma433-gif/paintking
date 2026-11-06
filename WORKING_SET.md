@@ -1,5 +1,13 @@
 # WORKING SET
 
+- 2026-11-06: Overtime (OT) Eligibility Toggle with Proportional Wage Formula
+  - Files touched:
+    - `src/portal/modules/hr/HREmployeeDirectory.tsx` (Added Overtime (OT) Eligible toggle switch with live hourly wage hint, e.g. ₹800/8h = ₹100/hr)
+    - `src/portal/services/payrollCalculationService.ts` (Integrated proportional OT formula: Daily Rate / 8 * OT Hours, with zero OT when toggle is off)
+    - `src/portal/types/hrAttendanceTypes.ts` (Added `isOtEligible?: boolean` property to `Employee`)
+  - Search string: `OVERTIME (OT) ELIGIBILITY TOGGLE`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-06: Full Employee Profile & Salary Editing in Employee Directory
   - Files touched:
     - `src/portal/modules/hr/HREmployeeDirectory.tsx` (Added edit profile modal trigger, Wage Rate display chip, unified Add/Edit modal supporting full updates to Name, Designation, Department, Shift, Phone, Joining Date & Daily Wage Rate)
