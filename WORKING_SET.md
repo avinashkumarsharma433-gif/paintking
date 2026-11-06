@@ -1,5 +1,13 @@
 # WORKING SET
 
+- 2026-11-06: Phase 2 Completed - Active Liveness Challenge & Passive Anti-Spoofing Suite
+  - Files touched:
+    - `src/portal/services/antiSpoofService.ts` (Passive glare/reflection & color banding detector, ActiveLivenessSession time-series state machine for blink, turn left/right, and smile)
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Passive anti-spoof check in scan loop, Active Liveness Challenge HUD banner with animated progress, toggleable challenge mode)
+    - `src/portal/modules/hr/RecognitionLab.tsx` (Phase 2 diagnostic card metrics for glare gate, banding ratio, active challenges, and intercepted spoof audit gallery)
+  - Search string: `ActiveLivenessSession`
+  - Status: Verified with `npx tsc --noEmit` (0 errors) and Vite production build.
+
 - 2026-11-06: Phase 1 Completed - CompreFace-style Face Engine Architecture
   - Files touched:
     - `src/portal/face-engine/types.ts` (Core interfaces: IFaceDetector, IEmbeddingCalculator, IFaceCollection, IFaceEngineProvider, RecognitionOptions, RecognitionPrediction)

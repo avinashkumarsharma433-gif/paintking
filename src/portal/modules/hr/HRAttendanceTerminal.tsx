@@ -15,7 +15,9 @@ import {
   Eye,
   Sliders,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Activity,
+  Zap
 } from 'lucide-react';
 import { 
   Employee, 
@@ -35,6 +37,11 @@ import {
   DetectedFaceSlot,
   playAttendanceConfirmationChime 
 } from '../../services/faceRecognitionService';
+import {
+  ActiveLivenessSession,
+  analyzePassiveSpoof,
+  ChallengeEvaluationResult
+} from '../../services/antiSpoofService';
 
 interface HRAttendanceTerminalProps {
   employees: Employee[];
@@ -65,6 +72,14 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
   });
 
   const [requireLiveness, setRequireLiveness] = useState(true);
+  const [activeChallengeMode, setActiveChallengeMode] = useState(false);
+  const [activeChallengeState, setActiveChallengeState] = useState<{
+    prompt: string;
+    hindiPrompt: string;
+    progress: number;
+    completed: boolean;
+  } | null>(null);
+  const livenessSessionRef = useRef<ActiveLivenessSession | null>(null);
   const [securityPreset, setSecurityPreset] = useState<'STRICT' | 'NORMAL' | 'FAST'>('STRICT');
 
   // Geofence & Location State
@@ -287,10 +302,52 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
           config.minRecognitionMargin || 0.04
         );
 
-        setDetectedFaces(detected);
+        // Run Passive Reflection/Screen Glare Anti-Spoofing on each detected face
+        const updatedDetected = detected.map((face) => {
+          const passive = analyzePassiveSpoof(canvas, face.box);
+          if (!passive.isLive && face.status === 'RECOGNIZED') {
+            return {
+              ...face,
+              status: 'SPOOF_SUSPECTED' as const,
+              matchResult: {
+                ...face.matchResult,
+                isLive: false,
+                isMatch: false,
+              },
+            };
+          }
+          return face;
+        });
 
-        for (const face of detected) {
-          if (face.status === 'RECOGNIZED' && face.matchResult.matchedEmployee) {
+        // Active Liveness Challenge Evaluation if active challenge mode is enabled
+        let challengePassed = true;
+        if (activeChallengeMode && updatedDetected.length > 0 && updatedDetected[0].landmarks) {
+          if (!livenessSessionRef.current) {
+            livenessSessionRef.current = new ActiveLivenessSession();
+          }
+          const evalRes = livenessSessionRef.current.update(updatedDetected[0].landmarks as any);
+          setActiveChallengeState({
+            prompt: livenessSessionRef.current.challenge.prompt,
+            hindiPrompt: livenessSessionRef.current.challenge.hindiPrompt,
+            progress: evalRes.progress,
+            completed: evalRes.completed,
+          });
+          challengePassed = evalRes.completed;
+          if (evalRes.completed) {
+            // Auto renew after 3 seconds for next person
+            setTimeout(() => {
+              livenessSessionRef.current?.reset();
+              setActiveChallengeState(null);
+            }, 3000);
+          }
+        } else if (!activeChallengeMode) {
+          setActiveChallengeState(null);
+        }
+
+        setDetectedFaces(updatedDetected);
+
+        for (const face of updatedDetected) {
+          if (face.status === 'RECOGNIZED' && face.matchResult.matchedEmployee && (!activeChallengeMode || challengePassed)) {
             const emp = face.matchResult.matchedEmployee;
             const nowMs = Date.now();
             const lastPunchTime = lastPunchCooldownRef.current.get(emp.id) || 0;
@@ -622,7 +679,28 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
               />
               <span className="font-semibold text-[#8a6521] flex items-center gap-1">
                 <Eye size={13} className="text-[#c09748]" />
-                <span>Heuristic Liveness Gate (Basic EAR & Box Check - Under Lab Calibration)</span>
+                <span>Passive Glare & Screen Anti-Spoof</span>
+              </span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={activeChallengeMode}
+                onChange={(e) => {
+                  setActiveChallengeMode(e.target.checked);
+                  if (e.target.checked) {
+                    livenessSessionRef.current = new ActiveLivenessSession();
+                  } else {
+                    livenessSessionRef.current = null;
+                    setActiveChallengeState(null);
+                  }
+                }}
+                className="rounded border-[#dcdfe4] text-[#c09748] focus:ring-[#c09748]"
+              />
+              <span className="font-semibold text-emerald-700 flex items-center gap-1">
+                <Zap size={13} className="text-emerald-600" />
+                <span>Active Liveness Challenge (Blink / Head Turn / Smile)</span>
               </span>
             </label>
 
@@ -755,6 +833,29 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* ACTIVE LIVENESS CHALLENGE HUD BANNER */}
+                {activeChallengeState && (
+                  <div className="mt-3 flex items-center justify-center">
+                    <div className="bg-[#17191c]/85 border-2 border-[#c09748] rounded-[20px] px-5 py-2.5 shadow-2xl backdrop-blur-md flex items-center gap-3.5 text-white animate-pulse">
+                      <Zap size={20} className="text-[#c09748] animate-bounce" />
+                      <div>
+                        <div className="text-[11px] font-mono uppercase tracking-wider text-[#f4e5be]">
+                          Active Liveness Challenge / लाइव सत्यापन
+                        </div>
+                        <div className="text-sm font-bold text-white">
+                          {activeChallengeState.prompt} • <span className="text-amber-300 font-normal">{activeChallengeState.hindiPrompt}</span>
+                        </div>
+                      </div>
+                      <div className="w-16 bg-white/20 rounded-full h-2 overflow-hidden border border-white/30 ml-2">
+                        <div
+                          className="bg-emerald-400 h-full transition-all duration-200"
+                          style={{ width: `${activeChallengeState.progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* DYNAMIC MULTI-FACE BOUNDING BOXES */}
                 <div className="absolute inset-0 pointer-events-none">

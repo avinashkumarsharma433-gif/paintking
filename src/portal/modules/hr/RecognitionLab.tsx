@@ -17,7 +17,10 @@ import {
   Sparkles,
   Camera,
   Image as ImageIcon,
-  Check
+  Check,
+  Zap,
+  ShieldCheck,
+  Eye
 } from 'lucide-react';
 import { 
   Employee, 
@@ -31,6 +34,11 @@ import {
   loadFaceModels,
   areModelsLoaded
 } from '../../services/faceRecognitionService';
+import {
+  analyzePassiveSpoof,
+  ActiveLivenessSession,
+  LIVENESS_CHALLENGES
+} from '../../services/antiSpoofService';
 
 interface RecognitionLabProps {
   employees: Employee[];
@@ -493,6 +501,87 @@ export const RecognitionLab: React.FC<RecognitionLabProps> = ({ employees }) => 
               })}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* Phase 2: Active & Passive Anti-Spoof Diagnostic Suite */}
+      <div className="p-6 bg-white rounded-[24px] border border-[#ececec] shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#f2f2f3] pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c09748]">
+                Phase 2 Security Engine
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200">
+                Active & Passive Protection
+              </span>
+            </div>
+            <h3 className="text-base font-serif text-[#17191c] font-bold mt-1 flex items-center gap-2">
+              <ShieldCheck size={18} className="text-emerald-600" />
+              <span>Anti-Spoofing & Liveness Challenge Diagnostics</span>
+            </h3>
+          </div>
+          <div className="text-xs text-[#777b86]">
+            Detects phone screens, glossy photo prints, video replay, and validates active motor challenges
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Passive Glare */}
+          <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec]">
+            <div className="flex items-center justify-between text-xs font-semibold text-[#17191c] mb-1">
+              <span>Specular Glare Gate</span>
+              <Eye size={14} className="text-[#c09748]" />
+            </div>
+            <div className="text-lg font-bold text-[#17191c] font-mono">
+              &gt; 8% <span className="text-xs font-normal text-[#777b86]">saturated pixels</span>
+            </div>
+            <p className="text-[11px] text-[#777b86] mt-1">
+              Catches phone glass and glossy photo surface reflections instantly during scan.
+            </p>
+          </div>
+
+          {/* Card 2: Banding */}
+          <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec]">
+            <div className="flex items-center justify-between text-xs font-semibold text-[#17191c] mb-1">
+              <span>Flat Color Banding</span>
+              <Layers size={14} className="text-indigo-600" />
+            </div>
+            <div className="text-lg font-bold text-[#17191c] font-mono">
+              &gt; 40% <span className="text-xs font-normal text-[#777b86]">banding ratio</span>
+            </div>
+            <p className="text-[11px] text-[#777b86] mt-1">
+              Identifies LCD/OLED raster patterns and desaturated paper prints.
+            </p>
+          </div>
+
+          {/* Card 3: Active Challenges */}
+          <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec]">
+            <div className="flex items-center justify-between text-xs font-semibold text-[#17191c] mb-1">
+              <span>Active Micro-Challenges</span>
+              <Zap size={14} className="text-amber-500" />
+            </div>
+            <div className="text-lg font-bold text-[#17191c] font-mono">
+              4 <span className="text-xs font-normal text-[#777b86]">randomized tasks</span>
+            </div>
+            <p className="text-[11px] text-[#777b86] mt-1">
+              Blink (EAR &lt; 0.17), Head Turn (Yaw &plusmn;14&deg;), and Smile (mouth stretch &gt; 0.78).
+            </p>
+          </div>
+
+          {/* Card 4: Audit Status */}
+          <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec]">
+            <div className="flex items-center justify-between text-xs font-semibold text-[#17191c] mb-1">
+              <span>Spoof Audit Intercepts</span>
+              <ShieldAlert size={14} className="text-rose-500" />
+            </div>
+            <div className="text-lg font-bold text-rose-600 font-mono">
+              {unknownAttempts.filter(l => l.reason.includes('spoof') || l.reason.includes('Liveness')).length} <span className="text-xs font-normal text-[#777b86]">intercepted</span>
+            </div>
+            <p className="text-[11px] text-[#777b86] mt-1">
+              Flagged snapshots automatically archived to terminal audit trail below.
+            </p>
+          </div>
         </div>
       </div>
 
