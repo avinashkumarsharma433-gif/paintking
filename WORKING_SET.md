@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-06: Modern Floating Biometric Glassmorphic Control Bar for 6-Pose Enrollment
+  - Files touched:
+    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (Replaced minimal dark strip with floating frosted glass card, step progress dots, gold/emerald gradient hold bar with percentage, and refined retake pill)
+  - Search string: `FLOATING MODERN BIOMETRIC INSTRUCTION CARD`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-06: 512-Dimensional ArcFace Embedding Engine Implementation (Plant PC Ready)
   - Files touched:
     - `src/portal/face-engine/ArcFace512EmbeddingCalculator.ts` (ONNX Runtime Web with WebGL/WASM SIMD, 112x112 NCHW pre-processing, 512-D L2-normalization, cosine similarity dot product)
