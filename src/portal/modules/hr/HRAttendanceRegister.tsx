@@ -258,15 +258,20 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
                   </div>
                 </td>
 
-                {/* Column 2: In / Out Timestamps */}
+                {/* Column 2: In / Out Timestamps & Duration */}
                 <td className="py-3 px-4">
                   <div className="space-y-0.5">
                     <span className="text-xs text-[#17191c] font-medium block">
                       IN: <strong>{rec.inTime || '—'}</strong>
                     </span>
                     <span className="text-[11px] text-[#777b86] block">
-                      OUT: {rec.outTime || 'Pending (On-Duty)'}
+                      OUT: {rec.outTime ? <strong>{rec.outTime}</strong> : <span className="text-emerald-600 font-semibold">On-Duty / Working</span>}
                     </span>
+                    {rec.totalWorkMinutes !== undefined && rec.totalWorkMinutes > 0 && (
+                      <span className="text-[10px] text-[#8a6521] block font-mono">
+                        ⏱️ {Math.floor(rec.totalWorkMinutes / 60)}h {rec.totalWorkMinutes % 60}m worked
+                      </span>
+                    )}
                   </div>
                 </td>
 
@@ -354,15 +359,22 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
               </span>
             </div>
 
-            <div className="pt-2 border-t border-[#ececec] flex items-center justify-between text-xs text-[#777b86]">
-              <span>IN: {rec.inTime || '—'}</span>
-              <span>OUT: {rec.outTime || '—'}</span>
-              <button
-                onClick={() => handleOpenEdit(rec)}
-                className="text-xs text-[#c09748] font-semibold"
-              >
-                Override
-              </button>
+            <div className="pt-2 border-t border-[#ececec] flex flex-col gap-1 text-xs text-[#777b86]">
+              <div className="flex items-center justify-between">
+                <span>IN: {rec.inTime || '—'}</span>
+                <span>OUT: {rec.outTime || 'On-Duty'}</span>
+                <button
+                  onClick={() => handleOpenEdit(rec)}
+                  className="text-xs text-[#c09748] font-semibold"
+                >
+                  Override
+                </button>
+              </div>
+              {rec.totalWorkMinutes !== undefined && rec.totalWorkMinutes > 0 && (
+                <span className="text-[10px] text-[#8a6521] font-mono">
+                  ⏱️ {Math.floor(rec.totalWorkMinutes / 60)}h {rec.totalWorkMinutes % 60}m worked
+                </span>
+              )}
             </div>
           </div>
         ))}
