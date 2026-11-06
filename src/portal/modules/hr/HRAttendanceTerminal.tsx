@@ -157,10 +157,16 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
     navigator.mediaDevices?.enumerateDevices().then((devices) => {
       const videoInputs = devices.filter((d) => d.kind === 'videoinput');
       setCameraDevices(videoInputs);
+      // Prefer front camera on mobile devices if unselected
       if (videoInputs.length > 0 && !selectedCameraId) {
-        setSelectedCameraId(videoInputs[0].deviceId);
+        const frontCam = videoInputs.find(d => 
+          d.label.toLowerCase().includes('front') || 
+          d.label.toLowerCase().includes('user') ||
+          d.label.toLowerCase().includes('selfie')
+        );
+        setSelectedCameraId(frontCam ? frontCam.deviceId : videoInputs[0].deviceId);
       }
-    });
+    }).catch(() => {});
   }, []);
 
   // Preset security threshold adjustments
@@ -171,7 +177,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
     else setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.53 }));
   };
 
-  // 3. Start Camera Stream (720p HD for superior facial landmarks)
+  // 3. Start Camera Stream (with mobile portrait fallbacks & HTTPS checks)
   useEffect(() => {
     if (!cameraActive) return;
 
@@ -183,19 +189,52 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
           streamRef.current.getTracks().forEach((t) => t.stop());
         }
 
-        const constraints: MediaStreamConstraints = {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          if (typeof window !== 'undefined' && !window.isSecureContext) {
+            throw new Error(
+              'Mobile browsers block camera on plain HTTP IP addresses. To access on mobile: 1) Use HTTPS/ngrok, or 2) On mobile Chrome, visit chrome://flags/#unsafely-treat-insecure-origin-as-secure and add this IP URL.'
+            );
+          }
+          throw new Error('Camera access API is not available on this device browser.');
+        }
+
+        let stream: MediaStream | null = null;
+
+        // Try primary constraints
+        const primaryConstraints: MediaStreamConstraints = {
           video: selectedCameraId
             ? { deviceId: { exact: selectedCameraId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-            : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+            : { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false,
         };
 
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        if (isMounted) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(primaryConstraints);
+        } catch {
+          // Fallback 1: basic facingMode without resolution constraint (for mobile portrait)
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: 'user' },
+              audio: false,
+            });
+          } catch {
+            // Fallback 2: any video input
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: false,
+            });
+          }
+        }
+
+        if (isMounted && stream) {
           streamRef.current = stream;
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            videoRef.current.play();
+            videoRef.current.setAttribute('playsinline', 'true');
+            videoRef.current.setAttribute('webkit-playsinline', 'true');
+            videoRef.current.play().catch((e) => {
+              console.warn('Video play deferred:', e);
+            });
           }
         }
       } catch (err: unknown) {
@@ -646,6 +685,34 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                     className="px-4 py-2 bg-white text-[#17191c] text-xs font-semibold rounded-full hover:bg-neutral-100 transition cursor-pointer"
                   >
                     Retry GPS Scan
+                  </button>
+                  <button
+                    onClick={() => setConfig({ ...config, bypassGeofenceForDev: true })}
+                    className="px-4 py-2 bg-[#faf3e0] text-[#8a6521] text-xs font-semibold rounded-full hover:bg-[#f4e5be] transition cursor-pointer"
+                  >
+                    Enable Dev Bypass
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Camera Error / Permission Overlay */}
+            {cameraError && !isLockedOut && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-[#17191c]/95 backdrop-blur-xs text-white z-25">
+                <Camera size={44} className="text-amber-400 mb-3 animate-pulse" />
+                <h3 className="text-lg font-serif">Camera Access Issue</h3>
+                <p className="text-xs text-[#dcdfe4] max-w-md mt-1.5 leading-relaxed bg-white/5 p-3 rounded-[16px] border border-white/10">
+                  {cameraError}
+                </p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <button
+                    onClick={() => {
+                      setCameraActive(false);
+                      setTimeout(() => setCameraActive(true), 150);
+                    }}
+                    className="px-4 py-2 bg-white text-[#17191c] text-xs font-semibold rounded-full hover:bg-neutral-100 transition cursor-pointer"
+                  >
+                    Retry Camera
                   </button>
                   <button
                     onClick={() => setConfig({ ...config, bypassGeofenceForDev: true })}

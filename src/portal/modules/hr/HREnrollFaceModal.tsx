@@ -144,16 +144,43 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     const startCamera = async () => {
       try {
         setCameraError(null);
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
-          audio: false,
-        });
 
-        if (isMounted) {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          if (typeof window !== 'undefined' && !window.isSecureContext) {
+            throw new Error(
+              'Mobile browsers require HTTPS or localhost for camera access. On plain HTTP IP, camera is blocked.'
+            );
+          }
+          throw new Error('Camera access API is not supported on this browser.');
+        }
+
+        let stream: MediaStream | null = null;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+            audio: false,
+          });
+        } catch {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: 'user' },
+              audio: false,
+            });
+          } catch {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: false,
+            });
+          }
+        }
+
+        if (isMounted && stream) {
           streamRef.current = stream;
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            videoRef.current.play();
+            videoRef.current.setAttribute('playsinline', 'true');
+            videoRef.current.setAttribute('webkit-playsinline', 'true');
+            videoRef.current.play().catch((e) => console.warn('Video play deferred:', e));
           }
         }
       } catch (err: unknown) {
