@@ -14,13 +14,16 @@ import {
   Plus, 
   X,
   Camera,
-  Trash2
+  Trash2,
+  Edit2,
+  DollarSign
 } from 'lucide-react';
 import { Employee } from '../../types/hrAttendanceTypes';
 
 interface HREmployeeDirectoryProps {
   employees: Employee[];
   onAddEmployee: (emp: Omit<Employee, 'id' | 'faceEnrolled' | 'faceDescriptors' | 'status'>) => void;
+  onUpdateEmployee?: (emp: Employee) => void;
   onOpenFaceEnroll: (emp: Employee) => void;
   onDeleteFaceBiometrics?: (empId: string) => void;
 }
@@ -28,6 +31,7 @@ interface HREmployeeDirectoryProps {
 export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
   employees,
   onAddEmployee,
+  onUpdateEmployee,
   onOpenFaceEnroll,
   onDeleteFaceBiometrics,
 }) => {
@@ -35,8 +39,9 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
   const [departmentFilter, setDepartmentFilter] = useState<string>('ALL');
   const [enrollFilter, setEnrollFilter] = useState<'ALL' | 'ENROLLED' | 'PENDING'>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
-  // Form State for Adding Employee
+  // Form State for Adding/Editing Employee
   const [name, setName] = useState('');
   const [designation, setDesignation] = useState('');
   const [department, setDepartment] = useState<Employee['department']>('Liquid Coating');
@@ -45,6 +50,32 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
   const [email, setEmail] = useState('');
   const [dailyRate, setDailyRate] = useState<number>(750);
   const [joinDate, setJoinDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  const openAddModal = () => {
+    setEditingEmployee(null);
+    setName('');
+    setDesignation('');
+    setDepartment('Liquid Coating');
+    setShift('General (09:00 - 18:00)');
+    setPhone('');
+    setEmail('');
+    setDailyRate(750);
+    setJoinDate(new Date().toISOString().split('T')[0]);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (emp: Employee) => {
+    setEditingEmployee(emp);
+    setName(emp.name);
+    setDesignation(emp.designation);
+    setDepartment(emp.department);
+    setShift(emp.shift);
+    setPhone(emp.phone);
+    setEmail(emp.email);
+    setDailyRate(emp.dailyRate || 750);
+    setJoinDate(emp.joinDate || new Date().toISOString().split('T')[0]);
+    setIsModalOpen(true);
+  };
 
   const filteredEmployees = (employees || []).filter((emp) => {
     if (!emp || !emp.id) return false;
@@ -66,23 +97,34 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
     e.preventDefault();
     if (!name.trim()) return;
 
-    onAddEmployee({
-      name: name.trim(),
-      designation: designation.trim() || 'Production Operator',
-      department,
-      shift,
-      phone: phone.trim() || '+91 98000 00000',
-      email: email.trim() || `${name.toLowerCase().replace(/\s+/g, '')}@paintking.in`,
-      dailyRate: Number(dailyRate) || 750,
-      joinDate,
-    });
+    if (editingEmployee && onUpdateEmployee) {
+      onUpdateEmployee({
+        ...editingEmployee,
+        name: name.trim(),
+        designation: designation.trim() || 'Production Operator',
+        department,
+        shift,
+        phone: phone.trim() || '+91 98000 00000',
+        email: email.trim() || `${name.toLowerCase().replace(/\s+/g, '')}@paintking.in`,
+        dailyRate: Number(dailyRate) || 750,
+        joinDate,
+      });
+    } else {
+      onAddEmployee({
+        name: name.trim(),
+        designation: designation.trim() || 'Production Operator',
+        department,
+        shift,
+        phone: phone.trim() || '+91 98000 00000',
+        email: email.trim() || `${name.toLowerCase().replace(/\s+/g, '')}@paintking.in`,
+        dailyRate: Number(dailyRate) || 750,
+        joinDate,
+      });
+    }
 
     // Reset & close
-    setName('');
-    setDesignation('');
-    setPhone('');
-    setEmail('');
     setIsModalOpen(false);
+    setEditingEmployee(null);
   };
 
   const totalEnrolled = employees.filter((e) => e.faceEnrolled).length;
@@ -109,7 +151,7 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
         </div>
 
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={openAddModal}
           className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer active:scale-95 shrink-0"
         >
           <UserPlus size={15} className="text-[#c09748]" />
@@ -250,6 +292,14 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
                   </span>
                   <span className="text-[#17191c]">{emp.phone}</span>
                 </div>
+
+                <div className="flex items-center justify-between pt-1 border-t border-[#f2f2f3]">
+                  <span className="flex items-center gap-1.5 text-[#c09748] font-semibold">
+                    <DollarSign size={12} />
+                    <span>Wage Rate:</span>
+                  </span>
+                  <span className="text-[#17191c] font-bold">₹ {emp.dailyRate || 750} / day</span>
+                </div>
               </div>
             </div>
 
@@ -260,6 +310,14 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
               </span>
 
               <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => openEditModal(emp)}
+                  title="Edit Profile & Salary Rate"
+                  className="p-1.5 text-[#777b86] hover:text-[#17191c] hover:bg-[#f2f2f3] border border-[#dcdfe4] rounded-full transition cursor-pointer"
+                >
+                  <Edit2 size={13} />
+                </button>
+
                 {emp.faceEnrolled && onDeleteFaceBiometrics && (
                   <button
                     onClick={() => {
@@ -299,7 +357,7 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
         )}
       </div>
 
-      {/* ADD EMPLOYEE MODAL */}
+      {/* ADD / EDIT EMPLOYEE MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-[#17191c]/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-[24px] border border-[#ececec] shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in duration-200">
@@ -310,7 +368,7 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
                   PaintKing Staff Registry
                 </span>
                 <h3 className="text-lg font-serif text-[#17191c] mt-0.5">
-                  Onboard New Employee
+                  {editingEmployee ? `Edit Profile: ${editingEmployee.name}` : 'Onboard New Employee'}
                 </h3>
               </div>
               <button
@@ -448,7 +506,7 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
                   className="px-5 py-2.5 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer active:scale-95 flex items-center gap-1.5"
                 >
                   <Plus size={14} className="text-[#c09748]" />
-                  <span>Register Employee</span>
+                  <span>{editingEmployee ? 'Update Profile & Salary' : 'Register Employee'}</span>
                 </button>
               </div>
             </form>

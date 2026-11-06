@@ -454,6 +454,11 @@ export const HRSuiteView: React.FC = () => {
         <HREmployeeDirectory
           employees={employees}
           onAddEmployee={handleAddEmployee}
+          onUpdateEmployee={(updatedEmp) => {
+            const updated = employees.map((e) => (e.id === updatedEmp.id ? updatedEmp : e));
+            setEmployees(updated);
+            localStorage.setItem('pk_portal_employees_v1', JSON.stringify(updated));
+          }}
           onOpenFaceEnroll={(emp) => setEnrollingEmployee(emp)}
           onDeleteFaceBiometrics={handleDeleteFaceBiometrics}
         />
