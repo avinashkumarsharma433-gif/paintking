@@ -1,5 +1,13 @@
 # WORKING SET
 
+- 2026-11-06: Added biometric deletion option and full-page responsive modal for mobile/tablet
+  - Files touched:
+    - `src/portal/views/HRSuiteView.tsx` (`handleDeleteFaceBiometrics` handler resetting `faceEnrolled`, `faceDescriptors`, and `avatarUrl`)
+    - `src/portal/modules/hr/HREmployeeDirectory.tsx` (Trash button on cards for enrolled employees with confirmation prompt)
+    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (Full-page viewport on mobile/tablet `fixed inset-0 p-0 lg:p-4 rounded-none lg:rounded-[24px]`, expanded video container)
+  - Search string: `handleDeleteFaceBiometrics`
+  - Status: Verified with `npx tsc --noEmit` (0 errors) and Vite production build.
+
 - 2026-11-06: Strict Sequential Navigation in 6-Pose Face Enrollment
   - Files touched:
     - `src/portal/modules/hr/HREnrollFaceModal.tsx` (Enforced step lock so Pose N cannot be accessed until Poses 1..N-1 are captured; disabled "Next >" button when current pose is pending, added "Back" navigation)

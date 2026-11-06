@@ -13,7 +13,8 @@ import {
   Mail, 
   Plus, 
   X,
-  Camera
+  Camera,
+  Trash2
 } from 'lucide-react';
 import { Employee } from '../../types/hrAttendanceTypes';
 
@@ -21,12 +22,14 @@ interface HREmployeeDirectoryProps {
   employees: Employee[];
   onAddEmployee: (emp: Omit<Employee, 'id' | 'faceEnrolled' | 'faceDescriptors' | 'status'>) => void;
   onOpenFaceEnroll: (emp: Employee) => void;
+  onDeleteFaceBiometrics?: (empId: string) => void;
 }
 
 export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
   employees,
   onAddEmployee,
   onOpenFaceEnroll,
+  onDeleteFaceBiometrics,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState<string>('ALL');
@@ -249,22 +252,38 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
             </div>
 
             {/* Action Bar */}
-            <div className="mt-4 pt-3 border-t border-[#f2f2f3] flex items-center justify-between">
+            <div className="mt-4 pt-3 border-t border-[#f2f2f3] flex items-center justify-between gap-2">
               <span className="text-[10px] text-[#979799]">
                 Joined: {emp.joinDate}
               </span>
 
-              <button
-                onClick={() => onOpenFaceEnroll(emp)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition cursor-pointer ${
-                  emp.faceEnrolled
-                    ? 'bg-[#fafafb] hover:bg-[#f2f2f3] text-[#17191c] border-[#dcdfe4]'
-                    : 'bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border-[#f4e5be] shadow-2xs active:scale-95'
-                }`}
-              >
-                <Camera size={13} className={emp.faceEnrolled ? 'text-[#777b86]' : 'text-[#c09748]'} />
-                <span>{emp.faceEnrolled ? 'Re-Scan Face' : 'Enroll Face'}</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                {emp.faceEnrolled && onDeleteFaceBiometrics && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Are you sure you want to delete enrolled face biometric data for ${emp.name} (${emp.id})?`)) {
+                        onDeleteFaceBiometrics(emp.id);
+                      }
+                    }}
+                    title="Delete Enrolled Face Biometrics"
+                    className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-full transition cursor-pointer"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
+
+                <button
+                  onClick={() => onOpenFaceEnroll(emp)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition cursor-pointer ${
+                    emp.faceEnrolled
+                      ? 'bg-[#fafafb] hover:bg-[#f2f2f3] text-[#17191c] border-[#dcdfe4]'
+                      : 'bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border-[#f4e5be] shadow-2xs active:scale-95'
+                  }`}
+                >
+                  <Camera size={13} className={emp.faceEnrolled ? 'text-[#777b86]' : 'text-[#c09748]'} />
+                  <span>{emp.faceEnrolled ? 'Re-Scan Face' : 'Enroll Face'}</span>
+                </button>
+              </div>
             </div>
           </div>
         ))}

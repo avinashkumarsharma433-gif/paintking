@@ -207,6 +207,22 @@ export const HRSuiteView: React.FC = () => {
     );
   };
 
+  // Delete Face Biometrics
+  const handleDeleteFaceBiometrics = (empId: string) => {
+    setEmployees((prev) =>
+      prev.map((e) =>
+        e.id === empId
+          ? {
+              ...e,
+              faceEnrolled: false,
+              faceDescriptors: undefined,
+              avatarUrl: undefined,
+            }
+          : e
+      )
+    );
+  };
+
   // Record In / Out Punch from Terminal
   const handleRecordPunch = (
     employee: Employee, 
@@ -377,6 +393,7 @@ export const HRSuiteView: React.FC = () => {
           employees={employees}
           onAddEmployee={handleAddEmployee}
           onOpenFaceEnroll={(emp) => setEnrollingEmployee(emp)}
+          onDeleteFaceBiometrics={handleDeleteFaceBiometrics}
         />
       )}
 

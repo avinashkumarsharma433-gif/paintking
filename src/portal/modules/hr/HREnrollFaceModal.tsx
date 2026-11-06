@@ -427,11 +427,11 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   const isAllPosesDone = capturedPoses.length >= POSE_STEPS.length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#17191c]/50 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-[24px] border border-[#ececec] shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 bg-[#17191c]/60 backdrop-blur-xs flex items-center justify-center p-0 lg:p-4">
+      <div className="bg-white rounded-none lg:rounded-[24px] border-0 lg:border border-[#ececec] shadow-2xl w-full h-full lg:h-auto lg:max-h-[92vh] lg:max-w-3xl overflow-hidden flex flex-col animate-in fade-in duration-200">
         
         {/* Header */}
-        <div className="p-5 border-b border-[#ececec] flex items-center justify-between bg-[#fafafb]">
+        <div className="p-4 sm:p-5 border-b border-[#ececec] flex items-center justify-between bg-[#fafafb] shrink-0">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c09748]">
@@ -441,15 +441,15 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                 6 Guided Master Poses
               </span>
             </div>
-            <h3 className="text-lg font-serif text-[#17191c] mt-0.5">
+            <h3 className="text-base sm:text-lg font-serif text-[#17191c] mt-0.5">
               Enroll Face: {employee.name} ({employee.id})
             </h3>
           </div>
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-full flex items-center justify-center bg-white border border-[#ececec] text-[#777b86] hover:text-[#17191c] cursor-pointer"
+            className="h-9 w-9 rounded-full flex items-center justify-center bg-white border border-[#ececec] text-[#777b86] hover:text-[#17191c] cursor-pointer"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
@@ -563,7 +563,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                   </div>
 
                   {/* Video Viewport with Interactive Visual Overlay Guidance & Live Quality Gate */}
-                  <div className="relative rounded-[20px] overflow-hidden bg-[#17191c] h-[300px] flex items-center justify-center border border-[#ececec]">
+                  <div className="relative rounded-[20px] overflow-hidden bg-[#17191c] h-[360px] sm:h-[420px] lg:h-[340px] flex items-center justify-center border border-[#ececec]">
                     <video
                       ref={videoRef}
                       autoPlay
