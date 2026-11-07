@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-07: Removed Black Header from Thermal Box Label (Clean White Background)
+  - Files touched:
+    - `src/portal/services/boxLabelPdfService.ts` (Replaced solid dark rectangle in header with clean paper white background, sharp charcoal typography, gold plant certification, and champagne subtitle strip)
+    - `src/portal/views/PackingView.tsx` (Synced live on-screen thermal sticker preview)
+  - Search string: `BRAND HEADER WITH OFFICIAL LOGO (CLEAN WHITE`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Embedded Official Logo, Scannable Code-39 Barcode & Fixed Label Layout
   - Files touched:
     - `src/portal/services/code39BarcodeService.ts` (Implemented genuine industrial Code-39 barcode pattern generator with start/stop asterisks, exact bar-to-space ratios, scannable by all mobile & handheld laser barcode scanners)
