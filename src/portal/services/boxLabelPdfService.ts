@@ -53,16 +53,16 @@ export function getCurrentBoxCounter(): number {
 export function generateMultiBoxThermalLabelPDF(boxes: BoxLabelItem[], fileNamePrefix: string) {
   if (!boxes || boxes.length === 0) return;
 
-  // 4" x 6" in mm: 100mm x 150mm (Standard Industrial Thermal Label)
+  // Standard 4" x 4" thermal label (100mm x 100mm) - eliminates empty bottom dead space
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
-    format: [100, 150],
+    format: [100, 100],
   });
 
   boxes.forEach((box, index) => {
     if (index > 0) {
-      doc.addPage([100, 150], 'portrait');
+      doc.addPage([100, 100], 'portrait');
     }
 
     renderSingleBoxLabelPage(doc, box);
@@ -74,7 +74,7 @@ export function generateMultiBoxThermalLabelPDF(boxes: BoxLabelItem[], fileNameP
 
 function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
   const pageW = 100;
-  const pageH = 150;
+  const pageH = 100;
   const margin = 3.5;
   const contentW = pageW - margin * 2;
 
