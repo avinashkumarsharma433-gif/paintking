@@ -26,57 +26,8 @@ import {
 } from '../types/hrAttendanceTypes';
 import { biometricVault, recordBiometricAudit } from '../services/secureBiometricStorage';
 
-// Initial Mock Employees for PaintKing
-const INITIAL_EMPLOYEES: Employee[] = [
-  {
-    id: 'PK-EMP-0101',
-    name: 'Rahul Sharma',
-    designation: 'Senior Spray Coater',
-    department: 'Liquid Coating',
-    shift: 'General (09:00 - 18:00)',
-    phone: '+91 95945 91313',
-    email: 'rahul.s@paintking.in',
-    joinDate: '2023-04-15',
-    faceEnrolled: false,
-    status: 'ACTIVE',
-  },
-  {
-    id: 'PK-EMP-0102',
-    name: 'Pooja Vishwakarma',
-    designation: 'Quality Control Inspector',
-    department: 'Quality Assurance',
-    shift: 'Morning Shift A (06:00 - 14:30)',
-    phone: '+91 98200 45678',
-    email: 'pooja.v@paintking.in',
-    joinDate: '2024-01-10',
-    faceEnrolled: false,
-    status: 'ACTIVE',
-  },
-  {
-    id: 'PK-EMP-0103',
-    name: 'Amit Patel',
-    designation: 'Hydrographic Dipping Specialist',
-    department: 'Hydrographics',
-    shift: 'General (09:00 - 18:00)',
-    phone: '+91 91678 12345',
-    email: 'amit.p@paintking.in',
-    joinDate: '2022-08-01',
-    faceEnrolled: false,
-    status: 'ACTIVE',
-  },
-  {
-    id: 'PK-EMP-0104',
-    name: 'Suresh Chauhan',
-    designation: 'Injection Moulding Operator',
-    department: 'Injection Moulding',
-    shift: 'Evening Shift B (14:00 - 22:30)',
-    phone: '+91 98920 87654',
-    email: 'suresh.c@paintking.in',
-    joinDate: '2023-11-20',
-    faceEnrolled: false,
-    status: 'ACTIVE',
-  },
-];
+// Zero Hardcoded Mock Employees - All managed via LocalStorage / User Input
+const INITIAL_EMPLOYEES: Employee[] = [];
 
 export const HRSuiteView: React.FC = () => {
   const { activeSubTab } = usePortalStore();
@@ -98,20 +49,20 @@ export const HRSuiteView: React.FC = () => {
     }
   }, [activeSubTab]);
 
-  // Load from localStorage or initialize with strict validation
+  // Load from localStorage or initialize with clean empty state (Zero hardcoded profiles)
   const [employees, setEmployees] = useState<Employee[]>(() => {
     try {
       const saved = localStorage.getItem('pk_hr_employees');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           const valid = parsed.filter((e): e is Employee => Boolean(e && e.id && e.name));
-          if (valid.length > 0) return valid;
+          return valid;
         }
       }
-      return INITIAL_EMPLOYEES;
+      return [];
     } catch {
-      return INITIAL_EMPLOYEES;
+      return [];
     }
   });
 
@@ -421,7 +372,13 @@ export const HRSuiteView: React.FC = () => {
           onUpdateEmployee={(updatedEmp) => {
             const updated = employees.map((e) => (e.id === updatedEmp.id ? updatedEmp : e));
             setEmployees(updated);
-            localStorage.setItem('pk_portal_employees_v1', JSON.stringify(updated));
+            localStorage.setItem('pk_hr_employees', JSON.stringify(updated));
+          }}
+          onDeleteEmployee={async (empId) => {
+            await biometricVault.deleteBiometrics(empId);
+            const updated = employees.filter((e) => e.id !== empId);
+            setEmployees(updated);
+            localStorage.setItem('pk_hr_employees', JSON.stringify(updated));
           }}
           onOpenFaceEnroll={(emp) => setEnrollingEmployee(emp)}
           onDeleteFaceBiometrics={handleDeleteFaceBiometrics}

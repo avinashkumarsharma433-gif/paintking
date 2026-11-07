@@ -24,6 +24,7 @@ interface HREmployeeDirectoryProps {
   employees: Employee[];
   onAddEmployee: (emp: Omit<Employee, 'id' | 'faceEnrolled' | 'faceDescriptors' | 'status'>) => void;
   onUpdateEmployee?: (emp: Employee) => void;
+  onDeleteEmployee?: (empId: string) => void;
   onOpenFaceEnroll: (emp: Employee) => void;
   onDeleteFaceBiometrics?: (empId: string) => void;
 }
@@ -32,6 +33,7 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
   employees,
   onAddEmployee,
   onUpdateEmployee,
+  onDeleteEmployee,
   onOpenFaceEnroll,
   onDeleteFaceBiometrics,
 }) => {
@@ -323,15 +325,15 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
                   <Edit2 size={13} />
                 </button>
 
-                {emp.faceEnrolled && onDeleteFaceBiometrics && (
+                {onDeleteEmployee && (
                   <button
                     onClick={() => {
-                      if (window.confirm(`Are you sure you want to delete enrolled face biometric data for ${emp.name} (${emp.id})?`)) {
-                        onDeleteFaceBiometrics(emp.id);
+                      if (window.confirm(`Are you sure you want to permanently delete employee profile ${emp.name} (${emp.id})?`)) {
+                        onDeleteEmployee(emp.id);
                       }
                     }}
-                    title="Delete Enrolled Face Biometrics"
-                    className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-full transition cursor-pointer"
+                    title="Delete Entire Employee Profile"
+                    className="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-rose-200 rounded-full transition cursor-pointer"
                   >
                     <Trash2 size={13} />
                   </button>
