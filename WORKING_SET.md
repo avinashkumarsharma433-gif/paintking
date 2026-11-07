@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-07: Cascade Employee Deletion & Automatic Orphan Record Purge
+  - Files touched:
+    - `src/portal/views/HRSuiteView.tsx` (Enforced cascade delete: deleting an employee immediately purges all their attendance records, punch streams, and biometric vaults from state and localStorage; on load, automatically purges any orphan records belonging to non-existent profiles like old mock Rahul/Pooja)
+  - Search string: `CASCADE DELETE: Remove all attendance records`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Removed Reset/Clear All HR Button (Prevent Accidental Deletions)
   - Files touched:
     - `src/portal/views/HRSuiteView.tsx` (Completely removed dangerous reset button from top nav; all profiles and attendance records remain strictly safe and persistent)
