@@ -378,12 +378,23 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
               <div className="flex items-center justify-between">
                 <span>IN: {rec.inTime || '—'}</span>
                 <span>OUT: {rec.outTime || 'On-Duty'}</span>
-                <button
-                  onClick={() => handleOpenEdit(rec)}
-                  className="text-xs text-[#c09748] font-semibold"
-                >
-                  Override
-                </button>
+                <div className="flex items-center gap-2">
+                  {(rec.inEvidence?.snapshotDataUrl || rec.outEvidence?.snapshotDataUrl) && (
+                    <button
+                      onClick={() => setViewingEvidence(rec)}
+                      className="p-1 text-[#8a6521] hover:text-[#17191c]"
+                      title="View Photo"
+                    >
+                      <Camera size={14} />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleOpenEdit(rec)}
+                    className="text-xs text-[#c09748] font-semibold"
+                  >
+                    Override
+                  </button>
+                </div>
               </div>
               {rec.totalWorkMinutes !== undefined && rec.totalWorkMinutes > 0 && (
                 <span className="text-[10px] text-[#8a6521] font-mono">
