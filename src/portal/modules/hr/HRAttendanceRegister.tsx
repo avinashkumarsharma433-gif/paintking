@@ -514,10 +514,10 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
                     <img
                       src={viewingEvidence.inEvidence.snapshotDataUrl}
                       alt="Punch In Snapshot"
-                      className="w-full h-48 object-cover rounded-xl border border-[#dcdfe4] shadow-xs"
+                      className="w-56 h-56 aspect-square object-cover rounded-xl border border-[#dcdfe4] shadow-xs"
                     />
                   ) : (
-                    <div className="w-full h-48 rounded-xl bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">
+                    <div className="w-56 h-56 aspect-square rounded-xl bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">
                       No Photo
                     </div>
                   )}
@@ -536,10 +536,10 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
                     <img
                       src={viewingEvidence.outEvidence.snapshotDataUrl}
                       alt="Punch Out Snapshot"
-                      className="w-full h-48 object-cover rounded-xl border border-[#dcdfe4] shadow-xs"
+                      className="w-56 h-56 aspect-square object-cover rounded-xl border border-[#dcdfe4] shadow-xs"
                     />
                   ) : (
-                    <div className="w-full h-48 rounded-xl bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">
+                    <div className="w-56 h-56 aspect-square rounded-xl bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">
                       No Photo
                     </div>
                   )}

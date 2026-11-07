@@ -410,31 +410,43 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                   lastPunchCooldownRef.current.set(emp.id, nowMs);
                   matchHistoryRef.current.delete(emp.id); // Reset buffer on successful punch
 
-                  // Extract wide-angle evidence snapshot (with surroundings/margins)
+                  // Extract wide-angle evidence snapshot with strict 1:1 square aspect ratio
                   let snapshotDataUrl: string | undefined;
                   try {
                     const snapCanvas = document.createElement('canvas');
-                    // 320x240 provides sharp wide frame showing person, hands, phone/paper borders, and background
-                    snapCanvas.width = 320;
-                    snapCanvas.height = 240;
+                    // 300x300 strict 1:1 aspect ratio prevents any distortion or stretch
+                    const targetSize = 300;
+                    snapCanvas.width = targetSize;
+                    snapCanvas.height = targetSize;
                     const sctx = snapCanvas.getContext('2d');
                     if (sctx) {
-                      // Expand bounding box by 90% padding to capture surrounding environment
                       const faceX = (face.box.x / 100) * canvas.width;
                       const faceY = (face.box.y / 100) * canvas.height;
                       const faceW = (face.box.width / 100) * canvas.width;
                       const faceH = (face.box.height / 100) * canvas.height;
 
-                      const padX = faceW * 0.9;
-                      const padY = faceH * 0.7;
+                      // Determine face center coordinate
+                      const centerX = faceX + faceW / 2;
+                      const centerY = faceY + faceH / 2;
 
-                      const cropX = Math.max(0, faceX - padX);
-                      const cropY = Math.max(0, faceY - padY);
-                      const cropW = Math.min(canvas.width - cropX, faceW + padX * 2);
-                      const cropH = Math.min(canvas.height - cropY, faceH + padY * 2);
+                      // Square dimension: capture 2.2x face size to include shoulders, hands, phone/paper frame
+                      const maxDim = Math.max(faceW, faceH);
+                      let squareSize = maxDim * 2.2;
 
-                      sctx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, 320, 240);
-                      snapshotDataUrl = snapCanvas.toDataURL('image/jpeg', 0.72);
+                      // Constrain square inside available canvas bounds
+                      squareSize = Math.min(squareSize, canvas.width, canvas.height);
+
+                      let cropX = centerX - squareSize / 2;
+                      let cropY = centerY - squareSize / 2;
+
+                      // Bound checks to maintain 1:1 without going outside canvas
+                      if (cropX < 0) cropX = 0;
+                      if (cropY < 0) cropY = 0;
+                      if (cropX + squareSize > canvas.width) cropX = canvas.width - squareSize;
+                      if (cropY + squareSize > canvas.height) cropY = canvas.height - squareSize;
+
+                      sctx.drawImage(canvas, cropX, cropY, squareSize, squareSize, 0, 0, targetSize, targetSize);
+                      snapshotDataUrl = snapCanvas.toDataURL('image/jpeg', 0.75);
                     }
                   } catch {
                     // snapshot optional
