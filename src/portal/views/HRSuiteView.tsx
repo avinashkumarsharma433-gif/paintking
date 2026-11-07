@@ -72,15 +72,22 @@ export const HRSuiteView: React.FC = () => {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const valid = parsed.filter((r): r is AttendanceRecord => Boolean(r && r.id && r.employeeId));
-          if (valid.length > 0) return valid;
+          // Strict Orphan Purge: Purge any attendance records that belong to deleted/unknown mock employees (Rahul, Pooja, etc.)
+          const savedEmployeesRaw = localStorage.getItem('pk_hr_employees');
+          const savedEmployees: Employee[] = savedEmployeesRaw ? JSON.parse(savedEmployeesRaw) : [];
+          const validEmployeeIds = new Set(savedEmployees.map((e) => e.id));
+
+          const valid = parsed.filter(
+            (r): r is AttendanceRecord =>
+              Boolean(r && r.id && r.employeeId && validEmployeeIds.has(r.employeeId))
+          );
+          return valid;
         }
       }
     } catch {
       // fallback
     }
 
-    // Default empty array - zero fake records on fresh/cleared storage
     return [];
   });
 
@@ -379,6 +386,13 @@ export const HRSuiteView: React.FC = () => {
             const updated = employees.filter((e) => e.id !== empId);
             setEmployees(updated);
             localStorage.setItem('pk_hr_employees', JSON.stringify(updated));
+
+            // CASCADE DELETE: Remove all attendance records of this deleted employee
+            setAttendanceRecords((prevRecords) => {
+              const cleanedRecords = prevRecords.filter((r) => r.employeeId !== empId);
+              localStorage.setItem('pk_hr_attendance_records', JSON.stringify(cleanedRecords));
+              return cleanedRecords;
+            });
           }}
           onOpenFaceEnroll={(emp) => setEnrollingEmployee(emp)}
           onDeleteFaceBiometrics={handleDeleteFaceBiometrics}
