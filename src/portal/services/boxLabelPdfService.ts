@@ -201,38 +201,79 @@ function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
 
   // 5. LARGE QUANTITY HERO BLOCK
   curY += 2;
+  const heroCardY = curY;
+  const heroCardH = 17;
+  const heroCardW = contentW - 4;
+  const heroCardX = margin + 2;
+
+  // Background container
   doc.setFillColor(250, 247, 237); // Champagne light
   doc.setDrawColor(192, 151, 72);
-  doc.setLineWidth(0.5);
-  doc.roundedRect(margin + 2, curY, contentW - 4, 16, 2, 2, 'FD');
+  doc.setLineWidth(0.45);
+  doc.roundedRect(heroCardX, heroCardY, heroCardW, heroCardH, 2, 2, 'FD');
 
+  // Subtle vertical dividing dotted line
+  const dividerX = heroCardX + 50;
+  doc.setDrawColor(220, 205, 175);
+  doc.setLineWidth(0.3);
+  doc.line(dividerX, heroCardY + 2, dividerX, heroCardY + heroCardH - 2);
+
+  // Left Column: Box Quantity
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(138, 101, 33);
-  doc.text('BOX QUANTITY:', margin + 5, curY + 5);
+  doc.text('BOX QUANTITY:', heroCardX + 4, heroCardY + 4.8);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
+  doc.setFontSize(14.5);
   doc.setTextColor(23, 25, 28);
-  doc.text(`${box.boxQty} PCS`, margin + 5, curY + 12);
+  doc.text(`${box.boxQty} PCS`, heroCardX + 4, heroCardY + 12.2);
 
-  // Total Lot Size on right side
+  // Right Column: Total Lot Size + Premium QC PASSED Badge
+  const rightColX = heroCardX + heroCardW - 3;
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(5.5);
   doc.setTextColor(119, 123, 134);
-  doc.text('TOTAL LOT SIZE:', pageW - margin - 5, curY + 5, { align: 'right' });
+  doc.text('TOTAL LOT SIZE:', rightColX, heroCardY + 4.6, { align: 'right' });
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(23, 25, 28);
-  doc.text(`${box.totalLotQty} PCS`, pageW - margin - 5, curY + 10, { align: 'right' });
+  doc.text(`${box.totalLotQty} PCS`, rightColX, heroCardY + 9.2, { align: 'right' });
+
+  // Dedicated "QC PASSED" Industrial Stamp / Badge
+  const badgeW = 34;
+  const badgeH = 4.8;
+  const badgeX = rightColX - badgeW;
+  const badgeY = heroCardY + 10.6;
+
+  // Badge Container: Emerald pill tint
+  doc.setFillColor(236, 253, 245); // emerald-50
+  doc.setDrawColor(5, 150, 105);   // emerald-600
+  doc.setLineWidth(0.3);
+  doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.2, 1.2, 'FD');
+
+  // Vector Checkmark inside badge (never corrupts like unicode ✓)
+  doc.setDrawColor(4, 120, 87);
+  doc.setLineWidth(0.45);
+  const checkX = badgeX + 2.2;
+  const checkY = badgeY + 2.4;
+  doc.line(checkX, checkY, checkX + 0.9, checkY + 1.2);
+  doc.line(checkX + 0.9, checkY + 1.2, checkX + 2.4, checkY - 1.2);
+
+  // Badge Text
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.0);
+  doc.setTextColor(4, 120, 87);
+  doc.text('QC PASSED', badgeX + 5.2, badgeY + 3.4);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.2);
-  doc.setTextColor(4, 120, 87); // Emerald
-  doc.text('✓ 100% OQC & PDI PASSED', pageW - margin - 5, curY + 14, { align: 'right' });
+  doc.setFontSize(4.2);
+  doc.setTextColor(16, 185, 129);
+  doc.text('100% OQC & PDI', badgeX + badgeW - 1.5, badgeY + 3.4, { align: 'right' });
 
-  curY += 18;
+  curY = heroCardY + heroCardH + 2.5;
 
   // 6. REAL SCANNABLE CODE 39 BARCODE
   const barcodeY = curY;
@@ -259,18 +300,32 @@ function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
 
   curY += 2;
 
-  // Left Checklist
+  // Function to draw clean vector checkmark for audit points (prevents WinAnsi unicode corruption in PDF)
+  const drawVectorCheck = (vx: number, vy: number) => {
+    doc.setDrawColor(4, 120, 87);
+    doc.setLineWidth(0.38);
+    doc.line(vx, vy, vx + 0.7, vy + 0.9);
+    doc.line(vx + 0.7, vy + 0.9, vx + 1.9, vy - 0.9);
+  };
+
+  // Left Checklist with vector ticks
+  const auditCheckX = margin + 3.5;
+  drawVectorCheck(auditCheckX, curY + 2.3);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(5.2);
   doc.setTextColor(23, 25, 28);
-  doc.text('✓ ZERO SCRATCH VERIFIED', margin + 3, curY + 3);
-  doc.text('✓ ASTM 5B ADHESION PASSED', margin + 3, curY + 6.2);
-  doc.text('✓ SPECTRO DELTA-E <= 0.70', margin + 3, curY + 9.4);
+  doc.text('ZERO SCRATCH VERIFIED', auditCheckX + 3.5, curY + 3);
+
+  drawVectorCheck(auditCheckX, curY + 5.5);
+  doc.text('ASTM 5B ADHESION PASSED', auditCheckX + 3.5, curY + 6.2);
+
+  drawVectorCheck(auditCheckX, curY + 8.7);
+  doc.text('SPECTRO DELTA-E <= 0.70', auditCheckX + 3.5, curY + 9.4);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(4.5);
   doc.setTextColor(119, 123, 134);
-  doc.text('Do not accept box if thermal seal is tampered.', margin + 3, curY + 12.8);
+  doc.text('Do not accept box if thermal seal is tampered.', margin + 3.5, curY + 12.8);
 
   // Right Final QC Verification Stamp
   const stampW = 28;

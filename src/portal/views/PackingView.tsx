@@ -408,18 +408,31 @@ export const PackingView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Large Quantity Box */}
-              <div className="p-3 bg-[#faf7ed] border-2 border-[#c09748] rounded-lg flex items-center justify-between">
+              {/* Large Quantity Box & QC Passed Stamp */}
+              <div className="p-3 bg-[#faf7ed] border border-[#c09748]/60 rounded-xl flex items-center justify-between">
                 <div>
-                  <span className="text-[8px] uppercase font-bold text-[#8a6521] block">BOX QUANTITY</span>
-                  <span className="font-serif font-bold text-2xl tracking-tight text-black">
+                  <span className="text-[7.5px] uppercase font-bold text-[#8a6521] block tracking-wider">BOX QUANTITY</span>
+                  <span className="font-serif font-bold text-2xl tracking-tight text-[#17191c]">
                     {pcsPerBox} PCS
                   </span>
                 </div>
-                <div className="text-right">
-                  <span className="text-[8px] text-gray-500 block">TOTAL LOT SIZE</span>
-                  <span className="font-bold text-xs text-black font-mono">{lotTotalPcs} PCS</span>
-                  <div className="text-[8px] text-emerald-800 font-bold mt-0.5">✓ 100% OQC PASSED</div>
+                
+                {/* Vertical Divider */}
+                <div className="h-9 w-[1px] bg-[#e5d8b8]" />
+
+                <div className="text-right flex flex-col items-end">
+                  <span className="text-[7.5px] uppercase font-bold text-[#777b86] block tracking-wider">TOTAL LOT SIZE</span>
+                  <span className="font-mono font-bold text-sm text-[#17191c] leading-tight">{lotTotalPcs} PCS</span>
+                  
+                  {/* QC Passed Sticker */}
+                  <div className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 bg-[#ecfdf5] border border-[#059669] rounded-md shadow-2xs">
+                    <span className="text-[7px] text-[#047857] font-extrabold flex items-center gap-0.5">
+                      <CheckCircle2 size={8} className="text-[#059669]" /> QC PASSED
+                    </span>
+                    <span className="text-[6.5px] font-bold text-[#10b981] border-l border-[#a7f3d0] pl-1">
+                      100% PDI
+                    </span>
+                  </div>
                 </div>
               </div>
 
