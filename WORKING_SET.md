@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-07: Zero-Effort Automatic Passive Liveness (No Manual Blink/Head-Turn Prompts)
+  - Files touched:
+    - `src/portal/services/antiSpoofService.ts` (Implemented `evaluatePassiveMicroLiveness` which tracks involuntary natural eye tremors and respiratory coordinate micro-motion over consecutive video frames; static 2D paper/screen photos are rejected automatically with 0 prompt required)
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Integrated automatic passive micro-motion evaluation into live detection loop; turned off manual prompts by default)
+  - Search string: `evaluatePassiveMicroLiveness`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Anti-Spoof Hardening & Default Active Liveness Challenge
   - Files touched:
     - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Turned `activeChallengeMode` ON by default so a static photo/screen cannot punch without performing live blink/head-turn/smile)
