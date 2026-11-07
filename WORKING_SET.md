@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-07: Removed Reset/Clear All HR Button (Prevent Accidental Deletions)
+  - Files touched:
+    - `src/portal/views/HRSuiteView.tsx` (Completely removed dangerous reset button from top nav; all profiles and attendance records remain strictly safe and persistent)
+  - Search string: `Top HR Navigation Navigation Strip`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: One-Click HR Data Purge & Zero Hardcoded Records
   - Files touched:
     - `src/portal/views/HRSuiteView.tsx` (Added `Reset / Clear All HR Data` button that completely wipes old cached records, Pooja/Rahul records, and IndexedDB biometric vaults from the browser, allowing the user to start completely fresh with their own created profiles)
