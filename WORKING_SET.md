@@ -1,5 +1,16 @@
 # WORKING SET
 
+- 2026-11-07: Completed 4 Core HR Modules (Salary Slip, Muster Roll, ID Card & Shift Rules)
+  - Files touched:
+    - `src/portal/services/employeeIdCardPdfService.ts` (CR80 standard 54x86mm printable plant ID card with employee photo, department, shift, emergency contact and ISO stamp)
+    - `src/portal/services/musterRollExportService.ts` (Export monthly Form 28 / Muster Roll 1-31 matrix with P/HD/A/WO status and hours logged into Excel/CSV)
+    - `src/portal/modules/hr/HRShiftSettings.tsx` (Configurable shifts with grace periods, half-day thresholds, night shift indicators, and plant holiday calendar)
+    - `src/portal/modules/hr/HREmployeeDirectory.tsx` (Added direct 'Download ID Card' action button on employee cards)
+    - `src/portal/modules/hr/HRAttendanceRegister.tsx` (Added 'Monthly Muster Roll (Excel)' download button)
+    - `src/portal/views/HRSuiteView.tsx` & `PortalSidebar.tsx` (Integrated 'Shift Rules & Holidays' tab in both top strip and left sidebar)
+  - Search string: `generateEmployeeIdCardPDF`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Synced All 6 HR Tabs to Left Sidebar Panel
   - Files touched:
     - `src/portal/components/PortalSidebar.tsx` (Expanded `hr_leave` subItems to include all 6 tabs: Live Face Terminal, Attendance Register, Employee Master & Biometrics, Leave Sanctions, Recognition Lab, Payroll & OT Wages)
