@@ -105,24 +105,18 @@ function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
 
   // 1. Business Name (Clean bold, standard)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10.5);
+  doc.setFontSize(11);
   doc.setTextColor(23, 25, 28); // Charcoal #17191c
-  doc.text('PAINTKING', rightX, margin + 4.8, { align: 'right' });
+  doc.text('PAINTKING', rightX, margin + 5.5, { align: 'right' });
 
-  // 2. Plant & ISO/IATF Certification
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.2);
-  doc.setTextColor(138, 101, 33); // #8a6521 Gold Accent
-  doc.text(`${box.plant.toUpperCase()} UNIT • ISO 9001:2015 & IATF-16949`, rightX, margin + 8.5, { align: 'right' });
-
-  // 3. GSTIN & Official Phone
+  // 2. GSTIN & Official Phone
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(4.8);
+  doc.setFontSize(5);
   doc.setTextColor(100, 105, 115);
-  doc.text('GSTIN: 05AABCP9912K1Z4 • Phone: +91 9594591313', rightX, margin + 12.2, { align: 'right' });
+  doc.text('GSTIN: 05AABCP9912K1Z4 • Phone: +91 9594591313', rightX, margin + 10.5, { align: 'right' });
 
-  // 4. Email & Web
-  doc.text('Email: info@paintking.in • Web: www.paintking.in', rightX, margin + 15.6, { align: 'right' });
+  // 3. Email & Web
+  doc.text('Email: info@paintking.in • Web: www.paintking.in', rightX, margin + 14.5, { align: 'right' });
 
   // Subtitle Strip (Champagne background with gold borders)
   const subY = margin + 17.5;

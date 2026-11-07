@@ -354,9 +354,6 @@ export const PackingView: React.FC = () => {
                   <div className="font-serif font-bold text-xs text-[#17191c] tracking-wide">
                     PAINTKING
                   </div>
-                  <div className="text-[7.5px] text-[#8a6521] font-bold">
-                    {activePlant.toUpperCase()} UNIT • ISO 9001:2015 & IATF-16949
-                  </div>
                   <div className="text-[6.5px] text-gray-500">
                     GSTIN: 05AABCP9912K1Z4 • Phone: +91 9594591313
                   </div>
