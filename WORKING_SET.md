@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-07: Strict 1:1 Square Crop (300x300) Without Distortion
+  - Files touched:
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Calculated center coordinate and extracted an exact square bounding box from video stream to target 300x300 canvas, guaranteeing 0 aspect stretch)
+    - `src/portal/modules/hr/HRAttendanceRegister.tsx` (Set `w-56 h-56 aspect-square object-cover` on evidence images)
+  - Search string: `aspect ratio prevents any distortion`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Wide-Angle 320x240 Snapshot & Camera Surroundings Evidence
   - Files touched:
     - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Expanded snapshot crop with 90% horizontal padding and 320x240 canvas capture so surroundings, body, and phone frames are visible)
