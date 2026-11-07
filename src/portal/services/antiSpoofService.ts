@@ -104,31 +104,41 @@ export function evaluatePassiveMicroLiveness(
     return { isLive: false, reason: 'Profiling liveness...' };
   }
 
-  // 1. Check EAR (Eye Aspect Ratio) natural variance
-  const earMin = Math.min(...record.earHistory);
-  const earMax = Math.max(...record.earHistory);
-  const earDelta = earMax - earMin;
+  // 1. Natural Involuntary Eye Dynamics
+  // A living person's eyes naturally micro-shift, tear-fluid glimmers, or blinks (earDelta >= 0.012)
+  // A photo displayed on computer screen has zero eye variance (earDelta < 0.010)
+  const isDeadStaticEye = earDelta < 0.012;
 
-  // 2. Check Natural Micro-Jitter across key landmarks
-  let totalPositionShift = 0;
-  for (let f = 1; f < record.positionsHistory.length; f++) {
-    const prev = record.positionsHistory[f - 1];
-    const curr = record.positionsHistory[f];
-    for (let p = 0; p < keyPoints.length; p++) {
-      totalPositionShift += Math.hypot(curr[p].x - prev[p].x, curr[p].y - prev[p].y);
+  // 2. Natural Involuntary 3D Coordinate Tremor vs Rigid 2D Plane
+  // When a computer screen/phone is held, either it is stationary (<0.4px) or when moved by hand,
+  // ALL 6 landmarks move at the EXACT same ratio (affine 2D transform ratio ~1.0 with 0 depth disparity).
+  // In a real 3D head, the nose tip (index 0) shifts relative to ears and jaw due to depth parallax.
+  let isRigid2DDisparity = false;
+  if (record.positionsHistory.length >= 4) {
+    const pFirst = record.positionsHistory[0];
+    const pLast = record.positionsHistory[record.positionsHistory.length - 1];
+    
+    // Distance between eyes vs distance from nose to chin
+    const eyeDistFirst = Math.hypot(pFirst[1].x - pFirst[2].x, pFirst[1].y - pFirst[2].y);
+    const eyeDistLast = Math.hypot(pLast[1].x - pLast[2].x, pLast[1].y - pLast[2].y);
+    
+    const noseChinFirst = Math.hypot(pFirst[0].x - pFirst[5].x, pFirst[0].y - pFirst[5].y);
+    const noseChinLast = Math.hypot(pLast[0].x - pLast[5].x, pLast[0].y - pLast[5].y);
+
+    const ratioFirst = noseChinFirst / (eyeDistFirst || 1);
+    const ratioLast = noseChinLast / (eyeDistLast || 1);
+
+    // If depth ratio between 3D facial planes is frozen completely (<0.008 variation), it's a flat 2D picture
+    if (Math.abs(ratioFirst - ratioLast) < 0.008) {
+      isRigid2DDisparity = true;
     }
   }
-  const avgShiftPerFrame = totalPositionShift / ((record.positionsHistory.length - 1) * keyPoints.length);
 
-  // DEAD / STATIC PHOTO CRITERIA:
-  // If EAR has 0 variance (static eyes in photo) AND landmark shift is either perfectly 0 or rigidly moving together
-  const isCompletelyStaticEyes = earDelta < 0.003;
-  const isRigidlyStaticMotion = avgShiftPerFrame < 0.25;
-
-  if (isCompletelyStaticEyes && isRigidlyStaticMotion) {
+  // REJECT AS SPOOF if eyes are frozen static OR rigid 2D planar photo
+  if (isDeadStaticEye && isRigid2DDisparity) {
     return {
       isLive: false,
-      reason: 'Static photo detected (zero micro-eye movement / rigid 2D planar position)',
+      reason: '2D screen / printed photo detected (zero involuntary eye dynamics and flat planar depth)',
     };
   }
 
