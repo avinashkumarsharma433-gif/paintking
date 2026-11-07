@@ -85,18 +85,17 @@ export function generateA4SheetBoxLabelsPDF(boxes: BoxLabelItem[], fileNamePrefi
     format: 'a4', // 210mm x 297mm
   });
 
-  const cellW = 66; // mm - fits 3 columns comfortably on A4 (3 * 66 = 198mm)
-  const cellH = 75; // mm - exactly matched to label content height without dead space
+  const cellW = 65; // mm per user requirement
+  const cellH = 95; // mm per user requirement
   const cols = 3;
   const rows = 3;
   const labelsPerPage = cols * rows; // 9 labels per A4 page
 
-  // A4 = 210 x 297 mm.
-  // 3 * 66 = 198 mm. Remaining width = 210 - 198 = 12 mm -> marginLeft = 6.0 mm.
-  // 3 * 75 = 225 mm. Remaining height = 297 - 225 = 72 mm -> marginTop = 12.0 mm (vertical gap = 6mm).
-  const startX = 6.0;
-  const startY = 12.0;
-  const gapY = 6.0; // Clean cutting gap between rows
+  // A4 = 210 x 297 mm
+  // 3 * 65 = 195 mm -> left margin = 7.5 mm
+  // 3 * 95 = 285 mm -> top margin = 6.0 mm
+  const startX = 7.5;
+  const startY = 6.0;
 
   const totalPages = Math.ceil(boxes.length / labelsPerPage);
 
@@ -111,7 +110,7 @@ export function generateA4SheetBoxLabelsPDF(boxes: BoxLabelItem[], fileNamePrefi
       const col = idx % cols;
       const row = Math.floor(idx / cols);
       const x = startX + col * cellW;
-      const y = startY + row * (cellH + gapY);
+      const y = startY + row * cellH;
 
       renderCompactStickerCell(doc, box, x, y, cellW, cellH);
     });
@@ -123,105 +122,106 @@ export function generateA4SheetBoxLabelsPDF(boxes: BoxLabelItem[], fileNamePrefi
 
 /**
  * Renders a single 65mm x 95mm high-density label inside an A4 sheet grid
+ * Vertically distributed to fill the full 95mm height elegantly without dead bottom space.
  */
 function renderCompactStickerCell(doc: jsPDF, box: BoxLabelItem, x: number, y: number, w: number, h: number) {
   const pad = 2.0;
   const innerW = w - pad * 2;
 
-  // Outer border & subtle cutting mark
+  // Outer border & cutting mark (Exact 65mm x 95mm boundary)
   doc.setDrawColor(180, 185, 195);
   doc.setLineWidth(0.35);
   doc.roundedRect(x + 0.5, y + 0.5, w - 1.0, h - 1.0, 1.5, 1.5, 'S');
 
-  // Header background
-  const headerH = 15;
+  // 1. Header background (Spacious 16.5mm)
+  const headerH = 16.5;
   doc.setFillColor(255, 255, 255);
   doc.rect(x + pad, y + pad, innerW, headerH, 'F');
 
   // Logo on top left
   try {
-    doc.addImage(PAINTKING_LOGO_BASE64, 'PNG', x + pad + 1, y + pad + 1.5, 22, 7.5);
+    doc.addImage(PAINTKING_LOGO_BASE64, 'PNG', x + pad + 1.2, y + pad + 2.0, 23, 8.5);
   } catch {
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
+    doc.setFontSize(9.0);
     doc.setTextColor(23, 25, 28);
-    doc.text('PAINTKING', x + pad + 1, y + pad + 6);
+    doc.text('PAINTKING', x + pad + 1.2, y + pad + 7);
   }
 
   // Right Header Text
-  const rX = x + w - pad - 1;
+  const rX = x + w - pad - 1.5;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
+  doc.setFontSize(9.0);
   doc.setTextColor(23, 25, 28);
-  doc.text('PAINTKING', rX, y + pad + 3.8, { align: 'right' });
+  doc.text('PAINTKING', rX, y + pad + 4.2, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(3.8);
+  doc.setFontSize(4.0);
   doc.setTextColor(100, 105, 115);
-  doc.text('GSTIN: 05AABCP9912K1Z4', rX, y + pad + 7.2, { align: 'right' });
-  doc.text('Phone: +91 9594591313', rX, y + pad + 10.2, { align: 'right' });
+  doc.text('GSTIN: 05AABCP9912K1Z4', rX, y + pad + 8.2, { align: 'right' });
+  doc.text('Phone: +91 9594591313', rX, y + pad + 11.5, { align: 'right' });
 
-  // Subtitle strip
-  const subY = y + pad + headerH - 2.5;
-  doc.setFillColor(250, 243, 224);
-  doc.rect(x + pad, subY, innerW, 3.2, 'F');
+  // 2. Subtitle Strip
+  const subY = y + pad + headerH;
+  doc.setFillColor(250, 243, 224); // Champagne
+  doc.rect(x + pad, subY, innerW, 3.8, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(3.8);
+  doc.setFontSize(4.0);
   doc.setTextColor(138, 101, 33);
-  doc.text('FINISHED GOODS CARTON IDENTIFICATION LABEL', x + w / 2, subY + 2.2, { align: 'center' });
+  doc.text('FINISHED GOODS CARTON IDENTIFICATION LABEL', x + w / 2, subY + 2.6, { align: 'center' });
 
-  // Serial & Box count strip
-  const stripY = subY + 3.2;
+  // 3. Serial & Box Count Strip
+  const stripY = subY + 3.8;
   doc.setFillColor(245, 245, 247);
-  doc.rect(x + pad, stripY, innerW, 7.5, 'F');
+  doc.rect(x + pad, stripY, innerW, 8.5, 'F');
   doc.setDrawColor(210, 215, 222);
   doc.setLineWidth(0.25);
-  doc.line(x + pad, stripY + 7.5, x + w - pad, stripY + 7.5);
+  doc.line(x + pad, stripY + 8.5, x + w - pad, stripY + 8.5);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(4.2);
+  doc.setFontSize(4.4);
   doc.setTextColor(119, 123, 134);
-  doc.text('SERIAL NO:', x + pad + 2, stripY + 3.0);
+  doc.text('SERIAL NO:', x + pad + 2, stripY + 3.3);
 
   doc.setFont('courier', 'bold');
-  doc.setFontSize(7.2);
+  doc.setFontSize(8.0);
   doc.setTextColor(23, 25, 28);
-  doc.text(box.boxSerialText, x + pad + 2, stripY + 6.2);
+  doc.text(box.boxSerialText, x + pad + 2, stripY + 7.0);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(4.2);
+  doc.setFontSize(4.4);
   doc.setTextColor(119, 123, 134);
-  doc.text('ORDER COUNT:', rX, stripY + 3.0, { align: 'right' });
+  doc.text('ORDER COUNT:', rX, stripY + 3.3, { align: 'right' });
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(8.2);
   doc.setTextColor(138, 101, 33);
   const boxIndexStr = `BOX ${String(box.orderBoxIndex).padStart(2, '0')}/${String(box.totalOrderBoxes).padStart(2, '0')}`;
-  doc.text(boxIndexStr, rX, stripY + 6.2, { align: 'right' });
+  doc.text(boxIndexStr, rX, stripY + 7.0, { align: 'right' });
 
-  // Field rows
-  let curY = stripY + 7.5;
+  // 4. Field Rows (Each row expanded to 4.7mm for perfect vertical breathing room: 9 rows * 4.7mm = 42.3mm)
+  let curY = stripY + 8.5;
   const drawCompactRow = (label: string, value: string, isBold = false, isAccent = false) => {
-    const rowH = 4.2;
+    const rowH = 4.7;
     doc.setFillColor(255, 255, 255);
     doc.rect(x + pad, curY, innerW, rowH, 'F');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(4.5);
+    doc.setFontSize(4.8);
     doc.setTextColor(100, 105, 115);
-    doc.text(label.toUpperCase(), x + pad + 1.8, curY + 3.0);
+    doc.text(label.toUpperCase(), x + pad + 2.0, curY + 3.3);
 
     doc.setFont('helvetica', isBold ? 'bold' : 'normal');
-    doc.setFontSize(isBold ? 5.8 : 5.4);
+    doc.setFontSize(isBold ? 6.2 : 5.8);
     if (isAccent) {
       doc.setTextColor(138, 101, 33);
     } else {
       doc.setTextColor(23, 25, 28);
     }
-    const safeVal = value.length > 32 ? value.substring(0, 30) + '...' : value;
-    doc.text(safeVal, x + pad + 20, curY + 3.0);
+    const safeVal = value.length > 30 ? value.substring(0, 28) + '...' : value;
+    doc.text(safeVal, x + pad + 21, curY + 3.3);
 
-    doc.setDrawColor(230, 233, 238);
+    doc.setDrawColor(225, 229, 235);
     doc.setLineWidth(0.2);
     doc.line(x + pad, curY + rowH, x + w - pad, curY + rowH);
     curY += rowH;
@@ -237,56 +237,56 @@ function renderCompactStickerCell(doc: jsPDF, box: BoxLabelItem, x: number, y: n
   drawCompactRow('Packing Lead:', box.packedBy);
   drawCompactRow('Packing Date:', box.packedDate);
 
-  // Hero Quantity & QC Passed Stamp Box
-  curY += 1.5;
+  // 5. Hero Quantity & QC Passed Stamp Box (Height 17.5mm - exactly reaches bottom)
+  curY += 1.2;
   const heroCardY = curY;
-  const heroCardH = 16.5;
-  const heroCardW = innerW - 1.5;
-  const heroCardX = x + pad + 0.75;
+  const heroCardH = 17.5;
+  const heroCardW = innerW - 1.0;
+  const heroCardX = x + pad + 0.5;
 
   doc.setFillColor(250, 247, 237);
   doc.setDrawColor(192, 151, 72);
   doc.setLineWidth(0.4);
-  doc.roundedRect(heroCardX, heroCardY, heroCardW, heroCardH, 1.8, 1.8, 'FD');
+  doc.roundedRect(heroCardX, heroCardY, heroCardW, heroCardH, 2.0, 2.0, 'FD');
 
   // Divider
   doc.setDrawColor(220, 205, 175);
   doc.setLineWidth(0.25);
-  doc.line(heroCardX + 31, heroCardY + 1.5, heroCardX + 31, heroCardY + heroCardH - 1.5);
+  doc.line(heroCardX + 31, heroCardY + 1.8, heroCardX + 31, heroCardY + heroCardH - 1.8);
 
   // Left: Box Qty
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(4.8);
+  doc.setFontSize(5.0);
   doc.setTextColor(138, 101, 33);
-  doc.text('BOX QUANTITY:', heroCardX + 2.5, heroCardY + 4.5);
+  doc.text('BOX QUANTITY:', heroCardX + 2.5, heroCardY + 4.8);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12.5);
+  doc.setFontSize(13.5);
   doc.setTextColor(23, 25, 28);
-  doc.text(`${box.boxQty} PCS`, heroCardX + 2.5, heroCardY + 11.8);
+  doc.text(`${box.boxQty} PCS`, heroCardX + 2.5, heroCardY + 12.8);
 
   // Middle: Total Lot Size
   const lotX = heroCardX + 33.5;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(4.5);
+  doc.setFontSize(4.8);
   doc.setTextColor(119, 123, 134);
-  doc.text('TOTAL LOT SIZE:', lotX, heroCardY + 4.5);
+  doc.text('TOTAL LOT SIZE:', lotX, heroCardY + 4.8);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
+  doc.setFontSize(9.0);
   doc.setTextColor(23, 25, 28);
-  doc.text(`${box.totalLotQty} PCS`, lotX, heroCardY + 9.5);
+  doc.text(`${box.totalLotQty} PCS`, lotX, heroCardY + 10.2);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(3.8);
+  doc.setFontSize(4.0);
   doc.setTextColor(119, 123, 134);
-  doc.text('100% INSPECTED', lotX, heroCardY + 13.5);
+  doc.text('100% INSPECTED', lotX, heroCardY + 14.5);
 
   // Right: Circular QC Passed Stamp (pure text, no tick)
-  const cX = heroCardX + heroCardW - 7.5;
-  const cY = heroCardY + 8.2;
-  const oR = 5.2;
-  const iR = 4.3;
+  const cX = heroCardX + heroCardW - 8.0;
+  const cY = heroCardY + 8.8;
+  const oR = 5.6;
+  const iR = 4.6;
 
   doc.setFillColor(236, 253, 245);
   doc.setDrawColor(5, 150, 105);
@@ -298,14 +298,14 @@ function renderCompactStickerCell(doc: jsPDF, box: BoxLabelItem, x: number, y: n
   doc.circle(cX, cY, iR, 'S');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.2);
+  doc.setFontSize(6.8);
   doc.setTextColor(4, 120, 87);
   doc.text('QC', cX, cY - 0.2, { align: 'center' });
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(3.2);
+  doc.setFontSize(3.4);
   doc.setTextColor(5, 150, 105);
-  doc.text('PASSED', cX, cY + 2.8, { align: 'center' });
+  doc.text('PASSED', cX, cY + 3.0, { align: 'center' });
 }
 
 function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
