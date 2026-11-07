@@ -82,7 +82,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
   });
 
   const [requireLiveness, setRequireLiveness] = useState(true);
-  const [activeChallengeMode, setActiveChallengeMode] = useState(false);
+  const [activeChallengeMode, setActiveChallengeMode] = useState(true);
   const [voiceGreetingEnabled, setVoiceGreetingEnabled] = useState(true);
   const [voiceLanguage, setVoiceLanguage] = useState<'hi-IN' | 'en-IN'>('hi-IN');
   const [activeChallengeState, setActiveChallengeState] = useState<{

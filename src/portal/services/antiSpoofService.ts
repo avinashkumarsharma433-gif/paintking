@@ -74,7 +74,9 @@ export function analyzePassiveSpoof(
   let rSum = 0, gSum = 0, bSum = 0;
   let brightPixelCount = 0;
   let flatColorPixelCount = 0;
+  let highContrastEdgeCount = 0;
 
+  // Measure variance/flatness and high-frequency digital noise
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
@@ -84,35 +86,56 @@ export function analyzePassiveSpoof(
     gSum += g;
     bSum += b;
 
-    // Specular glare check: Screen reflections saturate to > 250 across all channels
-    if (r > 248 && g > 248 && b > 248) {
+    // Specular screen reflection / bright phone flashlight / glare (>240)
+    if (r > 240 && g > 240 && b > 240) {
       brightPixelCount++;
     }
 
-    // Moire / Screen banding often causes low saturation flat bands
-    if (Math.abs(r - g) < 4 && Math.abs(g - b) < 4) {
+    // Digital screens / printed photo color banding
+    if (Math.abs(r - g) < 5 && Math.abs(g - b) < 5) {
       flatColorPixelCount++;
+    }
+
+    // Check adjacent pixel contrast (sharp printed paper border / phone screen edge)
+    if (i > 4) {
+      const prevR = data[i - 4];
+      const prevG = data[i - 3];
+      const prevB = data[i - 2];
+      const delta = Math.abs(r - prevR) + Math.abs(g - prevG) + Math.abs(b - prevB);
+      if (delta > 110) {
+        highContrastEdgeCount++;
+      }
     }
   }
 
   const glareRatio = brightPixelCount / numPixels;
   const flatRatio = flatColorPixelCount / numPixels;
+  const edgeRatio = highContrastEdgeCount / numPixels;
 
   const reasons: string[] = [];
   let spoofScore = 0;
 
-  if (glareRatio > 0.08) {
-    spoofScore += 0.45;
-    reasons.push('High specular glare detected (likely phone screen reflection)');
+  // Stricter anti-spoof thresholds:
+  // 1. Screen glare threshold lowered from 0.08 to 0.03
+  if (glareRatio > 0.03) {
+    spoofScore += 0.50;
+    reasons.push('Screen reflection / paper specular glare detected');
   }
 
-  if (flatRatio > 0.40) {
+  // 2. Flat pixel saturation (phone screen or paper print)
+  if (flatRatio > 0.28) {
+    spoofScore += 0.40;
+    reasons.push('Digital screen color banding detected');
+  }
+
+  // 3. High-contrast raster/paper moiré artifacts
+  if (edgeRatio > 0.15) {
     spoofScore += 0.35;
-    reasons.push('Digital screen pixel pattern / flat reflectance detected');
+    reasons.push('Screen moiré / print halftone artifact detected');
   }
 
   return {
-    isLive: spoofScore < 0.60,
+    isLive: spoofScore < 0.45,
     spoofConfidence: Number(spoofScore.toFixed(2)),
     reasons,
   };
