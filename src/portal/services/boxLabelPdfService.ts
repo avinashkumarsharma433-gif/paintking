@@ -85,17 +85,18 @@ export function generateA4SheetBoxLabelsPDF(boxes: BoxLabelItem[], fileNamePrefi
     format: 'a4', // 210mm x 297mm
   });
 
-  const cellW = 65; // mm per user request
-  const cellH = 95; // mm per user request
+  const cellW = 66; // mm - fits 3 columns comfortably on A4 (3 * 66 = 198mm)
+  const cellH = 75; // mm - exactly matched to label content height without dead space
   const cols = 3;
   const rows = 3;
-  const labelsPerPage = cols * rows; // 9 labels
+  const labelsPerPage = cols * rows; // 9 labels per A4 page
 
   // A4 = 210 x 297 mm.
-  // 3 * 65 = 195 mm. Remaining width = 210 - 195 = 15 mm -> marginLeft = 7.5 mm.
-  // 3 * 95 = 285 mm. Remaining height = 297 - 285 = 12 mm -> marginTop = 6.0 mm.
-  const startX = 7.5;
-  const startY = 6.0;
+  // 3 * 66 = 198 mm. Remaining width = 210 - 198 = 12 mm -> marginLeft = 6.0 mm.
+  // 3 * 75 = 225 mm. Remaining height = 297 - 225 = 72 mm -> marginTop = 12.0 mm (vertical gap = 6mm).
+  const startX = 6.0;
+  const startY = 12.0;
+  const gapY = 6.0; // Clean cutting gap between rows
 
   const totalPages = Math.ceil(boxes.length / labelsPerPage);
 
@@ -110,7 +111,7 @@ export function generateA4SheetBoxLabelsPDF(boxes: BoxLabelItem[], fileNamePrefi
       const col = idx % cols;
       const row = Math.floor(idx / cols);
       const x = startX + col * cellW;
-      const y = startY + row * cellH;
+      const y = startY + row * (cellH + gapY);
 
       renderCompactStickerCell(doc, box, x, y, cellW, cellH);
     });
