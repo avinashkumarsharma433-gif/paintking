@@ -439,8 +439,8 @@ export const PackingView: React.FC = () => {
               </div>
 
               {/* Real Code 39 Scannable Barcode Display */}
-              <div className="pt-2 pb-1 flex flex-col items-center justify-center space-y-1 bg-white rounded-lg border border-[#eef0f2]">
-                <div className="w-full flex items-center justify-center gap-[1.5px] h-12 px-4 bg-white">
+              <div className="pt-3 pb-2 flex flex-col items-center justify-center space-y-2 bg-white rounded-xl">
+                <div className="w-full flex items-center justify-center gap-[1.5px] h-14 px-4 bg-white">
                   {/* High contrast, scannable barcode bars with quiet zones */}
                   {[
                     // Start '*'
@@ -479,40 +479,8 @@ export const PackingView: React.FC = () => {
                     );
                   })}
                 </div>
-                <div className="font-mono text-[8.5px] tracking-wider text-center text-[#17191c] font-bold">
+                <div className="font-mono text-[9px] tracking-wider text-center text-[#17191c] font-bold">
                   *PK-BOX-{String(currentMasterCounter + 1).padStart(4, '0')}*  |  WO: {activeLot?.woNo || 'WO-1042'}  |  QTY: {pcsPerBox} PCS
-                </div>
-              </div>
-
-              {/* Bottom Quality Audit Strip & Dispatch Certification (Redesigned) */}
-              <div className="pt-2 border-t border-[#dcdfe4] flex items-center justify-between text-[8px]">
-                <div className="space-y-1 text-gray-700">
-                  <div className="flex items-center gap-1.5 font-bold text-[#047857]">
-                    <CheckCircle2 size={10} className="text-[#059669]" />
-                    <span>ZERO SCRATCH & DUST VERIFIED</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 font-bold text-[#047857]">
-                    <CheckCircle2 size={10} className="text-[#059669]" />
-                    <span>ASTM 5B CROSS-HATCH ADHESION OK</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 font-bold text-[#047857]">
-                    <CheckCircle2 size={10} className="text-[#059669]" />
-                    <span>COLOR SPECTRO DELTA-E &lt;= 0.70</span>
-                  </div>
-                  <div className="text-[7px] text-gray-400 pt-0.5">
-                    Factory sealed carton. Do not accept if seal is broken.
-                  </div>
-                </div>
-
-                {/* Executive Dispatch Stamp */}
-                <div className="w-[130px] rounded-lg border border-[#c09748] bg-[#fafafb] overflow-hidden text-center shadow-2xs">
-                  <div className="bg-[#f4e5be] py-0.5 px-1 text-[7px] font-bold text-[#8a6521] uppercase tracking-wider">
-                    Final Dispatch QA Pass
-                  </div>
-                  <div className="p-1.5 space-y-0.5">
-                    <div className="text-[8.5px] font-extrabold text-[#17191c]">QA DEPT - PK HARIDWAR</div>
-                    <div className="text-[6.5px] text-gray-500 uppercase tracking-tight">Authorized Inspector Sign</div>
-                  </div>
                 </div>
               </div>
             </div>
