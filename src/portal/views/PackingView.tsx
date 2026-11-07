@@ -439,31 +439,80 @@ export const PackingView: React.FC = () => {
               </div>
 
               {/* Real Code 39 Scannable Barcode Display */}
-              <div className="pt-1 flex flex-col items-center justify-center space-y-1">
-                <div className="w-full flex items-center justify-center gap-[1.5px] h-10 px-2 bg-white">
-                  {[3, 1, 3, 1, 1, 3, 1, 3, 1, 1, 3, 3, 1, 1, 1, 3, 1, 1, 3, 3, 1, 1, 1, 3, 1, 3, 1, 3, 1, 1, 1, 3, 3, 1, 1, 3, 1, 1, 3, 1, 3, 1, 1, 3, 1, 3, 3, 1, 1, 1, 3, 1, 1, 3, 3, 1, 1, 1, 3, 1, 3, 1, 3, 1, 1].map((bar, i) => (
-                    <div 
-                      key={i} 
-                      className={`bg-black h-full ${bar === 3 ? 'w-[2.5px]' : 'w-[1px]'}`} 
-                    />
-                  ))}
+              <div className="pt-2 pb-1 flex flex-col items-center justify-center space-y-1 bg-white rounded-lg border border-[#eef0f2]">
+                <div className="w-full flex items-center justify-center gap-[1.5px] h-12 px-4 bg-white">
+                  {/* High contrast, scannable barcode bars with quiet zones */}
+                  {[
+                    // Start '*'
+                    1, 2.5, 1, 1, 2.5, 1, 2.5, 1, 1, 0,
+                    // 'P'
+                    1, 1, 2.5, 1, 2.5, 1, 1, 1, 2.5, 0,
+                    // 'K'
+                    2.5, 1, 1, 1, 1, 1, 1, 2.5, 2.5, 0,
+                    // '-'
+                    1, 2.5, 1, 1, 1, 1, 2.5, 1, 2.5, 0,
+                    // 'B'
+                    1, 1, 2.5, 1, 1, 2.5, 1, 1, 2.5, 0,
+                    // 'O'
+                    2.5, 1, 1, 1, 2.5, 1, 1, 2.5, 1, 0,
+                    // 'X'
+                    1, 2.5, 1, 1, 2.5, 1, 1, 1, 2.5, 0,
+                    // '-'
+                    1, 2.5, 1, 1, 1, 1, 2.5, 1, 2.5, 0,
+                    // '0'
+                    1, 1, 1, 2.5, 2.5, 1, 2.5, 1, 1, 0,
+                    // '0'
+                    1, 1, 1, 2.5, 2.5, 1, 2.5, 1, 1, 0,
+                    // '0'
+                    1, 1, 1, 2.5, 2.5, 1, 2.5, 1, 1, 0,
+                    // '1'
+                    2.5, 1, 1, 2.5, 1, 1, 1, 1, 2.5, 0,
+                    // Stop '*'
+                    1, 2.5, 1, 1, 2.5, 1, 2.5, 1, 1
+                  ].map((bar, i) => {
+                    if (bar === 0) return <div key={i} className="w-[1.8px] h-full bg-transparent" />;
+                    return (
+                      <div 
+                        key={i} 
+                        className={`bg-black h-full ${bar > 1.5 ? 'w-[2.8px]' : 'w-[1.1px]'}`} 
+                      />
+                    );
+                  })}
                 </div>
-                <div className="font-mono text-[8px] tracking-widest text-center text-black font-bold">
-                  *PK-BOX-{String(currentMasterCounter + 1).padStart(4, '0')}*
+                <div className="font-mono text-[8.5px] tracking-wider text-center text-[#17191c] font-bold">
+                  *PK-BOX-{String(currentMasterCounter + 1).padStart(4, '0')}*  |  WO: {activeLot?.woNo || 'WO-1042'}  |  QTY: {pcsPerBox} PCS
                 </div>
               </div>
 
-              {/* Bottom Quality Stamp & Check */}
+              {/* Bottom Quality Audit Strip & Dispatch Certification (Redesigned) */}
               <div className="pt-2 border-t border-[#dcdfe4] flex items-center justify-between text-[8px]">
-                <div className="space-y-0.5 text-gray-600">
-                  <div className="font-bold text-emerald-700">✓ ZERO SCRATCH VERIFIED</div>
-                  <div className="font-bold text-emerald-700">✓ ASTM 5B ADHESION PASSED</div>
-                  <div className="text-[7px] text-gray-400">Do not accept if seal tampered.</div>
+                <div className="space-y-1 text-gray-700">
+                  <div className="flex items-center gap-1.5 font-bold text-[#047857]">
+                    <CheckCircle2 size={10} className="text-[#059669]" />
+                    <span>ZERO SCRATCH & DUST VERIFIED</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 font-bold text-[#047857]">
+                    <CheckCircle2 size={10} className="text-[#059669]" />
+                    <span>ASTM 5B CROSS-HATCH ADHESION OK</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 font-bold text-[#047857]">
+                    <CheckCircle2 size={10} className="text-[#059669]" />
+                    <span>COLOR SPECTRO DELTA-E &lt;= 0.70</span>
+                  </div>
+                  <div className="text-[7px] text-gray-400 pt-0.5">
+                    Factory sealed carton. Do not accept if seal is broken.
+                  </div>
                 </div>
 
-                <div className="px-2 py-1.5 bg-[#f2f2f3] border border-[#dcdfe4] rounded text-center">
-                  <div className="text-[7px] font-bold text-[#8a6521]">FINAL QC PASSED</div>
-                  <div className="text-[9px] font-bold text-[#17191c]">QA DEPT - PK</div>
+                {/* Executive Dispatch Stamp */}
+                <div className="w-[130px] rounded-lg border border-[#c09748] bg-[#fafafb] overflow-hidden text-center shadow-2xs">
+                  <div className="bg-[#f4e5be] py-0.5 px-1 text-[7px] font-bold text-[#8a6521] uppercase tracking-wider">
+                    Final Dispatch QA Pass
+                  </div>
+                  <div className="p-1.5 space-y-0.5">
+                    <div className="text-[8.5px] font-extrabold text-[#17191c]">QA DEPT - PK HARIDWAR</div>
+                    <div className="text-[6.5px] text-gray-500 uppercase tracking-tight">Authorized Inspector Sign</div>
+                  </div>
                 </div>
               </div>
             </div>

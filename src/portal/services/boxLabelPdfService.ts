@@ -276,82 +276,92 @@ function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
 
   curY = heroCardY + heroCardH + 2.5;
 
-  // 6. REAL SCANNABLE CODE 39 BARCODE
+  // 6. REAL SCANNABLE CODE 39 BARCODE (High Contrast & Clear Quiet Zones)
   const barcodeY = curY;
-  const barcodeH = 14;
+  const barcodeH = 15.5; // Taller bars improve camera scan angle tolerance
   doc.setFillColor(255, 255, 255);
-  doc.rect(margin + 2, barcodeY, contentW - 4, barcodeH + 5, 'F');
+  doc.rect(margin + 2, barcodeY - 1, contentW - 4, barcodeH + 7, 'F');
 
   // Real scannable Code 39 barcode string (e.g. PK-BOX-0001)
   const barcodeRawData = `${box.boxSerialText}`;
-  renderScannableCode39(doc, barcodeRawData, margin + 5, barcodeY, contentW - 10, barcodeH);
+  renderScannableCode39(doc, barcodeRawData, margin + 4, barcodeY, contentW - 8, barcodeH);
 
   doc.setFont('courier', 'bold');
-  doc.setFontSize(7);
+  doc.setFontSize(7.5);
   doc.setTextColor(23, 25, 28);
   const barcodeLegend = `*${box.boxSerialText}*  |  WO: ${box.woNo}  |  QTY: ${box.boxQty} PCS`;
-  doc.text(barcodeLegend, pageW / 2, barcodeY + barcodeH + 3.5, { align: 'center' });
+  doc.text(barcodeLegend, pageW / 2, barcodeY + barcodeH + 4.2, { align: 'center' });
 
-  curY = barcodeY + barcodeH + 5.5;
+  curY = barcodeY + barcodeH + 7.0;
 
-  // 7. BOTTOM QUALITY AUDIT STRIP (Pixel-Perfect Alignment)
-  doc.setDrawColor(200, 205, 215);
-  doc.setLineWidth(0.3);
+  // 7. BOTTOM QUALITY AUDIT & DISPATCH CERTIFICATION STRIP (Redesigned)
+  doc.setDrawColor(215, 220, 228);
+  doc.setLineWidth(0.4);
   doc.line(margin, curY, pageW - margin, curY);
 
-  curY += 2;
+  curY += 2.5;
 
-  // Function to draw clean vector checkmark for audit points (prevents WinAnsi unicode corruption in PDF)
+  // Modern Left Quality Checklist with Vector Checkmarks
   const drawVectorCheck = (vx: number, vy: number) => {
     doc.setDrawColor(4, 120, 87);
-    doc.setLineWidth(0.38);
-    doc.line(vx, vy, vx + 0.7, vy + 0.9);
-    doc.line(vx + 0.7, vy + 0.9, vx + 1.9, vy - 0.9);
+    doc.setLineWidth(0.42);
+    doc.line(vx, vy, vx + 0.8, vy + 1.0);
+    doc.line(vx + 0.8, vy + 1.0, vx + 2.0, vy - 1.0);
   };
 
-  // Left Checklist with vector ticks
-  const auditCheckX = margin + 3.5;
-  drawVectorCheck(auditCheckX, curY + 2.3);
+  const auditColX = margin + 4;
+  
+  // Point 1: Zero Scratch
+  drawVectorCheck(auditColX, curY + 2.0);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.2);
+  doc.setFontSize(5.5);
   doc.setTextColor(23, 25, 28);
-  doc.text('ZERO SCRATCH VERIFIED', auditCheckX + 3.5, curY + 3);
+  doc.text('ZERO SCRATCH & DUST VERIFIED', auditColX + 3.8, curY + 2.7);
 
-  drawVectorCheck(auditCheckX, curY + 5.5);
-  doc.text('ASTM 5B ADHESION PASSED', auditCheckX + 3.5, curY + 6.2);
+  // Point 2: ASTM 5B
+  drawVectorCheck(auditColX, curY + 5.5);
+  doc.text('ASTM 5B CROSS-HATCH ADHESION OK', auditColX + 3.8, curY + 6.2);
 
-  drawVectorCheck(auditCheckX, curY + 8.7);
-  doc.text('SPECTRO DELTA-E <= 0.70', auditCheckX + 3.5, curY + 9.4);
+  // Point 3: Spectro Delta-E
+  drawVectorCheck(auditColX, curY + 9.0);
+  doc.text('COLOR SPECTRO DELTA-E <= 0.70', auditColX + 3.8, curY + 9.7);
 
+  // Tamper warning banner
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(4.5);
+  doc.setFontSize(4.6);
   doc.setTextColor(119, 123, 134);
-  doc.text('Do not accept box if thermal seal is tampered.', margin + 3.5, curY + 12.8);
+  doc.text('Factory sealed carton. Do not accept if tamper tape is broken.', auditColX, curY + 13.6);
 
-  // Right Final QC Verification Stamp
-  const stampW = 28;
-  const stampH = 12;
-  const stampX = pageW - margin - stampW - 1;
-  const stampY = curY;
+  // Right Side: Redesigned Executive QA Dispatch Stamp Box
+  const stampW = 32;
+  const stampH = 13.5;
+  const stampX = pageW - margin - stampW - 2;
+  const stampY = curY - 0.5;
 
-  doc.setFillColor(245, 245, 247);
-  doc.rect(stampX, stampY, stampW, stampH, 'F');
-  doc.setDrawColor(180, 185, 195);
-  doc.setLineWidth(0.3);
-  doc.rect(stampX, stampY, stampW, stampH, 'S');
+  // Premium container
+  doc.setFillColor(250, 250, 251);
+  doc.setDrawColor(192, 151, 72); // PaintKing Gold accent border
+  doc.setLineWidth(0.4);
+  doc.roundedRect(stampX, stampY, stampW, stampH, 1.5, 1.5, 'FD');
+
+  // Header band inside stamp
+  doc.setFillColor(244, 229, 190); // Gold-200 tint
+  doc.roundedRect(stampX, stampY, stampW, 3.6, 1.5, 1.5, 'F');
+  doc.rect(stampX, stampY + 2, stampW, 1.6, 'F'); // square bottom corners of top band
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(4.8);
+  doc.setFontSize(5.0);
   doc.setTextColor(138, 101, 33);
-  doc.text('FINAL QC PASSED', stampX + stampW / 2, stampY + 4, { align: 'center' });
+  doc.text('FINAL DISPATCH QA PASS', stampX + stampW / 2, stampY + 2.6, { align: 'center' });
 
+  // Lead / Inspector details
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.5);
+  doc.setFontSize(7.2);
   doc.setTextColor(23, 25, 28);
-  doc.text('QA DEPT - PK', stampX + stampW / 2, stampY + 8.5, { align: 'center' });
+  doc.text('QA DEPT - PK HARIDWAR', stampX + stampW / 2, stampY + 7.6, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(3.8);
-  doc.setTextColor(119, 123, 134);
-  doc.text('INSPECTOR SIGNED', stampX + stampW / 2, stampY + 11, { align: 'center' });
+  doc.setFontSize(4.4);
+  doc.setTextColor(100, 105, 115);
+  doc.text('AUTHORIZED INSPECTOR SIGN', stampX + stampW / 2, stampY + 11.4, { align: 'center' });
 }

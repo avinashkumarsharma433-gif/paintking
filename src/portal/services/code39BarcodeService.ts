@@ -63,39 +63,43 @@ export function renderScannableCode39(
   const sanitized = rawText.toUpperCase().replace(/[^0-9A-Z\-\.\ \$\/\+\%]/g, '-');
   const fullString = `*${sanitized}*`;
 
-  // Calculate total units:
-  // Each char has 9 elements: 3 wide (3 * 2.5) + 6 narrow (6 * 1) = 7.5 + 6 = 13.5 units + 1 unit inter-character space
-  // Ratio: wide = 2.5 * narrow
-  const narrowWidth = 0.28; // mm
-  const wideWidth = narrowWidth * 2.5;
-  const charSpacing = narrowWidth * 1.2;
+  // Standard Code 39 barcode specifications:
+  // - Wide to Narrow ratio between 2.2:1 and 3:1 (typically 2.5:1)
+  // - Inter-character gap = 1 narrow bar width
+  // - Generous quiet zone (margins) on left and right for mobile & laser scanners
+  // Calculate raw units: each char has 3 wide + 6 narrow elements = 3 * 2.5 + 6 = 13.5 narrow units + 1 gap unit = 14.5 units
+  const numChars = fullString.length;
+  // Total units = (numChars * 13.5) + ((numChars - 1) * 1)
+  const totalUnits = (numChars * 13.5) + ((numChars - 1) * 1.0);
 
-  let totalBarWidth = 0;
+  // Available width accounting for at least 6mm quiet zone on each side
+  const quietZoneMm = 6.0;
+  const usableWidth = Math.max(20, maxWidth - (quietZoneMm * 2));
+
+  // Determine narrow bar width (X dimension in mm)
+  // Typical target narrow width is 0.32mm to 0.42mm for great optical recognition
+  let narrowWidth = usableWidth / totalUnits;
+  if (narrowWidth > 0.40) narrowWidth = 0.40; // cap so bars aren't excessively thick
+  const wideWidth = narrowWidth * 2.5;
+  const charSpacing = narrowWidth * 1.0;
+
+  // Actual total width of barcode symbol
+  let actualBarcodeWidth = 0;
   for (let c = 0; c < fullString.length; c++) {
     const char = fullString[c];
     const pattern = CODE39_PATTERNS[char] || CODE39_PATTERNS['-'];
     for (let p = 0; p < 9; p++) {
-      totalBarWidth += pattern[p] === 'w' ? wideWidth : narrowWidth;
+      actualBarcodeWidth += pattern[p] === 'w' ? wideWidth : narrowWidth;
     }
     if (c < fullString.length - 1) {
-      totalBarWidth += charSpacing;
+      actualBarcodeWidth += charSpacing;
     }
   }
 
-  // Scale down if it exceeds maxWidth
-  let scale = 1;
-  if (totalBarWidth > maxWidth) {
-    scale = maxWidth / totalBarWidth;
-  }
+  // Exact center position ensuring wide quiet zone on both sides
+  let currentX = targetX + Math.max(quietZoneMm, (maxWidth - actualBarcodeWidth) / 2);
 
-  const effectiveNarrow = narrowWidth * scale;
-  const effectiveWide = wideWidth * scale;
-  const effectiveSpacing = charSpacing * scale;
-  const actualTotalWidth = totalBarWidth * scale;
-
-  // Center horizontally inside target area
-  let currentX = targetX + Math.max(0, (maxWidth - actualTotalWidth) / 2);
-
+  // Draw pure black bars
   doc.setFillColor(0, 0, 0);
 
   for (let c = 0; c < fullString.length; c++) {
@@ -105,7 +109,7 @@ export function renderScannableCode39(
     for (let p = 0; p < 9; p++) {
       const isBar = p % 2 === 0;
       const isWide = pattern[p] === 'w';
-      const w = isWide ? effectiveWide : effectiveNarrow;
+      const w = isWide ? wideWidth : narrowWidth;
 
       if (isBar) {
         doc.rect(currentX, targetY, w, height, 'F');
@@ -115,7 +119,7 @@ export function renderScannableCode39(
     }
 
     if (c < fullString.length - 1) {
-      currentX += effectiveSpacing; // Inter-character gap
+      currentX += charSpacing; // Inter-character gap
     }
   }
 }
