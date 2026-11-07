@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-07: Zero Hardcoded Profiles, Full LocalStorage Isolation & Employee Deletion
+  - Files touched:
+    - `src/portal/views/HRSuiteView.tsx` (Removed all mock employees; strict initial empty array `[]` loading directly from `localStorage.getItem('pk_hr_employees')`; wired `onDeleteEmployee` handler purging both profile and encrypted IndexedDB biometric templates)
+    - `src/portal/modules/hr/HREmployeeDirectory.tsx` (Added permanent employee profile delete trash button with confirmation dialog)
+  - Search string: `onDeleteEmployee`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Real-Time Verification Snapshot Audit Proof in Attendance Register
   - Files touched:
     - `src/portal/modules/hr/HRAttendanceRegister.tsx` (Added Camera Audit icon trigger next to Edit button; clicking opens high-res In/Out cropped verification photos captured at the exact moment of camera detection with match % and device timestamp)
