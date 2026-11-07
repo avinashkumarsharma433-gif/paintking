@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { 
   generateMultiBoxThermalLabelPDF, 
+  generateA4SheetBoxLabelsPDF,
   getNextBoxCounterRange, 
   getCurrentBoxCounter,
   BoxLabelItem 
@@ -115,6 +116,43 @@ export const PackingView: React.FC = () => {
     });
 
     generateMultiBoxThermalLabelPDF(boxPayloads, `${activeLot.woNo}_${activeLot.customer}`);
+  };
+
+  const handleGenerateAndDownloadA4PDF = () => {
+    if (!activeLot || calculatedBoxes.length === 0) return;
+
+    // Allocate continuous box serial range
+    const startNum = getNextBoxCounterRange(calculatedBoxes.length);
+    setCurrentMasterCounter(getCurrentBoxCounter());
+
+    // Find linked job card for batch & painter details
+    const linkedJC = jobCards.find(jc => jc.woNo === activeLot.woNo);
+    const painterName = linkedJC?.assignedTo || 'Ramesh Kumar (P1)';
+    const paintBatch = linkedJC?.batchNumber || `BAT-PPG-${new Date().getFullYear()}-R4`;
+
+    const boxPayloads: BoxLabelItem[] = calculatedBoxes.map((b, idx) => {
+      const serialNum = startNum + idx;
+      return {
+        globalBoxNumber: serialNum,
+        boxSerialText: `PK-BOX-${String(serialNum).padStart(4, '0')}`,
+        orderBoxIndex: b.orderIndex,
+        totalOrderBoxes: b.totalBoxes,
+        boxQty: b.qty,
+        totalLotQty: lotTotalPcs,
+        customer: activeLot.customer,
+        woNo: activeLot.woNo,
+        partCode: activeLot.partCode,
+        partDescription: activeLot.partDescription || activeLot.model || 'Automotive Molded Substrate',
+        color: activeLot.color,
+        paintBatch,
+        painter: painterName,
+        packedBy: currentUser?.name || 'Gopal Singh (Stores Dispatch)',
+        packedDate: new Date().toLocaleDateString('en-GB'),
+        plant: activePlant,
+      };
+    });
+
+    generateA4SheetBoxLabelsPDF(boxPayloads, `${activeLot.woNo}_${activeLot.customer}`);
   };
 
   return (
@@ -439,14 +477,24 @@ export const PackingView: React.FC = () => {
               </div>
             </div>
 
-            {/* Direct Action */}
-            <button
-              onClick={handleGenerateAndDownloadPDF}
-              className="w-full py-3 bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-bold text-xs rounded-full shadow-sm cursor-pointer transition flex items-center justify-center gap-2 active:scale-95"
-            >
-              <FileDown size={16} />
-              <span>Download Printable PDF ({calculatedBoxes.length} Pages)</span>
-            </button>
+            {/* Direct Actions: Thermal 100x100mm & A4 9-Up Sheet */}
+            <div className="space-y-2">
+              <button
+                onClick={handleGenerateAndDownloadA4PDF}
+                className="w-full py-3 bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-bold text-xs rounded-full shadow-sm cursor-pointer transition flex items-center justify-center gap-2 active:scale-95"
+              >
+                <Layers size={16} />
+                <span>Export A4 Sheet (9 Labels Stacked • 65×95mm)</span>
+              </button>
+
+              <button
+                onClick={handleGenerateAndDownloadPDF}
+                className="w-full py-2.5 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer flex items-center justify-center gap-2 active:scale-95"
+              >
+                <FileDown size={15} />
+                <span>Download Individual Thermal Stickers (100×100mm)</span>
+              </button>
+            </div>
           </div>
         </div>
 

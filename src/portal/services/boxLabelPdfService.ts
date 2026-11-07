@@ -72,6 +72,241 @@ export function generateMultiBoxThermalLabelPDF(boxes: BoxLabelItem[], fileNameP
   doc.save(`PaintKing_Box_Labels_${cleanName}_${boxes.length}_Boxes.pdf`);
 }
 
+/**
+ * Generates an A4 sheet layout with exactly 9 labels per page (3 columns x 3 rows).
+ * Each sticker cell is 65mm x 95mm with cutting guides.
+ */
+export function generateA4SheetBoxLabelsPDF(boxes: BoxLabelItem[], fileNamePrefix: string) {
+  if (!boxes || boxes.length === 0) return;
+
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4', // 210mm x 297mm
+  });
+
+  const cellW = 65; // mm per user request
+  const cellH = 95; // mm per user request
+  const cols = 3;
+  const rows = 3;
+  const labelsPerPage = cols * rows; // 9 labels
+
+  // A4 = 210 x 297 mm.
+  // 3 * 65 = 195 mm. Remaining width = 210 - 195 = 15 mm -> marginLeft = 7.5 mm.
+  // 3 * 95 = 285 mm. Remaining height = 297 - 285 = 12 mm -> marginTop = 6.0 mm.
+  const startX = 7.5;
+  const startY = 6.0;
+
+  const totalPages = Math.ceil(boxes.length / labelsPerPage);
+
+  for (let page = 0; page < totalPages; page++) {
+    if (page > 0) {
+      doc.addPage('a4', 'portrait');
+    }
+
+    const pageBoxes = boxes.slice(page * labelsPerPage, (page + 1) * labelsPerPage);
+
+    pageBoxes.forEach((box, idx) => {
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      const x = startX + col * cellW;
+      const y = startY + row * cellH;
+
+      renderCompactStickerCell(doc, box, x, y, cellW, cellH);
+    });
+  }
+
+  const cleanName = fileNamePrefix.replace(/[^a-zA-Z0-9_-]/g, '_');
+  doc.save(`PaintKing_A4_9Up_Labels_${cleanName}_${boxes.length}_Boxes.pdf`);
+}
+
+/**
+ * Renders a single 65mm x 95mm high-density label inside an A4 sheet grid
+ */
+function renderCompactStickerCell(doc: jsPDF, box: BoxLabelItem, x: number, y: number, w: number, h: number) {
+  const pad = 2.0;
+  const innerW = w - pad * 2;
+
+  // Outer border & subtle cutting mark
+  doc.setDrawColor(180, 185, 195);
+  doc.setLineWidth(0.35);
+  doc.roundedRect(x + 0.5, y + 0.5, w - 1.0, h - 1.0, 1.5, 1.5, 'S');
+
+  // Header background
+  const headerH = 15;
+  doc.setFillColor(255, 255, 255);
+  doc.rect(x + pad, y + pad, innerW, headerH, 'F');
+
+  // Logo on top left
+  try {
+    doc.addImage(PAINTKING_LOGO_BASE64, 'PNG', x + pad + 1, y + pad + 1.5, 22, 7.5);
+  } catch {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(23, 25, 28);
+    doc.text('PAINTKING', x + pad + 1, y + pad + 6);
+  }
+
+  // Right Header Text
+  const rX = x + w - pad - 1;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text('PAINTKING', rX, y + pad + 3.8, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(3.8);
+  doc.setTextColor(100, 105, 115);
+  doc.text('GSTIN: 05AABCP9912K1Z4', rX, y + pad + 7.2, { align: 'right' });
+  doc.text('Phone: +91 9594591313', rX, y + pad + 10.2, { align: 'right' });
+
+  // Subtitle strip
+  const subY = y + pad + headerH - 2.5;
+  doc.setFillColor(250, 243, 224);
+  doc.rect(x + pad, subY, innerW, 3.2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(3.8);
+  doc.setTextColor(138, 101, 33);
+  doc.text('FINISHED GOODS CARTON IDENTIFICATION LABEL', x + w / 2, subY + 2.2, { align: 'center' });
+
+  // Serial & Box count strip
+  const stripY = subY + 3.2;
+  doc.setFillColor(245, 245, 247);
+  doc.rect(x + pad, stripY, innerW, 7.5, 'F');
+  doc.setDrawColor(210, 215, 222);
+  doc.setLineWidth(0.25);
+  doc.line(x + pad, stripY + 7.5, x + w - pad, stripY + 7.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(4.2);
+  doc.setTextColor(119, 123, 134);
+  doc.text('SERIAL NO:', x + pad + 2, stripY + 3.0);
+
+  doc.setFont('courier', 'bold');
+  doc.setFontSize(7.2);
+  doc.setTextColor(23, 25, 28);
+  doc.text(box.boxSerialText, x + pad + 2, stripY + 6.2);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(4.2);
+  doc.setTextColor(119, 123, 134);
+  doc.text('ORDER COUNT:', rX, stripY + 3.0, { align: 'right' });
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(138, 101, 33);
+  const boxIndexStr = `BOX ${String(box.orderBoxIndex).padStart(2, '0')}/${String(box.totalOrderBoxes).padStart(2, '0')}`;
+  doc.text(boxIndexStr, rX, stripY + 6.2, { align: 'right' });
+
+  // Field rows
+  let curY = stripY + 7.5;
+  const drawCompactRow = (label: string, value: string, isBold = false, isAccent = false) => {
+    const rowH = 4.2;
+    doc.setFillColor(255, 255, 255);
+    doc.rect(x + pad, curY, innerW, rowH, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(4.5);
+    doc.setTextColor(100, 105, 115);
+    doc.text(label.toUpperCase(), x + pad + 1.8, curY + 3.0);
+
+    doc.setFont('helvetica', isBold ? 'bold' : 'normal');
+    doc.setFontSize(isBold ? 5.8 : 5.4);
+    if (isAccent) {
+      doc.setTextColor(138, 101, 33);
+    } else {
+      doc.setTextColor(23, 25, 28);
+    }
+    const safeVal = value.length > 32 ? value.substring(0, 30) + '...' : value;
+    doc.text(safeVal, x + pad + 20, curY + 3.0);
+
+    doc.setDrawColor(230, 233, 238);
+    doc.setLineWidth(0.2);
+    doc.line(x + pad, curY + rowH, x + w - pad, curY + rowH);
+    curY += rowH;
+  };
+
+  drawCompactRow('Customer:', box.customer, true);
+  drawCompactRow('Work Order:', box.woNo, true, true);
+  drawCompactRow('Part Code:', box.partCode, true);
+  drawCompactRow('Part Name:', box.partDescription);
+  drawCompactRow('Color / Shade:', box.color, true);
+  drawCompactRow('Paint Batch:', box.paintBatch);
+  drawCompactRow('Line / Painter:', box.painter);
+  drawCompactRow('Packing Lead:', box.packedBy);
+  drawCompactRow('Packing Date:', box.packedDate);
+
+  // Hero Quantity & QC Passed Stamp Box
+  curY += 1.5;
+  const heroCardY = curY;
+  const heroCardH = 16.5;
+  const heroCardW = innerW - 1.5;
+  const heroCardX = x + pad + 0.75;
+
+  doc.setFillColor(250, 247, 237);
+  doc.setDrawColor(192, 151, 72);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(heroCardX, heroCardY, heroCardW, heroCardH, 1.8, 1.8, 'FD');
+
+  // Divider
+  doc.setDrawColor(220, 205, 175);
+  doc.setLineWidth(0.25);
+  doc.line(heroCardX + 31, heroCardY + 1.5, heroCardX + 31, heroCardY + heroCardH - 1.5);
+
+  // Left: Box Qty
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(4.8);
+  doc.setTextColor(138, 101, 33);
+  doc.text('BOX QUANTITY:', heroCardX + 2.5, heroCardY + 4.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text(`${box.boxQty} PCS`, heroCardX + 2.5, heroCardY + 11.8);
+
+  // Middle: Total Lot Size
+  const lotX = heroCardX + 33.5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(4.5);
+  doc.setTextColor(119, 123, 134);
+  doc.text('TOTAL LOT SIZE:', lotX, heroCardY + 4.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text(`${box.totalLotQty} PCS`, lotX, heroCardY + 9.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(3.8);
+  doc.setTextColor(119, 123, 134);
+  doc.text('100% INSPECTED', lotX, heroCardY + 13.5);
+
+  // Right: Circular QC Passed Stamp (pure text, no tick)
+  const cX = heroCardX + heroCardW - 7.5;
+  const cY = heroCardY + 8.2;
+  const oR = 5.2;
+  const iR = 4.3;
+
+  doc.setFillColor(236, 253, 245);
+  doc.setDrawColor(5, 150, 105);
+  doc.setLineWidth(0.4);
+  doc.circle(cX, cY, oR, 'FD');
+
+  doc.setDrawColor(16, 185, 129);
+  doc.setLineWidth(0.2);
+  doc.circle(cX, cY, iR, 'S');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.2);
+  doc.setTextColor(4, 120, 87);
+  doc.text('QC', cX, cY - 0.2, { align: 'center' });
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(3.2);
+  doc.setTextColor(5, 150, 105);
+  doc.text('PASSED', cX, cY + 2.8, { align: 'center' });
+}
+
 function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
   const pageW = 100;
   const pageH = 100;
