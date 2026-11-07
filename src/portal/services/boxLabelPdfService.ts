@@ -84,9 +84,9 @@ function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
   doc.setLineWidth(0.6);
   doc.rect(margin, margin, contentW, pageH - margin * 2);
 
-  // 2. BRAND HEADER WITH OFFICIAL LOGO
-  // Top header background
-  doc.setFillColor(23, 25, 28); // #17191c
+  // 2. BRAND HEADER WITH OFFICIAL LOGO (CLEAN WHITE / PAPER BACKGROUND)
+  // Clean white header background with subtle border
+  doc.setFillColor(255, 255, 255);
   doc.rect(margin, margin, contentW, 19, 'F');
 
   // Render Official Logo (Left)
@@ -96,28 +96,33 @@ function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
     // Text fallback
     doc.setFont('times', 'bold');
     doc.setFontSize(11);
-    doc.setTextColor(255, 255, 255);
+    doc.setTextColor(23, 25, 28);
     doc.text('PAINTKING', margin + 3, margin + 8.5);
   }
 
-  // Right Header Text (Company & Certified Plant)
+  // Right Header Text (Company & Certified Plant) - Crisp Charcoal & Gold on White
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(23, 25, 28); // #17191c Charcoal
   doc.text('PAINTKING SOLUTIONS PVT. LTD.', pageW - margin - 3, margin + 5.5, { align: 'right' });
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(5.5);
-  doc.setTextColor(192, 151, 72); // Gold
+  doc.setTextColor(138, 101, 33); // #8a6521 High contrast Gold
   doc.text(`${box.plant.toUpperCase()} PLANT  •  ISO 9001:2015 & IATF-16949`, pageW - margin - 3, margin + 9.5, { align: 'right' });
 
-  // Subtitle Pill
-  doc.setFillColor(192, 151, 72);
+  // Subtitle Strip (Champagne background with gold borders)
+  doc.setFillColor(250, 243, 224); // #faf3e0 champagne
   doc.rect(margin, margin + 14.5, contentW, 4.5, 'F');
+  doc.setDrawColor(244, 229, 190);
+  doc.setLineWidth(0.3);
+  doc.line(margin, margin + 14.5, pageW - margin, margin + 14.5);
+  doc.line(margin, margin + 19, pageW - margin, margin + 19);
+
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.5);
-  doc.setTextColor(23, 25, 28);
-  doc.text('AUTOMOTIVE FINISHED GOODS CARTON IDENTIFICATION LABEL', pageW / 2, margin + 17.8, { align: 'center' });
+  doc.setFontSize(5.2);
+  doc.setTextColor(138, 101, 33); // Deep Gold #8a6521
+  doc.text('AUTOMOTIVE FINISHED GOODS CARTON IDENTIFICATION LABEL', pageW / 2, margin + 17.6, { align: 'center' });
 
   // 3. CONTINUOUS SERIAL BADGE & ORDER BOX INDEX STRIP
   const stripY = margin + 19;

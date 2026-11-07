@@ -343,21 +343,26 @@ export const PackingView: React.FC = () => {
 
             {/* Industrial 4x6 Label Mockup */}
             <div className="border-2 border-[#17191c] rounded-xl p-4 bg-white text-[#17191c] font-mono space-y-3 shadow-md">
-              {/* Header with Logo */}
-              <div className="border-b-2 border-[#17191c] pb-2.5 bg-[#17191c] text-white p-3 -m-4 mb-2 rounded-t-lg flex items-center justify-between">
+              {/* Header with Logo (Clean White Background) */}
+              <div className="border-b border-[#ececec] pb-2.5 bg-white p-3 -m-4 mb-2 rounded-t-lg flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="bg-white px-2 py-1 rounded">
-                    <span className="font-serif font-bold text-xs text-[#17191c] tracking-wider">PAINTKING</span>
+                  <div className="bg-[#faf3e0] border border-[#f4e5be] px-2 py-1 rounded">
+                    <span className="font-serif font-bold text-xs text-[#8a6521] tracking-wider">PAINTKING</span>
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-serif font-bold text-xs tracking-wide">
+                  <div className="font-serif font-bold text-xs text-[#17191c] tracking-wide">
                     PAINTKING SOLUTIONS PVT. LTD.
                   </div>
-                  <div className="text-[7.5px] text-[#c09748] font-bold">
+                  <div className="text-[7.5px] text-[#8a6521] font-bold">
                     {activePlant.toUpperCase()} UNIT • ISO 9001:2015 & IATF-16949
                   </div>
                 </div>
+              </div>
+
+              {/* Subtitle Champagne Strip */}
+              <div className="bg-[#faf3e0] border border-[#f4e5be] py-1 text-center text-[7.5px] font-bold text-[#8a6521] rounded">
+                AUTOMOTIVE FINISHED GOODS CARTON IDENTIFICATION LABEL
               </div>
 
               {/* Master Serial Strip */}
