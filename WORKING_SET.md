@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-07: Wide-Angle 320x240 Snapshot & Camera Surroundings Evidence
+  - Files touched:
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Expanded snapshot crop with 90% horizontal padding and 320x240 canvas capture so surroundings, body, and phone frames are visible)
+    - `src/portal/modules/hr/HRAttendanceRegister.tsx` (Expanded modal to max-w-2xl with larger 48-height image containers for sharp inspection)
+  - Search string: `Extract wide-angle evidence snapshot`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Cascade Employee Deletion & Automatic Orphan Record Purge
   - Files touched:
     - `src/portal/views/HRSuiteView.tsx` (Enforced cascade delete: deleting an employee immediately purges all their attendance records, punch streams, and biometric vaults from state and localStorage; on load, automatically purges any orphan records belonging to non-existent profiles like old mock Rahul/Pooja)
