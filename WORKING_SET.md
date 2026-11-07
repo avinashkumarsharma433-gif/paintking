@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-07: Standard QC Header Added to Box Thermal Label (GSTIN, Phone, Email, Web & Plant)
+  - Files touched:
+    - `src/portal/services/boxLabelPdfService.ts` (Aligned header right block to exact QC report specification: Business Name "PAINTKING", Plant ISO/IATF 16949 badge, GSTIN, Phone: +91 9594591313, Email: info@paintking.in, Web: www.paintking.in)
+    - `src/portal/views/PackingView.tsx` (Synced live on-screen thermal sticker preview)
+  - Search string: `BRAND HEADER WITH OFFICIAL LOGO & CORPORATE METADATA`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Removed Black Header from Thermal Box Label (Clean White Background)
   - Files touched:
     - `src/portal/services/boxLabelPdfService.ts` (Replaced solid dark rectangle in header with clean paper white background, sharp charcoal typography, gold plant certification, and champagne subtitle strip)
