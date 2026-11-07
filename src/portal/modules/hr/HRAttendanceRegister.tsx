@@ -484,29 +484,31 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
       )}
       {/* CAMERA EVIDENCE INSPECTION MODAL */}
       {viewingEvidence && (
-        <div className="fixed inset-0 z-50 bg-[#17191c]/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[24px] border border-[#ececec] shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in duration-200">
-            <div className="p-5 border-b border-[#ececec] bg-[#fafafb] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-[#17191c]/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-[24px] border border-[#ececec] shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in duration-200">
+            {/* Header stays sticky on top */}
+            <div className="p-4 sm:p-5 border-b border-[#ececec] bg-[#fafafb] flex items-center justify-between shrink-0">
               <div>
                 <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c09748] block">
                   Biometric Audit Snapshot (Wide Angle Proof)
                 </span>
-                <h3 className="text-base font-serif text-[#17191c] mt-0.5">
+                <h3 className="text-sm sm:text-base font-serif text-[#17191c] mt-0.5">
                   Camera Evidence: {viewingEvidence.employeeName}
                 </h3>
               </div>
               <button
                 onClick={() => setViewingEvidence(null)}
-                className="h-8 w-8 rounded-full bg-white border border-[#ececec] flex items-center justify-center text-[#777b86] hover:text-[#17191c] cursor-pointer"
+                className="h-8 w-8 rounded-full bg-white border border-[#ececec] flex items-center justify-center text-[#777b86] hover:text-[#17191c] cursor-pointer shrink-0"
               >
                 <X size={15} />
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            {/* Scrollable body so content never overflows the screen */}
+            <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* IN PUNCH PHOTO */}
-                <div className="flex flex-col items-center p-3.5 rounded-[18px] bg-[#fafafb] border border-[#ececec]">
+                <div className="flex flex-col items-center p-3 rounded-[18px] bg-[#fafafb] border border-[#ececec]">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-2">
                     Punch In ({viewingEvidence.inTime || '—'})
                   </span>
@@ -514,10 +516,10 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
                     <img
                       src={viewingEvidence.inEvidence.snapshotDataUrl}
                       alt="Punch In Snapshot"
-                      className="w-56 h-56 aspect-square object-cover rounded-xl border border-[#dcdfe4] shadow-xs"
+                      className="w-40 sm:w-52 aspect-square object-cover rounded-xl border border-[#dcdfe4] shadow-xs"
                     />
                   ) : (
-                    <div className="w-56 h-56 aspect-square rounded-xl bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">
+                    <div className="w-40 sm:w-52 aspect-square rounded-xl bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">
                       No Photo
                     </div>
                   )}
@@ -528,7 +530,7 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
                 </div>
 
                 {/* OUT PUNCH PHOTO */}
-                <div className="flex flex-col items-center p-3.5 rounded-[18px] bg-[#fafafb] border border-[#ececec]">
+                <div className="flex flex-col items-center p-3 rounded-[18px] bg-[#fafafb] border border-[#ececec]">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 mb-2">
                     Punch Out ({viewingEvidence.outTime || 'On-Duty'})
                   </span>
@@ -536,10 +538,10 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
                     <img
                       src={viewingEvidence.outEvidence.snapshotDataUrl}
                       alt="Punch Out Snapshot"
-                      className="w-56 h-56 aspect-square object-cover rounded-xl border border-[#dcdfe4] shadow-xs"
+                      className="w-40 sm:w-52 aspect-square object-cover rounded-xl border border-[#dcdfe4] shadow-xs"
                     />
                   ) : (
-                    <div className="w-56 h-56 aspect-square rounded-xl bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">
+                    <div className="w-40 sm:w-52 aspect-square rounded-xl bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">
                       No Photo
                     </div>
                   )}
@@ -555,7 +557,8 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
               </div>
             </div>
 
-            <div className="p-4 bg-[#fafafb] border-t border-[#ececec] flex justify-end">
+            {/* Sticky Footer */}
+            <div className="p-3 sm:p-4 bg-[#fafafb] border-t border-[#ececec] flex justify-end shrink-0">
               <button
                 onClick={() => setViewingEvidence(null)}
                 className="px-5 py-2 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer"
