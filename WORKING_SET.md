@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-07: Anti-Spoof Hardening & Default Active Liveness Challenge
+  - Files touched:
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Turned `activeChallengeMode` ON by default so a static photo/screen cannot punch without performing live blink/head-turn/smile)
+    - `src/portal/services/antiSpoofService.ts` (Tightened passive glare threshold from 0.08 to 0.03, flat color banding from 0.40 to 0.28, added high-contrast print edge detector, lowered spoof cutoff to 0.45)
+  - Search string: `activeChallengeMode`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Fix Initial Punch on New Date to Always Register IN Punch
   - Files touched:
     - `src/portal/views/HRSuiteView.tsx` (Removed hardcoded mock attendance records that pre-populated today with Rahul and Pooja; strictly enforced that new date detection without prior IN punch always registers Punch IN)
