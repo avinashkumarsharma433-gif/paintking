@@ -84,48 +84,62 @@ function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
   doc.setLineWidth(0.6);
   doc.rect(margin, margin, contentW, pageH - margin * 2);
 
-  // 2. BRAND HEADER WITH OFFICIAL LOGO (CLEAN WHITE / PAPER BACKGROUND)
+  // 2. BRAND HEADER WITH OFFICIAL LOGO & CORPORATE METADATA (EXACT QC REPORT SPEC)
   // Clean white header background with subtle border
+  const headerHeight = 22;
   doc.setFillColor(255, 255, 255);
-  doc.rect(margin, margin, contentW, 19, 'F');
+  doc.rect(margin, margin, contentW, headerHeight, 'F');
 
-  // Render Official Logo (Left)
+  // Left Side: Official PaintKing Logo
   try {
-    doc.addImage(PAINTKING_LOGO_BASE64, 'PNG', margin + 3, margin + 2.5, 30, 10);
+    doc.addImage(PAINTKING_LOGO_BASE64, 'PNG', margin + 2.5, margin + 2.5, 34, 11.5);
   } catch {
-    // Text fallback
     doc.setFont('times', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(23, 25, 28);
     doc.text('PAINTKING', margin + 3, margin + 8.5);
   }
 
-  // Right Header Text (Company & Certified Plant) - Crisp Charcoal & Gold on White
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(23, 25, 28); // #17191c Charcoal
-  doc.text('PAINTKING SOLUTIONS PVT. LTD.', pageW - margin - 3, margin + 5.5, { align: 'right' });
+  // Right Side: Standard Corporate Header (Matching QC Report Standard)
+  const rightX = pageW - margin - 2.5;
 
+  // 1. Business Name (Clean bold, standard)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.5);
-  doc.setTextColor(138, 101, 33); // #8a6521 High contrast Gold
-  doc.text(`${box.plant.toUpperCase()} PLANT  •  ISO 9001:2015 & IATF-16949`, pageW - margin - 3, margin + 9.5, { align: 'right' });
+  doc.setFontSize(10.5);
+  doc.setTextColor(23, 25, 28); // Charcoal #17191c
+  doc.text('PAINTKING', rightX, margin + 4.8, { align: 'right' });
+
+  // 2. Plant & ISO/IATF Certification
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.2);
+  doc.setTextColor(138, 101, 33); // #8a6521 Gold Accent
+  doc.text(`${box.plant.toUpperCase()} UNIT • ISO 9001:2015 & IATF-16949`, rightX, margin + 8.5, { align: 'right' });
+
+  // 3. GSTIN & Official Phone
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(4.8);
+  doc.setTextColor(100, 105, 115);
+  doc.text('GSTIN: 05AABCP9912K1Z4 • Phone: +91 9594591313', rightX, margin + 12.2, { align: 'right' });
+
+  // 4. Email & Web
+  doc.text('Email: info@paintking.in • Web: www.paintking.in', rightX, margin + 15.6, { align: 'right' });
 
   // Subtitle Strip (Champagne background with gold borders)
+  const subY = margin + 17.5;
   doc.setFillColor(250, 243, 224); // #faf3e0 champagne
-  doc.rect(margin, margin + 14.5, contentW, 4.5, 'F');
+  doc.rect(margin, subY, contentW, 4.5, 'F');
   doc.setDrawColor(244, 229, 190);
   doc.setLineWidth(0.3);
-  doc.line(margin, margin + 14.5, pageW - margin, margin + 14.5);
-  doc.line(margin, margin + 19, pageW - margin, margin + 19);
+  doc.line(margin, subY, pageW - margin, subY);
+  doc.line(margin, subY + 4.5, pageW - margin, subY + 4.5);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(5.2);
   doc.setTextColor(138, 101, 33); // Deep Gold #8a6521
-  doc.text('AUTOMOTIVE FINISHED GOODS CARTON IDENTIFICATION LABEL', pageW / 2, margin + 17.6, { align: 'center' });
+  doc.text('AUTOMOTIVE FINISHED GOODS CARTON IDENTIFICATION LABEL', pageW / 2, subY + 3.1, { align: 'center' });
 
   // 3. CONTINUOUS SERIAL BADGE & ORDER BOX INDEX STRIP
-  const stripY = margin + 19;
+  const stripY = subY + 4.5;
   doc.setFillColor(245, 245, 247);
   doc.rect(margin, stripY, contentW, 11, 'F');
   doc.setDrawColor(200, 205, 215);
