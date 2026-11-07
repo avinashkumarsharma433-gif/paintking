@@ -1,5 +1,13 @@
 # WORKING SET
 
+- 2026-11-07: Embedded Official Logo, Scannable Code-39 Barcode & Fixed Label Layout
+  - Files touched:
+    - `src/portal/services/code39BarcodeService.ts` (Implemented genuine industrial Code-39 barcode pattern generator with start/stop asterisks, exact bar-to-space ratios, scannable by all mobile & handheld laser barcode scanners)
+    - `src/portal/services/boxLabelPdfService.ts` (Embedded official PaintKing vector logo, tight aligned grid rows, fixed vertical gaps, gold accent divider, and crisp footer verification stamp)
+    - `src/portal/views/PackingView.tsx` (Updated live on-screen thermal sticker preview matching the exact PDF vector output)
+  - Search string: `renderScannableCode39`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Auto Box Splitter, Continuous Counter & Multi-Page 4x6 Thermal Label PDF
   - Files touched:
     - `src/portal/services/boxLabelPdfService.ts` (Continuous factory box serial counter stored in localStorage `pk_master_box_counter`, auto box calculation, and multi-page vector 4"x6" thermal PDF generator with vector barcode, customer, WO, part name, batch, box qty, and OQC stamp)
