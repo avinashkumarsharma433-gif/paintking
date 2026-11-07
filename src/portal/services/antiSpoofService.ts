@@ -81,15 +81,15 @@ export function evaluatePassiveMicroLiveness(
   ];
 
   let record = faceMotionCache.get(empId);
-  if (!record || now - record.lastSeen > 4000) {
+  if (!record || now - record.lastSeen > 3500) {
     record = {
       lastSeen: now,
       earHistory: [ear],
       positionsHistory: [keyPoints.map((p) => ({ x: p.x, y: p.y }))],
     };
     faceMotionCache.set(empId, record);
-    // Needs at least 3 consecutive frames to verify living micro-dynamics
-    return { isLive: false, reason: 'Analyzing micro-motion...' };
+    // Allow initial recognition to start green while gathering rolling history
+    return { isLive: true };
   }
 
   record.lastSeen = now;
@@ -99,46 +99,35 @@ export function evaluatePassiveMicroLiveness(
   if (record.earHistory.length > 8) record.earHistory.shift();
   if (record.positionsHistory.length > 8) record.positionsHistory.shift();
 
-  // If we don't have at least 3 frames yet, wait for motion profiling
-  if (record.positionsHistory.length < 3) {
-    return { isLive: false, reason: 'Profiling liveness...' };
+  // Need at least 4 rolling frames to detect complete freeze / static photo
+  if (record.positionsHistory.length < 4) {
+    return { isLive: true };
   }
 
   // 1. Natural Involuntary Eye Dynamics
-  // A living person's eyes naturally micro-shift, tear-fluid glimmers, or blinks (earDelta >= 0.012)
-  // A photo displayed on computer screen has zero eye variance (earDelta < 0.010)
-  const isDeadStaticEye = earDelta < 0.012;
+  const earMin = Math.min(...record.earHistory);
+  const earMax = Math.max(...record.earHistory);
+  const earDelta = earMax - earMin;
 
-  // 2. Natural Involuntary 3D Coordinate Tremor vs Rigid 2D Plane
-  // When a computer screen/phone is held, either it is stationary (<0.4px) or when moved by hand,
-  // ALL 6 landmarks move at the EXACT same ratio (affine 2D transform ratio ~1.0 with 0 depth disparity).
-  // In a real 3D head, the nose tip (index 0) shifts relative to ears and jaw due to depth parallax.
-  let isRigid2DDisparity = false;
-  if (record.positionsHistory.length >= 4) {
-    const pFirst = record.positionsHistory[0];
-    const pLast = record.positionsHistory[record.positionsHistory.length - 1];
-    
-    // Distance between eyes vs distance from nose to chin
-    const eyeDistFirst = Math.hypot(pFirst[1].x - pFirst[2].x, pFirst[1].y - pFirst[2].y);
-    const eyeDistLast = Math.hypot(pLast[1].x - pLast[2].x, pLast[1].y - pLast[2].y);
-    
-    const noseChinFirst = Math.hypot(pFirst[0].x - pFirst[5].x, pFirst[0].y - pFirst[5].y);
-    const noseChinLast = Math.hypot(pLast[0].x - pLast[5].x, pLast[0].y - pLast[5].y);
-
-    const ratioFirst = noseChinFirst / (eyeDistFirst || 1);
-    const ratioLast = noseChinLast / (eyeDistLast || 1);
-
-    // If depth ratio between 3D facial planes is frozen completely (<0.008 variation), it's a flat 2D picture
-    if (Math.abs(ratioFirst - ratioLast) < 0.008) {
-      isRigid2DDisparity = true;
+  // 2. Multi-point coordinate jitter
+  let totalPositionShift = 0;
+  for (let f = 1; f < record.positionsHistory.length; f++) {
+    const prev = record.positionsHistory[f - 1];
+    const curr = record.positionsHistory[f];
+    for (let p = 0; p < keyPoints.length; p++) {
+      totalPositionShift += Math.hypot(curr[p].x - prev[p].x, curr[p].y - prev[p].y);
     }
   }
+  const avgShiftPerFrame = totalPositionShift / ((record.positionsHistory.length - 1) * keyPoints.length);
 
-  // REJECT AS SPOOF if eyes are frozen static OR rigid 2D planar photo
-  if (isDeadStaticEye && isRigid2DDisparity) {
+  // Dead photo check: 
+  // If eye variance is virtually ZERO (<0.002) AND position shift is virtually ZERO (<0.15px) across 4+ frames
+  const isCompletelyFrozen = earDelta < 0.002 && avgShiftPerFrame < 0.15;
+
+  if (isCompletelyFrozen) {
     return {
       isLive: false,
-      reason: '2D screen / printed photo detected (zero involuntary eye dynamics and flat planar depth)',
+      reason: 'Static 2D photo / screen detected (zero natural micro-motion across frames)',
     };
   }
 
@@ -210,27 +199,24 @@ export function analyzePassiveSpoof(
   const reasons: string[] = [];
   let spoofScore = 0;
 
-  // Stricter anti-spoof thresholds:
-  // 1. Screen glare threshold lowered from 0.08 to 0.03
-  if (glareRatio > 0.03) {
-    spoofScore += 0.50;
+  // Real world lighting thresholds (avoids false-positive on human skin under office LED/tubelight):
+  if (glareRatio > 0.08) {
+    spoofScore += 0.45;
     reasons.push('Screen reflection / paper specular glare detected');
   }
 
-  // 2. Flat pixel saturation (phone screen or paper print)
-  if (flatRatio > 0.28) {
+  if (flatRatio > 0.42) {
     spoofScore += 0.40;
     reasons.push('Digital screen color banding detected');
   }
 
-  // 3. High-contrast raster/paper moiré artifacts
-  if (edgeRatio > 0.15) {
+  if (edgeRatio > 0.22) {
     spoofScore += 0.35;
     reasons.push('Screen moiré / print halftone artifact detected');
   }
 
   return {
-    isLive: spoofScore < 0.45,
+    isLive: spoofScore < 0.60,
     spoofConfidence: Number(spoofScore.toFixed(2)),
     reasons,
   };
