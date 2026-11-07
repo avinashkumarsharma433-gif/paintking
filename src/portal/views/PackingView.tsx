@@ -1,346 +1,444 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { Printer, Plus, QrCode, CheckCircle2, ShieldAlert } from 'lucide-react';
-import { PackingSlipRecord } from '../types/portalTypes';
+import { 
+  Printer, 
+  Plus, 
+  FileDown, 
+  CheckCircle2, 
+  Layers, 
+  Package, 
+  Search,
+  Box,
+  Hash,
+  Sparkles
+} from 'lucide-react';
+import { 
+  generateMultiBoxThermalLabelPDF, 
+  getNextBoxCounterRange, 
+  getCurrentBoxCounter,
+  BoxLabelItem 
+} from '../services/boxLabelPdfService';
 
 export const PackingView: React.FC = () => {
-  const { packingSlips, qualityReleases, addPackingSlip, canPrintPackingSlip, activePlant, currentUser } = usePortalStore();
-  const [selectedSlip, setSelectedSlip] = useState(packingSlips[0] || null);
-  const [showPrintModal, setShowPrintModal] = useState(false);
+  const { qualityReleases, activePlant, currentUser, jobCards } = usePortalStore();
 
-  // New Packing Slip Modal State
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedPdiWo, setSelectedPdiWo] = useState<string>('');
-  const [boxCount, setBoxCount] = useState<number>(50);
-  const [boxLabel, setBoxLabel] = useState<string>('BOX-01/06');
+  // Filter QA Releases that are OQC Accepted or PDI Cleared
+  const readyLots = useMemo(() => {
+    return qualityReleases.filter(r => r.oqcStatus === 'Accepted' || r.pdiStatus === 'Cleared for Invoicing');
+  }, [qualityReleases]);
 
-  // Filter QA Releases ready for packing
-  const clearedPdiReleases = qualityReleases.filter(r => r.pdiStatus === 'Cleared for Invoicing' || r.oqcStatus === 'Accepted');
+  const [selectedLotId, setSelectedLotId] = useState<string>(readyLots[0]?.releaseId || '');
+  const [pcsPerBox, setPcsPerBox] = useState<number>(150);
+  const [customTotalPcs, setCustomTotalPcs] = useState<number | null>(null);
+  const [searchFilter, setSearchFilter] = useState('');
 
-  const handleCreatePackingSlip = (e: React.FormEvent) => {
-    e.preventDefault();
-    const rel = clearedPdiReleases.find(r => r.woNo === selectedPdiWo) || clearedPdiReleases[0];
-    if (!rel) {
-      alert('No QA/PDI cleared batches available for packing.');
+  // Selected Lot Details
+  const activeLot = useMemo(() => {
+    return readyLots.find(r => r.releaseId === selectedLotId) || readyLots[0] || null;
+  }, [readyLots, selectedLotId]);
+
+  // Total Quantity for Packing (defaults to passedQty from OQC)
+  const lotTotalPcs = customTotalPcs !== null 
+    ? customTotalPcs 
+    : (activeLot?.passedQty || activeLot?.offeredQty || 1000);
+
+  // Auto-calculated Box Split
+  const calculatedBoxes = useMemo(() => {
+    if (!activeLot || lotTotalPcs <= 0 || pcsPerBox <= 0) return [];
+
+    const fullBoxes = Math.floor(lotTotalPcs / pcsPerBox);
+    const remainder = lotTotalPcs % pcsPerBox;
+    const totalBoxCount = remainder > 0 ? fullBoxes + 1 : fullBoxes;
+
+    const list: Array<{ orderIndex: number; totalBoxes: number; qty: number }> = [];
+
+    for (let i = 1; i <= fullBoxes; i++) {
+      list.push({
+        orderIndex: i,
+        totalBoxes: totalBoxCount,
+        qty: pcsPerBox,
+      });
+    }
+
+    if (remainder > 0) {
+      list.push({
+        orderIndex: totalBoxCount,
+        totalBoxes: totalBoxCount,
+        qty: remainder,
+      });
+    }
+
+    return list;
+  }, [activeLot, lotTotalPcs, pcsPerBox]);
+
+  // Current global running box counter
+  const [currentMasterCounter, setCurrentMasterCounter] = useState<number>(() => getCurrentBoxCounter());
+
+  // Generate & Download Multi-Page Thermal Label PDF
+  const handleGenerateAndDownloadPDF = () => {
+    if (!activeLot || calculatedBoxes.length === 0) {
+      alert('Please select a valid OQC cleared lot and enter valid box capacity.');
       return;
     }
 
-    const newSlip: PackingSlipRecord = {
-      slipNo: `PKG-2026-${Math.floor(100 + Math.random() * 900)}`,
-      date: new Date().toISOString().split('T')[0],
-      plant: activePlant,
-      customer: rel.customer,
-      woNo: rel.woNo,
-      partCode: rel.partCode,
-      model: 'Automotive Spec (PDI Cleared)',
-      color: rel.color,
-      boxNo: boxLabel,
-      packedQty: boxCount,
-      painter: '3-Painter Line Squad',
-      paintBatch: 'BAT-PPG-2609-R4',
-      packedBy: currentUser?.name || 'Gopal Singh (Packing Lead)',
-      qcVerified: true
-    };
+    // Allocate continuous sequential numbers (1, 2, 3...)
+    const startGlobalNumber = getNextBoxCounterRange(calculatedBoxes.length);
+    setCurrentMasterCounter(startGlobalNumber + calculatedBoxes.length - 1);
 
-    addPackingSlip(newSlip);
-    setSelectedSlip(newSlip);
-    setShowCreateModal(false);
+    // Try finding linked painter info from Job Card
+    const matchingJc = jobCards.find(j => j.jobCardNo === activeLot.woNo || j.woNo === activeLot.woNo);
+    const painterName = matchingJc?.assignedPainterName || matchingJc?.painterName || 'Booth 1 Line Squad';
+    const paintBatch = activeLot.batchNo || 'BAT-PPG-2609-R4';
+
+    const boxPayloads: BoxLabelItem[] = calculatedBoxes.map((b, idx) => {
+      const globalNum = startGlobalNumber + idx;
+      const serialText = `PK-BOX-${String(globalNum).padStart(4, '0')}`;
+
+      return {
+        globalBoxNumber: globalNum,
+        boxSerialText: serialText,
+        orderBoxIndex: b.orderIndex,
+        totalOrderBoxes: b.totalBoxes,
+        boxQty: b.qty,
+        totalLotQty: lotTotalPcs,
+        customer: activeLot.customer,
+        woNo: activeLot.woNo,
+        partCode: activeLot.partCode,
+        partDescription: activeLot.partDescription || activeLot.model || 'Automotive Molded Substrate',
+        color: activeLot.color,
+        paintBatch,
+        painter: painterName,
+        packedBy: currentUser?.name || 'Gopal Singh (Stores Dispatch)',
+        packedDate: new Date().toLocaleDateString('en-GB'),
+        plant: activePlant,
+      };
+    });
+
+    generateMultiBoxThermalLabelPDF(boxPayloads, `${activeLot.woNo}_${activeLot.customer}`);
   };
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      {/* Top Banner */}
+      <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
             <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-              PK-STR-PKG-001 • TRACEABILITY
+              PK-STR-PKG-001 • PACKING & THERMAL LABELS
             </span>
-            <span className="text-xs text-[#777b86]">
-              Box Packing Register & Barcode / QR Label Generator
+            <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold">
+              Continuous Box Serial Active
             </span>
           </div>
-          <h1 className="text-3xl font-serif font-normal text-[#17191c] tracking-tight">
-            Packing Register & Box Identification
+          <h1 className="text-2xl sm:text-3xl font-serif font-normal text-[#17191c] tracking-tight">
+            Carton Box Label Generator & Auto-Splitter
           </h1>
           <p className="text-xs text-[#777b86] mt-1">
-            Generates 4" x 6" box labels with full painter, paint batch, and WO traceability
+            Automatically calculates box requirements and generates sequential 4" × 6" thermal stickers with scannable barcodes
           </p>
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <button
-            onClick={() => {
-              if (clearedPdiReleases.length > 0) {
-                setSelectedPdiWo(clearedPdiReleases[0].woNo);
-              }
-              setShowCreateModal(true);
-            }}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-bold transition shadow-xs cursor-pointer w-full md:w-auto"
-          >
-            <Plus className="w-4 h-4 text-[#17191c]" />
-            <span>+ Create Packing Slip from Cleared PDI</span>
-          </button>
-          <span className="text-xs font-mono text-[#c09748] font-bold hidden sm:inline">
-            Plant: {activePlant}
-          </span>
+        {/* Running Counter Metric Badge */}
+        <div className="flex items-center gap-3 bg-[#fafafb] px-4 py-3 rounded-[20px] border border-[#ececec]">
+          <div className="h-10 w-10 rounded-full bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-center text-[#8a6521]">
+            <Hash size={18} />
+          </div>
+          <div>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[#979799] block">
+              Continuous Box Counter
+            </span>
+            <span className="text-lg font-mono font-bold text-[#17191c]">
+              BOX #{String(currentMasterCounter).padStart(4, '0')}
+            </span>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {packingSlips.map(ps => (
-          <div key={ps.slipNo} className="bg-white rounded-[24px] border border-[#ececec] p-6 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#f2f2f3] gap-2.5">
-              <div className="space-y-1">
-                <span className="font-mono text-xs font-bold text-[#c09748] px-2.5 py-0.5 rounded-full bg-[#faf7ed] border border-[#f4e5be] whitespace-nowrap">
-                  {ps.slipNo}
-                </span>
-                <h3 className="font-serif font-normal text-lg text-[#17191c]">{ps.customer}</h3>
-                <div className="text-xs text-[#777b86]">{ps.model} • {ps.color}</div>
+      {/* Main Split Grid: Configuration & Preview */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* LEFT COLUMN: Box Split Configuration (7 Cols) */}
+        <div className="lg:col-span-7 space-y-5">
+          <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-2xs space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-[#f2f2f3]">
+              <div className="flex items-center gap-2">
+                <Box size={18} className="text-[#c09748]" />
+                <h3 className="font-serif text-base font-semibold text-[#17191c]">
+                  1. Select OQC Cleared Lot & Set Packaging
+                </h3>
               </div>
-              <div className="text-left sm:text-right self-start sm:self-auto shrink-0">
-                <span className="font-serif text-2xl font-normal text-[#17191c]">{ps.packedQty} pcs</span>
-                <div className="text-[10px] text-emerald-700 font-semibold">✓ QC Inspected</div>
-              </div>
+              <span className="text-xs text-[#777b86]">
+                {readyLots.length} Lots Available
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3.5 bg-[#fafafb] rounded-[16px] border border-[#ececec] text-xs">
-              <div>Boxes: <strong className="text-[#17191c]">{ps.boxNo}</strong></div>
-              <div>Painter: <strong className="text-[#17191c]">{ps.painter}</strong></div>
-              <div>Paint Batch: <strong className="text-[#17191c] font-mono">{ps.paintBatch}</strong></div>
-              <div>Packed by: <strong className="text-[#17191c]">{ps.packedBy}</strong> on {ps.date}</div>
-            </div>
-
-            <div className="pt-2 flex justify-end">
-              <button
-                onClick={() => {
-                  setSelectedSlip(ps);
-                  setShowPrintModal(true);
+            {/* Lot Selector */}
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17191c] mb-1.5">
+                Choose OQC / PDI Approved Lot *
+              </label>
+              <select
+                value={selectedLotId}
+                onChange={(e) => {
+                  setSelectedLotId(e.target.value);
+                  setCustomTotalPcs(null);
                 }}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#c09748] text-[#17191c] text-xs font-semibold hover:bg-[#a97e35] transition cursor-pointer shadow-sm w-full sm:w-auto"
+                className="w-full p-3 rounded-[16px] border border-[#ececec] bg-[#fafafb] text-xs font-semibold text-[#17191c] focus:outline-none focus:border-[#c09748] cursor-pointer"
               >
-                <Printer className="w-3.5 h-3.5 text-[#17191c]" />
-                <span>Print Thermal Sticker (4x6)</span>
+                {readyLots.map((lot) => (
+                  <option key={lot.releaseId} value={lot.releaseId}>
+                    {lot.woNo} • {lot.customer} — {lot.partCode} ({lot.color}) • Good: {lot.passedQty || lot.offeredQty} Pcs
+                  </option>
+                ))}
+                {readyLots.length === 0 && (
+                  <option value="">No OQC cleared lots currently available</option>
+                )}
+              </select>
+            </div>
+
+            {/* Selected Lot Snapshot Card */}
+            {activeLot && (
+              <div className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <span className="text-[10px] text-[#777b86] block">Customer</span>
+                  <strong className="text-[#17191c] truncate block">{activeLot.customer}</strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#777b86] block">Part Code</span>
+                  <strong className="text-[#17191c] font-mono">{activeLot.partCode}</strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#777b86] block">Shade / Color</span>
+                  <strong className="text-[#17191c]">{activeLot.color}</strong>
+                </div>
+                <div>
+                  <span className="text-[10px] text-[#777b86] block">OQC Inspection</span>
+                  <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                    <CheckCircle2 size={12} />
+                    <span>Passed</span>
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Quantities & Packaging Inputs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17191c] mb-1">
+                  Total Lot Quantity To Pack (Pcs) *
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={lotTotalPcs}
+                  onChange={(e) => setCustomTotalPcs(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full px-3.5 py-2.5 text-xs bg-[#fafafb] border border-[#ececec] rounded-[16px] text-[#17191c] font-mono font-bold focus:outline-none focus:border-[#c09748]"
+                />
+                <span className="text-[10px] text-[#979799] mt-0.5 block">
+                  Original OQC Pass: {activeLot?.passedQty || activeLot?.offeredQty || 1000} Pcs
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-[#17191c] mb-1">
+                  Box Capacity / Pcs Per Box *
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={pcsPerBox}
+                  onChange={(e) => setPcsPerBox(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full px-3.5 py-2.5 text-xs bg-[#fafafb] border border-[#ececec] rounded-[16px] text-[#17191c] font-mono font-bold focus:outline-none focus:border-[#c09748]"
+                />
+                <span className="text-[10px] text-[#8a6521] font-semibold mt-0.5 block">
+                  e.g. 50, 100 or 150 pieces per carton
+                </span>
+              </div>
+            </div>
+
+            {/* Calculation Result Summary Bar */}
+            <div className="p-4 rounded-[18px] bg-[#faf3e0] border border-[#f4e5be] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-[#f4e5be] flex items-center justify-center text-[#8a6521] shrink-0 font-bold font-serif text-lg">
+                  {calculatedBoxes.length}
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-[#8a6521]">
+                    {calculatedBoxes.length} Total Boxes Calculated
+                  </h4>
+                  <p className="text-[11px] text-[#8a6521]/80">
+                    {Math.floor(lotTotalPcs / pcsPerBox)} Full Box(es) of {pcsPerBox} Pcs
+                    {lotTotalPcs % pcsPerBox > 0 && ` + 1 Box of ${lotTotalPcs % pcsPerBox} Pcs`}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGenerateAndDownloadPDF}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer active:scale-95 shrink-0"
+              >
+                <Printer size={15} className="text-[#c09748]" />
+                <span>Generate & Download ({calculatedBoxes.length} Labels)</span>
               </button>
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* Modal: Box Thermal Sticker Preview */}
-      {showPrintModal && selectedSlip && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[24px] max-w-sm sm:max-w-md w-full p-4 sm:p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs max-h-[90vh] overflow-y-auto no-scrollbar">
-            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
-              <div>
-                <span className="font-mono font-bold text-[#c09748] text-xs">
-                  PK-STR-PKG-001 • THERMAL LABEL (4"x6")
-                </span>
-                <div className="text-[11px] text-[#777b86]">Standard Automotive OEM Box Specimen</div>
-              </div>
-              <button 
-                onClick={() => setShowPrintModal(false)} 
-                className="font-bold text-[#979799] hover:text-[#17191c] text-base cursor-pointer transition"
-              >
-                ✕
-              </button>
+          {/* Sequential Boxes Breakdown Table */}
+          <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-2xs space-y-3">
+            <h4 className="font-serif text-sm font-semibold text-[#17191c] flex items-center gap-2">
+              <Layers size={15} className="text-[#c09748]" />
+              <span>Multi-Box Production Roster Breakdown</span>
+            </h4>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#ececec] text-[10px] font-semibold uppercase text-[#777b86]">
+                    <th className="py-2.5 px-3">Sequential Box</th>
+                    <th className="py-2.5 px-3">Master Running No</th>
+                    <th className="py-2.5 px-3 text-right">Box Qty</th>
+                    <th className="py-2.5 px-3 text-right">Running Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#ececec]/60">
+                  {calculatedBoxes.map((b, idx) => {
+                    const runningSerial = currentMasterCounter + idx + 1;
+                    const runningPcs = Math.min(lotTotalPcs, (idx + 1) * pcsPerBox);
+
+                    return (
+                      <tr key={idx} className="hover:bg-[#fafafb]">
+                        <td className="py-2.5 px-3 font-semibold text-[#17191c]">
+                          Box {String(b.orderIndex).padStart(2, '0')} of {String(b.totalBoxes).padStart(2, '0')}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-[#c09748]">
+                          PK-BOX-{String(runningSerial).padStart(4, '0')}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-[#17191c]">
+                          {b.qty} Pcs
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-[#777b86]">
+                          {runningPcs} / {lotTotalPcs} Pcs
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Live 4" x 6" Thermal Sticker Preview (5 Cols) */}
+        <div className="lg:col-span-5 space-y-4">
+          <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-2xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#f2f2f3]">
+              <span className="text-[10px] font-mono uppercase tracking-wider font-bold text-[#c09748]">
+                4" × 6" THERMAL STICKER SPECIMEN
+              </span>
+              <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                Page 1 of {calculatedBoxes.length || 1}
+              </span>
             </div>
 
-            {/* Industrial 4" x 6" Thermal Sticker Mockup */}
-            <div className="border-2 border-black p-4 space-y-3 font-mono bg-white text-[#17191c] select-none">
-              <div className="text-center border-b-2 border-black pb-2">
-                <div className="font-serif font-bold text-base tracking-wide">
+            {/* Industrial 4x6 Label Mockup */}
+            <div className="border-2 border-[#17191c] rounded-lg p-4 bg-white text-[#17191c] font-mono space-y-3 shadow-md">
+              {/* Header */}
+              <div className="text-center border-b-2 border-[#17191c] pb-2.5 bg-[#17191c] text-white p-2.5 -m-4 mb-2 rounded-t-sm">
+                <div className="font-serif font-bold text-sm tracking-wide">
                   PAINTKING SOLUTIONS PVT. LTD.
                 </div>
-                <div className="text-[9px] font-sans text-gray-700">
-                  {activePlant} Unit • ISO 9001:2015 & IATF-16949 Certified
+                <div className="text-[8px] text-[#c09748] font-bold">
+                  {activePlant.toUpperCase()} UNIT • ISO 9001:2015 & IATF-16949 COMPLIANT
                 </div>
-                <div className="text-[10px] font-bold uppercase tracking-wider mt-0.5 bg-black text-white px-2 py-0.5 inline-block rounded-xs">
-                  AUTOMOTIVE FINISHED GOODS BOX LABEL
+                <div className="text-[7.5px] text-neutral-300 mt-0.5">
+                  AUTOMOTIVE FINISHED GOODS CARTON LABEL
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-[10px] border-b border-black pb-2">
+              {/* Master Serial Strip */}
+              <div className="flex items-center justify-between p-2 bg-[#f2f2f3] border-b border-[#dcdfe4] text-[10px]">
                 <div>
-                  <span className="text-gray-600 block text-[9px]">CUSTOMER:</span>
-                  <span className="font-bold text-xs">{selectedSlip.customer}</span>
+                  <span className="text-[8px] text-gray-500 block">MASTER SERIAL</span>
+                  <strong className="text-black font-bold">PK-BOX-{String(currentMasterCounter + 1).padStart(4, '0')}</strong>
                 </div>
                 <div className="text-right">
-                  <span className="text-gray-600 block text-[9px]">BOX IDENTIFICATION:</span>
-                  <span className="font-bold text-xs">{selectedSlip.boxNo}</span>
+                  <span className="text-[8px] text-gray-500 block">ORDER LOT BREAKDOWN</span>
+                  <strong className="text-[#8a6521] font-bold">BOX 01 / {String(calculatedBoxes.length || 1).padStart(2, '0')}</strong>
                 </div>
               </div>
 
-              <div className="space-y-1.5 text-[10px] border-b border-black pb-2">
+              {/* Data Rows */}
+              <div className="space-y-1 text-[9px] border-b border-black pb-2">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">PART CODE:</span>
-                  <span className="font-bold font-mono">{selectedSlip.partCode}</span>
+                  <span className="text-gray-600">CUSTOMER:</span>
+                  <strong className="text-black truncate max-w-[170px]">{activeLot?.customer || 'ROOP POLYMERS LTD'}</strong>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">MODEL / SPEC:</span>
-                  <span className="font-semibold">{selectedSlip.model}</span>
+                  <span className="text-gray-600">WORK ORDER:</span>
+                  <strong className="text-black">{activeLot?.woNo || 'WO-1042'}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">PART CODE:</span>
+                  <strong className="text-black font-bold">{activeLot?.partCode || 'RP-8841-A'}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">PART NAME:</span>
+                  <span className="text-black truncate max-w-[170px]">{activeLot?.partDescription || 'AC Vent Bezel'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">COLOR SHADE:</span>
-                  <span className="font-bold">{selectedSlip.color}</span>
+                  <strong className="text-black">{activeLot?.color || 'Monza Red'}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">DATE:</span>
+                  <span className="text-black">{new Date().toLocaleDateString('en-GB')}</span>
                 </div>
               </div>
 
-              <div className="p-2.5 bg-gray-100 border border-black rounded-sm flex items-center justify-between">
+              {/* Large Quantity Box */}
+              <div className="p-3 bg-[#faf7ed] border-2 border-[#c09748] rounded flex items-center justify-between">
                 <div>
-                  <span className="text-[9px] uppercase font-bold text-gray-700 block">BOX COUNT:</span>
-                  <span className="font-serif font-bold text-2xl tracking-tight">{selectedSlip.packedQty} PCS</span>
-                </div>
-                <div className="text-right text-[10px]">
-                  <div className="font-bold text-emerald-800">✓ 100% PDI PASSED</div>
-                  <div className="text-gray-600 font-sans text-[9px]">ΔE ≤ 0.70 & ASTM 5B</div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-[9px] border-b border-black pb-2">
-                <div>
-                  <span className="text-gray-600">PAINTER:</span> {selectedSlip.painter}
+                  <span className="text-[8px] uppercase font-bold text-[#8a6521] block">BOX QUANTITY</span>
+                  <span className="font-serif font-bold text-2xl tracking-tight text-black">
+                    {pcsPerBox} PCS
+                  </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-gray-600">PAINT BATCH:</span> {selectedSlip.paintBatch}
-                </div>
-                <div>
-                  <span className="text-gray-600">PACKED BY:</span> {selectedSlip.packedBy}
-                </div>
-                <div className="text-right">
-                  <span className="text-gray-600">DATE:</span> {selectedSlip.date}
+                  <span className="text-[8px] text-gray-600 block">TOTAL LOT SIZE</span>
+                  <span className="font-bold text-xs text-black">{lotTotalPcs} PCS</span>
+                  <div className="text-[8px] text-emerald-800 font-bold mt-0.5">✓ 100% OQC PASSED</div>
                 </div>
               </div>
 
-              {/* Barcode / QR Simulation */}
+              {/* Barcode Simulation */}
               <div className="pt-1 flex flex-col items-center justify-center space-y-1">
-                <div className="w-full flex items-center justify-center gap-0.5 h-10 px-4 bg-white">
-                  {/* Stylized Barcode Bars */}
-                  {[4, 2, 6, 1, 3, 5, 2, 7, 3, 1, 4, 6, 2, 5, 3, 2, 6, 1, 4, 3, 5, 2, 6, 4, 2, 5, 1, 7, 3, 2, 4, 5, 2, 6, 1, 4].map((h, i) => (
+                <div className="w-full flex items-center justify-center gap-0.5 h-9 px-2 bg-white">
+                  {[4, 2, 6, 1, 3, 5, 2, 7, 3, 1, 4, 6, 2, 5, 3, 2, 6, 1, 4, 3, 5, 2, 6, 4, 2, 5, 1, 7, 3, 2, 4, 5, 2, 6, 1, 4, 2, 5, 3].map((h, i) => (
                     <div 
                       key={i} 
                       className={`bg-black h-full ${i % 3 === 0 ? 'w-1' : i % 2 === 0 ? 'w-0.5' : 'w-1.5'}`} 
                     />
                   ))}
                 </div>
-                <div className="font-mono text-[9px] tracking-widest text-center">
-                  *{selectedSlip.slipNo}*
+                <div className="font-mono text-[8px] tracking-widest text-center">
+                  *PK-BOX-{String(currentMasterCounter + 1).padStart(4, '0')}*{activeLot?.woNo || 'WO-1042'}*{pcsPerBox}PCS*
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2.5 pt-2">
-              <button
-                onClick={() => setShowPrintModal(false)}
-                className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium text-xs cursor-pointer hover:bg-[#fafafb] transition"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => {
-                  const gate = canPrintPackingSlip(selectedSlip.woNo);
-                  if (!gate.allowed) {
-                    alert(`QA Gatekeeper Lock: Cannot print packing slip for ${selectedSlip.woNo}.\n\nReason: ${gate.reason}`);
-                    return;
-                  }
-                  window.print();
-                }}
-                className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-semibold text-xs shadow-sm cursor-pointer transition flex items-center gap-2"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print Thermal Sticker</span>
-              </button>
-            </div>
+            {/* Direct Action */}
+            <button
+              onClick={handleGenerateAndDownloadPDF}
+              className="w-full py-3 bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-bold text-xs rounded-full shadow-sm cursor-pointer transition flex items-center justify-center gap-2 active:scale-95"
+            >
+              <FileDown size={16} />
+              <span>Download Printable PDF ({calculatedBoxes.length} Pages)</span>
+            </button>
           </div>
         </div>
-      )}
 
-      {/* Modal: Create New Packing Slip from QA/PDI Cleared Order */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[24px] max-w-md w-full p-6 shadow-2xl border border-[#ececec] space-y-4 text-xs">
-            <div className="flex justify-between items-center pb-3 border-b border-[#ececec]">
-              <div>
-                <h3 className="text-base font-serif font-normal text-[#17191c]">
-                  Create Box Packing Slip from Cleared PDI
-                </h3>
-                <p className="text-[11px] text-[#777b86]">
-                  Select QA/OQC approved batch to generate 4"x6" barcode label
-                </p>
-              </div>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-[#979799] hover:text-[#17191c] cursor-pointer text-base"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreatePackingSlip} className="space-y-3.5">
-              <div>
-                <label className="block text-[#17191c] font-semibold mb-1">
-                  PDI Cleared Work Order / Batch *
-                </label>
-                <select
-                  value={selectedPdiWo}
-                  onChange={e => setSelectedPdiWo(e.target.value)}
-                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-medium cursor-pointer"
-                  required
-                >
-                  {clearedPdiReleases.map(rel => (
-                    <option key={rel.releaseId} value={rel.woNo}>
-                      {rel.woNo} • {rel.customer} ({rel.partCode} - {rel.color})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[#17191c] font-semibold mb-1">
-                  Box Serial / Identification *
-                </label>
-                <input
-                  type="text"
-                  value={boxLabel}
-                  onChange={e => setBoxLabel(e.target.value)}
-                  placeholder="e.g. BOX-01/06"
-                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono text-xs"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-[#17191c] font-semibold mb-1">
-                  Packed Box Count (Pcs) *
-                </label>
-                <input
-                  type="number"
-                  value={boxCount}
-                  onChange={e => setBoxCount(Math.max(1, Number(e.target.value)))}
-                  className="w-full p-2.5 rounded-[12px] border border-[#ececec] bg-white font-mono font-bold text-sm text-[#17191c]"
-                  min={1}
-                  required
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-5 py-2.5 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] font-bold shadow-xs cursor-pointer transition"
-                >
-                  Generate Box Label
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 };
