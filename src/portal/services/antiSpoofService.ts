@@ -50,6 +50,91 @@ export const LIVENESS_CHALLENGES: LivenessChallenge[] = [
 ];
 
 /**
+ * Tracks subtle involuntary micro-dynamics over consecutive frames for a face.
+ * Real living faces:
+ *  - Micro eye tremors / subtle blinking (EAR variance > 0.0035 over 3-5 frames)
+ *  - Natural pulse / respiratory micro-nodding (landmark coordinates jitter slightly by 0.4px - 3.5px)
+ * Photos / screens:
+ *  - Static landmark coordinates across frames (variance < 0.0008, 0% natural micro-motion)
+ */
+interface MicroMotionRecord {
+  lastSeen: number;
+  earHistory: number[];
+  positionsHistory: { x: number; y: number }[][];
+}
+
+const faceMotionCache = new Map<string, MicroMotionRecord>();
+
+export function evaluatePassiveMicroLiveness(
+  empId: string,
+  landmarks: faceapi.FaceLandmarks68
+): { isLive: boolean; reason?: string } {
+  const now = Date.now();
+  const ear = calculateEyeAspectRatio(landmarks);
+  const keyPoints = [
+    landmarks.positions[30], // nose tip
+    landmarks.positions[36], // left eye outer
+    landmarks.positions[45], // right eye outer
+    landmarks.positions[48], // mouth left
+    landmarks.positions[54], // mouth right
+    landmarks.positions[8],  // chin
+  ];
+
+  let record = faceMotionCache.get(empId);
+  if (!record || now - record.lastSeen > 4000) {
+    record = {
+      lastSeen: now,
+      earHistory: [ear],
+      positionsHistory: [keyPoints.map((p) => ({ x: p.x, y: p.y }))],
+    };
+    faceMotionCache.set(empId, record);
+    // Needs at least 3 consecutive frames to verify living micro-dynamics
+    return { isLive: false, reason: 'Analyzing micro-motion...' };
+  }
+
+  record.lastSeen = now;
+  record.earHistory.push(ear);
+  record.positionsHistory.push(keyPoints.map((p) => ({ x: p.x, y: p.y })));
+
+  if (record.earHistory.length > 8) record.earHistory.shift();
+  if (record.positionsHistory.length > 8) record.positionsHistory.shift();
+
+  // If we don't have at least 3 frames yet, wait for motion profiling
+  if (record.positionsHistory.length < 3) {
+    return { isLive: false, reason: 'Profiling liveness...' };
+  }
+
+  // 1. Check EAR (Eye Aspect Ratio) natural variance
+  const earMin = Math.min(...record.earHistory);
+  const earMax = Math.max(...record.earHistory);
+  const earDelta = earMax - earMin;
+
+  // 2. Check Natural Micro-Jitter across key landmarks
+  let totalPositionShift = 0;
+  for (let f = 1; f < record.positionsHistory.length; f++) {
+    const prev = record.positionsHistory[f - 1];
+    const curr = record.positionsHistory[f];
+    for (let p = 0; p < keyPoints.length; p++) {
+      totalPositionShift += Math.hypot(curr[p].x - prev[p].x, curr[p].y - prev[p].y);
+    }
+  }
+  const avgShiftPerFrame = totalPositionShift / ((record.positionsHistory.length - 1) * keyPoints.length);
+
+  // DEAD / STATIC PHOTO CRITERIA:
+  // If EAR has 0 variance (static eyes in photo) AND landmark shift is either perfectly 0 or rigidly moving together
+  const isCompletelyStaticEyes = earDelta < 0.003;
+  const isRigidlyStaticMotion = avgShiftPerFrame < 0.25;
+
+  if (isCompletelyStaticEyes && isRigidlyStaticMotion) {
+    return {
+      isLive: false,
+      reason: 'Static photo detected (zero micro-eye movement / rigid 2D planar position)',
+    };
+  }
+
+  return { isLive: true };
+}
+ /**
  * Passive texture & frequency analysis for screen / photo spoof detection.
  * Inspects:
  * 1. High frequency specular reflection patterns typical of mobile phone screens and glossy photo prints.

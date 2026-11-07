@@ -40,6 +40,7 @@ import {
 import {
   ActiveLivenessSession,
   analyzePassiveSpoof,
+  evaluatePassiveMicroLiveness,
   ChallengeEvaluationResult
 } from '../../services/antiSpoofService';
 import { resolveShiftPunch } from '../../services/shiftPunchService';
@@ -82,7 +83,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
   });
 
   const [requireLiveness, setRequireLiveness] = useState(true);
-  const [activeChallengeMode, setActiveChallengeMode] = useState(true);
+  const [activeChallengeMode, setActiveChallengeMode] = useState(false); // Seamless Zero-Effort Passive Liveness
   const [voiceGreetingEnabled, setVoiceGreetingEnabled] = useState(true);
   const [voiceLanguage, setVoiceLanguage] = useState<'hi-IN' | 'en-IN'>('hi-IN');
   const [activeChallengeState, setActiveChallengeState] = useState<{
@@ -322,10 +323,16 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
           config.minRecognitionMargin || 0.04
         );
 
-        // Run Passive Reflection/Screen Glare Anti-Spoofing on each detected face
+        // Run Passive Reflection/Screen Glare Anti-Spoofing & Involuntary Micro-Motion Analysis
         const updatedDetected = detected.map((face) => {
           const passive = analyzePassiveSpoof(canvas, face.box);
-          if (!passive.isLive && face.status === 'RECOGNIZED') {
+          let microLive = { isLive: true };
+
+          if (requireLiveness && face.status === 'RECOGNIZED' && face.matchResult.matchedEmployee && face.landmarks) {
+            microLive = evaluatePassiveMicroLiveness(face.matchResult.matchedEmployee.id, face.landmarks as any);
+          }
+
+          if ((!passive.isLive || !microLive.isLive) && face.status === 'RECOGNIZED') {
             return {
               ...face,
               status: 'SPOOF_SUSPECTED' as const,
