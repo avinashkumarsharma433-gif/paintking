@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-07: Real-Time Verification Snapshot Audit Proof in Attendance Register
+  - Files touched:
+    - `src/portal/modules/hr/HRAttendanceRegister.tsx` (Added Camera Audit icon trigger next to Edit button; clicking opens high-res In/Out cropped verification photos captured at the exact moment of camera detection with match % and device timestamp)
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Already crops and records 120x120 live verification snapshot into `PunchEvidenceMetadata`)
+  - Search string: `CAMERA EVIDENCE INSPECTION MODAL`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Anti-Spoof Calibration (Eliminated False Positives on Real Face)
   - Files touched:
     - `src/portal/services/antiSpoofService.ts` (Calibrated passive glare and flat saturation thresholds to natural room lighting levels; removed initial frame spoof locks so real live faces immediately show Green `RECOGNIZED` without false Amber triggers, while static frozen photos are isolated over rolling 4+ frames)
