@@ -437,52 +437,6 @@ export const PackingView: React.FC = () => {
                   </div>
                 </div>
               </div>
-
-              {/* Real Code 39 Scannable Barcode Display */}
-              <div className="pt-3 pb-2 flex flex-col items-center justify-center space-y-2 bg-white rounded-xl">
-                <div className="w-full flex items-center justify-center gap-[1.5px] h-14 px-4 bg-white">
-                  {/* High contrast, scannable barcode bars with quiet zones */}
-                  {[
-                    // Start '*'
-                    1, 2.5, 1, 1, 2.5, 1, 2.5, 1, 1, 0,
-                    // 'P'
-                    1, 1, 2.5, 1, 2.5, 1, 1, 1, 2.5, 0,
-                    // 'K'
-                    2.5, 1, 1, 1, 1, 1, 1, 2.5, 2.5, 0,
-                    // '-'
-                    1, 2.5, 1, 1, 1, 1, 2.5, 1, 2.5, 0,
-                    // 'B'
-                    1, 1, 2.5, 1, 1, 2.5, 1, 1, 2.5, 0,
-                    // 'O'
-                    2.5, 1, 1, 1, 2.5, 1, 1, 2.5, 1, 0,
-                    // 'X'
-                    1, 2.5, 1, 1, 2.5, 1, 1, 1, 2.5, 0,
-                    // '-'
-                    1, 2.5, 1, 1, 1, 1, 2.5, 1, 2.5, 0,
-                    // '0'
-                    1, 1, 1, 2.5, 2.5, 1, 2.5, 1, 1, 0,
-                    // '0'
-                    1, 1, 1, 2.5, 2.5, 1, 2.5, 1, 1, 0,
-                    // '0'
-                    1, 1, 1, 2.5, 2.5, 1, 2.5, 1, 1, 0,
-                    // '1'
-                    2.5, 1, 1, 2.5, 1, 1, 1, 1, 2.5, 0,
-                    // Stop '*'
-                    1, 2.5, 1, 1, 2.5, 1, 2.5, 1, 1
-                  ].map((bar, i) => {
-                    if (bar === 0) return <div key={i} className="w-[1.8px] h-full bg-transparent" />;
-                    return (
-                      <div 
-                        key={i} 
-                        className={`bg-black h-full ${bar > 1.5 ? 'w-[2.8px]' : 'w-[1.1px]'}`} 
-                      />
-                    );
-                  })}
-                </div>
-                <div className="font-mono text-[9px] tracking-wider text-center text-[#17191c] font-bold">
-                  *PK-BOX-{String(currentMasterCounter + 1).padStart(4, '0')}*  |  WO: {activeLot?.woNo || 'WO-1042'}  |  QTY: {pcsPerBox} PCS
-                </div>
-              </div>
             </div>
 
             {/* Direct Action */}

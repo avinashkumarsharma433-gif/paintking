@@ -1,7 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { PlantLocation } from '../types/portalTypes';
 import { PAINTKING_LOGO_BASE64 } from '../utils/paintkingLogoBase64';
-import { renderScannableCode39 } from './code39BarcodeService';
 
 export interface BoxLabelItem {
   globalBoxNumber: number; // Continuous sequential counter (e.g. 1, 2, 3...)
@@ -202,7 +201,7 @@ function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
   // 5. LARGE QUANTITY HERO BLOCK
   curY += 2;
   const heroCardY = curY;
-  const heroCardH = 17;
+  const heroCardH = 20; // Expanded nicely for full breathing room
   const heroCardW = contentW - 4;
   const heroCardX = margin + 2;
 
@@ -210,52 +209,52 @@ function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
   doc.setFillColor(250, 247, 237); // Champagne light
   doc.setDrawColor(192, 151, 72);
   doc.setLineWidth(0.45);
-  doc.roundedRect(heroCardX, heroCardY, heroCardW, heroCardH, 2, 2, 'FD');
+  doc.roundedRect(heroCardX, heroCardY, heroCardW, heroCardH, 2.5, 2.5, 'FD');
 
   // Subtle vertical dividing dotted line
   const dividerX = heroCardX + 50;
   doc.setDrawColor(220, 205, 175);
   doc.setLineWidth(0.3);
-  doc.line(dividerX, heroCardY + 2, dividerX, heroCardY + heroCardH - 2);
+  doc.line(dividerX, heroCardY + 2.5, dividerX, heroCardY + heroCardH - 2.5);
 
   // Left Column: Box Quantity
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6);
+  doc.setFontSize(6.5);
   doc.setTextColor(138, 101, 33);
-  doc.text('BOX QUANTITY:', heroCardX + 4, heroCardY + 4.8);
+  doc.text('BOX QUANTITY:', heroCardX + 4.5, heroCardY + 5.5);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14.5);
+  doc.setFontSize(16);
   doc.setTextColor(23, 25, 28);
-  doc.text(`${box.boxQty} PCS`, heroCardX + 4, heroCardY + 12.2);
+  doc.text(`${box.boxQty} PCS`, heroCardX + 4.5, heroCardY + 14.2);
 
   // Middle Column: Total Lot Size (Cleanly positioned between dividers)
   const lotColX = heroCardX + 54;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.5);
+  doc.setFontSize(6.0);
   doc.setTextColor(119, 123, 134);
-  doc.text('TOTAL LOT SIZE:', lotColX, heroCardY + 5.0);
+  doc.text('TOTAL LOT SIZE:', lotColX, heroCardY + 5.5);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10.5);
+  doc.setFontSize(11);
   doc.setTextColor(23, 25, 28);
-  doc.text(`${box.totalLotQty} PCS`, lotColX, heroCardY + 10.4);
+  doc.text(`${box.totalLotQty} PCS`, lotColX, heroCardY + 12.0);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(4.4);
+  doc.setFontSize(4.8);
   doc.setTextColor(119, 123, 134);
-  doc.text('100% INSPECTED', lotColX, heroCardY + 14.0);
+  doc.text('100% INSPECTED', lotColX, heroCardY + 16.5);
 
   // Far Right: Authentic Circular "QC PASSED" Green Sticker Stamp (Pure Text, No Tick)
-  const circleCenterX = heroCardX + heroCardW - 10;
-  const circleCenterY = heroCardY + 8.5;
-  const outerR = 6.2;
-  const innerR = 5.2;
+  const circleCenterX = heroCardX + heroCardW - 10.5;
+  const circleCenterY = heroCardY + 10.0;
+  const outerR = 7.0;
+  const innerR = 5.8;
 
   // Outer green fill circle with border
   doc.setFillColor(236, 253, 245); // emerald-50
   doc.setDrawColor(5, 150, 105);   // emerald-600
-  doc.setLineWidth(0.45);
+  doc.setLineWidth(0.5);
   doc.circle(circleCenterX, circleCenterY, outerR, 'FD');
 
   // Inner circular ring
@@ -265,30 +264,12 @@ function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
 
   // Centered Badge Text inside circle (No tickmark)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.0);
+  doc.setFontSize(8.0);
   doc.setTextColor(4, 120, 87);
-  doc.text('QC', circleCenterX, circleCenterY - 0.3, { align: 'center' });
+  doc.text('QC', circleCenterX, circleCenterY - 0.4, { align: 'center' });
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(3.8);
+  doc.setFontSize(4.2);
   doc.setTextColor(5, 150, 105);
-  doc.text('PASSED', circleCenterX, circleCenterY + 3.0, { align: 'center' });
-
-  curY = heroCardY + heroCardH + 2.5;
-
-  // 6. REAL SCANNABLE CODE 39 BARCODE (High Contrast & Clear Quiet Zones)
-  const barcodeY = curY + 2;
-  const barcodeH = 18; // Spacious, tall & easily scannable
-  doc.setFillColor(255, 255, 255);
-  doc.rect(margin + 2, barcodeY - 1, contentW - 4, barcodeH + 8, 'F');
-
-  // Real scannable Code 39 barcode string (e.g. PK-BOX-0001)
-  const barcodeRawData = `${box.boxSerialText}`;
-  renderScannableCode39(doc, barcodeRawData, margin + 4, barcodeY, contentW - 8, barcodeH);
-
-  doc.setFont('courier', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(23, 25, 28);
-  const barcodeLegend = `*${box.boxSerialText}*  |  WO: ${box.woNo}  |  QTY: ${box.boxQty} PCS`;
-  doc.text(barcodeLegend, pageW / 2, barcodeY + barcodeH + 5, { align: 'center' });
+  doc.text('PASSED', circleCenterX, circleCenterY + 3.4, { align: 'center' });
 }
