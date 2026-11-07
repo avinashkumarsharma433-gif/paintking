@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-07: Real 3D Depth Parallax Disparity vs Flat 2D Screen Anti-Spoofing
+  - Files touched:
+    - `src/portal/services/antiSpoofService.ts` (Integrated multi-frame 3D depth parallax ratio between nose-tip, eyes, and chin + natural eye variance threshold (0.012); screen photos/monitors hold rigid 2D planar geometry with zero depth disparity and zero involuntary eye dynamics, immediately triggering Amber `SPOOF_SUSPECTED` and blocking punch)
+  - Search string: `Natural Involuntary 3D Coordinate Tremor`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Zero-Effort Automatic Passive Liveness (No Manual Blink/Head-Turn Prompts)
   - Files touched:
     - `src/portal/services/antiSpoofService.ts` (Implemented `evaluatePassiveMicroLiveness` which tracks involuntary natural eye tremors and respiratory coordinate micro-motion over consecutive video frames; static 2D paper/screen photos are rejected automatically with 0 prompt required)
