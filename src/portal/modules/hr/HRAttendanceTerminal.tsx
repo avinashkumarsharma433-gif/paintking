@@ -410,20 +410,31 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                   lastPunchCooldownRef.current.set(emp.id, nowMs);
                   matchHistoryRef.current.delete(emp.id); // Reset buffer on successful punch
 
-                  // Extract small evidence snapshot thumbnail (120x120)
+                  // Extract wide-angle evidence snapshot (with surroundings/margins)
                   let snapshotDataUrl: string | undefined;
                   try {
                     const snapCanvas = document.createElement('canvas');
-                    snapCanvas.width = 120;
-                    snapCanvas.height = 120;
+                    // 320x240 provides sharp wide frame showing person, hands, phone/paper borders, and background
+                    snapCanvas.width = 320;
+                    snapCanvas.height = 240;
                     const sctx = snapCanvas.getContext('2d');
                     if (sctx) {
-                      const bx = Math.max(0, (face.box.x / 100) * canvas.width);
-                      const by = Math.max(0, (face.box.y / 100) * canvas.height);
-                      const bw = Math.max(20, (face.box.width / 100) * canvas.width);
-                      const bh = Math.max(20, (face.box.height / 100) * canvas.height);
-                      sctx.drawImage(canvas, bx, by, bw, bh, 0, 0, 120, 120);
-                      snapshotDataUrl = snapCanvas.toDataURL('image/jpeg', 0.65);
+                      // Expand bounding box by 90% padding to capture surrounding environment
+                      const faceX = (face.box.x / 100) * canvas.width;
+                      const faceY = (face.box.y / 100) * canvas.height;
+                      const faceW = (face.box.width / 100) * canvas.width;
+                      const faceH = (face.box.height / 100) * canvas.height;
+
+                      const padX = faceW * 0.9;
+                      const padY = faceH * 0.7;
+
+                      const cropX = Math.max(0, faceX - padX);
+                      const cropY = Math.max(0, faceY - padY);
+                      const cropW = Math.min(canvas.width - cropX, faceW + padX * 2);
+                      const cropH = Math.min(canvas.height - cropY, faceH + padY * 2);
+
+                      sctx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, 320, 240);
+                      snapshotDataUrl = snapCanvas.toDataURL('image/jpeg', 0.72);
                     }
                   } catch {
                     // snapshot optional

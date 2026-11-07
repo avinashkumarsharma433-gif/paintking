@@ -485,11 +485,11 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
       {/* CAMERA EVIDENCE INSPECTION MODAL */}
       {viewingEvidence && (
         <div className="fixed inset-0 z-50 bg-[#17191c]/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-[24px] border border-[#ececec] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in duration-200">
+          <div className="bg-white rounded-[24px] border border-[#ececec] shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in duration-200">
             <div className="p-5 border-b border-[#ececec] bg-[#fafafb] flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c09748] block">
-                  Biometric Audit Snapshot
+                  Biometric Audit Snapshot (Wide Angle Proof)
                 </span>
                 <h3 className="text-base font-serif text-[#17191c] mt-0.5">
                   Camera Evidence: {viewingEvidence.employeeName}
@@ -504,9 +504,9 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* IN PUNCH PHOTO */}
-                <div className="flex flex-col items-center p-3 rounded-[18px] bg-[#fafafb] border border-[#ececec]">
+                <div className="flex flex-col items-center p-3.5 rounded-[18px] bg-[#fafafb] border border-[#ececec]">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-2">
                     Punch In ({viewingEvidence.inTime || '—'})
                   </span>
@@ -514,10 +514,10 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
                     <img
                       src={viewingEvidence.inEvidence.snapshotDataUrl}
                       alt="Punch In Snapshot"
-                      className="w-28 h-28 object-cover rounded-xl border border-[#dcdfe4] shadow-xs"
+                      className="w-full h-48 object-cover rounded-xl border border-[#dcdfe4] shadow-xs"
                     />
                   ) : (
-                    <div className="w-28 h-28 rounded-xl bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">
+                    <div className="w-full h-48 rounded-xl bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">
                       No Photo
                     </div>
                   )}
@@ -528,7 +528,7 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
                 </div>
 
                 {/* OUT PUNCH PHOTO */}
-                <div className="flex flex-col items-center p-3 rounded-[18px] bg-[#fafafb] border border-[#ececec]">
+                <div className="flex flex-col items-center p-3.5 rounded-[18px] bg-[#fafafb] border border-[#ececec]">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 mb-2">
                     Punch Out ({viewingEvidence.outTime || 'On-Duty'})
                   </span>
@@ -536,10 +536,10 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
                     <img
                       src={viewingEvidence.outEvidence.snapshotDataUrl}
                       alt="Punch Out Snapshot"
-                      className="w-28 h-28 object-cover rounded-xl border border-[#dcdfe4] shadow-xs"
+                      className="w-full h-48 object-cover rounded-xl border border-[#dcdfe4] shadow-xs"
                     />
                   ) : (
-                    <div className="w-28 h-28 rounded-xl bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">
+                    <div className="w-full h-48 rounded-xl bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">
                       No Photo
                     </div>
                   )}
