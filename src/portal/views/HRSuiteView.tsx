@@ -129,46 +129,8 @@ export const HRSuiteView: React.FC = () => {
       // fallback
     }
 
-    // Default mock records for today
-    const today = new Date().toISOString().split('T')[0];
-    return [
-      {
-        id: `REC-${Date.now()}-1`,
-        employeeId: 'PK-EMP-0101',
-        employeeName: 'Rahul Sharma',
-        department: 'Liquid Coating',
-        date: today,
-        inTime: '08:54:12',
-        shiftName: 'General (09:00 - 18:00)',
-        status: 'PRESENT',
-        inLocation: {
-          lat: 19.2094833,
-          lng: 72.8256194,
-          accuracy: 8,
-          distanceToHQ: 14,
-          isHQVerified: true,
-          locationName: 'Mumbai Head Office & R&D Lab',
-        },
-      },
-      {
-        id: `REC-${Date.now()}-2`,
-        employeeId: 'PK-EMP-0102',
-        employeeName: 'Pooja Vishwakarma',
-        department: 'Quality Assurance',
-        date: today,
-        inTime: '09:22:45',
-        shiftName: 'Morning Shift A (06:00 - 14:30)',
-        status: 'LATE',
-        inLocation: {
-          lat: 19.2094833,
-          lng: 72.8256194,
-          accuracy: 12,
-          distanceToHQ: 22,
-          isHQVerified: true,
-          locationName: 'Mumbai Head Office & R&D Lab',
-        },
-      },
-    ];
+    // Default empty array - zero fake records on fresh/cleared storage
+    return [];
   });
 
   // Save changes to localStorage
@@ -274,7 +236,7 @@ export const HRSuiteView: React.FC = () => {
       const safePrev = Array.isArray(prev) ? prev.filter((r): r is AttendanceRecord => Boolean(r && r.id)) : [];
       const existing = safePrev.find((r) => Boolean(r && r.employeeId === employee.id && r.date === today));
 
-      if (type === 'OUT' && existing) {
+      if (type === 'OUT' && existing && existing.inTime) {
         // Rolling Update: Har baar jab camera ke aage aayega, outTime extend/update ho jayega
         const [inH, inM] = (existing.inTime || '09:00').split(':').map(Number);
         const [outH, outM] = timeStr.split(':').map(Number);
@@ -292,9 +254,8 @@ export const HRSuiteView: React.FC = () => {
               }
             : r
         );
-      } else {
-        // Create new IN punch
-        // Check if late (after 09:15 for general shift)
+      } else if (!existing || !existing.inTime) {
+        // Create new IN punch on new day or if no IN exists yet
         const isLate = timeStr > '09:15:00';
         const newRecord: AttendanceRecord = {
           id: `REC-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -309,6 +270,9 @@ export const HRSuiteView: React.FC = () => {
           shiftName: employee.shift || 'General',
         };
         return [newRecord, ...safePrev];
+      } else {
+        // Fallback: If somehow type was 'IN' but record exists, update or return
+        return safePrev;
       }
     });
   };
