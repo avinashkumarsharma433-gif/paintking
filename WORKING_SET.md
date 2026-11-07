@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-07: Auto Box Splitter, Continuous Counter & Multi-Page 4x6 Thermal Label PDF
+  - Files touched:
+    - `src/portal/services/boxLabelPdfService.ts` (Continuous factory box serial counter stored in localStorage `pk_master_box_counter`, auto box calculation, and multi-page vector 4"x6" thermal PDF generator with vector barcode, customer, WO, part name, batch, box qty, and OQC stamp)
+    - `src/portal/views/PackingView.tsx` (Revamped Packing & Box QR screen: Selects OQC passed lot, enters pieces per box e.g. 150 pcs, auto-splits 1000 pcs into 7 boxes with breakdown table, shows 4x6 live specimen, and downloads complete 7-page thermal printable PDF in 1 click)
+  - Search string: `generateMultiBoxThermalLabelPDF`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Search-Filtered Single-Employee Monthly Attendance Excel Export
   - Files touched:
     - `src/portal/services/musterRollExportService.ts` (Accepts optional `employeeFilter` string; exports only the filtered employee(s) matching the search query with a clean filename like `PaintKing_Plant_Muster_Roll_2026-11_Rahul_Sharma_PK-EMP-01.csv`)
