@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-07: Search-Filtered Single-Employee Monthly Attendance Excel Export
+  - Files touched:
+    - `src/portal/services/musterRollExportService.ts` (Accepts optional `employeeFilter` string; exports only the filtered employee(s) matching the search query with a clean filename like `PaintKing_Plant_Muster_Roll_2026-11_Rahul_Sharma_PK-EMP-01.csv`)
+    - `src/portal/modules/hr/HRAttendanceRegister.tsx` (Top button adapts to `Export Monthly (<Name>)` when search is typed; also added individual `FileSpreadsheet` 📊 button on each row in both desktop table and mobile cards)
+  - Search string: `fileSuffix = targetEmployees.length === 1`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Completed 4 Core HR Modules (Salary Slip, Muster Roll, ID Card & Shift Rules)
   - Files touched:
     - `src/portal/services/employeeIdCardPdfService.ts` (CR80 standard 54x86mm printable plant ID card with employee photo, department, shift, emergency contact and ISO stamp)
