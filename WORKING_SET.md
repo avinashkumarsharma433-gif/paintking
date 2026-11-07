@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-07: Fix Initial Punch on New Date to Always Register IN Punch
+  - Files touched:
+    - `src/portal/views/HRSuiteView.tsx` (Removed hardcoded mock attendance records that pre-populated today with Rahul and Pooja; strictly enforced that new date detection without prior IN punch always registers Punch IN)
+  - Search string: `Create new IN punch on new day`
+  - Status: Verified with production build and pushed to origin/main.
+
 - 2026-11-06: Overtime (OT) Eligibility Toggle with Proportional Wage Formula
   - Files touched:
     - `src/portal/modules/hr/HREmployeeDirectory.tsx` (Added Overtime (OT) Eligible toggle switch with live hourly wage hint, e.g. ₹800/8h = ₹100/hr)
