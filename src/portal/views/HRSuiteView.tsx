@@ -30,24 +30,38 @@ import { biometricVault, recordBiometricAudit } from '../services/secureBiometri
 const INITIAL_EMPLOYEES: Employee[] = [];
 
 export const HRSuiteView: React.FC = () => {
-  const { activeSubTab } = usePortalStore();
+  const { activeSubTab, setActiveSubTab } = usePortalStore();
   const [activeTab, setActiveTab] = useState<'TERMINAL' | 'REGISTER' | 'DIRECTORY' | 'LEAVE' | 'LAB' | 'PAYROLL'>(() => {
-    if (activeSubTab === 'LEAVE_APP') return 'LEAVE';
-    if (activeSubTab === 'ATTENDANCE') return 'TERMINAL';
-    if (activeSubTab === 'ROSTER') return 'REGISTER';
+    if (activeSubTab === 'TERMINAL') return 'TERMINAL';
+    if (activeSubTab === 'REGISTER') return 'REGISTER';
+    if (activeSubTab === 'DIRECTORY') return 'DIRECTORY';
+    if (activeSubTab === 'LEAVE' || activeSubTab === 'LEAVE_APP') return 'LEAVE';
+    if (activeSubTab === 'LAB') return 'LAB';
+    if (activeSubTab === 'PAYROLL') return 'PAYROLL';
     return 'TERMINAL';
   });
 
   // Sync subTab from Sidebar navigation
   useEffect(() => {
-    if (activeSubTab === 'LEAVE_APP') {
-      setActiveTab('LEAVE');
-    } else if (activeSubTab === 'ATTENDANCE') {
+    if (activeSubTab === 'TERMINAL') {
       setActiveTab('TERMINAL');
-    } else if (activeSubTab === 'ROSTER') {
+    } else if (activeSubTab === 'REGISTER' || activeSubTab === 'ROSTER') {
       setActiveTab('REGISTER');
+    } else if (activeSubTab === 'DIRECTORY') {
+      setActiveTab('DIRECTORY');
+    } else if (activeSubTab === 'LEAVE' || activeSubTab === 'LEAVE_APP') {
+      setActiveTab('LEAVE');
+    } else if (activeSubTab === 'LAB') {
+      setActiveTab('LAB');
+    } else if (activeSubTab === 'PAYROLL') {
+      setActiveTab('PAYROLL');
     }
   }, [activeSubTab]);
+
+  const handleTabSwitch = (tab: 'TERMINAL' | 'REGISTER' | 'DIRECTORY' | 'LEAVE' | 'LAB' | 'PAYROLL') => {
+    setActiveTab(tab);
+    setActiveSubTab(tab);
+  };
 
   // Load from localStorage or initialize with clean empty state (Zero hardcoded profiles)
   const [employees, setEmployees] = useState<Employee[]>(() => {
@@ -282,7 +296,7 @@ export const HRSuiteView: React.FC = () => {
       {/* Top HR Navigation Navigation Strip */}
       <div className="flex flex-wrap items-center gap-2 p-1.5 bg-[#fafafb] border border-[#ececec] rounded-[24px]">
         <button
-          onClick={() => setActiveTab('TERMINAL')}
+          onClick={() => handleTabSwitch('TERMINAL')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
             activeTab === 'TERMINAL'
               ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
@@ -294,7 +308,7 @@ export const HRSuiteView: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('REGISTER')}
+          onClick={() => handleTabSwitch('REGISTER')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
             activeTab === 'REGISTER'
               ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
@@ -306,7 +320,7 @@ export const HRSuiteView: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('DIRECTORY')}
+          onClick={() => handleTabSwitch('DIRECTORY')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
             activeTab === 'DIRECTORY'
               ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
@@ -318,7 +332,7 @@ export const HRSuiteView: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('LEAVE')}
+          onClick={() => handleTabSwitch('LEAVE')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
             activeTab === 'LEAVE'
               ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
@@ -330,7 +344,7 @@ export const HRSuiteView: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('LAB')}
+          onClick={() => handleTabSwitch('LAB')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
             activeTab === 'LAB'
               ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
@@ -342,7 +356,7 @@ export const HRSuiteView: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('PAYROLL')}
+          onClick={() => handleTabSwitch('PAYROLL')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
             activeTab === 'PAYROLL'
               ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'

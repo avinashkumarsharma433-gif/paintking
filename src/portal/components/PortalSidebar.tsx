@@ -271,16 +271,19 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
     },
     {
       id: 'hr_leave',
-      label: 'HR Leave Desk',
-      subtitle: 'Attendance & Plant Shift Governance',
+      label: 'Human Resources & Admin',
+      subtitle: 'Attendance, Biometrics & Payroll',
       docCode: 'PK-HR-LV-01',
       icon: UserCheck,
       badge: null,
       roles: ['DIRECTOR', 'PLANT_HEAD', 'HR', 'DEPT_INCHARGE', 'PRODUCTION', 'STORES', 'QA_QC', 'MANAGER_QA', 'OPERATOR', 'SECURITY', 'BILLING'],
       subItems: [
-        { label: 'Leave Application & Balance', subTab: 'LEAVE_APP' },
-        { label: 'Shift Attendance (08:30–18:30)', subTab: 'ATTENDANCE' },
-        { label: 'Operator Deployment Roster', subTab: 'ROSTER' }
+        { label: 'Live Face Terminal', subTab: 'TERMINAL' },
+        { label: 'Attendance Register', subTab: 'REGISTER' },
+        { label: 'Employee Master & Biometrics', subTab: 'DIRECTORY' },
+        { label: 'Leave Sanctions (PK-HR-LV-01)', subTab: 'LEAVE' },
+        { label: 'Recognition Lab (Admin)', subTab: 'LAB' },
+        { label: 'Payroll & OT Wages', subTab: 'PAYROLL' }
       ]
     },
     {
