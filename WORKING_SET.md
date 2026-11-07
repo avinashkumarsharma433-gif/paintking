@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-07: One-Click HR Data Purge & Zero Hardcoded Records
+  - Files touched:
+    - `src/portal/views/HRSuiteView.tsx` (Added `Reset / Clear All HR Data` button that completely wipes old cached records, Pooja/Rahul records, and IndexedDB biometric vaults from the browser, allowing the user to start completely fresh with their own created profiles)
+  - Search string: `handleClearAllData`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Zero Hardcoded Profiles, Full LocalStorage Isolation & Employee Deletion
   - Files touched:
     - `src/portal/views/HRSuiteView.tsx` (Removed all mock employees; strict initial empty array `[]` loading directly from `localStorage.getItem('pk_hr_employees')`; wired `onDeleteEmployee` handler purging both profile and encrypted IndexedDB biometric templates)
