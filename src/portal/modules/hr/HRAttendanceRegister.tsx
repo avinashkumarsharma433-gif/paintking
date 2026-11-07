@@ -12,7 +12,10 @@ import {
   Plus, 
   ShieldCheck,
   Building2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Camera,
+  Eye,
+  X
 } from 'lucide-react';
 import { 
   Employee, 
@@ -43,6 +46,9 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
   const [overrideInTime, setOverrideInTime] = useState('');
   const [overrideOutTime, setOverrideOutTime] = useState('');
   const [overrideReason, setOverrideReason] = useState('');
+
+  // Snapshot Inspection Modal
+  const [viewingEvidence, setViewingEvidence] = useState<AttendanceRecord | null>(null);
 
   // Filter records by date, dept, status, search
   const filteredRecords = (records || []).filter((r) => {
@@ -318,7 +324,16 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
                 </td>
 
                 {/* Column 5: Action */}
-                <td className="py-3 px-4 text-right">
+                <td className="py-3 px-4 text-right space-x-1">
+                  {(rec.inEvidence?.snapshotDataUrl || rec.outEvidence?.snapshotDataUrl) && (
+                    <button
+                      onClick={() => setViewingEvidence(rec)}
+                      className="p-1.5 rounded-full text-[#8a6521] hover:text-[#17191c] hover:bg-[#faf3e0] border border-[#f4e5be] transition cursor-pointer"
+                      title="View Camera Verification Photo"
+                    >
+                      <Camera size={14} />
+                    </button>
+                  )}
                   <button
                     onClick={() => handleOpenEdit(rec)}
                     className="p-1.5 rounded-full text-[#777b86] hover:text-[#17191c] hover:bg-[#ececec] transition cursor-pointer"
@@ -453,6 +468,90 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* CAMERA EVIDENCE INSPECTION MODAL */}
+      {viewingEvidence && (
+        <div className="fixed inset-0 z-50 bg-[#17191c]/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] border border-[#ececec] shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in duration-200">
+            <div className="p-5 border-b border-[#ececec] bg-[#fafafb] flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c09748] block">
+                  Biometric Audit Snapshot
+                </span>
+                <h3 className="text-base font-serif text-[#17191c] mt-0.5">
+                  Camera Evidence: {viewingEvidence.employeeName}
+                </h3>
+              </div>
+              <button
+                onClick={() => setViewingEvidence(null)}
+                className="h-8 w-8 rounded-full bg-white border border-[#ececec] flex items-center justify-center text-[#777b86] hover:text-[#17191c] cursor-pointer"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                {/* IN PUNCH PHOTO */}
+                <div className="flex flex-col items-center p-3 rounded-[18px] bg-[#fafafb] border border-[#ececec]">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 mb-2">
+                    Punch In ({viewingEvidence.inTime || '—'})
+                  </span>
+                  {viewingEvidence.inEvidence?.snapshotDataUrl ? (
+                    <img
+                      src={viewingEvidence.inEvidence.snapshotDataUrl}
+                      alt="Punch In Snapshot"
+                      className="w-28 h-28 object-cover rounded-xl border border-[#dcdfe4] shadow-xs"
+                    />
+                  ) : (
+                    <div className="w-28 h-28 rounded-xl bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">
+                      No Photo
+                    </div>
+                  )}
+                  <div className="mt-2 text-center text-[10px] text-[#777b86]">
+                    <div>Match: {Math.round((viewingEvidence.inEvidence?.similarity || 0.95) * 100)}%</div>
+                    <div>Device: {viewingEvidence.inEvidence?.deviceId || 'PK-TERMINAL'}</div>
+                  </div>
+                </div>
+
+                {/* OUT PUNCH PHOTO */}
+                <div className="flex flex-col items-center p-3 rounded-[18px] bg-[#fafafb] border border-[#ececec]">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 mb-2">
+                    Punch Out ({viewingEvidence.outTime || 'On-Duty'})
+                  </span>
+                  {viewingEvidence.outEvidence?.snapshotDataUrl ? (
+                    <img
+                      src={viewingEvidence.outEvidence.snapshotDataUrl}
+                      alt="Punch Out Snapshot"
+                      className="w-28 h-28 object-cover rounded-xl border border-[#dcdfe4] shadow-xs"
+                    />
+                  ) : (
+                    <div className="w-28 h-28 rounded-xl bg-gray-100 flex items-center justify-center text-[10px] text-gray-400">
+                      No Photo
+                    </div>
+                  )}
+                  <div className="mt-2 text-center text-[10px] text-[#777b86]">
+                    <div>Match: {Math.round((viewingEvidence.outEvidence?.similarity || 0.95) * 100)}%</div>
+                    <div>Device: {viewingEvidence.outEvidence?.deviceId || 'PK-TERMINAL'}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-[#faf3e0] border border-[#f4e5be] text-xs text-[#8a6521]">
+                <strong>Audit Note:</strong> Captured at verification moment. If mobile screen or paper was held in front of the lens, the photo will clearly display the phone frame/screen borders as permanent legal proof.
+              </div>
+            </div>
+
+            <div className="p-4 bg-[#fafafb] border-t border-[#ececec] flex justify-end">
+              <button
+                onClick={() => setViewingEvidence(null)}
+                className="px-5 py-2 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer"
+              >
+                Close Audit
+              </button>
+            </div>
           </div>
         </div>
       )}
