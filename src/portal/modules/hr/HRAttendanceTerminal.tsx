@@ -74,11 +74,11 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
     strictGeofence: true,
     bypassGeofenceForDev: false, // Strict geofence enforcement
     minRecognitionConfidence: 0.46, // Strict Euclidean distance limit
-    cooldownMinutes: 5,
+    cooldownMinutes: 1,
     requiredConsecutiveFrames: 3, // Multi-frame confirmation default
     minRecognitionMargin: 0.04, // Minimum distance margin over second-best
     terminalMode: 'AUTO',
-    minPunchGapMinutes: 15,
+    minPunchGapMinutes: 2,
     maxShiftDurationHours: 16,
   });
 
@@ -697,10 +697,26 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
               </label>
               <input
                 type="number"
-                min="1"
+                min="0.5"
+                step="0.5"
                 max="60"
                 value={config.cooldownMinutes}
-                onChange={(e) => setConfig({ ...config, cooldownMinutes: parseInt(e.target.value) || 5 })}
+                onChange={(e) => setConfig({ ...config, cooldownMinutes: parseFloat(e.target.value) || 1 })}
+                className="w-full px-3 py-2 text-xs bg-[#fafafb] border border-[#ececec] rounded-[16px] text-[#17191c] focus:outline-none focus:border-[#c09748]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-[#17191c] mb-1">
+                Min Gap Between IN & OUT (Minutes)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                max="120"
+                value={config.minPunchGapMinutes ?? 2}
+                onChange={(e) => setConfig({ ...config, minPunchGapMinutes: parseFloat(e.target.value) || 0 })}
                 className="w-full px-3 py-2 text-xs bg-[#fafafb] border border-[#ececec] rounded-[16px] text-[#17191c] focus:outline-none focus:border-[#c09748]"
               />
             </div>
