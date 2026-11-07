@@ -16,9 +16,11 @@ import {
   Camera,
   Trash2,
   Edit2,
-  DollarSign
+  DollarSign,
+  CreditCard
 } from 'lucide-react';
 import { Employee } from '../../types/hrAttendanceTypes';
+import { generateEmployeeIdCardPDF } from '../../services/employeeIdCardPdfService';
 
 interface HREmployeeDirectoryProps {
   employees: Employee[];
@@ -317,6 +319,14 @@ export const HREmployeeDirectory: React.FC<HREmployeeDirectoryProps> = ({
               </span>
 
               <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => generateEmployeeIdCardPDF(emp)}
+                  title="Download Official Plant ID Card (CR80 PDF)"
+                  className="p-1.5 text-[#8a6521] hover:text-[#17191c] hover:bg-[#faf3e0] border border-[#f4e5be] rounded-full transition cursor-pointer"
+                >
+                  <CreditCard size={13} />
+                </button>
+
                 <button
                   onClick={() => openEditModal(emp)}
                   title="Edit Profile & Salary Rate"

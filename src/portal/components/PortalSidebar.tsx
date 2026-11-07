@@ -283,7 +283,8 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
         { label: 'Employee Master & Biometrics', subTab: 'DIRECTORY' },
         { label: 'Leave Sanctions (PK-HR-LV-01)', subTab: 'LEAVE' },
         { label: 'Recognition Lab (Admin)', subTab: 'LAB' },
-        { label: 'Payroll & OT Wages', subTab: 'PAYROLL' }
+        { label: 'Payroll & OT Wages', subTab: 'PAYROLL' },
+        { label: 'Shift Rules & Holidays', subTab: 'SHIFTS' }
       ]
     },
     {

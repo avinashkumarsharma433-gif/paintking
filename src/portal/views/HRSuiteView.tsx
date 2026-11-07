@@ -17,28 +17,107 @@ import { HRAttendanceTerminal } from '../modules/hr/HRAttendanceTerminal';
 import { HRAttendanceRegister } from '../modules/hr/HRAttendanceRegister';
 import { RecognitionLab } from '../modules/hr/RecognitionLab';
 import { HRPayrollView } from '../modules/hr/HRPayrollView';
+import { HRShiftSettings } from '../modules/hr/HRShiftSettings';
 import { HRLeaveView } from './HRLeaveView';
 import { 
   Employee, 
   AttendanceRecord, 
   LocationStamp,
-  PunchEvidenceMetadata
+  PunchEvidenceMetadata,
+  PlantShiftDefinition,
+  PlantHoliday
 } from '../types/hrAttendanceTypes';
 import { biometricVault, recordBiometricAudit } from '../services/secureBiometricStorage';
 
 // Zero Hardcoded Mock Employees - All managed via LocalStorage / User Input
 const INITIAL_EMPLOYEES: Employee[] = [];
 
+const DEFAULT_SHIFTS: PlantShiftDefinition[] = [
+  {
+    id: 'SHIFT_GEN',
+    name: 'General Day Shift (Plant Operations)',
+    code: 'GEN-01',
+    startTime: '09:00',
+    endTime: '18:00',
+    graceMinutes: 15,
+    halfDayThresholdHours: 4.0,
+    isNightShift: false,
+    isActive: true,
+  },
+  {
+    id: 'SHIFT_A',
+    name: 'Morning Shift A (Liquid & Hydro Coating)',
+    code: 'SFT-A',
+    startTime: '06:00',
+    endTime: '14:30',
+    graceMinutes: 15,
+    halfDayThresholdHours: 4.0,
+    isNightShift: false,
+    isActive: true,
+  },
+  {
+    id: 'SHIFT_B',
+    name: 'Evening Shift B (UV Plotting & Baking)',
+    code: 'SFT-B',
+    startTime: '14:00',
+    endTime: '22:30',
+    graceMinutes: 15,
+    halfDayThresholdHours: 4.0,
+    isNightShift: false,
+    isActive: true,
+  },
+  {
+    id: 'SHIFT_C',
+    name: 'Night Shift C (Moulding & Cleanroom)',
+    code: 'SFT-C',
+    startTime: '22:00',
+    endTime: '06:30',
+    graceMinutes: 15,
+    halfDayThresholdHours: 4.0,
+    isNightShift: true,
+    isActive: true,
+  },
+];
+
+const DEFAULT_HOLIDAYS: PlantHoliday[] = [
+  { id: 'HOL-1', name: 'Republic Day', date: '2026-01-26', isOptional: false },
+  { id: 'HOL-2', name: 'Holi / Rangwali', date: '2026-03-04', isOptional: false },
+  { id: 'HOL-3', name: 'Independence Day', date: '2026-08-15', isOptional: false },
+  { id: 'HOL-4', name: 'Mahatma Gandhi Jayanti', date: '2026-10-02', isOptional: false },
+  { id: 'HOL-5', name: 'Diwali / Deepawali (Plant Holiday)', date: '2026-11-08', isOptional: false },
+  { id: 'HOL-6', name: 'Govardhan Puja & Tooling Recalibration', date: '2026-11-09', isOptional: false },
+];
+
 export const HRSuiteView: React.FC = () => {
   const { activeSubTab, setActiveSubTab } = usePortalStore();
-  const [activeTab, setActiveTab] = useState<'TERMINAL' | 'REGISTER' | 'DIRECTORY' | 'LEAVE' | 'LAB' | 'PAYROLL'>(() => {
+  const [activeTab, setActiveTab] = useState<'TERMINAL' | 'REGISTER' | 'DIRECTORY' | 'LEAVE' | 'LAB' | 'PAYROLL' | 'SHIFTS'>(() => {
     if (activeSubTab === 'TERMINAL') return 'TERMINAL';
     if (activeSubTab === 'REGISTER') return 'REGISTER';
     if (activeSubTab === 'DIRECTORY') return 'DIRECTORY';
     if (activeSubTab === 'LEAVE' || activeSubTab === 'LEAVE_APP') return 'LEAVE';
     if (activeSubTab === 'LAB') return 'LAB';
     if (activeSubTab === 'PAYROLL') return 'PAYROLL';
+    if (activeSubTab === 'SHIFTS') return 'SHIFTS';
     return 'TERMINAL';
+  });
+
+  // Shifts and Holiday storage state
+  const [plantShifts, setPlantShifts] = useState<PlantShiftDefinition[]>(() => {
+    try {
+      const saved = localStorage.getItem('pk_plant_shifts');
+      return saved ? JSON.parse(saved) : DEFAULT_SHIFTS;
+    } catch {
+      return DEFAULT_SHIFTS;
+    }
+  });
+
+  const [plantHolidays, setPlantHolidays] = useState<PlantHoliday[]>(() => {
+    try {
+      const saved = localStorage.getItem('pk_plant_holidays');
+      return saved ? JSON.parse(saved) : DEFAULT_HOLIDAYS;
+    } catch {
+      return DEFAULT_HOLIDAYS;
+    }
   });
 
   // Sync subTab from Sidebar navigation
@@ -55,10 +134,12 @@ export const HRSuiteView: React.FC = () => {
       setActiveTab('LAB');
     } else if (activeSubTab === 'PAYROLL') {
       setActiveTab('PAYROLL');
+    } else if (activeSubTab === 'SHIFTS') {
+      setActiveTab('SHIFTS');
     }
   }, [activeSubTab]);
 
-  const handleTabSwitch = (tab: 'TERMINAL' | 'REGISTER' | 'DIRECTORY' | 'LEAVE' | 'LAB' | 'PAYROLL') => {
+  const handleTabSwitch = (tab: 'TERMINAL' | 'REGISTER' | 'DIRECTORY' | 'LEAVE' | 'LAB' | 'PAYROLL' | 'SHIFTS') => {
     setActiveTab(tab);
     setActiveSubTab(tab);
   };
@@ -366,6 +447,18 @@ export const HRSuiteView: React.FC = () => {
           <DollarSign size={15} className={activeTab === 'PAYROLL' ? 'text-[#c09748]' : 'text-[#979799]'} />
           <span>Payroll & OT Wages</span>
         </button>
+
+        <button
+          onClick={() => handleTabSwitch('SHIFTS')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+            activeTab === 'SHIFTS'
+              ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
+              : 'text-[#777b86] hover:text-[#17191c]'
+          }`}
+        >
+          <Clock size={15} className={activeTab === 'SHIFTS' ? 'text-[#c09748]' : 'text-[#979799]'} />
+          <span>Shift Rules & Holidays</span>
+        </button>
       </div>
 
       {/* Active Tab View */}
@@ -425,6 +518,21 @@ export const HRSuiteView: React.FC = () => {
             const updated = employees.map((e) => (e.id === empId ? { ...e, dailyRate: newRate } : e));
             setEmployees(updated);
             localStorage.setItem('pk_portal_employees_v1', JSON.stringify(updated));
+          }}
+        />
+      )}
+
+      {activeTab === 'SHIFTS' && (
+        <HRShiftSettings
+          shifts={plantShifts}
+          holidays={plantHolidays}
+          onSaveShifts={(updatedShifts) => {
+            setPlantShifts(updatedShifts);
+            localStorage.setItem('pk_plant_shifts', JSON.stringify(updatedShifts));
+          }}
+          onSaveHolidays={(updatedHolidays) => {
+            setPlantHolidays(updatedHolidays);
+            localStorage.setItem('pk_plant_holidays', JSON.stringify(updatedHolidays));
           }}
         />
       )}

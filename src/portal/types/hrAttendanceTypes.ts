@@ -151,3 +151,22 @@ export interface RecognitionStageLatency {
   matchingMs: number;
   totalPipelineMs: number;
 }
+
+export interface PlantShiftDefinition {
+  id: string; // e.g. "SHIFT_GEN"
+  name: string; // e.g. "General Day Shift"
+  code: string; // e.g. "GEN-01"
+  startTime: string; // e.g. "09:00"
+  endTime: string; // e.g. "18:00"
+  graceMinutes: number; // e.g. 15 (punch after 09:15 marked LATE)
+  halfDayThresholdHours: number; // e.g. 4.0
+  isNightShift: boolean; // crosses midnight
+  isActive: boolean;
+}
+
+export interface PlantHoliday {
+  id: string;
+  name: string; // e.g. "Diwali / Deepawali"
+  date: string; // YYYY-MM-DD
+  isOptional: boolean;
+}

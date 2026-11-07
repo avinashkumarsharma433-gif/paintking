@@ -22,6 +22,7 @@ import {
   AttendanceRecord, 
   AttendanceStatus 
 } from '../../types/hrAttendanceTypes';
+import { exportPlantMusterRollCSV } from '../../services/musterRollExportService';
 
 interface HRAttendanceRegisterProps {
   records: AttendanceRecord[];
@@ -132,7 +133,7 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
           <input
             type="date"
             value={selectedDate}
@@ -143,9 +144,19 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
           <button
             onClick={handleExportCSV}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer active:scale-95"
+            title="Export Today's Attendance Log"
           >
             <Download size={14} className="text-[#c09748]" />
-            <span>Export CSV</span>
+            <span>Daily CSV</span>
+          </button>
+
+          <button
+            onClick={() => exportPlantMusterRollCSV(employees, records, selectedDate.substring(0, 7))}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer active:scale-95"
+            title="Download Monthly Form 28 / Muster Roll (1-31 Matrix)"
+          >
+            <FileSpreadsheet size={14} className="text-[#c09748]" />
+            <span>Monthly Muster Roll (Excel)</span>
           </button>
         </div>
       </div>
