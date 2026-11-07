@@ -151,12 +151,12 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
           </button>
 
           <button
-            onClick={() => exportPlantMusterRollCSV(employees, records, selectedDate.substring(0, 7))}
+            onClick={() => exportPlantMusterRollCSV(employees, records, selectedDate.substring(0, 7), searchQuery)}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer active:scale-95"
-            title="Download Monthly Form 28 / Muster Roll (1-31 Matrix)"
+            title={searchQuery.trim() ? `Download Monthly Attendance for "${searchQuery}"` : "Download Monthly Form 28 / Muster Roll (1-31 Matrix)"}
           >
             <FileSpreadsheet size={14} className="text-[#c09748]" />
-            <span>Monthly Muster Roll (Excel)</span>
+            <span>{searchQuery.trim() ? `Export Monthly (${searchQuery.trim()})` : 'Monthly Muster Roll (Excel)'}</span>
           </button>
         </div>
       </div>
@@ -336,6 +336,14 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
 
                 {/* Column 5: Action */}
                 <td className="py-3 px-4 text-right space-x-1">
+                  <button
+                    onClick={() => exportPlantMusterRollCSV(employees, records, selectedDate.substring(0, 7), rec.employeeName)}
+                    className="p-1.5 rounded-full text-[#8a6521] hover:text-[#17191c] hover:bg-[#faf3e0] border border-[#f4e5be] transition cursor-pointer"
+                    title={`Download Monthly Attendance Log for ${rec.employeeName}`}
+                  >
+                    <FileSpreadsheet size={14} />
+                  </button>
+
                   {(rec.inEvidence?.snapshotDataUrl || rec.outEvidence?.snapshotDataUrl) && (
                     <button
                       onClick={() => setViewingEvidence(rec)}
@@ -390,6 +398,14 @@ export const HRAttendanceRegister: React.FC<HRAttendanceRegisterProps> = ({
                 <span>IN: {rec.inTime || '—'}</span>
                 <span>OUT: {rec.outTime || 'On-Duty'}</span>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => exportPlantMusterRollCSV(employees, records, selectedDate.substring(0, 7), rec.employeeName)}
+                    className="p-1 text-[#8a6521] hover:text-[#17191c]"
+                    title="Export Monthly Excel"
+                  >
+                    <FileSpreadsheet size={14} />
+                  </button>
+
                   {(rec.inEvidence?.snapshotDataUrl || rec.outEvidence?.snapshotDataUrl) && (
                     <button
                       onClick={() => setViewingEvidence(rec)}
