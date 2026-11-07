@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-07: Fixed Mobile Modal Height & Sticky Close Button in Evidence Viewer
+  - Files touched:
+    - `src/portal/modules/hr/HRAttendanceRegister.tsx` (Added `max-h-[90vh]` with flex-column layout, sticky header with top-right 'X' close button, scrollable body `overflow-y-auto`, and sticky footer 'Close Audit' button so close action is always visible on all mobile screens)
+  - Search string: `max-h-[90vh] flex flex-col`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Strict 1:1 Square Crop (300x300) Without Distortion
   - Files touched:
     - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Calculated center coordinate and extracted an exact square bounding box from video stream to target 300x300 canvas, guaranteeing 0 aspect stretch)
