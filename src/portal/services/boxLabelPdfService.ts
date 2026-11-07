@@ -229,49 +229,58 @@ function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
   doc.setTextColor(23, 25, 28);
   doc.text(`${box.boxQty} PCS`, heroCardX + 4, heroCardY + 12.2);
 
-  // Right Column: Total Lot Size + Premium QC PASSED Badge
-  const rightColX = heroCardX + heroCardW - 3;
-
+  // Middle-Right: Total Lot Size
+  const midRightX = heroCardX + 48;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(5.5);
   doc.setTextColor(119, 123, 134);
-  doc.text('TOTAL LOT SIZE:', rightColX, heroCardY + 4.6, { align: 'right' });
+  doc.text('TOTAL LOT SIZE:', midRightX, heroCardY + 5.2);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(23, 25, 28);
-  doc.text(`${box.totalLotQty} PCS`, rightColX, heroCardY + 9.2, { align: 'right' });
+  doc.text(`${box.totalLotQty} PCS`, midRightX, heroCardY + 10.2);
 
-  // Dedicated "QC PASSED" Industrial Stamp / Badge
-  const badgeW = 34;
-  const badgeH = 4.8;
-  const badgeX = rightColX - badgeW;
-  const badgeY = heroCardY + 10.6;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(4.4);
+  doc.setTextColor(100, 105, 115);
+  doc.text('100% INSPECTED', midRightX, heroCardY + 13.8);
 
-  // Badge Container: Emerald pill tint
+  // Far Right: Authentic Circular "QC PASSED" Green Sticker Stamp
+  const circleCenterX = heroCardX + heroCardW - 9;
+  const circleCenterY = heroCardY + 8.5;
+  const outerR = 6.2;
+  const innerR = 5.2;
+
+  // Outer green fill circle with border
   doc.setFillColor(236, 253, 245); // emerald-50
   doc.setDrawColor(5, 150, 105);   // emerald-600
-  doc.setLineWidth(0.3);
-  doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.2, 1.2, 'FD');
+  doc.setLineWidth(0.4);
+  doc.circle(circleCenterX, circleCenterY, outerR, 'FD');
 
-  // Vector Checkmark inside badge (never corrupts like unicode ✓)
-  doc.setDrawColor(4, 120, 87);
-  doc.setLineWidth(0.45);
-  const checkX = badgeX + 2.2;
-  const checkY = badgeY + 2.4;
-  doc.line(checkX, checkY, checkX + 0.9, checkY + 1.2);
-  doc.line(checkX + 0.9, checkY + 1.2, checkX + 2.4, checkY - 1.2);
+  // Inner decorative dashed/fine circular ring
+  doc.setDrawColor(16, 185, 129);  // emerald-500
+  doc.setLineWidth(0.2);
+  doc.circle(circleCenterX, circleCenterY, innerR, 'S');
 
-  // Badge Text
+  // Vector Checkmark icon inside circle
+  doc.setDrawColor(4, 120, 87);    // emerald-700
+  doc.setLineWidth(0.5);
+  const vCheckX = circleCenterX - 1.4;
+  const vCheckY = circleCenterY - 1.6;
+  doc.line(vCheckX, vCheckY, vCheckX + 1.0, vCheckY + 1.2);
+  doc.line(vCheckX + 1.0, vCheckY + 1.2, vCheckX + 2.8, vCheckY - 1.4);
+
+  // Circular Badge Text: "QC" & "PASSED"
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(5.0);
+  doc.setFontSize(4.6);
   doc.setTextColor(4, 120, 87);
-  doc.text('QC PASSED', badgeX + 5.2, badgeY + 3.4);
+  doc.text('QC', circleCenterX, circleCenterY + 1.5, { align: 'center' });
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(4.2);
-  doc.setTextColor(16, 185, 129);
-  doc.text('100% OQC & PDI', badgeX + badgeW - 1.5, badgeY + 3.4, { align: 'right' });
+  doc.setFontSize(3.3);
+  doc.setTextColor(5, 150, 105);
+  doc.text('PASSED', circleCenterX, circleCenterY + 3.8, { align: 'center' });
 
   curY = heroCardY + heroCardH + 2.5;
 

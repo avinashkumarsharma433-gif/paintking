@@ -408,8 +408,8 @@ export const PackingView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Large Quantity Box & QC Passed Stamp */}
-              <div className="p-3 bg-[#faf7ed] border border-[#c09748]/60 rounded-xl flex items-center justify-between">
+              {/* Large Quantity Box & Circular QC Passed Sticker Stamp */}
+              <div className="p-3 bg-[#faf7ed] border border-[#c09748]/60 rounded-xl flex items-center justify-between relative overflow-hidden">
                 <div>
                   <span className="text-[7.5px] uppercase font-bold text-[#8a6521] block tracking-wider">BOX QUANTITY</span>
                   <span className="font-serif font-bold text-2xl tracking-tight text-[#17191c]">
@@ -420,19 +420,18 @@ export const PackingView: React.FC = () => {
                 {/* Vertical Divider */}
                 <div className="h-9 w-[1px] bg-[#e5d8b8]" />
 
-                <div className="text-right flex flex-col items-end">
+                <div className="text-left">
                   <span className="text-[7.5px] uppercase font-bold text-[#777b86] block tracking-wider">TOTAL LOT SIZE</span>
-                  <span className="font-mono font-bold text-sm text-[#17191c] leading-tight">{lotTotalPcs} PCS</span>
-                  
-                  {/* QC Passed Sticker */}
-                  <div className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 bg-[#ecfdf5] border border-[#059669] rounded-md shadow-2xs">
-                    <span className="text-[7px] text-[#047857] font-extrabold flex items-center gap-0.5">
-                      <CheckCircle2 size={8} className="text-[#059669]" /> QC PASSED
-                    </span>
-                    <span className="text-[6.5px] font-bold text-[#10b981] border-l border-[#a7f3d0] pl-1">
-                      100% PDI
-                    </span>
-                  </div>
+                  <span className="font-mono font-bold text-sm text-[#17191c] leading-tight block">{lotTotalPcs} PCS</span>
+                  <span className="text-[7px] font-bold text-gray-500">100% INSPECTED</span>
+                </div>
+
+                {/* Circular QC Passed Green Stamp/Sticker */}
+                <div className="relative flex flex-col items-center justify-center w-12 h-12 rounded-full bg-[#ecfdf5] border-2 border-[#059669] shadow-sm select-none">
+                  <div className="absolute inset-0.5 rounded-full border border-dashed border-[#10b981]/60" />
+                  <CheckCircle2 size={13} className="text-[#059669] -mt-0.5 relative z-10" />
+                  <span className="text-[7px] font-extrabold text-[#047857] tracking-tight leading-none relative z-10 mt-0.5">QC</span>
+                  <span className="text-[5.5px] font-bold text-[#059669] tracking-wider leading-none relative z-10">PASSED</span>
                 </div>
               </div>
 
