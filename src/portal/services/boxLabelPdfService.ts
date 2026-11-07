@@ -229,25 +229,25 @@ function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
   doc.setTextColor(23, 25, 28);
   doc.text(`${box.boxQty} PCS`, heroCardX + 4, heroCardY + 12.2);
 
-  // Middle-Right: Total Lot Size
-  const midRightX = heroCardX + 48;
+  // Middle Column: Total Lot Size (Cleanly positioned between dividers)
+  const lotColX = heroCardX + 54;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(5.5);
   doc.setTextColor(119, 123, 134);
-  doc.text('TOTAL LOT SIZE:', midRightX, heroCardY + 5.2);
+  doc.text('TOTAL LOT SIZE:', lotColX, heroCardY + 5.0);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
+  doc.setFontSize(10.5);
   doc.setTextColor(23, 25, 28);
-  doc.text(`${box.totalLotQty} PCS`, midRightX, heroCardY + 10.2);
+  doc.text(`${box.totalLotQty} PCS`, lotColX, heroCardY + 10.4);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(4.4);
-  doc.setTextColor(100, 105, 115);
-  doc.text('100% INSPECTED', midRightX, heroCardY + 13.8);
+  doc.setTextColor(119, 123, 134);
+  doc.text('100% INSPECTED', lotColX, heroCardY + 14.0);
 
-  // Far Right: Authentic Circular "QC PASSED" Green Sticker Stamp
-  const circleCenterX = heroCardX + heroCardW - 9;
+  // Far Right: Authentic Circular "QC PASSED" Green Sticker Stamp (Pure Text, No Tick)
+  const circleCenterX = heroCardX + heroCardW - 10;
   const circleCenterY = heroCardY + 8.5;
   const outerR = 6.2;
   const innerR = 5.2;
@@ -255,32 +255,24 @@ function renderSingleBoxLabelPage(doc: jsPDF, box: BoxLabelItem) {
   // Outer green fill circle with border
   doc.setFillColor(236, 253, 245); // emerald-50
   doc.setDrawColor(5, 150, 105);   // emerald-600
-  doc.setLineWidth(0.4);
+  doc.setLineWidth(0.45);
   doc.circle(circleCenterX, circleCenterY, outerR, 'FD');
 
-  // Inner decorative dashed/fine circular ring
+  // Inner circular ring
   doc.setDrawColor(16, 185, 129);  // emerald-500
-  doc.setLineWidth(0.2);
+  doc.setLineWidth(0.25);
   doc.circle(circleCenterX, circleCenterY, innerR, 'S');
 
-  // Vector Checkmark icon inside circle
-  doc.setDrawColor(4, 120, 87);    // emerald-700
-  doc.setLineWidth(0.5);
-  const vCheckX = circleCenterX - 1.4;
-  const vCheckY = circleCenterY - 1.6;
-  doc.line(vCheckX, vCheckY, vCheckX + 1.0, vCheckY + 1.2);
-  doc.line(vCheckX + 1.0, vCheckY + 1.2, vCheckX + 2.8, vCheckY - 1.4);
-
-  // Circular Badge Text: "QC" & "PASSED"
+  // Centered Badge Text inside circle (No tickmark)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(4.6);
+  doc.setFontSize(7.0);
   doc.setTextColor(4, 120, 87);
-  doc.text('QC', circleCenterX, circleCenterY + 1.5, { align: 'center' });
+  doc.text('QC', circleCenterX, circleCenterY - 0.3, { align: 'center' });
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(3.3);
+  doc.setFontSize(3.8);
   doc.setTextColor(5, 150, 105);
-  doc.text('PASSED', circleCenterX, circleCenterY + 3.8, { align: 'center' });
+  doc.text('PASSED', circleCenterX, circleCenterY + 3.0, { align: 'center' });
 
   curY = heroCardY + heroCardH + 2.5;
 
