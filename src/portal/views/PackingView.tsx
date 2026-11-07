@@ -492,7 +492,7 @@ export const PackingView: React.FC = () => {
                 className="w-full py-2.5 bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold rounded-full shadow-2xs transition cursor-pointer flex items-center justify-center gap-2 active:scale-95"
               >
                 <FileDown size={15} />
-                <span>Download Individual Thermal Stickers (100×100mm)</span>
+                <span>Download Individual Stickers (65×95mm)</span>
               </button>
             </div>
           </div>

@@ -47,25 +47,26 @@ export function getCurrentBoxCounter(): number {
 }
 
 /**
- * Generates an industrial multi-page 4" x 6" (100mm x 150mm) PDF
- * with one page per box label in continuous sequence.
+ * Generates an industrial multi-page PDF where each page is an exact 65mm x 95mm sticker
+ * (identical in dimensions, proportions, and design to the A4 stacked version).
  */
 export function generateMultiBoxThermalLabelPDF(boxes: BoxLabelItem[], fileNamePrefix: string) {
   if (!boxes || boxes.length === 0) return;
 
-  // Standard 4" x 4" thermal label (100mm x 100mm) - eliminates empty bottom dead space
+  // Exact 65mm x 95mm label dimensions per user requirement
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
-    format: [100, 100],
+    format: [65, 95],
   });
 
   boxes.forEach((box, index) => {
     if (index > 0) {
-      doc.addPage([100, 100], 'portrait');
+      doc.addPage([65, 95], 'portrait');
     }
 
-    renderSingleBoxLabelPage(doc, box);
+    // Render exact same 65mm x 95mm cell at (0, 0)
+    renderCompactStickerCell(doc, box, 0, 0, 65, 95);
   });
 
   const cleanName = fileNamePrefix.replace(/[^a-zA-Z0-9_-]/g, '_');
