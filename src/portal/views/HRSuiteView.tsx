@@ -270,81 +270,106 @@ export const HRSuiteView: React.FC = () => {
     setAttendanceRecords((prev) => [record, ...prev]);
   };
 
+  // Clear all employee profiles and all attendance records permanently
+  const handleClearAllData = async () => {
+    if (window.confirm('Are you sure you want to delete ALL employee profiles, attendance records, and biometrics? This cannot be undone.')) {
+      await biometricVault.clearAllBiometrics();
+      localStorage.removeItem('pk_hr_employees');
+      localStorage.removeItem('pk_hr_attendance_records');
+      localStorage.removeItem('pk_portal_employees_v1');
+      setEmployees([]);
+      setAttendanceRecords([]);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-16">
       {/* Top HR Navigation Navigation Strip */}
-      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-[#fafafb] border border-[#ececec] rounded-[24px]">
-        <button
-          onClick={() => setActiveTab('TERMINAL')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
-            activeTab === 'TERMINAL'
-              ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
-              : 'text-[#777b86] hover:text-[#17191c]'
-          }`}
-        >
-          <ScanFace size={15} className={activeTab === 'TERMINAL' ? 'text-[#c09748]' : 'text-[#979799]'} />
-          <span>Live Face Terminal</span>
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-2 p-1.5 bg-[#fafafb] border border-[#ececec] rounded-[24px]">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setActiveTab('TERMINAL')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'TERMINAL'
+                ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
+                : 'text-[#777b86] hover:text-[#17191c]'
+            }`}
+          >
+            <ScanFace size={15} className={activeTab === 'TERMINAL' ? 'text-[#c09748]' : 'text-[#979799]'} />
+            <span>Live Face Terminal</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('REGISTER')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
-            activeTab === 'REGISTER'
-              ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
-              : 'text-[#777b86] hover:text-[#17191c]'
-          }`}
-        >
-          <CalendarCheck size={15} className={activeTab === 'REGISTER' ? 'text-[#c09748]' : 'text-[#979799]'} />
-          <span>Attendance Register</span>
-        </button>
+          <button
+            onClick={() => setActiveTab('REGISTER')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'REGISTER'
+                ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
+                : 'text-[#777b86] hover:text-[#17191c]'
+            }`}
+          >
+            <CalendarCheck size={15} className={activeTab === 'REGISTER' ? 'text-[#c09748]' : 'text-[#979799]'} />
+            <span>Attendance Register</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('DIRECTORY')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
-            activeTab === 'DIRECTORY'
-              ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
-              : 'text-[#777b86] hover:text-[#17191c]'
-          }`}
-        >
-          <Users size={15} className={activeTab === 'DIRECTORY' ? 'text-[#c09748]' : 'text-[#979799]'} />
-          <span>Employee Master & Biometrics</span>
-        </button>
+          <button
+            onClick={() => setActiveTab('DIRECTORY')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'DIRECTORY'
+                ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
+                : 'text-[#777b86] hover:text-[#17191c]'
+            }`}
+          >
+            <Users size={15} className={activeTab === 'DIRECTORY' ? 'text-[#c09748]' : 'text-[#979799]'} />
+            <span>Employee Master & Biometrics</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('LEAVE')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
-            activeTab === 'LEAVE'
-              ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
-              : 'text-[#777b86] hover:text-[#17191c]'
-          }`}
-        >
-          <FileText size={15} className={activeTab === 'LEAVE' ? 'text-[#c09748]' : 'text-[#979799]'} />
-          <span>Leave Sanctions (PK-HR-LV-01)</span>
-        </button>
+          <button
+            onClick={() => setActiveTab('LEAVE')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'LEAVE'
+                ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
+                : 'text-[#777b86] hover:text-[#17191c]'
+            }`}
+          >
+            <FileText size={15} className={activeTab === 'LEAVE' ? 'text-[#c09748]' : 'text-[#979799]'} />
+            <span>Leave Sanctions (PK-HR-LV-01)</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('LAB')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
-            activeTab === 'LAB'
-              ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
-              : 'text-[#777b86] hover:text-[#17191c]'
-          }`}
-        >
-          <Activity size={15} className={activeTab === 'LAB' ? 'text-[#c09748]' : 'text-[#979799]'} />
-          <span>Recognition Lab (Admin)</span>
-        </button>
+          <button
+            onClick={() => setActiveTab('LAB')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'LAB'
+                ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
+                : 'text-[#777b86] hover:text-[#17191c]'
+            }`}
+          >
+            <Activity size={15} className={activeTab === 'LAB' ? 'text-[#c09748]' : 'text-[#979799]'} />
+            <span>Recognition Lab (Admin)</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('PAYROLL')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
-            activeTab === 'PAYROLL'
-              ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
-              : 'text-[#777b86] hover:text-[#17191c]'
-          }`}
-        >
-          <DollarSign size={15} className={activeTab === 'PAYROLL' ? 'text-[#c09748]' : 'text-[#979799]'} />
-          <span>Payroll & OT Wages</span>
-        </button>
+          <button
+            onClick={() => setActiveTab('PAYROLL')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'PAYROLL'
+                ? 'bg-white text-[#17191c] shadow-2xs border border-[#dcdfe4]'
+                : 'text-[#777b86] hover:text-[#17191c]'
+            }`}
+          >
+            <DollarSign size={15} className={activeTab === 'PAYROLL' ? 'text-[#c09748]' : 'text-[#979799]'} />
+            <span>Payroll & OT Wages</span>
+          </button>
+        </div>
+
+        {/* Clear All Data Reset Button */}
+        {(employees.length > 0 || attendanceRecords.length > 0) && (
+          <button
+            onClick={handleClearAllData}
+            title="Purge all employee and attendance records"
+            className="px-3.5 py-1.5 text-xs font-semibold text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-rose-200 rounded-full transition cursor-pointer shrink-0"
+          >
+            Reset / Clear All HR Data
+          </button>
+        )}
       </div>
 
       {/* Active Tab View */}
