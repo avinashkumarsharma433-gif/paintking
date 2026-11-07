@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-07: Anti-Spoof Calibration (Eliminated False Positives on Real Face)
+  - Files touched:
+    - `src/portal/services/antiSpoofService.ts` (Calibrated passive glare and flat saturation thresholds to natural room lighting levels; removed initial frame spoof locks so real live faces immediately show Green `RECOGNIZED` without false Amber triggers, while static frozen photos are isolated over rolling 4+ frames)
+  - Search string: `calibrate anti-spoof thresholds`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Real 3D Depth Parallax Disparity vs Flat 2D Screen Anti-Spoofing
   - Files touched:
     - `src/portal/services/antiSpoofService.ts` (Integrated multi-frame 3D depth parallax ratio between nose-tip, eyes, and chin + natural eye variance threshold (0.012); screen photos/monitors hold rigid 2D planar geometry with zero depth disparity and zero involuntary eye dynamics, immediately triggering Amber `SPOOF_SUSPECTED` and blocking punch)
