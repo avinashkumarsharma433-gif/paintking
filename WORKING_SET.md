@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-07: Synced All 6 HR Tabs to Left Sidebar Panel
+  - Files touched:
+    - `src/portal/components/PortalSidebar.tsx` (Expanded `hr_leave` subItems to include all 6 tabs: Live Face Terminal, Attendance Register, Employee Master & Biometrics, Leave Sanctions, Recognition Lab, Payroll & OT Wages)
+    - `src/portal/views/HRSuiteView.tsx` (Wired bi-directional sync with `setActiveSubTab` so clicking either on left panel or top pills updates both simultaneously)
+  - Search string: `Employee Master & Biometrics`
+  - Status: Verified with production build and deployed to origin/main.
+
 - 2026-11-07: Fixed Mobile Modal Height & Sticky Close Button in Evidence Viewer
   - Files touched:
     - `src/portal/modules/hr/HRAttendanceRegister.tsx` (Added `max-h-[90vh]` with flex-column layout, sticky header with top-right 'X' close button, scrollable body `overflow-y-auto`, and sticky footer 'Close Audit' button so close action is always visible on all mobile screens)
