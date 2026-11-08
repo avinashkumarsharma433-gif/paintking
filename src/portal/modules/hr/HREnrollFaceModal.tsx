@@ -87,6 +87,9 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const isProcessingRef = useRef<boolean>(false);
+  const isCapturingRef = useRef<boolean>(false);
+  const holdProgressRef = useRef<number>(0);
 
   const POSE_STEPS: PoseInstruction[] = [
     {
@@ -264,9 +267,10 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     }
   };
 
-  // Capture Current Step Pose (called automatically when hold progress reaches 100%)
+  // Capture Current Step Pose (called automatically when hold progress reaches 100% or via manual click)
   const handleCapturePose = useCallback(async () => {
-    if (!videoRef.current || isProcessing) return;
+    if (!videoRef.current || isProcessingRef.current) return;
+    isProcessingRef.current = true;
     setIsProcessing(true);
 
     try {
@@ -282,12 +286,23 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
 
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      const detection = await faceapi
-        .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.40 }))
+      let detection = await faceapi
+        .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.25 }))
         .withFaceLandmarks()
         .withFaceDescriptor();
 
-      if (!detection) return;
+      if (!detection) {
+        // Fallback with lower threshold to ensure budget webcams are never dropped
+        detection = await faceapi
+          .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.15 }))
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+      }
+
+      if (!detection) {
+        console.warn('Face missed on snapshot, will retry on next frame');
+        return;
+      }
 
       const descriptor = Array.from(detection.descriptor);
       const imgDataUrl = canvas.toDataURL('image/jpeg', 0.85);
@@ -311,11 +326,12 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             pendingPose: newPose,
           });
           setSteadyHoldProgress(0);
+          holdProgressRef.current = 0;
           return; // Strictly abort and block saving!
         }
       }
 
-      // Flash feedback & audio chime on auto-capture
+      // Flash feedback & audio chime on capture
       playAttendanceConfirmationChime();
       setJustCapturedFlash(true);
       setTimeout(() => setJustCapturedFlash(false), 300);
@@ -324,6 +340,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       const updatedPoses = [...currentList.filter((p) => p.stepId !== targetPose.id), newPose];
       setCapturedPoses(updatedPoses);
       setSteadyHoldProgress(0);
+      holdProgressRef.current = 0;
 
       // Check if this was the last pose (Step 6)
       if (activeIdx >= POSE_STEPS.length - 1) {
@@ -334,21 +351,20 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     } catch (err) {
       console.warn('Capture pose error:', err);
     } finally {
+      isProcessingRef.current = false;
       setIsProcessing(false);
     }
-  }, [allEmployees, employee.id, isProcessing]);
+  }, [allEmployees, employee.id]);
 
-  // Live Auto-Pose Detection & Auto-Capture Loop (runs every 200ms)
+  // Live Auto-Pose Detection & Fast Auto-Capture Loop (runs every 180ms)
   useEffect(() => {
-    if (!isOpen || isProcessing || isSuccessModalOpen || duplicateError) {
+    if (!isOpen || isSuccessModalOpen || duplicateError) {
       return;
     }
 
-    let isCapturing = false;
-
     const interval = setInterval(async () => {
       const video = videoRef.current;
-      if (!video || video.readyState !== 4 || isProcessing || isCapturing) return;
+      if (!video || video.readyState !== 4 || isProcessingRef.current || isCapturingRef.current) return;
 
       try {
         const offscreen = document.createElement('canvas');
@@ -363,7 +379,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         const targetPose = POSE_STEPS[Math.min(activeIdx, POSE_STEPS.length - 1)] || POSE_STEPS[0];
 
         const det = await faceapi
-          .detectSingleFace(offscreen, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.40 }))
+          .detectSingleFace(offscreen, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.25 }))
           .withFaceLandmarks();
 
         if (det) {
@@ -383,40 +399,48 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
           );
           setQualityDetails(quality);
 
-          // AUTO-CAPTURE: When pose matches and quality passed, fill progress bar and trigger
+          // QUICK AUTO-CAPTURE: Once pose is matched, reach 100% in 2 frames (~350ms) and click!
           if (quality.passed) {
-            setSteadyHoldProgress((prev) => {
-              const next = prev + 25; // Reaches 100% in 4 frames (~800ms hold)
-              if (next >= 100 && !isCapturing) {
-                isCapturing = true;
-                handleCapturePose().finally(() => {
-                  isCapturing = false;
-                });
-                return 100;
+            const nextProgress = Math.min(100, holdProgressRef.current + 50);
+            holdProgressRef.current = nextProgress;
+            setSteadyHoldProgress(nextProgress);
+
+            if (nextProgress >= 100 && !isCapturingRef.current && !isProcessingRef.current) {
+              isCapturingRef.current = true;
+              try {
+                await handleCapturePose();
+              } finally {
+                holdProgressRef.current = 0;
+                setSteadyHoldProgress(0);
+                isCapturingRef.current = false;
               }
-              return Math.min(100, next);
-            });
+            }
           } else {
-            // Smooth decay instead of sudden reset
-            setSteadyHoldProgress((prev) => Math.max(0, prev - 15));
+            // Gentle decay
+            holdProgressRef.current = Math.max(0, holdProgressRef.current - 10);
+            setSteadyHoldProgress(holdProgressRef.current);
           }
         } else {
           setDetectedBox(null);
           setQualityDetails(null);
-          setSteadyHoldProgress((prev) => Math.max(0, prev - 20));
+          holdProgressRef.current = Math.max(0, holdProgressRef.current - 15);
+          setSteadyHoldProgress(holdProgressRef.current);
         }
       } catch {
         // scan frame glitch ignored
       }
-    }, 200);
+    }, 180);
 
     return () => clearInterval(interval);
-  }, [isOpen, isProcessing, isSuccessModalOpen, handleCapturePose]);
+  }, [isOpen, isSuccessModalOpen, duplicateError, handleCapturePose]);
 
   const handleReset = () => {
     setCapturedPoses([]);
     setCurrentStepIndex(0);
     setSteadyHoldProgress(0);
+    holdProgressRef.current = 0;
+    isCapturingRef.current = false;
+    isProcessingRef.current = false;
     setDuplicateError(null);
     setAdminOverrideReason('');
     setShowOverridePanel(false);

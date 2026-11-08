@@ -218,66 +218,55 @@ export function assessEnrollmentQuality(
 
   const reasons: string[] = [];
 
-  // 1. Detection confidence
-  if (score < 0.40) {
+  // 1. Detection confidence (forgiving for budget/laptop webcams)
+  if (score < 0.25) {
     reasons.push(`Low face detection confidence (${Math.round(score * 100)}%)`);
   }
 
   // 2. Minimum face size
-  if (box.width < 50 || box.height < 50) {
+  if (box.width < 35 || box.height < 35) {
     reasons.push('Face is too far from camera. Move closer.');
   }
 
-  // 3. Blur check (forgiving for laptop webcams)
-  if (blurScore < 8) {
-    reasons.push('Image is blurry. Please hold steady.');
-  }
-
-  // 4. Exposure check (forgiving for indoor lighting)
-  if (exposureScore < 20) {
+  // 3. Extreme lighting checks (only block pitch black or blinding glare)
+  if (exposureScore < 6) {
     reasons.push('Lighting is too dark. Increase ambient light.');
-  } else if (exposureScore > 250) {
+  } else if (exposureScore > 252) {
     reasons.push('Face is overexposed/glare. Avoid direct backlight.');
   }
 
-  // 5. Eye open check (EAR)
-  if (ear < 0.08 && requestedStepId !== 6) {
-    reasons.push('Eyes appear closed. Look directly at camera.');
-  }
-
-  // 6. Intelligent Head Pose Classifier
+  // 4. Intelligent Head Pose Classifier (quick & forgiving thresholds)
   let detectedPose: EnrollmentQualityDetails['detectedPose'] = 'NEUTRAL';
-  if (pose.mouthAspectRatio >= 0.18) {
+  if (pose.mouthAspectRatio >= 0.14) {
     detectedPose = 'SMILE';
-  } else if (Math.abs(pose.yaw) >= 0.04) {
+  } else if (Math.abs(pose.yaw) >= 0.03) {
     detectedPose = pose.yaw > 0 ? 'LEFT' : 'RIGHT';
-  } else if (Math.abs(pose.pitch) >= 0.035) {
+  } else if (Math.abs(pose.pitch) >= 0.025) {
     detectedPose = 'UP';
   } else {
     detectedPose = 'NEUTRAL';
   }
 
-  // 7. Pose matching verification for requested step
+  // 5. Pose matching verification for requested step
   if (requestedStepId === 1) {
     // Pose 1: Straight & Neutral
-    if (Math.abs(pose.yaw) > 0.18) reasons.push('Face camera straight (no left/right tilt).');
-    if (Math.abs(pose.pitch) > 0.20) reasons.push('Keep head level (not tilted up/down).');
+    if (Math.abs(pose.yaw) > 0.25) reasons.push('Face camera straight (no left/right tilt).');
+    if (Math.abs(pose.pitch) > 0.25) reasons.push('Keep head level (not tilted up/down).');
   } else if (requestedStepId === 2) {
     // Pose 2: Smile
-    if (pose.mouthAspectRatio < 0.18) reasons.push('Please give a natural smile.');
+    if (pose.mouthAspectRatio < 0.14) reasons.push('Please give a natural smile.');
   } else if (requestedStepId === 3) {
     // Pose 3: Turn Head Left
-    // Any horizontal turn towards left or significant head angle
-    if (Math.abs(pose.yaw) < 0.04) reasons.push('Turn head slightly towards your left side.');
+    if (Math.abs(pose.yaw) < 0.025) reasons.push('Turn head slightly towards your left side.');
   } else if (requestedStepId === 4) {
     // Pose 4: Turn Head Right
-    if (Math.abs(pose.yaw) < 0.04) reasons.push('Turn head slightly towards your right side.');
+    if (Math.abs(pose.yaw) < 0.025) reasons.push('Turn head slightly towards your right side.');
   } else if (requestedStepId === 5) {
     // Pose 5: Chin Up
-    if (Math.abs(pose.pitch) < 0.03) reasons.push('Tilt chin slightly upward.');
+    if (Math.abs(pose.pitch) < 0.02) reasons.push('Tilt chin slightly upward.');
   } else if (requestedStepId === 6) {
     // Pose 6: Final Verification (Straight neutral)
-    if (Math.abs(pose.yaw) > 0.20) reasons.push('Look straight into the camera.');
+    if (Math.abs(pose.yaw) > 0.25) reasons.push('Look straight into the camera.');
   }
 
   const passed = reasons.length === 0;
