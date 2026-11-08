@@ -1,11 +1,11 @@
 # WORKING SET
 
-- 2026-11-08: Relative Biometric Baseline Smile & Orientation-Agnostic Opposing Turn Auto-Capture
+- 2026-11-08: Complete Pose Verification Engine (Neural Expression Net + Bi-Pupillary 3D Nose Triangulation)
   - Files touched:
-    - `src/portal/services/faceRecognitionService.ts` (`extractBiometricBaseline` from Step 1 neutral face to detect smile via relative lip widening/opening/corner lift; Step 3 accepts horizontal turn `|yaw| >= 0.022` and Step 4 enforces opposing turn relative to Step 3 sign)
-    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (`baselineRef` tracked across steps, hold timer +34%/frame ~0.5s auto-capture)
-  - Issue Diagnosed: Webcams/mirroring caused yaw sign mismatch between physical and canvas space, causing Left/Right to always reject. Smile without baseline comparison failed for faces with narrower lips. Dynamic baseline comparison and relative opposing-turn tracking solves both unconditionally.
-  - Status: Verified with `tsc --noEmit` (0 errors), pushed to GitHub.
+    - `src/portal/services/faceRecognitionService.ts` (`loadFaceModels` loads `faceExpressionNet`; `estimateHeadPoseFromLandmarks` integrates deep learning smile detection + 3D eye-nose triangulation `eyeNoseYaw` and silhouette `jawYaw`; `assessEnrollmentQuality` strictly verifies each requested pose before capture)
+    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (`withFaceExpressions()` chained on detection; step 3 records turn direction and step 4 validates opposite turn; auto-captures only once verified and held steady ~0.5s)
+  - Issue Diagnosed: User required verified pose validation before snapshot. Loaded neural network `faceExpressionNet` for robust smile recognition and implemented 3D bi-pupillary nose triangulation for turn verification.
+  - Status: Verified with `npm run lint` (0 errors), pushed to GitHub.
 
 - 2026-11-08: Real Geometric Pose Verification & 200+ Employee Scalable Duplicate Engine
   - Files touched:

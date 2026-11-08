@@ -288,8 +288,9 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       let detection = await faceapi
-        .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.25 }))
+        .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.20 }))
         .withFaceLandmarks()
+        .withFaceExpressions()
         .withFaceDescriptor();
 
       if (!detection) {
@@ -297,6 +298,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         detection = await faceapi
           .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.15 }))
           .withFaceLandmarks()
+          .withFaceExpressions()
           .withFaceDescriptor();
       }
 
@@ -337,12 +339,13 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         baselineRef.current = extractBiometricBaseline(detection.landmarks);
       } else if (activeIdx === 2 && detection.landmarks) {
         const p = estimateHeadPoseFromLandmarks(detection.landmarks);
+        const sign = p.eyeNoseYaw >= 0 ? 1 : -1;
         if (baselineRef.current) {
-          baselineRef.current.step3YawSign = p.yaw >= 0 ? 1 : -1;
+          baselineRef.current.step3YawSign = sign;
         } else {
           baselineRef.current = {
             ...extractBiometricBaseline(detection.landmarks),
-            step3YawSign: p.yaw >= 0 ? 1 : -1,
+            step3YawSign: sign,
           };
         }
       }
@@ -395,8 +398,9 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         const targetPose = POSE_STEPS[Math.min(activeIdx, POSE_STEPS.length - 1)] || POSE_STEPS[0];
 
         const det = await faceapi
-          .detectSingleFace(offscreen, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.25 }))
-          .withFaceLandmarks();
+          .detectSingleFace(offscreen, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.20 }))
+          .withFaceLandmarks()
+          .withFaceExpressions();
 
         if (det) {
           const box = det.detection.box;
