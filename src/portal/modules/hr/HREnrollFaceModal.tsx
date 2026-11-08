@@ -396,9 +396,9 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
           );
           setQualityDetails(quality);
 
-          // AUTO-CAPTURE: Hold requested pose steady for ~0.9s (5 frames x 20% = 100%)
+          // AUTO-CAPTURE: Hold requested pose steady for ~0.7s (4 frames x 25% = 100%)
           if (quality.passed) {
-            const nextProgress = Math.min(100, holdProgressRef.current + 20);
+            const nextProgress = Math.min(100, holdProgressRef.current + 25);
             holdProgressRef.current = nextProgress;
             setSteadyHoldProgress(nextProgress);
 

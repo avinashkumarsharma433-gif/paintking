@@ -201,16 +201,22 @@ export function estimateHeadPoseFromLandmarks(landmarks: faceapi.FaceLandmarks68
   // Roll: eye level tilt
   const roll = Number(((rightEyeOuter.y - leftEyeOuter.y) / totalJawWidth).toFixed(3));
 
-  // Smile detection using lip corners & mouth geometry
+  // Smile detection using lip corners, aspect ratio & bi-temporal mouth geometry
   const mouthWidth = Math.hypot(pts[54].x - pts[48].x, pts[54].y - pts[48].y);
   const eyeDist = Math.max(1, Math.hypot(pts[45].x - pts[36].x, pts[45].y - pts[36].y));
   const mouthHeight = Math.hypot(pts[57].x - pts[51].x, pts[57].y - pts[51].y);
 
-  const smileWidthRatio = mouthWidth / eyeDist;
   const mouthAspectRatio = Number((mouthHeight / (mouthWidth || 1)).toFixed(3));
+  const mouthToEyeRatio = Number((mouthWidth / eyeDist).toFixed(3));
+  const cornerAvgY = (pts[48].y + pts[54].y) / 2;
+  const cornerLift = Number(((pts[57].y - cornerAvgY) / eyeDist).toFixed(3));
 
-  // A genuine smile either expands lip width or opens mouth with curvature
-  const isSmiling = mouthAspectRatio >= 0.22 || (smileWidthRatio >= 1.02 && mouthAspectRatio >= 0.14);
+  // A natural smile: parted lips/teeth (aspect ratio >= 0.13), wide grin (mouthToEye >= 0.49), or lifted corners (cornerLift >= 0.14)
+  const isSmiling =
+    mouthAspectRatio >= 0.13 ||
+    (mouthToEyeRatio >= 0.49 && mouthAspectRatio >= 0.09) ||
+    cornerLift >= 0.14 ||
+    mouthToEyeRatio >= 0.52;
 
   return { yaw, pitch, roll, mouthAspectRatio, isSmiling };
 }
@@ -254,16 +260,24 @@ export function assessEnrollmentQuality(
     reasons.push('Face is overexposed/glare. Avoid direct backlight.');
   }
 
-  // 4. Intelligent Head Pose Classifier
+  // 4. Intelligent Head Pose Classifier (Calibrated for 10-15° natural turn & natural smile)
   let detectedPose: EnrollmentQualityDetails['detectedPose'] = 'NEUTRAL';
-  if (pose.isSmiling) {
+  if (requestedStepId === 2 && pose.isSmiling) {
     detectedPose = 'SMILE';
-  } else if (pose.yaw >= 0.14) {
+  } else if (requestedStepId === 3 && pose.yaw >= 0.035) {
     detectedPose = 'LEFT';
-  } else if (pose.yaw <= -0.14) {
+  } else if (requestedStepId === 4 && pose.yaw <= -0.035) {
     detectedPose = 'RIGHT';
-  } else if (pose.pitch >= 0.14) {
+  } else if (requestedStepId === 5 && pose.pitch >= 0.06) {
     detectedPose = 'UP';
+  } else if (pose.yaw >= 0.035) {
+    detectedPose = 'LEFT';
+  } else if (pose.yaw <= -0.035) {
+    detectedPose = 'RIGHT';
+  } else if (pose.pitch >= 0.06) {
+    detectedPose = 'UP';
+  } else if (pose.isSmiling) {
+    detectedPose = 'SMILE';
   } else {
     detectedPose = 'NEUTRAL';
   }
@@ -271,24 +285,35 @@ export function assessEnrollmentQuality(
   // 5. Strict Step-by-Step Pose Verification (Guarantees user actually executes each requested pose)
   if (requestedStepId === 1) {
     // Pose 1: Straight & Neutral
-    if (Math.abs(pose.yaw) > 0.12) reasons.push('Look directly straight at the camera.');
-    if (pose.pitch > 0.14 || pose.pitch < -0.18) reasons.push('Keep head level (not tilted up/down).');
-    if (pose.isSmiling) reasons.push('Keep a neutral expression for Step 1.');
+    if (Math.abs(pose.yaw) > 0.07) reasons.push('Look directly straight at the camera.');
+    if (pose.pitch > 0.14 || pose.pitch < -0.16) reasons.push('Keep head level (not tilted up/down).');
   } else if (requestedStepId === 2) {
     // Pose 2: Natural Smile
     if (!pose.isSmiling) reasons.push('Please give a natural smile (हल्की मुस्कान दें).');
   } else if (requestedStepId === 3) {
-    // Pose 3: Turn Head Left
-    if (pose.yaw < 0.14) reasons.push('Turn head towards your left side (चेहरा बायीं तरफ घुमाएं).');
+    // Pose 3: Turn Head Left (~10-15° natural turn)
+    if (pose.yaw < 0.035) {
+      if (pose.yaw <= -0.035) {
+        reasons.push('Turn head to your LEFT (चेहरा बायीं तरफ घुमाएं).');
+      } else {
+        reasons.push('Turn head slightly to your left (चेहरा बायीं तरफ घुमाएं).');
+      }
+    }
   } else if (requestedStepId === 4) {
-    // Pose 4: Turn Head Right
-    if (pose.yaw > -0.14) reasons.push('Turn head towards your right side (चेहरा दायीं तरफ घुमाएं).');
+    // Pose 4: Turn Head Right (~10-15° natural turn)
+    if (pose.yaw > -0.035) {
+      if (pose.yaw >= 0.035) {
+        reasons.push('Turn head to your RIGHT (चेहरा दायीं तरफ घुमाएं).');
+      } else {
+        reasons.push('Turn head slightly to your right (चेहरा दायीं तरफ घुमाएं).');
+      }
+    }
   } else if (requestedStepId === 5) {
     // Pose 5: Chin Up
-    if (pose.pitch < 0.14) reasons.push('Tilt chin slightly upward (ठोड़ी को ऊपर उठाएं).');
+    if (pose.pitch < 0.06) reasons.push('Tilt chin slightly upward (ठोड़ी को ऊपर उठाएं).');
   } else if (requestedStepId === 6) {
     // Pose 6: Final Verification (Straight neutral)
-    if (Math.abs(pose.yaw) > 0.14) reasons.push('Look straight into the camera for final verification.');
+    if (Math.abs(pose.yaw) > 0.08) reasons.push('Look straight into the camera for final verification.');
   }
 
   const passed = reasons.length === 0;
