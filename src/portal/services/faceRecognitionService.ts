@@ -219,72 +219,72 @@ export function assessEnrollmentQuality(
   const reasons: string[] = [];
 
   // 1. Detection confidence
-  if (score < 0.65) {
+  if (score < 0.40) {
     reasons.push(`Low face detection confidence (${Math.round(score * 100)}%)`);
   }
 
-  // 2. Minimum face size (at least 90px and >= 20% of frame height)
-  if (box.width < 90 || box.height < 90 || boxCoveragePct < 18) {
+  // 2. Minimum face size
+  if (box.width < 50 || box.height < 50) {
     reasons.push('Face is too far from camera. Move closer.');
   }
 
-  // 3. Blur check (Laplacian variance)
-  if (blurScore < 25) {
+  // 3. Blur check (forgiving for laptop webcams)
+  if (blurScore < 8) {
     reasons.push('Image is blurry. Please hold steady.');
   }
 
-  // 4. Exposure check
-  if (exposureScore < 45) {
+  // 4. Exposure check (forgiving for indoor lighting)
+  if (exposureScore < 20) {
     reasons.push('Lighting is too dark. Increase ambient light.');
-  } else if (exposureScore > 225) {
+  } else if (exposureScore > 250) {
     reasons.push('Face is overexposed/glare. Avoid direct backlight.');
   }
 
   // 5. Eye open check (EAR)
-  if (ear < 0.16 && requestedStepId !== 6) {
+  if (ear < 0.08 && requestedStepId !== 6) {
     reasons.push('Eyes appear closed. Look directly at camera.');
   }
 
-  // 6. Pose matching check
-  let detectedPose: EnrollmentQualityDetails['detectedPose'] = 'UNKNOWN';
-  if (Math.abs(pose.yaw) < 0.08 && Math.abs(pose.pitch) < 0.10) {
-    detectedPose = pose.mouthAspectRatio > 0.38 ? 'SMILE' : 'NEUTRAL';
-  } else if (pose.yaw < -0.10) {
-    detectedPose = 'LEFT';
-  } else if (pose.yaw > 0.10) {
-    detectedPose = 'RIGHT';
-  } else if (pose.pitch > 0.08) {
+  // 6. Intelligent Head Pose Classifier
+  let detectedPose: EnrollmentQualityDetails['detectedPose'] = 'NEUTRAL';
+  if (pose.mouthAspectRatio >= 0.18) {
+    detectedPose = 'SMILE';
+  } else if (Math.abs(pose.yaw) >= 0.04) {
+    detectedPose = pose.yaw > 0 ? 'LEFT' : 'RIGHT';
+  } else if (Math.abs(pose.pitch) >= 0.035) {
     detectedPose = 'UP';
   } else {
-    detectedPose = 'GLASSES_EXPRESSION';
+    detectedPose = 'NEUTRAL';
   }
 
+  // 7. Pose matching verification for requested step
   if (requestedStepId === 1) {
     // Pose 1: Straight & Neutral
-    if (Math.abs(pose.yaw) > 0.10) reasons.push('Face camera straight (no left/right tilt).');
-    if (Math.abs(pose.pitch) > 0.12) reasons.push('Keep head level (not tilted up/down).');
+    if (Math.abs(pose.yaw) > 0.18) reasons.push('Face camera straight (no left/right tilt).');
+    if (Math.abs(pose.pitch) > 0.20) reasons.push('Keep head level (not tilted up/down).');
   } else if (requestedStepId === 2) {
     // Pose 2: Smile
-    if (pose.mouthAspectRatio < 0.28) reasons.push('Please give a natural smile.');
+    if (pose.mouthAspectRatio < 0.18) reasons.push('Please give a natural smile.');
   } else if (requestedStepId === 3) {
-    // Pose 3: Turn Head Left (approx 15-25°)
-    // Since video is unmirrored, head turned to user's left causes nose to shift towards left cheek (yaw < -0.08)
-    if (pose.yaw > -0.07) reasons.push('Turn head slightly towards your left side.');
+    // Pose 3: Turn Head Left
+    // Any horizontal turn towards left or significant head angle
+    if (Math.abs(pose.yaw) < 0.04) reasons.push('Turn head slightly towards your left side.');
   } else if (requestedStepId === 4) {
     // Pose 4: Turn Head Right
-    if (pose.yaw < 0.07) reasons.push('Turn head slightly towards your right side.');
+    if (Math.abs(pose.yaw) < 0.04) reasons.push('Turn head slightly towards your right side.');
   } else if (requestedStepId === 5) {
-    // Pose 5: Chin Up (15°)
-    if (pose.pitch < 0.06) reasons.push('Tilt chin slightly upward.');
+    // Pose 5: Chin Up
+    if (Math.abs(pose.pitch) < 0.03) reasons.push('Tilt chin slightly upward.');
+  } else if (requestedStepId === 6) {
+    // Pose 6: Final Verification (Straight neutral)
+    if (Math.abs(pose.yaw) > 0.20) reasons.push('Look straight into the camera.');
   }
 
   const passed = reasons.length === 0;
 
   // Composite Quality Score (0 - 100)
   let qualityScore = 100;
-  if (!passed) qualityScore -= reasons.length * 20;
-  if (blurScore < 40) qualityScore -= 15;
-  if (boxCoveragePct < 25) qualityScore -= 10;
+  if (!passed) qualityScore -= reasons.length * 15;
   qualityScore = Math.max(0, Math.min(100, qualityScore));
 
   return {
@@ -299,9 +299,6 @@ export function assessEnrollmentQuality(
   };
 }
 
-/**
- * Multi-Shot Master Vector Synthesis (averages up to 20 raw embeddings into a single Master Vector)
- */
 export function computeMasterVector(descriptors: number[][]): number[] {
   if (descriptors.length === 0) return [];
   if (descriptors.length === 1) return descriptors[0];

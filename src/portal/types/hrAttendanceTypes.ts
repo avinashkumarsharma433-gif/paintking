@@ -16,6 +16,7 @@ export interface Employee {
   monthlySalary?: number; // Standard monthly base salary in INR (e.g. 22000)
   isOtEligible?: boolean; // Whether employee is eligible for Overtime (default true)
   otHourlyRate?: number; // Optional custom OT hourly rate; defaults to (dailyRate / 8)
+  locationId?: string; // Optional assigned location/plant ID
 }
 
 export interface DailyAttendanceSummary {
