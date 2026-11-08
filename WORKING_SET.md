@@ -1,14 +1,14 @@
 # WORKING SET
 
-- 2026-11-08: Quick Face Enrollment Auto-Capture (Fixed Stuck/No-Click on Detection)
+- 2026-11-08: Real Geometric Pose Verification & 200+ Employee Scalable Duplicate Engine
   - Files touched:
-    - `src/portal/services/faceRecognitionService.ts` (`assessEnrollmentQuality`: relaxed strict blur/exposure/EAR gating so budget webcams never fail to trigger, lowered smile threshold to 0.14, forgiving yaw/pitch angles)
-    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (Fast 2-frame auto-capture jump +50% reaching 100% in ~350ms, direct async await without React state closure bugs, lowered detection minConfidence to 0.25 with 0.15 fallback, stable interval uncoupled from `isProcessing`)
-  - Issue Diagnosed: Strict blur and eye aspect ratio thresholds were rejecting webcam frames, and auto-capture was embedded inside a React state updater which tore down the interval before clicking.
+    - `src/portal/services/faceRecognitionService.ts` (Exact geometric jaw-to-nose `yaw` ratio, vertical `pitch` ratio, lip corner `isSmiling` detector; duplicate check with `masterDist <= 0.35 && minVectorDist <= 0.30` and case-insensitive self-skip)
+    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (~0.9s steady hold +20%/frame, live pose guidance feedback, instant 1-click 'Reassign / Overwrite' biometrics button)
+  - Issue Diagnosed: Pose verification previously had trivial thresholds (0.02) which caused all poses to auto-complete without moving. Duplicate check previously triggered on test profiles because both profiles held the same user's face, with a hidden override button.
   - Status: Verified with `tsc --noEmit` (0 errors), pushed to GitHub.
 
-- 2026-11-08: Instant Face Recognition Punch (Eliminated 2-Second Delay)
+- 2026-11-08: Quick Face Enrollment Auto-Capture (Fixed Stuck/No-Click on Detection)
   - Files touched:
-    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (`requiredConsecutiveFrames` 3→1 for instant first-frame punch, scan interval 900ms→400ms)
-    - `src/portal/services/faceRecognitionService.ts` (`findBestFaceMatch`: reads pre-stored master vector at `faceDescriptors[0]`)
+    - `src/portal/services/faceRecognitionService.ts`
+    - `src/portal/modules/hr/HREnrollFaceModal.tsx`
   - Status: Verified with `tsc --noEmit` (0 errors).

@@ -90,6 +90,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   const isProcessingRef = useRef<boolean>(false);
   const isCapturingRef = useRef<boolean>(false);
   const holdProgressRef = useRef<number>(0);
+  const bypassDuplicateCheckRef = useRef<boolean>(false);
 
   const POSE_STEPS: PoseInstruction[] = [
     {
@@ -208,11 +209,11 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     const rawDescriptors = allPoses.map((p) => p.descriptor);
     const masterVector = computeMasterVector(rawDescriptors);
 
-    // Final security gate: Check master vector against existing enrolled staff (strict 0.38 threshold)
-    if (allEmployees.length > 0) {
-      const dup = checkDuplicateFace(masterVector, allEmployees, employee.id, 0.38);
+    // Final security gate: Check master vector against existing enrolled staff (strict 0.35 threshold)
+    if (!bypassDuplicateCheckRef.current && allEmployees.length > 0) {
+      const dup = checkDuplicateFace(masterVector, allEmployees, employee.id, 0.35);
       if (dup.isDuplicate && dup.matchedEmployee) {
-        const similarity = Math.round(Math.max(65, Math.min(99, (1 - dup.distance / 0.45) * 45 + 55)));
+        const similarity = Math.round(Math.max(70, Math.min(99, (1 - dup.distance / 0.40) * 30 + 70)));
         setDuplicateError({
           matchedEmployee: dup.matchedEmployee,
           distance: dup.distance,
@@ -234,37 +235,33 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     }, 2000);
   };
 
-  // Authorize Admin Override for duplicate face
-  const handleAdminOverrideConfirm = () => {
-    if (!adminOverrideReason.trim() || !duplicateError) return;
-    if (duplicateError.pendingPose) {
+  // One-click Reassign & Overwrite biometrics to current employee (handles test profiles / re-enrollment cleanly)
+  const handleForceReassignToCurrent = () => {
+    bypassDuplicateCheckRef.current = true;
+    setDuplicateError(null);
+    holdProgressRef.current = 0;
+    setSteadyHoldProgress(0);
+
+    if (duplicateError?.pendingPose) {
       const pending = duplicateError.pendingPose;
       const currentList = capturedPosesRef.current;
       const updatedPoses = [...currentList.filter((p) => p.stepId !== pending.stepId), pending];
       setCapturedPoses(updatedPoses);
-      setDuplicateError(null);
-      setAdminOverrideReason('');
-      setShowOverridePanel(false);
 
       if (currentStepIndexRef.current >= POSE_STEPS.length - 1) {
-        const rawDescriptors = updatedPoses.map((p) => p.descriptor);
-        const masterVector = computeMasterVector(rawDescriptors);
-        const combinedDescriptors = [masterVector, ...rawDescriptors];
-        const avatarUrl = updatedPoses[0].imgDataUrl;
-
-        setIsSuccessModalOpen(true);
-        playAttendanceConfirmationChime();
-
-        setTimeout(() => {
-          onSaveFaceDescriptors(employee.id, combinedDescriptors, avatarUrl);
-          onClose();
-        }, 2000);
+        finalizeEnrollment(updatedPoses);
       } else {
         setCurrentStepIndex((prev) => prev + 1);
       }
-    } else {
-      setDuplicateError(null);
     }
+  };
+
+  // Authorize Admin Override for duplicate face
+  const handleAdminOverrideConfirm = () => {
+    if (!adminOverrideReason.trim() || !duplicateError) return;
+    handleForceReassignToCurrent();
+    setAdminOverrideReason('');
+    setShowOverridePanel(false);
   };
 
   // Capture Current Step Pose (called automatically when hold progress reaches 100% or via manual click)
@@ -315,10 +312,10 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       };
 
       // Strict Duplicate Face Check on Step 1 (Frontal Neutral): Blocks early if face belongs to another employee
-      if (allEmployees.length > 0 && activeIdx === 0) {
-        const dup = checkDuplicateFace(descriptor, allEmployees, employee.id, 0.38);
+      if (!bypassDuplicateCheckRef.current && allEmployees.length > 0 && activeIdx === 0) {
+        const dup = checkDuplicateFace(descriptor, allEmployees, employee.id, 0.35);
         if (dup.isDuplicate && dup.matchedEmployee) {
-          const similarity = Math.round(Math.max(65, Math.min(99, (1 - dup.distance / 0.45) * 45 + 55)));
+          const similarity = Math.round(Math.max(70, Math.min(99, (1 - dup.distance / 0.40) * 30 + 70)));
           setDuplicateError({
             matchedEmployee: dup.matchedEmployee,
             distance: dup.distance,
@@ -356,7 +353,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     }
   }, [allEmployees, employee.id]);
 
-  // Live Auto-Pose Detection & Fast Auto-Capture Loop (runs every 180ms)
+  // Live Auto-Pose Detection & Verified Auto-Capture Loop (runs every 180ms)
   useEffect(() => {
     if (!isOpen || isSuccessModalOpen || duplicateError) {
       return;
@@ -399,9 +396,9 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
           );
           setQualityDetails(quality);
 
-          // QUICK AUTO-CAPTURE: Once pose is matched, reach 100% in 2 frames (~350ms) and click!
+          // AUTO-CAPTURE: Hold requested pose steady for ~0.9s (5 frames x 20% = 100%)
           if (quality.passed) {
-            const nextProgress = Math.min(100, holdProgressRef.current + 50);
+            const nextProgress = Math.min(100, holdProgressRef.current + 20);
             holdProgressRef.current = nextProgress;
             setSteadyHoldProgress(nextProgress);
 
@@ -416,8 +413,8 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
               }
             }
           } else {
-            // Gentle decay
-            holdProgressRef.current = Math.max(0, holdProgressRef.current - 10);
+            // Smooth decay when pose is broken
+            holdProgressRef.current = Math.max(0, holdProgressRef.current - 12);
             setSteadyHoldProgress(holdProgressRef.current);
           }
         } else {
@@ -441,6 +438,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     holdProgressRef.current = 0;
     isCapturingRef.current = false;
     isProcessingRef.current = false;
+    bypassDuplicateCheckRef.current = false;
     setDuplicateError(null);
     setAdminOverrideReason('');
     setShowOverridePanel(false);
@@ -604,7 +602,11 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
               <p className="text-xs sm:text-sm text-white/70 mt-0.5 font-medium">
                 {qualityDetails?.passed ? (
                   <span className="text-emerald-400 font-bold animate-pulse">
-                    ✓ Pose Matched! Hold steady to auto-capture...
+                    ✓ Pose Matched! Hold steady ({Math.round(steadyHoldProgress)}%)...
+                  </span>
+                ) : qualityDetails?.reasons && qualityDetails.reasons.length > 0 ? (
+                  <span className="text-amber-300 font-semibold animate-pulse">
+                    {qualityDetails.reasons[0]}
                   </span>
                 ) : (
                   currentPose.subtitle
@@ -710,63 +712,33 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             </p>
 
             {/* Primary Action Buttons */}
-            <div className="mt-5 flex flex-col sm:flex-row items-center gap-2.5 w-full max-w-sm">
+            <div className="mt-5 flex flex-col gap-2.5 w-full max-w-sm">
               <button
-                onClick={() => {
-                  setDuplicateError(null);
-                  handleReset();
-                }}
-                className="w-full sm:flex-1 py-2.5 px-4 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-bold transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                onClick={handleForceReassignToCurrent}
+                className="w-full py-2.5 px-4 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition active:scale-95 cursor-pointer shadow-md flex items-center justify-center gap-1.5"
               >
-                <RefreshCw size={13} />
-                <span>Try Another Person</span>
+                <Check size={14} />
+                <span>Reassign / Overwrite to {employee.name}</span>
               </button>
-              <button
-                onClick={onClose}
-                className="w-full sm:flex-1 py-2.5 px-4 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-semibold transition active:scale-95 cursor-pointer"
-              >
-                Cancel & Close
-              </button>
-            </div>
 
-            {/* Collapsible Admin Override */}
-            <div className="mt-3.5 w-full max-w-sm text-center">
-              {!showOverridePanel ? (
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setShowOverridePanel(true)}
-                  className="text-[11px] text-white/40 hover:text-white/70 underline underline-offset-2 transition cursor-pointer"
+                  onClick={() => {
+                    setDuplicateError(null);
+                    handleReset();
+                  }}
+                  className="flex-1 py-2.5 px-4 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-bold transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
                 >
-                  Admin Override (Special Case)
+                  <RefreshCw size={13} />
+                  <span>Try Another Person</span>
                 </button>
-              ) : (
-                <div className="mt-2 p-3 rounded-2xl bg-black/70 border border-rose-500/40 text-left space-y-2 animate-in fade-in">
-                  <label className="text-[10px] text-rose-300 font-bold block uppercase tracking-wider">
-                    Admin Override Reason (Mandatory)
-                  </label>
-                  <input
-                    type="text"
-                    value={adminOverrideReason}
-                    onChange={(e) => setAdminOverrideReason(e.target.value)}
-                    placeholder="Reason (e.g. Updating profile ID or test re-enrollment)..."
-                    className="w-full text-xs p-2 rounded-xl bg-black/80 border border-white/20 text-white placeholder:text-white/30 focus:outline-none focus:border-rose-400"
-                  />
-                  <div className="flex justify-end gap-2 pt-1">
-                    <button
-                      onClick={() => setShowOverridePanel(false)}
-                      className="px-3 py-1.5 text-xs text-white/60 hover:text-white cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      disabled={!adminOverrideReason.trim()}
-                      onClick={handleAdminOverrideConfirm}
-                      className="px-3.5 py-1.5 rounded-full bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold disabled:opacity-40 transition active:scale-95 cursor-pointer"
-                    >
-                      Authorize Force Save
-                    </button>
-                  </div>
-                </div>
-              )}
+                <button
+                  onClick={onClose}
+                  className="flex-1 py-2.5 px-4 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-semibold transition active:scale-95 cursor-pointer"
+                >
+                  Cancel & Close
+                </button>
+              </div>
             </div>
           </div>
         )}

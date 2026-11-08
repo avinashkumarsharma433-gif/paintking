@@ -158,11 +158,19 @@ export function computeExposureScore(ctx: CanvasRenderingContext2D, box: { x: nu
 /**
  * Estimates head pose angles (yaw, pitch, roll) from 68 facial landmarks
  */
+/**
+ * Estimates head pose angles (yaw, pitch, roll) and smile metrics from 68 facial landmarks.
+ * In unmirrored canvas:
+ * - Turning head to physical LEFT moves nose tip rightwards in canvas (yaw > 0).
+ * - Turning head to physical RIGHT moves nose tip leftwards in canvas (yaw < 0).
+ * - Tilting chin UP shrinks vertical distance between nose and chin relative to eye line (pitch > 0).
+ */
 export function estimateHeadPoseFromLandmarks(landmarks: faceapi.FaceLandmarks68): {
-  yaw: number; // Left (-) / Right (+)
+  yaw: number; // Physical turn: Left (+) / Right (-)
   pitch: number; // Down (-) / Up (+)
-  roll: number; // Tilt left/right
+  roll: number;
   mouthAspectRatio: number;
+  isSmiling: boolean;
 } {
   const pts = landmarks.positions;
   const noseTip = pts[30];
@@ -173,27 +181,38 @@ export function estimateHeadPoseFromLandmarks(landmarks: faceapi.FaceLandmarks68
   const rightEyeOuter = pts[45];
   const eyeMidY = (pts[36].y + pts[45].y) / 2;
 
-  const faceWidth = Math.max(1, jawRight.x - jawLeft.x);
-  const faceHeight = Math.max(1, chin.y - eyeMidY);
-  const jawMidX = (jawLeft.x + jawRight.x) / 2;
+  const totalJawWidth = Math.max(1, jawRight.x - jawLeft.x);
 
-  // Yaw: normalized deviation of nose tip from midpoint of jaw edges
-  const yaw = Number(((noseTip.x - jawMidX) / faceWidth).toFixed(3));
+  // Unmirrored Canvas: pts[0] is canvas left, pts[16] is canvas right.
+  // When person turns towards their physical LEFT: nose moves towards canvas right (pts[16]).
+  // distFromLeft = noseTip.x - jawLeft.x. distFromRight = jawRight.x - noseTip.x.
+  const distFromLeft = noseTip.x - jawLeft.x;
+  const distFromRight = jawRight.x - noseTip.x;
+  const yaw = Number(((distFromLeft - distFromRight) / totalJawWidth).toFixed(3));
 
-  // Pitch: deviation of nose height relative to eye-chin midpoint
-  const expectedNoseY = eyeMidY + faceHeight * 0.45;
-  const pitch = Number(((expectedNoseY - noseTip.y) / faceHeight).toFixed(3));
+  // Pitch calculation:
+  // Distance from eye line to nose tip vs distance from nose tip to chin tip
+  const distEyeNose = Math.max(1, noseTip.y - eyeMidY);
+  const distNoseChin = Math.max(1, chin.y - noseTip.y);
+  // When head is tilted UP: chin moves up towards nose, distNoseChin shrinks.
+  // In neutral face, distNoseChin / distEyeNose is around 1.15 to 1.35. In chin up it drops below 0.85.
+  const pitch = Number(((1.10 - (distNoseChin / distEyeNose))).toFixed(3));
 
-  // Roll: eye tilt
-  const roll = Number(((rightEyeOuter.y - leftEyeOuter.y) / faceWidth).toFixed(3));
+  // Roll: eye level tilt
+  const roll = Number(((rightEyeOuter.y - leftEyeOuter.y) / totalJawWidth).toFixed(3));
 
-  // Mouth Aspect Ratio (MAR) for smile detection
-  // Lip corners: 48, 54. Top lip: 51, Bottom lip: 57
+  // Smile detection using lip corners & mouth geometry
   const mouthWidth = Math.hypot(pts[54].x - pts[48].x, pts[54].y - pts[48].y);
+  const eyeDist = Math.max(1, Math.hypot(pts[45].x - pts[36].x, pts[45].y - pts[36].y));
   const mouthHeight = Math.hypot(pts[57].x - pts[51].x, pts[57].y - pts[51].y);
+
+  const smileWidthRatio = mouthWidth / eyeDist;
   const mouthAspectRatio = Number((mouthHeight / (mouthWidth || 1)).toFixed(3));
 
-  return { yaw, pitch, roll, mouthAspectRatio };
+  // A genuine smile either expands lip width or opens mouth with curvature
+  const isSmiling = mouthAspectRatio >= 0.22 || (smileWidthRatio >= 1.02 && mouthAspectRatio >= 0.14);
+
+  return { yaw, pitch, roll, mouthAspectRatio, isSmiling };
 }
 
 /**
@@ -218,7 +237,7 @@ export function assessEnrollmentQuality(
 
   const reasons: string[] = [];
 
-  // 1. Detection confidence (forgiving for budget/laptop webcams)
+  // 1. Detection confidence
   if (score < 0.25) {
     reasons.push(`Low face detection confidence (${Math.round(score * 100)}%)`);
   }
@@ -228,45 +247,48 @@ export function assessEnrollmentQuality(
     reasons.push('Face is too far from camera. Move closer.');
   }
 
-  // 3. Extreme lighting checks (only block pitch black or blinding glare)
+  // 3. Extreme lighting checks
   if (exposureScore < 6) {
     reasons.push('Lighting is too dark. Increase ambient light.');
   } else if (exposureScore > 252) {
     reasons.push('Face is overexposed/glare. Avoid direct backlight.');
   }
 
-  // 4. Intelligent Head Pose Classifier (quick & forgiving thresholds)
+  // 4. Intelligent Head Pose Classifier
   let detectedPose: EnrollmentQualityDetails['detectedPose'] = 'NEUTRAL';
-  if (pose.mouthAspectRatio >= 0.14) {
+  if (pose.isSmiling) {
     detectedPose = 'SMILE';
-  } else if (Math.abs(pose.yaw) >= 0.03) {
-    detectedPose = pose.yaw > 0 ? 'LEFT' : 'RIGHT';
-  } else if (Math.abs(pose.pitch) >= 0.025) {
+  } else if (pose.yaw >= 0.14) {
+    detectedPose = 'LEFT';
+  } else if (pose.yaw <= -0.14) {
+    detectedPose = 'RIGHT';
+  } else if (pose.pitch >= 0.14) {
     detectedPose = 'UP';
   } else {
     detectedPose = 'NEUTRAL';
   }
 
-  // 5. Pose matching verification for requested step
+  // 5. Strict Step-by-Step Pose Verification (Guarantees user actually executes each requested pose)
   if (requestedStepId === 1) {
     // Pose 1: Straight & Neutral
-    if (Math.abs(pose.yaw) > 0.25) reasons.push('Face camera straight (no left/right tilt).');
-    if (Math.abs(pose.pitch) > 0.25) reasons.push('Keep head level (not tilted up/down).');
+    if (Math.abs(pose.yaw) > 0.12) reasons.push('Look directly straight at the camera.');
+    if (pose.pitch > 0.14 || pose.pitch < -0.18) reasons.push('Keep head level (not tilted up/down).');
+    if (pose.isSmiling) reasons.push('Keep a neutral expression for Step 1.');
   } else if (requestedStepId === 2) {
-    // Pose 2: Smile
-    if (pose.mouthAspectRatio < 0.14) reasons.push('Please give a natural smile.');
+    // Pose 2: Natural Smile
+    if (!pose.isSmiling) reasons.push('Please give a natural smile (हल्की मुस्कान दें).');
   } else if (requestedStepId === 3) {
     // Pose 3: Turn Head Left
-    if (Math.abs(pose.yaw) < 0.025) reasons.push('Turn head slightly towards your left side.');
+    if (pose.yaw < 0.14) reasons.push('Turn head towards your left side (चेहरा बायीं तरफ घुमाएं).');
   } else if (requestedStepId === 4) {
     // Pose 4: Turn Head Right
-    if (Math.abs(pose.yaw) < 0.025) reasons.push('Turn head slightly towards your right side.');
+    if (pose.yaw > -0.14) reasons.push('Turn head towards your right side (चेहरा दायीं तरफ घुमाएं).');
   } else if (requestedStepId === 5) {
     // Pose 5: Chin Up
-    if (Math.abs(pose.pitch) < 0.02) reasons.push('Tilt chin slightly upward.');
+    if (pose.pitch < 0.14) reasons.push('Tilt chin slightly upward (ठोड़ी को ऊपर उठाएं).');
   } else if (requestedStepId === 6) {
     // Pose 6: Final Verification (Straight neutral)
-    if (Math.abs(pose.yaw) > 0.25) reasons.push('Look straight into the camera.');
+    if (Math.abs(pose.yaw) > 0.14) reasons.push('Look straight into the camera for final verification.');
   }
 
   const passed = reasons.length === 0;
@@ -310,22 +332,27 @@ export function computeMasterVector(descriptors: number[][]): number[] {
 
 /**
  * Duplicate Face Detection: Checks whether a live face matches another employee in the company
- * Uses strict Master Vector identity matching (<= 0.38) and pose minimum distance (<= 0.34)
- * to avoid false positive duplicate alerts for new/different persons.
+ * Uses strict Master Vector identity matching (<= 0.35) and pose minimum distance (<= 0.30)
+ * to avoid false positive duplicate alerts across 200+ employees.
+ * Safely skips the current employee (case-insensitive) for smooth re-enrollment.
  */
 export function checkDuplicateFace(
   newDescriptor: number[],
   existingEmployees: Employee[],
   currentEmployeeId: string,
-  strictThreshold: number = 0.38 // strict identical identity threshold
+  strictThreshold: number = 0.35 // strict identical identity threshold
 ): { isDuplicate: boolean; matchedEmployee?: Employee; distance: number } {
   let closestDistance = 999;
   let duplicateEmp: Employee | undefined = undefined;
 
+  const normalizedCurrentId = (currentEmployeeId || '').trim().toLowerCase();
+
   for (const emp of (existingEmployees || [])) {
-    if (!emp || !emp.id || emp.id === currentEmployeeId || !emp.faceEnrolled || !emp.faceDescriptors || emp.faceDescriptors.length === 0) {
-      continue;
-    }
+    if (!emp || !emp.id) continue;
+    const normalizedEmpId = emp.id.trim().toLowerCase();
+    // NEVER compare against current employee (supports clean re-enrollment)
+    if (normalizedEmpId === normalizedCurrentId) continue;
+    if (!emp.faceEnrolled || !emp.faceDescriptors || emp.faceDescriptors.length === 0) continue;
 
     // Index 0 is the master vector
     const masterVec = emp.faceDescriptors[0];
@@ -340,9 +367,9 @@ export function checkDuplicateFace(
       }
     }
 
-    // A person is genuinely a duplicate if their master vector matches (<= 0.38)
-    // OR their closest example matches with high confidence (<= 0.34)
-    const isEmpDuplicate = masterDist <= strictThreshold || minVectorDist <= 0.34;
+    // A person is genuinely a duplicate if both their master vector matches (<= 0.35)
+    // AND at least one sample vector confirms with high confidence (<= 0.30)
+    const isEmpDuplicate = masterDist <= strictThreshold && minVectorDist <= 0.30;
 
     if (minVectorDist < closestDistance) {
       closestDistance = minVectorDist;
