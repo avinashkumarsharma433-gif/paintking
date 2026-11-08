@@ -75,7 +75,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
     bypassGeofenceForDev: false, // Strict geofence enforcement
     minRecognitionConfidence: 0.46, // Strict Euclidean distance limit
     cooldownMinutes: 1,
-    requiredConsecutiveFrames: 3, // Multi-frame confirmation default
+    requiredConsecutiveFrames: 1, // Instant punch on first confident recognition frame
     minRecognitionMargin: 0.04, // Minimum distance margin over second-best
     terminalMode: 'AUTO',
     minPunchGapMinutes: 2,
@@ -131,6 +131,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
 
   // Unknown face logging cooldown tracker
   const lastUnknownLogTimeRef = useRef<number>(0);
+  const isScanningRef = useRef<boolean>(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -298,7 +299,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
     }
 
     const interval = setInterval(async () => {
-      if (!videoRef.current || !canvasRef.current || isScanning) return;
+      if (!videoRef.current || !canvasRef.current || isScanningRef.current) return;
 
       const video = videoRef.current;
       if (video.readyState !== 4) return;
@@ -310,6 +311,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
+      isScanningRef.current = true;
       setIsScanning(true);
       try {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -381,8 +383,8 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
             const cooldownMs = config.cooldownMinutes * 60 * 1000;
 
             if (nowMs - lastPunchTime > cooldownMs) {
-              // Multi-frame confirmation: require N consecutive frames (default 3) agreeing on the same employee
-              const requiredFrames = config.requiredConsecutiveFrames || 3;
+              // Instant recognition: punch immediately on first confident match (configurable via requiredConsecutiveFrames)
+              const requiredFrames = config.requiredConsecutiveFrames || 1;
               const history = matchHistoryRef.current.get(emp.id) || [];
               const validRecent = history.filter((h) => nowMs - h.time < 3500); // 3.5s sliding window
 
@@ -540,9 +542,10 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
       } catch {
         // Recognition loop error ignored
       } finally {
+        isScanningRef.current = false;
         setIsScanning(false);
       }
-    }, 900);
+    }, 400); // Fast scan cycle: 400ms (~2.5 FPS recognition)
 
     return () => clearInterval(interval);
   }, [
@@ -554,7 +557,6 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
     config, 
     locationStamp, 
     todayStr, 
-    isScanning, 
     requireLiveness,
     onRecordPunch
   ]);

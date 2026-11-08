@@ -423,8 +423,8 @@ export function findBestFaceMatch(
       }
     }
 
-    // Master vector tie-breaker
-    const masterVec = emp.faceDescriptors.length > 1 ? computeMasterVector(emp.faceDescriptors) : emp.faceDescriptors[0];
+    // Master vector tie-breaker: index 0 is already the pre-computed master vector (stored during enrollment)
+    const masterVec = emp.faceDescriptors[0];
     const masterDist = calculateEuclideanDistance(liveDescriptor, masterVec);
 
     candidates.push({
