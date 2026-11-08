@@ -1,10 +1,10 @@
 # WORKING SET
 
-- 2026-11-08: Calibrated Natural Smile & 10-15° Left/Right Turn Detection for Auto-Enrollment
+- 2026-11-08: Relative Biometric Baseline Smile & Orientation-Agnostic Opposing Turn Auto-Capture
   - Files touched:
-    - `src/portal/services/faceRecognitionService.ts` (`estimateHeadPoseFromLandmarks` with biometric mouth aspect ratio, mouth-to-eye width ratio, and corner lift; calibrated `yaw >= 0.035` and `yaw <= -0.035` for natural 10-15° turns)
-    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (Auto-capture hold timer incremented to +25%/frame ~0.7s)
-  - Issue Diagnosed: Smile previously required anatomically impossible `smileWidthRatio >= 1.02` and `mouthAspectRatio >= 0.22`. Left/right yaw previously required extreme 40° profile turn (`yaw >= 0.14`). Calibrated to natural human ranges.
+    - `src/portal/services/faceRecognitionService.ts` (`extractBiometricBaseline` from Step 1 neutral face to detect smile via relative lip widening/opening/corner lift; Step 3 accepts horizontal turn `|yaw| >= 0.022` and Step 4 enforces opposing turn relative to Step 3 sign)
+    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (`baselineRef` tracked across steps, hold timer +34%/frame ~0.5s auto-capture)
+  - Issue Diagnosed: Webcams/mirroring caused yaw sign mismatch between physical and canvas space, causing Left/Right to always reject. Smile without baseline comparison failed for faces with narrower lips. Dynamic baseline comparison and relative opposing-turn tracking solves both unconditionally.
   - Status: Verified with `tsc --noEmit` (0 errors), pushed to GitHub.
 
 - 2026-11-08: Real Geometric Pose Verification & 200+ Employee Scalable Duplicate Engine

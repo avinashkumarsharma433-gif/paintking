@@ -158,19 +158,50 @@ export function computeExposureScore(ctx: CanvasRenderingContext2D, box: { x: nu
 /**
  * Estimates head pose angles (yaw, pitch, roll) from 68 facial landmarks
  */
+export interface EnrollmentBaseline {
+  mouthWidth: number;
+  eyeDist: number;
+  mouthToEyeRatio: number;
+  mouthAspectRatio: number;
+  cornerAvgY: number;
+  innerOpening: number;
+  step3YawSign?: number; // +1 or -1 recorded from Step 3
+}
+
+export function extractBiometricBaseline(landmarks: faceapi.FaceLandmarks68): EnrollmentBaseline {
+  const pts = landmarks.positions;
+  const mouthWidth = Math.max(1, Math.hypot(pts[54].x - pts[48].x, pts[54].y - pts[48].y));
+  const eyeDist = Math.max(1, Math.hypot(pts[45].x - pts[36].x, pts[45].y - pts[36].y));
+  const mouthHeight = Math.hypot(pts[57].x - pts[51].x, pts[57].y - pts[51].y);
+  const innerOpening = Math.max(0, pts[66].y - pts[62].y);
+  const mouthAspectRatio = Number((mouthHeight / mouthWidth).toFixed(3));
+  const mouthToEyeRatio = Number((mouthWidth / eyeDist).toFixed(3));
+  const cornerAvgY = (pts[48].y + pts[54].y) / 2;
+
+  return {
+    mouthWidth,
+    eyeDist,
+    mouthToEyeRatio,
+    mouthAspectRatio,
+    cornerAvgY,
+    innerOpening,
+  };
+}
+
 /**
  * Estimates head pose angles (yaw, pitch, roll) and smile metrics from 68 facial landmarks.
- * In unmirrored canvas:
- * - Turning head to physical LEFT moves nose tip rightwards in canvas (yaw > 0).
- * - Turning head to physical RIGHT moves nose tip leftwards in canvas (yaw < 0).
- * - Tilting chin UP shrinks vertical distance between nose and chin relative to eye line (pitch > 0).
  */
-export function estimateHeadPoseFromLandmarks(landmarks: faceapi.FaceLandmarks68): {
-  yaw: number; // Physical turn: Left (+) / Right (-)
-  pitch: number; // Down (-) / Up (+)
+export function estimateHeadPoseFromLandmarks(
+  landmarks: faceapi.FaceLandmarks68,
+  baseline?: EnrollmentBaseline | null
+): {
+  yaw: number;
+  pitch: number;
   roll: number;
   mouthAspectRatio: number;
   isSmiling: boolean;
+  innerOpening: number;
+  cornerLift: number;
 } {
   const pts = landmarks.positions;
   const noseTip = pts[30];
@@ -183,42 +214,50 @@ export function estimateHeadPoseFromLandmarks(landmarks: faceapi.FaceLandmarks68
 
   const totalJawWidth = Math.max(1, jawRight.x - jawLeft.x);
 
-  // Unmirrored Canvas: pts[0] is canvas left, pts[16] is canvas right.
-  // When person turns towards their physical LEFT: nose moves towards canvas right (pts[16]).
-  // distFromLeft = noseTip.x - jawLeft.x. distFromRight = jawRight.x - noseTip.x.
   const distFromLeft = noseTip.x - jawLeft.x;
   const distFromRight = jawRight.x - noseTip.x;
   const yaw = Number(((distFromLeft - distFromRight) / totalJawWidth).toFixed(3));
 
-  // Pitch calculation:
-  // Distance from eye line to nose tip vs distance from nose tip to chin tip
   const distEyeNose = Math.max(1, noseTip.y - eyeMidY);
   const distNoseChin = Math.max(1, chin.y - noseTip.y);
-  // When head is tilted UP: chin moves up towards nose, distNoseChin shrinks.
-  // In neutral face, distNoseChin / distEyeNose is around 1.15 to 1.35. In chin up it drops below 0.85.
   const pitch = Number(((1.10 - (distNoseChin / distEyeNose))).toFixed(3));
 
-  // Roll: eye level tilt
   const roll = Number(((rightEyeOuter.y - leftEyeOuter.y) / totalJawWidth).toFixed(3));
 
-  // Smile detection using lip corners, aspect ratio & bi-temporal mouth geometry
-  const mouthWidth = Math.hypot(pts[54].x - pts[48].x, pts[54].y - pts[48].y);
+  const mouthWidth = Math.max(1, Math.hypot(pts[54].x - pts[48].x, pts[54].y - pts[48].y));
   const eyeDist = Math.max(1, Math.hypot(pts[45].x - pts[36].x, pts[45].y - pts[36].y));
   const mouthHeight = Math.hypot(pts[57].x - pts[51].x, pts[57].y - pts[51].y);
+  const innerOpening = Math.max(0, pts[66].y - pts[62].y);
 
-  const mouthAspectRatio = Number((mouthHeight / (mouthWidth || 1)).toFixed(3));
+  const mouthAspectRatio = Number((mouthHeight / mouthWidth).toFixed(3));
   const mouthToEyeRatio = Number((mouthWidth / eyeDist).toFixed(3));
   const cornerAvgY = (pts[48].y + pts[54].y) / 2;
   const cornerLift = Number(((pts[57].y - cornerAvgY) / eyeDist).toFixed(3));
 
-  // A natural smile: parted lips/teeth (aspect ratio >= 0.13), wide grin (mouthToEye >= 0.49), or lifted corners (cornerLift >= 0.14)
-  const isSmiling =
-    mouthAspectRatio >= 0.13 ||
-    (mouthToEyeRatio >= 0.49 && mouthAspectRatio >= 0.09) ||
-    cornerLift >= 0.14 ||
-    mouthToEyeRatio >= 0.52;
+  // Dynamic smile detection comparing against neutral baseline OR universal relaxed thresholds
+  let isSmiling = false;
+  if (baseline) {
+    const relativeWidening = (mouthToEyeRatio - baseline.mouthToEyeRatio) / (baseline.mouthToEyeRatio || 1);
+    const relativeAspect = (mouthAspectRatio - baseline.mouthAspectRatio) / (baseline.mouthAspectRatio || 1);
+    const cornerLiftDelta = (baseline.cornerAvgY - cornerAvgY) / eyeDist;
 
-  return { yaw, pitch, roll, mouthAspectRatio, isSmiling };
+    isSmiling =
+      relativeWidening >= 0.03 ||
+      relativeAspect >= 0.12 ||
+      cornerLiftDelta >= 0.02 ||
+      innerOpening >= 1.8 ||
+      mouthAspectRatio >= 0.10 ||
+      mouthToEyeRatio >= 0.45 ||
+      cornerLift >= 0.08;
+  } else {
+    isSmiling =
+      innerOpening >= 1.8 ||
+      mouthAspectRatio >= 0.10 ||
+      mouthToEyeRatio >= 0.44 ||
+      cornerLift >= 0.07;
+  }
+
+  return { yaw, pitch, roll, mouthAspectRatio, isSmiling, innerOpening, cornerLift };
 }
 
 /**
@@ -229,14 +268,15 @@ export function assessEnrollmentQuality(
   ctx: CanvasRenderingContext2D,
   frameWidth: number,
   frameHeight: number,
-  requestedStepId: number // 1 to 6
+  requestedStepId: number, // 1 to 6
+  baseline?: EnrollmentBaseline | null
 ): EnrollmentQualityDetails {
   const box = detection.detection.box;
   const score = detection.detection.score;
   const landmarks = detection.landmarks;
 
   const ear = calculateEyeAspectRatio(landmarks);
-  const pose = estimateHeadPoseFromLandmarks(landmarks);
+  const pose = estimateHeadPoseFromLandmarks(landmarks, baseline);
   const blurScore = computeLaplacianVariance(ctx, box);
   const exposureScore = computeExposureScore(ctx, box);
   const boxCoveragePct = Math.round((box.height / (frameHeight || 1)) * 100);
@@ -244,7 +284,7 @@ export function assessEnrollmentQuality(
   const reasons: string[] = [];
 
   // 1. Detection confidence
-  if (score < 0.25) {
+  if (score < 0.20) {
     reasons.push(`Low face detection confidence (${Math.round(score * 100)}%)`);
   }
 
@@ -254,27 +294,25 @@ export function assessEnrollmentQuality(
   }
 
   // 3. Extreme lighting checks
-  if (exposureScore < 6) {
+  if (exposureScore < 5) {
     reasons.push('Lighting is too dark. Increase ambient light.');
-  } else if (exposureScore > 252) {
+  } else if (exposureScore > 253) {
     reasons.push('Face is overexposed/glare. Avoid direct backlight.');
   }
 
-  // 4. Intelligent Head Pose Classifier (Calibrated for 10-15° natural turn & natural smile)
+  // 4. Intelligent Head Pose Classifier
   let detectedPose: EnrollmentQualityDetails['detectedPose'] = 'NEUTRAL';
   if (requestedStepId === 2 && pose.isSmiling) {
     detectedPose = 'SMILE';
-  } else if (requestedStepId === 3 && pose.yaw >= 0.035) {
+  } else if (requestedStepId === 3 && Math.abs(pose.yaw) >= 0.022) {
     detectedPose = 'LEFT';
-  } else if (requestedStepId === 4 && pose.yaw <= -0.035) {
+  } else if (requestedStepId === 4 && Math.abs(pose.yaw) >= 0.022) {
     detectedPose = 'RIGHT';
-  } else if (requestedStepId === 5 && pose.pitch >= 0.06) {
+  } else if (requestedStepId === 5 && pose.pitch >= 0.05) {
     detectedPose = 'UP';
-  } else if (pose.yaw >= 0.035) {
-    detectedPose = 'LEFT';
-  } else if (pose.yaw <= -0.035) {
-    detectedPose = 'RIGHT';
-  } else if (pose.pitch >= 0.06) {
+  } else if (Math.abs(pose.yaw) >= 0.025) {
+    detectedPose = pose.yaw >= 0 ? 'LEFT' : 'RIGHT';
+  } else if (pose.pitch >= 0.05) {
     detectedPose = 'UP';
   } else if (pose.isSmiling) {
     detectedPose = 'SMILE';
@@ -282,38 +320,43 @@ export function assessEnrollmentQuality(
     detectedPose = 'NEUTRAL';
   }
 
-  // 5. Strict Step-by-Step Pose Verification (Guarantees user actually executes each requested pose)
+  // 5. Intelligent Step-by-Step Pose Verification (Guarantees user executes each requested pose)
   if (requestedStepId === 1) {
     // Pose 1: Straight & Neutral
-    if (Math.abs(pose.yaw) > 0.07) reasons.push('Look directly straight at the camera.');
-    if (pose.pitch > 0.14 || pose.pitch < -0.16) reasons.push('Keep head level (not tilted up/down).');
+    if (Math.abs(pose.yaw) > 0.06) reasons.push('Look directly straight at the camera.');
+    if (pose.pitch > 0.15 || pose.pitch < -0.17) reasons.push('Keep head level (not tilted up/down).');
   } else if (requestedStepId === 2) {
     // Pose 2: Natural Smile
     if (!pose.isSmiling) reasons.push('Please give a natural smile (हल्की मुस्कान दें).');
   } else if (requestedStepId === 3) {
-    // Pose 3: Turn Head Left (~10-15° natural turn)
-    if (pose.yaw < 0.035) {
-      if (pose.yaw <= -0.035) {
-        reasons.push('Turn head to your LEFT (चेहरा बायीं तरफ घुमाएं).');
-      } else {
-        reasons.push('Turn head slightly to your left (चेहरा बायीं तरफ घुमाएं).');
-      }
+    // Pose 3: Turn Head Left (Accepts natural ~8-15° horizontal turn in any webcam orientation)
+    const hasTurned = Math.abs(pose.yaw) >= 0.022;
+    if (!hasTurned) {
+      reasons.push('Turn head slightly towards your left (चेहरा थोड़ा बायीं तरफ घुमाएं).');
     }
   } else if (requestedStepId === 4) {
-    // Pose 4: Turn Head Right (~10-15° natural turn)
-    if (pose.yaw > -0.035) {
-      if (pose.yaw >= 0.035) {
-        reasons.push('Turn head to your RIGHT (चेहरा दायीं तरफ घुमाएं).');
-      } else {
-        reasons.push('Turn head slightly to your right (चेहरा दायीं तरफ घुमाएं).');
+    // Pose 4: Turn Head Right (Requires turn in opposite direction from Step 3)
+    if (baseline && baseline.step3YawSign !== undefined) {
+      const turnedOpposite = (pose.yaw * baseline.step3YawSign) <= -0.015;
+      if (!turnedOpposite) {
+        if (Math.abs(pose.yaw) < 0.018) {
+          reasons.push('Turn head slightly towards your right (चेहरा दायीं तरफ घुमाएं).');
+        } else {
+          reasons.push('Turn head to the OTHER side (चेहरे को दूसरी दिशा में घुमाएं).');
+        }
+      }
+    } else {
+      const hasTurned = Math.abs(pose.yaw) >= 0.022;
+      if (!hasTurned) {
+        reasons.push('Turn head slightly towards your right (चेहरा दायीं तरफ घुमाएं).');
       }
     }
   } else if (requestedStepId === 5) {
     // Pose 5: Chin Up
-    if (pose.pitch < 0.06) reasons.push('Tilt chin slightly upward (ठोड़ी को ऊपर उठाएं).');
+    if (pose.pitch < 0.05) reasons.push('Tilt chin slightly upward (ठोड़ी को ऊपर उठाएं).');
   } else if (requestedStepId === 6) {
     // Pose 6: Final Verification (Straight neutral)
-    if (Math.abs(pose.yaw) > 0.08) reasons.push('Look straight into the camera for final verification.');
+    if (Math.abs(pose.yaw) > 0.07) reasons.push('Look straight into the camera for final verification.');
   }
 
   const passed = reasons.length === 0;

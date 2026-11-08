@@ -23,7 +23,10 @@ import {
   computeMasterVector,
   checkDuplicateFace,
   assessEnrollmentQuality,
-  playAttendanceConfirmationChime
+  playAttendanceConfirmationChime,
+  extractBiometricBaseline,
+  estimateHeadPoseFromLandmarks,
+  EnrollmentBaseline
 } from '../../services/faceRecognitionService';
 import * as faceapi from '@vladmandic/face-api';
 
@@ -91,6 +94,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   const isCapturingRef = useRef<boolean>(false);
   const holdProgressRef = useRef<number>(0);
   const bypassDuplicateCheckRef = useRef<boolean>(false);
+  const baselineRef = useRef<EnrollmentBaseline | null>(null);
 
   const POSE_STEPS: PoseInstruction[] = [
     {
@@ -328,6 +332,21 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         }
       }
 
+      // Store facial baseline from Step 1 (Neutral Frontal) or Step 3 Turn Sign
+      if (activeIdx === 0 && detection.landmarks) {
+        baselineRef.current = extractBiometricBaseline(detection.landmarks);
+      } else if (activeIdx === 2 && detection.landmarks) {
+        const p = estimateHeadPoseFromLandmarks(detection.landmarks);
+        if (baselineRef.current) {
+          baselineRef.current.step3YawSign = p.yaw >= 0 ? 1 : -1;
+        } else {
+          baselineRef.current = {
+            ...extractBiometricBaseline(detection.landmarks),
+            step3YawSign: p.yaw >= 0 ? 1 : -1,
+          };
+        }
+      }
+
       // Flash feedback & audio chime on capture
       playAttendanceConfirmationChime();
       setJustCapturedFlash(true);
@@ -392,13 +411,14 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             ctx,
             offscreen.width,
             offscreen.height,
-            targetPose.id
+            targetPose.id,
+            baselineRef.current
           );
           setQualityDetails(quality);
 
-          // AUTO-CAPTURE: Hold requested pose steady for ~0.7s (4 frames x 25% = 100%)
+          // AUTO-CAPTURE: Hold requested pose steady for ~0.5s (3 frames x 34% = 100%)
           if (quality.passed) {
-            const nextProgress = Math.min(100, holdProgressRef.current + 25);
+            const nextProgress = Math.min(100, holdProgressRef.current + 34);
             holdProgressRef.current = nextProgress;
             setSteadyHoldProgress(nextProgress);
 
@@ -432,6 +452,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   }, [isOpen, isSuccessModalOpen, duplicateError, handleCapturePose]);
 
   const handleReset = () => {
+    baselineRef.current = null;
     setCapturedPoses([]);
     setCurrentStepIndex(0);
     setSteadyHoldProgress(0);
