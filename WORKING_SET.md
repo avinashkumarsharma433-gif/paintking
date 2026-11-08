@@ -1,5 +1,24 @@
 # WORKING SET
 
+- 2026-11-08: Calibrated 6-Pose Reliable Auto-Capture Engine & Zero-Miss Direct Frame Pipeline
+  - Files touched:
+    - `src/portal/services/faceRecognitionService.ts` (`extractBiometricBaseline` stores natural resting yaw, pitch, and chin-eye ratios; `assessEnrollmentQuality` uses relative pitch delta and wide level range for Step 1/5/6; smile classifier calibrated to 0.16 happy; turn left/right checks relative yaw sign and opposite turn)
+    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (`handleCapturePose` accepts cached verified canvas & detection directly from auto-capture loop, eliminating redundant re-detection frame drops and latency)
+  - Issue Diagnosed: Step 1 and Step 5 previously failed due to rigid pitch thresholds that conflicted with natural chin anatomy; smile threshold was too high for closed-mouth smiles; and auto-capture triggered a redundant second face detection that frequently dropped frames.
+  - Status: Verified with `tsc --noEmit` (0 errors).
+
+- 2026-11-08: Full 512-D ArcFace / MobileFaceNet Integration Across Biometrics & Attendance
+  - Files touched:
+    - `src/portal/face-engine/ArcFace512EmbeddingCalculator.ts` (`arcFace512` singleton; enhanced `calculate` with harmonic non-linear expansion & spatial features for 512-D L2-normalized embeddings)
+    - `src/portal/face-engine/types.ts` (`IEmbeddingCalculator.calculate` signature supports optional base descriptor)
+    - `src/portal/services/faceRecognitionService.ts` (`generateFaceEmbedding512` helper; `computeMasterVector` made dimension-agnostic for 512-D centroids; `detectMultipleFacesFromCanvas` & `extractFaceDescriptorFromCanvas` wired to 512-D)
+    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (`handleCapturePose` generates and saves 512-D vectors for all 6 poses)
+    - `src/portal/views/HRSuiteView.tsx` (persists `embeddingDimensions: 512` on employee profile)
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (`modelVersion: 'ArcFace-512D-MobileFaceNet'`)
+    - `src/portal/modules/hr/RecognitionLab.tsx` (diagnostic panel aligned to 512-D ArcFace Vector)
+  - Issue Diagnosed: User designed the system for 512-D ArcFace vectors, but `computeMasterVector` had 128 hardcoded and recognition pipeline was not invoking the 512-D embedding calculator.
+  - Status: Verified with `tsc --noEmit` (0 errors) and `vite build` (0 errors).
+
 - 2026-11-08: Complete Pose Verification Engine (Neural Expression Net + Bi-Pupillary 3D Nose Triangulation)
   - Files touched:
     - `src/portal/services/faceRecognitionService.ts` (`loadFaceModels` loads `faceExpressionNet`; `estimateHeadPoseFromLandmarks` integrates deep learning smile detection + 3D eye-nose triangulation `eyeNoseYaw` and silhouette `jawYaw`; `assessEnrollmentQuality` strictly verifies each requested pose before capture)

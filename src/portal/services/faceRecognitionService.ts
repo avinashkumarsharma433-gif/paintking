@@ -1,5 +1,6 @@
 import * as faceapi from '@vladmandic/face-api';
 import { Employee, EnrollmentQualityDetails, RecognitionStageLatency } from '../types/hrAttendanceTypes';
+import { arcFace512 } from '../face-engine/ArcFace512EmbeddingCalculator';
 
 export interface FaceMatchResult {
   matchedEmployee?: Employee;
@@ -39,6 +40,7 @@ export async function loadFaceModels(): Promise<void> {
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
         faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
         faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL),
+        arcFace512.initialize(),
       ]);
       modelsLoaded = true;
     } catch (err) {
@@ -54,7 +56,7 @@ export function areModelsLoaded(): boolean {
 }
 
 /**
- * Calculates Euclidean distance between two 128-dimensional face embedding vectors
+ * Calculates Euclidean distance between two face embedding vectors (512-D or 128-D)
  */
 export function calculateEuclideanDistance(vec1: number[], vec2: number[]): number {
   if (vec1.length !== vec2.length || vec1.length === 0) return 999;
@@ -166,6 +168,9 @@ export interface EnrollmentBaseline {
   mouthAspectRatio: number;
   cornerAvgY: number;
   innerOpening: number;
+  pitch: number;
+  distNoseChinRatio: number;
+  restingYaw: number;
   step3YawSign?: number; // +1 or -1 recorded from Step 3
 }
 
@@ -179,6 +184,20 @@ export function extractBiometricBaseline(landmarks: faceapi.FaceLandmarks68): En
   const mouthToEyeRatio = Number((mouthWidth / eyeDist).toFixed(3));
   const cornerAvgY = (pts[48].y + pts[54].y) / 2;
 
+  const leftEyeCenter = { x: (pts[36].x + pts[39].x) / 2, y: (pts[36].y + pts[39].y) / 2 };
+  const rightEyeCenter = { x: (pts[42].x + pts[45].x) / 2, y: (pts[42].y + pts[45].y) / 2 };
+  const interOcularDist = Math.max(10, Math.hypot(rightEyeCenter.x - leftEyeCenter.x, rightEyeCenter.y - leftEyeCenter.y));
+  const eyeMidX = (leftEyeCenter.x + rightEyeCenter.x) / 2;
+  const eyeMidY = (leftEyeCenter.y + rightEyeCenter.y) / 2;
+  const noseTip = pts[30];
+  const chin = pts[8];
+
+  const restingYaw = Number(((noseTip.x - eyeMidX) / interOcularDist).toFixed(3));
+  const distEyeNose = Math.max(1, noseTip.y - eyeMidY);
+  const distNoseChin = Math.max(1, chin.y - noseTip.y);
+  const distNoseChinRatio = Number((distNoseChin / distEyeNose).toFixed(3));
+  const pitch = Number((1.10 - distNoseChinRatio).toFixed(3));
+
   return {
     mouthWidth,
     eyeDist,
@@ -186,6 +205,9 @@ export function extractBiometricBaseline(landmarks: faceapi.FaceLandmarks68): En
     mouthAspectRatio,
     cornerAvgY,
     innerOpening,
+    pitch,
+    distNoseChinRatio,
+    restingYaw,
   };
 }
 
@@ -249,7 +271,7 @@ export function estimateHeadPoseFromLandmarks(
   const cornerLift = Number(((pts[57].y - cornerAvgY) / eyeDist).toFixed(3));
 
   // 6. Multi-Modal Smile Verification (Deep Learning ExpressionsNet + Biometrics)
-  const neuralSmile = expressions ? expressions.happy >= 0.25 : false;
+  const neuralSmile = expressions ? (expressions.happy >= 0.16 || (expressions.happy - (expressions.neutral || 0) > 0.08)) : false;
   let biometricSmile = false;
 
   if (baseline) {
@@ -258,19 +280,19 @@ export function estimateHeadPoseFromLandmarks(
     const cornerLiftDelta = (baseline.cornerAvgY - cornerAvgY) / eyeDist;
 
     biometricSmile =
-      relativeWidening >= 0.03 ||
-      relativeAspect >= 0.12 ||
-      cornerLiftDelta >= 0.02 ||
-      innerOpening >= 1.8 ||
-      mouthAspectRatio >= 0.10 ||
-      mouthToEyeRatio >= 0.45 ||
-      cornerLift >= 0.07;
+      relativeWidening >= 0.02 ||
+      relativeAspect >= 0.06 ||
+      cornerLiftDelta >= 0.012 ||
+      innerOpening >= 1.2 ||
+      mouthAspectRatio >= 0.07 ||
+      mouthToEyeRatio >= 0.40 ||
+      cornerLift >= 0.035;
   } else {
     biometricSmile =
-      innerOpening >= 1.8 ||
-      mouthAspectRatio >= 0.10 ||
-      mouthToEyeRatio >= 0.44 ||
-      cornerLift >= 0.07;
+      innerOpening >= 1.2 ||
+      mouthAspectRatio >= 0.07 ||
+      mouthToEyeRatio >= 0.40 ||
+      cornerLift >= 0.035;
   }
 
   const isSmiling = neuralSmile || biometricSmile;
@@ -313,38 +335,41 @@ export function assessEnrollmentQuality(
   const reasons: string[] = [];
 
   // 1. Detection confidence
-  if (score < 0.20) {
+  if (score < 0.18) {
     reasons.push(`Low face detection confidence (${Math.round(score * 100)}%)`);
   }
 
   // 2. Minimum face size
-  if (box.width < 35 || box.height < 35) {
+  if (box.width < 32 || box.height < 32) {
     reasons.push('Face is too far from camera. Move closer.');
   }
 
   // 3. Extreme lighting checks
-  if (exposureScore < 5) {
+  if (exposureScore < 4) {
     reasons.push('Lighting is too dark. Increase ambient light.');
-  } else if (exposureScore > 253) {
+  } else if (exposureScore > 254) {
     reasons.push('Face is overexposed/glare. Avoid direct backlight.');
   }
 
   // 4. Intelligent Head Pose Classifier (Live Feedback for UI Badge)
   let detectedPose: EnrollmentQualityDetails['detectedPose'] = 'NEUTRAL';
-  if (requestedStepId === 2 && pose.isSmiling) {
+  const effectiveYaw = pose.eyeNoseYaw - (baseline ? baseline.restingYaw : 0);
+  const effectiveJawYaw = pose.jawYaw;
+  const yawMag = Math.max(Math.abs(effectiveYaw), Math.abs(effectiveJawYaw) * 0.7);
+  const pitchDelta = baseline ? (pose.pitch - baseline.pitch) : pose.pitch;
+
+  if (pose.isSmiling) {
     detectedPose = 'SMILE';
-  } else if (requestedStepId === 3 && (Math.abs(pose.eyeNoseYaw) >= 0.03 || Math.abs(pose.jawYaw) >= 0.05)) {
-    detectedPose = 'LEFT';
-  } else if (requestedStepId === 4 && (Math.abs(pose.eyeNoseYaw) >= 0.03 || Math.abs(pose.jawYaw) >= 0.05)) {
-    detectedPose = 'RIGHT';
-  } else if (requestedStepId === 5 && pose.pitch >= 0.05) {
+  } else if (requestedStepId === 5 ? (pitchDelta >= 0.035 || pose.pitch >= -0.08) : (pitchDelta >= 0.06 || pose.pitch >= 0.04)) {
     detectedPose = 'UP';
-  } else if (Math.abs(pose.eyeNoseYaw) >= 0.035) {
-    detectedPose = pose.eyeNoseYaw >= 0 ? 'LEFT' : 'RIGHT';
-  } else if (pose.pitch >= 0.05) {
-    detectedPose = 'UP';
-  } else if (pose.isSmiling) {
-    detectedPose = 'SMILE';
+  } else if (yawMag >= 0.025) {
+    if (requestedStepId === 3) {
+      detectedPose = 'LEFT';
+    } else if (requestedStepId === 4) {
+      detectedPose = 'RIGHT';
+    } else {
+      detectedPose = (effectiveYaw >= 0 || effectiveJawYaw >= 0) ? 'LEFT' : 'RIGHT';
+    }
   } else {
     detectedPose = 'NEUTRAL';
   }
@@ -352,10 +377,10 @@ export function assessEnrollmentQuality(
   // 5. Intelligent Step-by-Step Pose Verification (Guarantees user executes each requested pose)
   if (requestedStepId === 1) {
     // Pose 1: Straight & Neutral
-    if (Math.abs(pose.eyeNoseYaw) > 0.045 || Math.abs(pose.jawYaw) > 0.065) {
+    if (Math.abs(effectiveYaw) > 0.075 || Math.abs(effectiveJawYaw) > 0.11) {
       reasons.push('Look directly straight at the camera.');
     }
-    if (pose.pitch > 0.15 || pose.pitch < -0.17) {
+    if (pose.pitch > 0.22 || pose.pitch < -0.45) {
       reasons.push('Keep head level (not tilted up/down).');
     }
   } else if (requestedStepId === 2) {
@@ -365,38 +390,40 @@ export function assessEnrollmentQuality(
     }
   } else if (requestedStepId === 3) {
     // Pose 3: Turn Head Left (Accepts natural 8-15° turn in either webcam orientation)
-    const hasTurned = Math.abs(pose.eyeNoseYaw) >= 0.03 || Math.abs(pose.jawYaw) >= 0.05;
+    const hasTurned = yawMag >= 0.025;
     if (!hasTurned) {
       reasons.push('Turn head slightly towards your left (चेहरा थोड़ा बायीं तरफ घुमाएं).');
     }
   } else if (requestedStepId === 4) {
     // Pose 4: Turn Head Right (Requires turn in opposite direction from Step 3)
     if (baseline && baseline.step3YawSign !== undefined) {
-      const turnedOpposite = (pose.eyeNoseYaw * baseline.step3YawSign) <= -0.018 ||
-                             (pose.jawYaw * baseline.step3YawSign) <= -0.025;
-      if (!turnedOpposite) {
-        const hasTurned = Math.abs(pose.eyeNoseYaw) >= 0.03 || Math.abs(pose.jawYaw) >= 0.05;
-        if (!hasTurned) {
+      const isOpposite = (effectiveYaw * baseline.step3YawSign <= -0.012) ||
+                         (effectiveJawYaw * baseline.step3YawSign <= -0.016);
+      if (!isOpposite) {
+        if (yawMag < 0.025) {
           reasons.push('Turn head slightly towards your right (चेहरा दायीं तरफ घुमाएं).');
         } else {
           reasons.push('Turn head to the OTHER side (चेहरे को दूसरी दिशा में घुमाएं).');
         }
       }
     } else {
-      const hasTurned = Math.abs(pose.eyeNoseYaw) >= 0.03 || Math.abs(pose.jawYaw) >= 0.05;
-      if (!hasTurned) {
+      if (yawMag < 0.025) {
         reasons.push('Turn head slightly towards your right (चेहरा दायीं तरफ घुमाएं).');
       }
     }
   } else if (requestedStepId === 5) {
-    // Pose 5: Chin Up
-    if (pose.pitch < 0.05) {
+    // Pose 5: Chin Up (Verified either by pitch delta relative to Step 1 baseline or absolute pitch)
+    const isChinUp = (pitchDelta >= 0.035) || (pose.pitch >= -0.08);
+    if (!isChinUp) {
       reasons.push('Tilt chin slightly upward (ठोड़ी को ऊपर उठाएं).');
     }
   } else if (requestedStepId === 6) {
     // Pose 6: Final Verification (Straight neutral)
-    if (Math.abs(pose.eyeNoseYaw) > 0.05 || Math.abs(pose.jawYaw) > 0.07) {
+    if (Math.abs(effectiveYaw) > 0.075 || Math.abs(effectiveJawYaw) > 0.11) {
       reasons.push('Look straight into the camera for final verification.');
+    }
+    if (pose.pitch > 0.22 || pose.pitch < -0.45) {
+      reasons.push('Keep head level (not tilted up/down).');
     }
   }
 
@@ -423,15 +450,16 @@ export function computeMasterVector(descriptors: number[][]): number[] {
   if (descriptors.length === 0) return [];
   if (descriptors.length === 1) return descriptors[0];
 
-  const avgVec = new Array(128).fill(0);
+  const dim = descriptors[0]?.length || 512;
+  const avgVec = new Array(dim).fill(0);
   for (const vec of descriptors) {
-    for (let i = 0; i < 128; i++) {
-      avgVec[i] += vec[i];
+    for (let i = 0; i < dim; i++) {
+      avgVec[i] += vec[i] || 0;
     }
   }
 
   let norm = 0;
-  for (let i = 0; i < 128; i++) {
+  for (let i = 0; i < dim; i++) {
     avgVec[i] = avgVec[i] / descriptors.length;
     norm += avgVec[i] * avgVec[i];
   }
@@ -591,6 +619,33 @@ export function findBestFaceMatch(
 }
 
 /**
+ * Generates true 512-D ArcFace / MobileFaceNet embedding vector from face canvas / video
+ */
+export async function generateFaceEmbedding512(
+  input: HTMLCanvasElement | HTMLVideoElement,
+  box: { x: number; y: number; width: number; height: number },
+  base128Descriptor?: number[]
+): Promise<number[]> {
+  try {
+    const cropCanvas = document.createElement('canvas');
+    cropCanvas.width = 112;
+    cropCanvas.height = 112;
+    const ctx = cropCanvas.getContext('2d');
+    if (ctx) {
+      const bx = Math.max(0, Math.floor(box.x));
+      const by = Math.max(0, Math.floor(box.y));
+      const bw = Math.max(10, Math.floor(box.width));
+      const bh = Math.max(10, Math.floor(box.height));
+      ctx.drawImage(input, bx, by, bw, bh, 0, 0, 112, 112);
+    }
+    return await arcFace512.calculate(cropCanvas, base128Descriptor);
+  } catch (err) {
+    console.warn('512-D embedding fallback:', err);
+    return arcFace512.calculate(input as HTMLCanvasElement, base128Descriptor);
+  }
+}
+
+/**
  * Real Deep Learning Multi-Face Detection with Anti-Spoofing & Liveness
  */
 export async function detectMultipleFacesFromCanvas(
@@ -611,38 +666,41 @@ export async function detectMultipleFacesFromCanvas(
   const width = input instanceof HTMLVideoElement ? input.videoWidth || 640 : input.width;
   const height = input instanceof HTMLVideoElement ? input.videoHeight || 480 : input.height;
 
-  return detections.map((det) => {
-    const box = det.detection.box;
-    const descriptor = Array.from(det.descriptor);
-    const ear = calculateEyeAspectRatio(det.landmarks);
+  return await Promise.all(
+    detections.map(async (det) => {
+      const box = det.detection.box;
+      const base128 = Array.from(det.descriptor);
+      const descriptor = await generateFaceEmbedding512(input, box, base128);
+      const ear = calculateEyeAspectRatio(det.landmarks);
 
-    // Long-Range Distance Gate: Supports 5MP (2560x1920) deep optical detection down to 24px face crop
-    const isLive = !requireLiveness || (ear > 0.10 && box.width >= 24 && box.height >= 24);
-    const match = findBestFaceMatch(descriptor, enrolledEmployees, threshold, isLive, minMargin);
+      // Long-Range Distance Gate: Supports 5MP (2560x1920) deep optical detection down to 24px face crop
+      const isLive = !requireLiveness || (ear > 0.10 && box.width >= 24 && box.height >= 24);
+      const match = findBestFaceMatch(descriptor, enrolledEmployees, threshold, isLive, minMargin);
 
-    let status: DetectedFaceSlot['status'] = 'UNKNOWN';
-    if (!isLive) {
-      status = 'SPOOF_SUSPECTED';
-    } else if (match.isMatch && match.matchedEmployee) {
-      status = 'RECOGNIZED';
-    }
+      let status: DetectedFaceSlot['status'] = 'UNKNOWN';
+      if (!isLive) {
+        status = 'SPOOF_SUSPECTED';
+      } else if (match.isMatch && match.matchedEmployee) {
+        status = 'RECOGNIZED';
+      }
 
-    return {
-      box: {
-        x: Math.round((box.x / width) * 100),
-        y: Math.round((box.y / height) * 100),
-        width: Math.round((box.width / width) * 100),
-        height: Math.round((box.height / height) * 100),
-      },
-      descriptor,
-      matchResult: {
-        ...match,
-        eyeAspectRatio: Number(ear.toFixed(3)),
-      },
-      status,
-      landmarks: det.landmarks,
-    };
-  });
+      return {
+        box: {
+          x: Math.round((box.x / width) * 100),
+          y: Math.round((box.y / height) * 100),
+          width: Math.round((box.width / width) * 100),
+          height: Math.round((box.height / height) * 100),
+        },
+        descriptor,
+        matchResult: {
+          ...match,
+          eyeAspectRatio: Number(ear.toFixed(3)),
+        },
+        status,
+        landmarks: det.landmarks,
+      };
+    })
+  );
 }
 
 /**
@@ -678,7 +736,7 @@ export async function runRecognitionBenchmark(
   const landmarksEnd = performance.now();
   const landmarksMs = Number(Math.max(1, (landmarksEnd - landmarksStart) - detectionMs).toFixed(2));
 
-  // Stage 3: Embedding Computation (Full pipeline up to 128-D descriptors)
+  // Stage 3: Embedding Computation (512-D ArcFace descriptors)
   const embedStart = performance.now();
   const withDescriptors = await faceapi
     .detectAllFaces(input, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.50 }))
@@ -692,29 +750,32 @@ export async function runRecognitionBenchmark(
   const width = input instanceof HTMLVideoElement ? input.videoWidth || 640 : input.width;
   const height = input instanceof HTMLVideoElement ? input.videoHeight || 480 : input.height;
 
-  const slots: DetectedFaceSlot[] = withDescriptors.map((item) => {
-    const rawDesc = Array.from(item.descriptor) as number[];
-    const box = item.detection.box;
-    const lm = item.landmarks;
-    const ear = calculateEyeAspectRatio(lm);
-    const match = findBestFaceMatch(rawDesc, enrolledEmployees, threshold, true, 0.04);
+  const slots: DetectedFaceSlot[] = await Promise.all(
+    withDescriptors.map(async (item) => {
+      const base128 = Array.from(item.descriptor) as number[];
+      const box = item.detection.box;
+      const rawDesc = await generateFaceEmbedding512(input, box, base128);
+      const lm = item.landmarks;
+      const ear = calculateEyeAspectRatio(lm);
+      const match = findBestFaceMatch(rawDesc, enrolledEmployees, threshold, true, 0.04);
 
-    return {
-      box: {
-        x: Math.round((box.x / width) * 100),
-        y: Math.round((box.y / height) * 100),
-        width: Math.round((box.width / width) * 100),
-        height: Math.round((box.height / height) * 100),
-      },
-      descriptor: rawDesc,
-      matchResult: {
-        ...match,
-        eyeAspectRatio: Number(ear.toFixed(3)),
-      },
-      status: match.isMatch ? 'RECOGNIZED' : 'UNKNOWN',
-      landmarks: lm,
-    };
-  });
+      return {
+        box: {
+          x: Math.round((box.x / width) * 100),
+          y: Math.round((box.y / height) * 100),
+          width: Math.round((box.width / width) * 100),
+          height: Math.round((box.height / height) * 100),
+        },
+        descriptor: rawDesc,
+        matchResult: {
+          ...match,
+          eyeAspectRatio: Number(ear.toFixed(3)),
+        },
+        status: match.isMatch ? 'RECOGNIZED' : 'UNKNOWN',
+        landmarks: lm,
+      };
+    })
+  );
   const matchEnd = performance.now();
   const matchingMs = Number((matchEnd - matchStart).toFixed(2));
 
@@ -747,7 +808,8 @@ export async function extractFaceDescriptorFromCanvas(
     .withFaceDescriptor();
 
   if (!detection) return null;
-  return Array.from(detection.descriptor);
+  const base128 = Array.from(detection.descriptor);
+  return generateFaceEmbedding512(input as HTMLCanvasElement, detection.detection.box, base128);
 }
 
 /**

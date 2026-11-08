@@ -87,7 +87,7 @@ export interface IEmbeddingCalculator {
   name: string;
   version: string;
   dimensions: number; // 128 or 512
-  calculate(faceCrop: HTMLCanvasElement | ImageData | ImageBitmap): Promise<number[]>;
+  calculate(faceCrop: HTMLCanvasElement | ImageData | ImageBitmap, base128Descriptor?: number[]): Promise<number[]>;
 }
 
 export interface IFaceCollection {

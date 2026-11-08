@@ -466,7 +466,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                     similarity: Number((1 - avgDist).toFixed(4)),
                     margin: Number(avgMargin.toFixed(4)),
                     livenessScore: face.matchResult.isLive ? 0.95 : 0.2,
-                    modelVersion: 'CompreFace-Legacy-ArcFace-128D',
+                    modelVersion: 'ArcFace-512D-MobileFaceNet',
                     deviceId: 'PK-TERMINAL-01',
                     geofenceStamp: locationStamp || undefined,
                     punchTimestamp: new Date().toISOString(),

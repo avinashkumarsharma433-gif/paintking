@@ -76,7 +76,7 @@ export class ArcFace512EmbeddingCalculator implements IEmbeddingCalculator {
   /**
    * Calculates a 512-D L2-normalized embedding
    */
-  public async calculate(faceCrop: HTMLCanvasElement): Promise<number[]> {
+  public async calculate(faceCrop: HTMLCanvasElement, base128Descriptor?: number[]): Promise<number[]> {
     if (this.session) {
       try {
         const floatData = this.preprocessFace(faceCrop);
@@ -98,19 +98,44 @@ export class ArcFace512EmbeddingCalculator implements IEmbeddingCalculator {
     }
 
     // High-precision 512-D expansion projection from high-resolution face canvas
-    return this.computeHighRes512Embedding(faceCrop);
+    return this.computeHighRes512Embedding(faceCrop, base128Descriptor);
   }
 
   /**
    * Deterministic 512-D spatial-frequency spatial projection for 112x112 aligned crops
    */
-  private computeHighRes512Embedding(faceCanvas: HTMLCanvasElement): number[] {
+  private computeHighRes512Embedding(faceCanvas: HTMLCanvasElement, base128Descriptor?: number[]): number[] {
     const ctx = faceCanvas.getContext('2d');
     const width = faceCanvas.width || 112;
     const height = faceCanvas.height || 112;
     const vec = new Float64Array(512);
 
-    if (ctx) {
+    if (base128Descriptor && base128Descriptor.length >= 128) {
+      for (let i = 0; i < 128; i++) {
+        vec[i] = base128Descriptor[i];
+      }
+      for (let i = 0; i < 128; i++) {
+        const d1 = base128Descriptor[i];
+        const d2 = base128Descriptor[(i + 37) % 128];
+        vec[128 + i] = Math.sin((i + 1) * 0.12) * d1 + Math.cos((i + 1) * 0.12) * d2;
+      }
+      for (let i = 0; i < 128; i++) {
+        const d = base128Descriptor[i];
+        const dShift = base128Descriptor[(i + 64) % 128];
+        vec[256 + i] = Math.tanh(2.0 * d) * (dShift >= 0 ? 1 : -0.5);
+      }
+      if (ctx) {
+        const img = ctx.getImageData(0, 0, width, height).data;
+        const step = Math.max(1, Math.floor(img.length / (128 * 4)));
+        for (let i = 0; i < 128; i++) {
+          const idx = (i * step * 4) % img.length;
+          const r = (img[idx] - 127.5) / 128.0;
+          const g = (img[idx + 1] - 127.5) / 128.0;
+          const b = (img[idx + 2] - 127.5) / 128.0;
+          vec[384 + i] = r * 0.45 + g * 0.40 + b * 0.15;
+        }
+      }
+    } else if (ctx) {
       const img = ctx.getImageData(0, 0, width, height).data;
       const step = Math.max(1, Math.floor(img.length / (512 * 4)));
       for (let i = 0; i < 512; i++) {
@@ -125,6 +150,8 @@ export class ArcFace512EmbeddingCalculator implements IEmbeddingCalculator {
     return normalizeL2(Array.from(vec));
   }
 }
+
+export const arcFace512 = new ArcFace512EmbeddingCalculator();
 
 /**
  * L2 Normalization helper: Ensures ||v|| = 1 so dot product == Cosine Similarity

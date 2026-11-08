@@ -26,7 +26,8 @@ import {
   playAttendanceConfirmationChime,
   extractBiometricBaseline,
   estimateHeadPoseFromLandmarks,
-  EnrollmentBaseline
+  EnrollmentBaseline,
+  generateFaceEmbedding512
 } from '../../services/faceRecognitionService';
 import * as faceapi from '@vladmandic/face-api';
 
@@ -269,8 +270,11 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   };
 
   // Capture Current Step Pose (called automatically when hold progress reaches 100% or via manual click)
-  const handleCapturePose = useCallback(async () => {
-    if (!videoRef.current || isProcessingRef.current) return;
+  const handleCapturePose = useCallback(async (
+    cachedCanvas?: HTMLCanvasElement,
+    cachedDetection?: faceapi.WithFaceDescriptor<faceapi.WithFaceExpressions<faceapi.WithFaceLandmarks<{ detection: faceapi.FaceDetection }>>>
+  ) => {
+    if (isProcessingRef.current) return;
     isProcessingRef.current = true;
     setIsProcessing(true);
 
@@ -278,36 +282,43 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       const activeIdx = currentStepIndexRef.current;
       const targetPose = POSE_STEPS[Math.min(activeIdx, POSE_STEPS.length - 1)] || POSE_STEPS[0];
 
-      const video = videoRef.current;
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      let canvas = cachedCanvas;
+      let detection = cachedDetection;
 
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      if (!canvas || !detection) {
+        const video = videoRef.current;
+        if (!video) return;
+        canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
 
-      let detection = await faceapi
-        .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.20 }))
-        .withFaceLandmarks()
-        .withFaceExpressions()
-        .withFaceDescriptor();
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      if (!detection) {
-        // Fallback with lower threshold to ensure budget webcams are never dropped
         detection = await faceapi
-          .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.15 }))
+          .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.18 }))
           .withFaceLandmarks()
           .withFaceExpressions()
           .withFaceDescriptor();
+
+        if (!detection) {
+          // Fallback with lower threshold to ensure budget webcams are never dropped
+          detection = await faceapi
+            .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.12 }))
+            .withFaceLandmarks()
+            .withFaceExpressions()
+            .withFaceDescriptor();
+        }
       }
 
-      if (!detection) {
+      if (!canvas || !detection) {
         console.warn('Face missed on snapshot, will retry on next frame');
         return;
       }
 
-      const descriptor = Array.from(detection.descriptor);
+      const base128 = Array.from(detection.descriptor);
+      const descriptor = await generateFaceEmbedding512(canvas, detection.detection.box, base128);
       const imgDataUrl = canvas.toDataURL('image/jpeg', 0.85);
 
       const newPose = {
@@ -338,8 +349,9 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       if (activeIdx === 0 && detection.landmarks) {
         baselineRef.current = extractBiometricBaseline(detection.landmarks);
       } else if (activeIdx === 2 && detection.landmarks) {
-        const p = estimateHeadPoseFromLandmarks(detection.landmarks);
-        const sign = p.eyeNoseYaw >= 0 ? 1 : -1;
+        const p = estimateHeadPoseFromLandmarks(detection.landmarks, undefined, baselineRef.current);
+        const effectiveYaw = p.eyeNoseYaw - (baselineRef.current?.restingYaw || 0);
+        const sign = Math.sign(effectiveYaw || p.jawYaw) || 1;
         if (baselineRef.current) {
           baselineRef.current.step3YawSign = sign;
         } else {
@@ -398,9 +410,10 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         const targetPose = POSE_STEPS[Math.min(activeIdx, POSE_STEPS.length - 1)] || POSE_STEPS[0];
 
         const det = await faceapi
-          .detectSingleFace(offscreen, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.20 }))
+          .detectSingleFace(offscreen, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.18 }))
           .withFaceLandmarks()
-          .withFaceExpressions();
+          .withFaceExpressions()
+          .withFaceDescriptor();
 
         if (det) {
           const box = det.detection.box;
@@ -420,16 +433,16 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
           );
           setQualityDetails(quality);
 
-          // AUTO-CAPTURE: Hold requested pose steady for ~0.5s (3 frames x 34% = 100%)
+          // AUTO-CAPTURE: Hold requested pose steady for ~0.45s (3 frames x 35% = 100%)
           if (quality.passed) {
-            const nextProgress = Math.min(100, holdProgressRef.current + 34);
+            const nextProgress = Math.min(100, holdProgressRef.current + 35);
             holdProgressRef.current = nextProgress;
             setSteadyHoldProgress(nextProgress);
 
             if (nextProgress >= 100 && !isCapturingRef.current && !isProcessingRef.current) {
               isCapturingRef.current = true;
               try {
-                await handleCapturePose();
+                await handleCapturePose(offscreen, det);
               } finally {
                 holdProgressRef.current = 0;
                 setSteadyHoldProgress(0);
@@ -438,13 +451,13 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             }
           } else {
             // Smooth decay when pose is broken
-            holdProgressRef.current = Math.max(0, holdProgressRef.current - 12);
+            holdProgressRef.current = Math.max(0, holdProgressRef.current - 10);
             setSteadyHoldProgress(holdProgressRef.current);
           }
         } else {
           setDetectedBox(null);
           setQualityDetails(null);
-          holdProgressRef.current = Math.max(0, holdProgressRef.current - 15);
+          holdProgressRef.current = Math.max(0, holdProgressRef.current - 12);
           setSteadyHoldProgress(holdProgressRef.current);
         }
       } catch {

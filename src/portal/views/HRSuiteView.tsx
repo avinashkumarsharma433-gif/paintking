@@ -232,6 +232,7 @@ export const HRSuiteView: React.FC = () => {
               ...e,
               faceEnrolled: true,
               faceDescriptors: descriptors,
+              embeddingDimensions: descriptors[0]?.length === 512 ? 512 : 128,
               avatarUrl: avatarUrl || e.avatarUrl,
             }
           : e

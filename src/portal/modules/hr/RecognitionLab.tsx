@@ -396,7 +396,7 @@ export const RecognitionLab: React.FC<RecognitionLabProps> = ({ employees }) => 
           <div className="text-xl font-serif text-[#17191c] font-bold">
             {latencies.embeddingMs} <span className="text-xs font-sans font-normal text-[#777b86]">ms</span>
           </div>
-          <span className="text-[10px] text-[#979799] mt-1 block">128-D ResNet-34 Vector</span>
+          <span className="text-[10px] text-[#979799] mt-1 block">512-D ArcFace Vector</span>
         </div>
 
         <div className="p-4 bg-white rounded-[20px] border border-[#ececec] shadow-2xs">
