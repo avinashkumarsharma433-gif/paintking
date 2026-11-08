@@ -327,7 +327,7 @@ export function checkDuplicateFace(
   newDescriptor: number[],
   existingEmployees: Employee[],
   currentEmployeeId: string,
-  strictThreshold: number = 0.40 // identical face threshold
+  strictThreshold: number = 0.46 // identical/matched face threshold
 ): { isDuplicate: boolean; matchedEmployee?: Employee; distance: number } {
   let closestDistance = 999;
   let duplicateEmp: Employee | undefined = undefined;

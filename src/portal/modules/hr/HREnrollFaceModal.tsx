@@ -14,6 +14,7 @@ import {
   Sparkles, 
   CheckCircle2,
   AlertTriangle,
+  ShieldAlert,
   Zap
 } from 'lucide-react';
 import { Employee, EnrollmentQualityDetails } from '../../types/hrAttendanceTypes';
@@ -74,12 +75,15 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   const [steadyHoldProgress, setSteadyHoldProgress] = useState<number>(0);
   const [detectedBox, setDetectedBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
-  // Duplicate face notice (informational, does not block save)
-  const [duplicateNotice, setDuplicateNotice] = useState<{
-    name: string;
-    id: string;
-    confidence: number;
+  // Duplicate face block error
+  const [duplicateError, setDuplicateError] = useState<{
+    matchedEmployee: Employee;
+    distance: number;
+    similarity: number;
+    pendingPose?: { stepId: number; label: string; descriptor: number[]; imgDataUrl: string };
   } | null>(null);
+  const [adminOverrideReason, setAdminOverrideReason] = useState<string>('');
+  const [showOverridePanel, setShowOverridePanel] = useState<boolean>(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -200,6 +204,21 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     if (allPoses.length === 0) return;
     const rawDescriptors = allPoses.map((p) => p.descriptor);
     const masterVector = computeMasterVector(rawDescriptors);
+
+    // Final security gate: Check master vector against existing enrolled staff
+    if (allEmployees.length > 0) {
+      const dup = checkDuplicateFace(masterVector, allEmployees, employee.id, 0.46);
+      if (dup.isDuplicate && dup.matchedEmployee) {
+        const similarity = Math.round(Math.max(0, Math.min(100, (1 - dup.distance / 0.6) * 100)));
+        setDuplicateError({
+          matchedEmployee: dup.matchedEmployee,
+          distance: dup.distance,
+          similarity,
+        });
+        return; // Abort saving!
+      }
+    }
+
     const combinedDescriptors = [masterVector, ...rawDescriptors];
     const avatarUrl = allPoses[0].imgDataUrl;
 
@@ -210,6 +229,39 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       onSaveFaceDescriptors(employee.id, combinedDescriptors, avatarUrl);
       onClose();
     }, 2000);
+  };
+
+  // Authorize Admin Override for duplicate face
+  const handleAdminOverrideConfirm = () => {
+    if (!adminOverrideReason.trim() || !duplicateError) return;
+    if (duplicateError.pendingPose) {
+      const pending = duplicateError.pendingPose;
+      const currentList = capturedPosesRef.current;
+      const updatedPoses = [...currentList.filter((p) => p.stepId !== pending.stepId), pending];
+      setCapturedPoses(updatedPoses);
+      setDuplicateError(null);
+      setAdminOverrideReason('');
+      setShowOverridePanel(false);
+
+      if (currentStepIndexRef.current >= POSE_STEPS.length - 1) {
+        const rawDescriptors = updatedPoses.map((p) => p.descriptor);
+        const masterVector = computeMasterVector(rawDescriptors);
+        const combinedDescriptors = [masterVector, ...rawDescriptors];
+        const avatarUrl = updatedPoses[0].imgDataUrl;
+
+        setIsSuccessModalOpen(true);
+        playAttendanceConfirmationChime();
+
+        setTimeout(() => {
+          onSaveFaceDescriptors(employee.id, combinedDescriptors, avatarUrl);
+          onClose();
+        }, 2000);
+      } else {
+        setCurrentStepIndex((prev) => prev + 1);
+      }
+    } else {
+      setDuplicateError(null);
+    }
   };
 
   // Capture Current Step Pose (called automatically when hold progress reaches 100%)
@@ -247,15 +299,19 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         imgDataUrl,
       };
 
-      // Check duplicate face (informational notice, does not block saving)
+      // Strict Duplicate Face Check: Block if face already belongs to another employee
       if (allEmployees.length > 0) {
-        const dup = checkDuplicateFace(descriptor, allEmployees, employee.id, 0.40);
+        const dup = checkDuplicateFace(descriptor, allEmployees, employee.id, 0.46);
         if (dup.isDuplicate && dup.matchedEmployee) {
-          setDuplicateNotice({
-            name: dup.matchedEmployee.name,
-            id: dup.matchedEmployee.id,
-            confidence: Math.round((1 - dup.distance / 0.6) * 100),
+          const similarity = Math.round(Math.max(0, Math.min(100, (1 - dup.distance / 0.6) * 100)));
+          setDuplicateError({
+            matchedEmployee: dup.matchedEmployee,
+            distance: dup.distance,
+            similarity,
+            pendingPose: newPose,
           });
+          setSteadyHoldProgress(0);
+          return; // Strictly abort and block saving!
         }
       }
 
@@ -284,7 +340,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
 
   // Live Auto-Pose Detection & Auto-Capture Loop (runs every 200ms)
   useEffect(() => {
-    if (!isOpen || isProcessing || isSuccessModalOpen) {
+    if (!isOpen || isProcessing || isSuccessModalOpen || duplicateError) {
       return;
     }
 
@@ -361,7 +417,9 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     setCapturedPoses([]);
     setCurrentStepIndex(0);
     setSteadyHoldProgress(0);
-    setDuplicateNotice(null);
+    setDuplicateError(null);
+    setAdminOverrideReason('');
+    setShowOverridePanel(false);
   };
 
   const getPoseLabel = (poseType?: string) => {
@@ -514,15 +572,6 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         {/* BOTTOM INSTRUCTION OVERLAY */}
         <div className="absolute bottom-0 inset-x-0 p-5 pb-8 sm:pb-10 bg-gradient-to-t from-black/95 via-black/60 to-transparent flex flex-col items-center z-20">
           <div className="w-full max-w-sm flex flex-col items-center text-center space-y-3">
-            
-            {/* Duplicate Notice Banner (if duplicate, shown without blocking) */}
-            {duplicateNotice && (
-              <div className="px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[11px] flex items-center gap-2">
-                <AlertTriangle size={14} className="shrink-0" />
-                <span>Note: Face resembles {duplicateNotice.name} ({duplicateNotice.id})</span>
-              </div>
-            )}
-
             {/* Main Instruction */}
             <div>
               <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-wide drop-shadow-md">
@@ -592,6 +641,111 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             </div>
           </div>
         </div>
+
+        {/* DUPLICATE FACE ERROR MODAL OVERLAY */}
+        {duplicateError && (
+          <div className="absolute inset-0 z-40 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in-95 duration-200">
+            <div className="h-20 w-20 rounded-full bg-rose-500/20 border-2 border-rose-500 flex items-center justify-center mb-3 text-rose-400 shadow-[0_0_30px_rgba(244,63,94,0.35)] animate-pulse">
+              <ShieldAlert size={42} />
+            </div>
+
+            <h3 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
+              चेहरा पहले से रजिस्टर्ड है!
+            </h3>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-semibold mt-1">
+              <AlertTriangle size={13} />
+              <span>Duplicate Face Detected ({duplicateError.similarity}% Match)</span>
+            </div>
+
+            <p className="text-xs text-white/70 mt-2 max-w-sm">
+              Yeh chehra company ke database me pehle se registered employee se match karta hai:
+            </p>
+
+            {/* Matched Employee Details Box */}
+            <div className="mt-3 p-4 rounded-2xl bg-white/5 border border-white/10 text-left w-full max-w-sm">
+              <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest">
+                Enrolled Profile Match
+              </div>
+              <div className="mt-1.5 flex items-center justify-between">
+                <span className="text-base font-bold text-white">
+                  {duplicateError.matchedEmployee.name}
+                </span>
+                <span className="text-xs font-mono font-semibold px-2.5 py-0.5 rounded-full bg-white/10 text-[#c09748] border border-[#c09748]/30">
+                  {duplicateError.matchedEmployee.id}
+                </span>
+              </div>
+              <div className="mt-1 text-xs text-white/70 flex items-center gap-2">
+                <span>{duplicateError.matchedEmployee.designation || 'Staff'}</span>
+                <span>•</span>
+                <span>{duplicateError.matchedEmployee.department}</span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-white/50 mt-2.5 max-w-xs leading-relaxed">
+              Company policy ke anusaar ek hi chehra do alag employee profiles me register nahi kiya ja sakta.
+            </p>
+
+            {/* Primary Action Buttons */}
+            <div className="mt-5 flex flex-col sm:flex-row items-center gap-2.5 w-full max-w-sm">
+              <button
+                onClick={() => {
+                  setDuplicateError(null);
+                  handleReset();
+                }}
+                className="w-full sm:flex-1 py-2.5 px-4 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-bold transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <RefreshCw size={13} />
+                <span>Try Another Person</span>
+              </button>
+              <button
+                onClick={onClose}
+                className="w-full sm:flex-1 py-2.5 px-4 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-semibold transition active:scale-95 cursor-pointer"
+              >
+                Cancel & Close
+              </button>
+            </div>
+
+            {/* Collapsible Admin Override */}
+            <div className="mt-3.5 w-full max-w-sm text-center">
+              {!showOverridePanel ? (
+                <button
+                  onClick={() => setShowOverridePanel(true)}
+                  className="text-[11px] text-white/40 hover:text-white/70 underline underline-offset-2 transition cursor-pointer"
+                >
+                  Admin Override (Special Case)
+                </button>
+              ) : (
+                <div className="mt-2 p-3 rounded-2xl bg-black/70 border border-rose-500/40 text-left space-y-2 animate-in fade-in">
+                  <label className="text-[10px] text-rose-300 font-bold block uppercase tracking-wider">
+                    Admin Override Reason (Mandatory)
+                  </label>
+                  <input
+                    type="text"
+                    value={adminOverrideReason}
+                    onChange={(e) => setAdminOverrideReason(e.target.value)}
+                    placeholder="Reason (e.g. Updating profile ID or test re-enrollment)..."
+                    className="w-full text-xs p-2 rounded-xl bg-black/80 border border-white/20 text-white placeholder:text-white/30 focus:outline-none focus:border-rose-400"
+                  />
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      onClick={() => setShowOverridePanel(false)}
+                      className="px-3 py-1.5 text-xs text-white/60 hover:text-white cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      disabled={!adminOverrideReason.trim()}
+                      onClick={handleAdminOverrideConfirm}
+                      className="px-3.5 py-1.5 rounded-full bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold disabled:opacity-40 transition active:scale-95 cursor-pointer"
+                    >
+                      Authorize Force Save
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* FULL SCREEN SUCCESS MODAL WITH GREEN TICK */}
         {isSuccessModalOpen && (
