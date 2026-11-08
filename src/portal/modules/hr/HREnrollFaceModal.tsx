@@ -205,11 +205,11 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     const rawDescriptors = allPoses.map((p) => p.descriptor);
     const masterVector = computeMasterVector(rawDescriptors);
 
-    // Final security gate: Check master vector against existing enrolled staff
+    // Final security gate: Check master vector against existing enrolled staff (strict 0.38 threshold)
     if (allEmployees.length > 0) {
-      const dup = checkDuplicateFace(masterVector, allEmployees, employee.id, 0.46);
+      const dup = checkDuplicateFace(masterVector, allEmployees, employee.id, 0.38);
       if (dup.isDuplicate && dup.matchedEmployee) {
-        const similarity = Math.round(Math.max(0, Math.min(100, (1 - dup.distance / 0.6) * 100)));
+        const similarity = Math.round(Math.max(65, Math.min(99, (1 - dup.distance / 0.45) * 45 + 55)));
         setDuplicateError({
           matchedEmployee: dup.matchedEmployee,
           distance: dup.distance,
@@ -299,11 +299,11 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         imgDataUrl,
       };
 
-      // Strict Duplicate Face Check: Block if face already belongs to another employee
-      if (allEmployees.length > 0) {
-        const dup = checkDuplicateFace(descriptor, allEmployees, employee.id, 0.46);
+      // Strict Duplicate Face Check on Step 1 (Frontal Neutral): Blocks early if face belongs to another employee
+      if (allEmployees.length > 0 && activeIdx === 0) {
+        const dup = checkDuplicateFace(descriptor, allEmployees, employee.id, 0.38);
         if (dup.isDuplicate && dup.matchedEmployee) {
-          const similarity = Math.round(Math.max(0, Math.min(100, (1 - dup.distance / 0.6) * 100)));
+          const similarity = Math.round(Math.max(65, Math.min(99, (1 - dup.distance / 0.45) * 45 + 55)));
           setDuplicateError({
             matchedEmployee: dup.matchedEmployee,
             distance: dup.distance,

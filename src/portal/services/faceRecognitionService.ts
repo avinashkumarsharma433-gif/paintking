@@ -321,29 +321,44 @@ export function computeMasterVector(descriptors: number[][]): number[] {
 
 /**
  * Duplicate Face Detection: Checks whether a live face matches another employee in the company
- * Prevents enrolling the same person under multiple names.
+ * Uses strict Master Vector identity matching (<= 0.38) and pose minimum distance (<= 0.34)
+ * to avoid false positive duplicate alerts for new/different persons.
  */
 export function checkDuplicateFace(
   newDescriptor: number[],
   existingEmployees: Employee[],
   currentEmployeeId: string,
-  strictThreshold: number = 0.46 // identical/matched face threshold
+  strictThreshold: number = 0.38 // strict identical identity threshold
 ): { isDuplicate: boolean; matchedEmployee?: Employee; distance: number } {
   let closestDistance = 999;
   let duplicateEmp: Employee | undefined = undefined;
 
   for (const emp of (existingEmployees || [])) {
-    if (!emp || !emp.id || emp.id === currentEmployeeId || !emp.faceEnrolled || !emp.faceDescriptors) {
+    if (!emp || !emp.id || emp.id === currentEmployeeId || !emp.faceEnrolled || !emp.faceDescriptors || emp.faceDescriptors.length === 0) {
       continue;
     }
 
+    // Index 0 is the master vector
+    const masterVec = emp.faceDescriptors[0];
+    const masterDist = calculateEuclideanDistance(newDescriptor, masterVec);
+
+    // Also check all individual sample vectors
+    let minVectorDist = masterDist;
     for (const vec of emp.faceDescriptors) {
-      const dist = calculateEuclideanDistance(newDescriptor, vec);
-      if (dist < closestDistance) {
-        closestDistance = dist;
-        if (dist <= strictThreshold) {
-          duplicateEmp = emp;
-        }
+      const d = calculateEuclideanDistance(newDescriptor, vec);
+      if (d < minVectorDist) {
+        minVectorDist = d;
+      }
+    }
+
+    // A person is genuinely a duplicate if their master vector matches (<= 0.38)
+    // OR their closest example matches with high confidence (<= 0.34)
+    const isEmpDuplicate = masterDist <= strictThreshold || minVectorDist <= 0.34;
+
+    if (minVectorDist < closestDistance) {
+      closestDistance = minVectorDist;
+      if (isEmpDuplicate) {
+        duplicateEmp = emp;
       }
     }
   }
