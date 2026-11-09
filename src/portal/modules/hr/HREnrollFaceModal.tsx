@@ -133,10 +133,11 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
 
   // Video and Canvas Refs
   const videoRef = useRef<HTMLVideoElement>(null);
-  const displayCanvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const processingCanvasRef = useRef<HTMLCanvasElement>(document.createElement('canvas'));
   const streamRef = useRef<MediaStream | null>(null);
   const baselineRef = useRef<EnrollmentBaseline | null>(null);
+  const [isCameraReady, setIsCameraReady] = useState<boolean>(false);
 
   const selectedPose = useMemo(() => {
     return ENROLLMENT_20_POSES.find((p) => p.id === selectedPoseId) || ENROLLMENT_20_POSES[0];
@@ -184,7 +185,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     }
   };
 
-  // Start Camera Stream with HD resolution
+  // Start Camera Stream with HD resolution & resilient fallbacks
   useEffect(() => {
     if (!isOpen) return;
 
@@ -192,18 +193,34 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     const startCamera = async () => {
       try {
         setCameraError(null);
+        setIsCameraReady(false);
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           throw new Error('Camera permissions not available on this browser.');
         }
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'user',
-            width: { ideal: 1920, min: 1280 },
-            height: { ideal: 1080, min: 720 },
-          },
-          audio: false,
-        });
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: 'user',
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+            audio: false,
+          });
+        } catch {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: 'user' },
+              audio: false,
+            });
+          } catch {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: false,
+            });
+          }
+        }
 
         if (!isMounted) {
           stream.getTracks().forEach((t) => t.stop());
@@ -213,9 +230,19 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute('playsinline', 'true');
+          videoRef.current.setAttribute('webkit-playsinline', 'true');
+          videoRef.current.muted = true;
           videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play().catch(() => {});
+            videoRef.current?.play().then(() => {
+              if (isMounted) setIsCameraReady(true);
+            }).catch(() => {
+              if (isMounted) setIsCameraReady(true);
+            });
           };
+          videoRef.current.play().then(() => {
+            if (isMounted) setIsCameraReady(true);
+          }).catch(() => {});
         }
       } catch (err: unknown) {
         console.error('Camera error:', err);
@@ -234,7 +261,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     };
   }, [isOpen]);
 
-  // Real-time live HUD loop with oriented frame processing (runs every 120ms)
+  // Real-time live HUD loop with oriented frame processing
   useEffect(() => {
     if (!isOpen || isSuccessModalOpen || duplicateError) return;
 
@@ -243,41 +270,49 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
 
     const processLiveFrame = async () => {
       const video = videoRef.current;
-      const displayCanvas = displayCanvasRef.current;
+      const overlayCanvas = overlayCanvasRef.current;
       const procCanvas = processingCanvasRef.current;
 
-      if (!video || video.readyState !== 4 || !displayCanvas) {
+      if (!video) {
         animationId = requestAnimationFrame(processLiveFrame);
         return;
       }
 
-      // Draw oriented frame onto processing canvas
-      const drawn = drawOrientedFrame(video, procCanvas, cameraOrientation, mirror);
-      if (!drawn) {
+      if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
+        if (!isCameraReady) setIsCameraReady(true);
+      } else {
         animationId = requestAnimationFrame(processLiveFrame);
         return;
       }
 
-      // Synchronize display canvas dimensions to oriented frame
-      if (displayCanvas.width !== procCanvas.width || displayCanvas.height !== procCanvas.height) {
-        displayCanvas.width = procCanvas.width;
-        displayCanvas.height = procCanvas.height;
+      // Sync overlay canvas resolution to DOM container
+      if (overlayCanvas) {
+        if (overlayCanvas.width !== overlayCanvas.clientWidth || overlayCanvas.height !== overlayCanvas.clientHeight) {
+          overlayCanvas.width = overlayCanvas.clientWidth;
+          overlayCanvas.height = overlayCanvas.clientHeight;
+        }
       }
 
-      const dCtx = displayCanvas.getContext('2d');
-      if (dCtx) {
-        // Draw oriented video frame
-        dCtx.drawImage(procCanvas, 0, 0);
-      }
-
-      // Run face detection on oriented canvas every ~120ms without stacking
+      // Run face detection on oriented canvas every ~100ms without stacking
       if (!isProcessingFrame) {
         isProcessingFrame = true;
         try {
+          const drawn = drawOrientedFrame(video, procCanvas, cameraOrientation, mirror);
+          if (!drawn) {
+            isProcessingFrame = false;
+            animationId = requestAnimationFrame(processLiveFrame);
+            return;
+          }
+
           const detections = await faceapi
             .detectAllFaces(procCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.18 }))
             .withFaceLandmarks()
             .withFaceExpressions();
+
+          const oCtx = overlayCanvas?.getContext('2d');
+          if (oCtx && overlayCanvas) {
+            oCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+          }
 
           if (detections && detections.length > 0) {
             const primaryDet = detections[0];
@@ -310,41 +345,64 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
               },
             });
 
-            // Draw bounding box & landmarks on display canvas overlay
-            if (dCtx) {
+            // Draw biometric brackets & landmarks on overlay canvas
+            if (oCtx && overlayCanvas) {
+              const oW = overlayCanvas.width;
+              const oH = overlayCanvas.height;
               const box = primaryDet.detection.box;
-              dCtx.save();
-              dCtx.lineWidth = 3;
-              dCtx.strokeStyle = matchValidation.isMatch ? '#34d399' : '#f59e0b';
-              dCtx.strokeRect(box.x, box.y, box.width, box.height);
 
-              // Draw corners styling
-              const cornerLen = 16;
-              dCtx.lineWidth = 4;
-              dCtx.strokeStyle = matchValidation.isMatch ? '#10b981' : '#c09748';
+              const scaleX = oW / procCanvas.width;
+              const scaleY = oH / procCanvas.height;
+
+              const bX = box.x * scaleX;
+              const bY = box.y * scaleY;
+              const bW = box.width * scaleX;
+              const bH = box.height * scaleY;
+
+              oCtx.save();
+              oCtx.lineWidth = 2.5;
+              oCtx.strokeStyle = matchValidation.isMatch ? '#34d399' : '#f59e0b';
+              oCtx.strokeRect(bX, bY, bW, bH);
+
+              // Draw biometric corner accents
+              const cLen = 14;
+              oCtx.lineWidth = 3.5;
+              oCtx.strokeStyle = matchValidation.isMatch ? '#10b981' : '#c09748';
               // Top-left
-              dCtx.beginPath();
-              dCtx.moveTo(box.x, box.y + cornerLen);
-              dCtx.lineTo(box.x, box.y);
-              dCtx.lineTo(box.x + cornerLen, box.y);
-              dCtx.stroke();
+              oCtx.beginPath();
+              oCtx.moveTo(bX, bY + cLen);
+              oCtx.lineTo(bX, bY);
+              oCtx.lineTo(bX + cLen, bY);
+              oCtx.stroke();
               // Top-right
-              dCtx.beginPath();
-              dCtx.moveTo(box.x + box.width - cornerLen, box.y);
-              dCtx.lineTo(box.x + box.width, box.y);
-              dCtx.lineTo(box.x + box.width, box.y + cornerLen);
-              dCtx.stroke();
+              oCtx.beginPath();
+              oCtx.moveTo(bX + bW - cLen, bY);
+              oCtx.lineTo(bX + bW, bY);
+              oCtx.lineTo(bX + bW, bY + cLen);
+              oCtx.stroke();
+              // Bottom-left
+              oCtx.beginPath();
+              oCtx.moveTo(bX, bY + bH - cLen);
+              oCtx.lineTo(bX, bY + bH);
+              oCtx.lineTo(bX + cLen, bY + bH);
+              oCtx.stroke();
+              // Bottom-right
+              oCtx.beginPath();
+              oCtx.moveTo(bX + bW - cLen, bY + bH);
+              oCtx.lineTo(bX + bW, bY + bH);
+              oCtx.lineTo(bX + bW, bY + bH - cLen);
+              oCtx.stroke();
 
-              // Draw landmarks if enabled
+              // Landmarks if enabled
               if (showLandmarks && primaryDet.landmarks) {
-                dCtx.fillStyle = matchValidation.isMatch ? 'rgba(52, 211, 153, 0.85)' : 'rgba(192, 151, 72, 0.85)';
+                oCtx.fillStyle = matchValidation.isMatch ? 'rgba(52, 211, 153, 0.85)' : 'rgba(192, 151, 72, 0.85)';
                 for (const pt of primaryDet.landmarks.positions) {
-                  dCtx.beginPath();
-                  dCtx.arc(pt.x, pt.y, 2, 0, 2 * Math.PI);
-                  dCtx.fill();
+                  oCtx.beginPath();
+                  oCtx.arc(pt.x * scaleX, pt.y * scaleY, 2, 0, 2 * Math.PI);
+                  oCtx.fill();
                 }
               }
-              dCtx.restore();
+              oCtx.restore();
             }
           } else {
             setLiveTelemetry({
@@ -371,7 +429,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     return () => {
       cancelAnimationFrame(animationId);
     };
-  }, [isOpen, isSuccessModalOpen, duplicateError, cameraOrientation, mirror, selectedPose, showLandmarks]);
+  }, [isOpen, isSuccessModalOpen, duplicateError, cameraOrientation, mirror, selectedPose, showLandmarks, isCameraReady]);
 
   // MANUAL CAPTURE FUNCTION: Triggered only by operator button click
   const handleManualCapture = useCallback(async (targetPoseId: string) => {
@@ -671,27 +729,42 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
           {/* LEFT COLUMN: LIVE ORIENTED CAMERA FEED & REAL-TIME HUD (5 COLS) */}
           <div className="lg:col-span-5 bg-[#121417] p-4 flex flex-col gap-3 border-r border-[#2d3139] overflow-y-auto">
             
-            {/* Camera Preview Frame Container */}
-            <div className="relative aspect-4/3 w-full bg-black rounded-[20px] overflow-hidden border border-[#30333a] shadow-inner flex items-center justify-center">
-              {/* Hidden raw video element */}
+            {/* Camera Preview Frame Container (Visible Live Video Feed + Overlay HUD) */}
+            <div className="relative w-full h-[280px] sm:h-[330px] bg-black rounded-[20px] overflow-hidden border border-[#30333a] shadow-inner flex items-center justify-center shrink-0">
+              {/* Native Hardware-Accelerated Video Feed */}
               <video
                 ref={videoRef}
+                autoPlay
                 playsInline
                 muted
-                className="hidden"
-              />
-
-              {/* Display canvas rendering oriented frame + HUD */}
-              <canvas
-                ref={displayCanvasRef}
+                style={{
+                  transform: `rotate(${cameraOrientation}deg) ${mirror ? 'scaleX(-1)' : ''}`,
+                  transformOrigin: 'center center',
+                  transition: 'transform 0.25s ease',
+                }}
                 className={`w-full h-full object-cover transition-opacity duration-150 ${
-                  justCapturedFlash ? 'opacity-20 bg-white' : 'opacity-100'
+                  justCapturedFlash ? 'opacity-30' : 'opacity-100'
                 }`}
               />
 
+              {/* Overlay Canvas for Face Tracking Box & Landmark Mesh */}
+              <canvas
+                ref={overlayCanvasRef}
+                className="absolute inset-0 w-full h-full pointer-events-none"
+              />
+
+              {/* Connecting Stream Spinner */}
+              {!isCameraReady && !cameraError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-black/85 z-10 text-center">
+                  <Activity size={32} className="text-[#c09748] animate-spin mb-2" />
+                  <p className="text-xs text-white/90 font-medium">Starting camera stream...</p>
+                  <p className="text-[10px] text-white/50 mt-1">Please allow camera permissions if prompted</p>
+                </div>
+              )}
+
               {/* Camera Error Message */}
               {cameraError && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/90">
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/90 z-20">
                   <AlertCircle size={32} className="text-rose-400 mb-2" />
                   <p className="text-xs text-rose-300 font-semibold">{cameraError}</p>
                   <p className="text-[11px] text-white/50 mt-1">Please allow camera permissions and reload.</p>
@@ -961,38 +1034,49 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                 const isCompleted = record?.status === 'COMPLETED';
                 const isFailed = record?.status === 'FAILED';
                 const isNA = record?.status === 'NOT_APPLICABLE' || (!wearsGlasses && pose.category === 'SPECTACLES');
-                const isCapturing = capturingPoseId === pose.id;
 
                 return (
                   <div
                     key={pose.id}
-                    onClick={() => setSelectedPoseId(pose.id)}
-                    className={`p-3 rounded-[18px] border transition cursor-pointer relative flex flex-col justify-between gap-2 ${
+                    onClick={() => {
+                      if (!isNA) {
+                        setSelectedPoseId(pose.id);
+                        setLastFailure(null);
+                      }
+                    }}
+                    className={`p-3 rounded-[18px] border transition cursor-pointer relative flex flex-col justify-between gap-2 select-none ${
                       isSelected
-                        ? 'bg-[#22252c] border-[#c09748] ring-1 ring-[#c09748]/50 shadow-md'
+                        ? 'bg-[#22252c] border-[#c09748] ring-2 ring-[#c09748]/60 shadow-md'
                         : isCompleted
                         ? 'bg-[#1b2320] border-emerald-500/40 hover:border-emerald-500/70'
                         : isFailed
-                        ? 'bg-[#271c1f] border-rose-500/40'
+                        ? 'bg-[#271c1f] border-rose-500/40 hover:border-rose-500/60'
                         : isNA
-                        ? 'bg-white/2 border-white/5 opacity-50'
+                        ? 'bg-white/2 border-white/5 opacity-40 cursor-not-allowed'
                         : 'bg-[#1a1c22] border-[#2d3139] hover:border-white/20'
                     }`}
                   >
                     {/* Top Row: Pose ID, Title & Status */}
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-6 h-6 rounded-full flex items-center justify-center font-mono text-xs font-bold ${
+                      <div className="flex items-center gap-2.5">
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center font-mono text-xs font-bold shrink-0 ${
                           isCompleted
                             ? 'bg-emerald-400 text-black'
                             : isSelected
                             ? 'bg-[#c09748] text-black'
                             : 'bg-white/10 text-white/70'
                         }`}>
-                          {pose.id}
+                          {isCompleted ? '✓' : pose.id}
                         </span>
                         <div>
-                          <h4 className="text-xs font-bold text-white leading-tight">{pose.title}</h4>
+                          <h4 className="text-xs font-bold text-white leading-tight flex items-center gap-1.5">
+                            <span>{pose.title}</span>
+                            {isSelected && (
+                              <span className="text-[9px] font-mono px-1.5 py-0.2 bg-[#c09748]/20 text-[#c09748] rounded border border-[#c09748]/40">
+                                ACTIVE
+                              </span>
+                            )}
+                          </h4>
                           <span className="text-[10px] text-white/50">{pose.hindiTitle}</span>
                         </div>
                       </div>
@@ -1018,62 +1102,32 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
 
                     {/* Middle: Target Angles & Snapshot thumbnail if completed */}
                     <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/5 text-[10px] text-white/60">
-                      <div className="font-mono">
-                        <span>Y:{pose.targetYaw}° </span>
-                        <span>P:{pose.targetPitch}° </span>
-                        <span>R:{pose.targetRoll}°</span>
+                      <div className="font-mono flex items-center gap-2">
+                        <span className="text-white/40">Target:</span>
+                        <span className={isSelected && Math.abs((liveTelemetry?.angles.yaw || 0) - pose.targetYaw) <= 8 ? 'text-emerald-400 font-bold' : ''}>
+                          Y:{pose.targetYaw > 0 ? `+${pose.targetYaw}` : pose.targetYaw}°
+                        </span>
+                        <span className={isSelected && Math.abs((liveTelemetry?.angles.pitch || 0) - pose.targetPitch) <= 8 ? 'text-emerald-400 font-bold' : ''}>
+                          P:{pose.targetPitch > 0 ? `+${pose.targetPitch}` : pose.targetPitch}°
+                        </span>
+                        <span className={isSelected && Math.abs((liveTelemetry?.angles.roll || 0) - pose.targetRoll) <= 8 ? 'text-emerald-400 font-bold' : ''}>
+                          R:{pose.targetRoll > 0 ? `+${pose.targetRoll}` : pose.targetRoll}°
+                        </span>
                       </div>
 
                       {record?.imgDataUrl && (
-                        <div className="w-8 h-8 rounded-lg overflow-hidden border border-emerald-500/50 shrink-0">
+                        <div className="w-7 h-7 rounded-md overflow-hidden border border-emerald-500/50 shrink-0">
                           <img src={record.imgDataUrl} alt={pose.title} className="w-full h-full object-cover" />
                         </div>
                       )}
                     </div>
 
-                    {/* Bottom: Error reason if failed OR Manual Capture Trigger Button */}
+                    {/* Bottom: Error reason if failed */}
                     {isFailed && record?.failureReason && (
-                      <p className="text-[10px] text-rose-300 truncate font-medium">
+                      <p className="text-[10px] text-rose-300 truncate font-medium bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
                         {record.failureReason}
                       </p>
                     )}
-
-                    <div className="pt-1 flex items-center justify-between gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedPoseId(pose.id);
-                          handleManualCapture(pose.id);
-                        }}
-                        disabled={isProcessing || isNA}
-                        className={`w-full py-1.5 px-3 rounded-full text-[11px] font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 ${
-                          isNA
-                            ? 'bg-white/5 text-white/30 cursor-not-allowed'
-                            : isCompleted
-                            ? 'bg-white/10 hover:bg-white/20 text-white/80 border border-white/10'
-                            : isSelected && liveTelemetry?.isTargetMatch
-                            ? 'bg-emerald-500 hover:bg-emerald-400 text-black font-bold shadow-xs'
-                            : 'bg-white/10 hover:bg-[#c09748] hover:text-black text-white border border-white/15'
-                        }`}
-                      >
-                        {isCapturing ? (
-                          <>
-                            <Activity size={12} className="animate-spin" />
-                            <span>Validating...</span>
-                          </>
-                        ) : isCompleted ? (
-                          <>
-                            <RefreshCw size={11} />
-                            <span>Retake</span>
-                          </>
-                        ) : (
-                          <>
-                            <Camera size={11} />
-                            <span>Capture {pose.id}</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
                   </div>
                 );
               })}
