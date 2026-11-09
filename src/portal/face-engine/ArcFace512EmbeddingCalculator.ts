@@ -28,12 +28,13 @@ export class ArcFace512EmbeddingCalculator implements IEmbeddingCalculator {
 
     try {
       this.session = await ort.InferenceSession.create(modelPath, {
-        executionProviders: ['webgl', 'wasm'],
+        executionProviders: ['wasm'],
         graphOptimizationLevel: 'all',
       });
+      console.log('MobileFaceNet ArcFace 512-D ONNX Engine initialized successfully (Inputs:', this.session.inputNames, 'Outputs:', this.session.outputNames, ')');
       return true;
-    } catch {
-      // If direct ONNX file is pending placement, initialize mathematically aligned 512-D expansion kernel
+    } catch (err) {
+      console.warn('Direct ONNX load attempt error:', err);
       this.fallbackSynthetic = true;
       return false;
     } finally {
