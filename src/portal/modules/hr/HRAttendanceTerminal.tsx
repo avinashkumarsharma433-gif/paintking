@@ -417,7 +417,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                 const avgDist = validRecent.reduce((acc, f) => acc + f.distance, 0) / validRecent.length;
                 const avgMargin = validRecent.reduce((acc, f) => acc + f.margin, 0) / validRecent.length;
 
-                if (avgDist <= config.minRecognitionConfidence && (avgDist <= 0.40 || avgMargin >= (config.minRecognitionMargin || 0.02))) {
+                if (avgDist <= config.minRecognitionConfidence && (avgDist <= 0.30 || avgMargin >= (config.minRecognitionMargin || 0.04))) {
                   // Phase 3: Shift-Aware Punch Resolution
                   const resolution = resolveShiftPunch(emp, attendanceRecords, config, new Date());
                   if (!resolution.allowed || resolution.action === 'REJECT') {
