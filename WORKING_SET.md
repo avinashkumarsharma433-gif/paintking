@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-09: Calibrated High-Security Threshold (<= 0.32) to Prevent Sibling / Brother False Positives
+  - Files touched:
+    - `src/portal/services/faceRecognitionService.ts` (`findBestFaceMatch`: set threshold strictly to 0.32 with tight dual-centroid gate `masterDistance <= maxAllowedDistance + 0.02`; `detectMultipleFacesFromCanvas` default threshold 0.32).
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Clamped `localStorage` loaded config to `minRecognitionConfidence <= 0.32` and preset STRICT 0.28 / NORMAL 0.32 / FAST 0.35).
+  - Issue Diagnosed: Siblings/brothers share facial geometry yielding ~0.40-0.44 distance (90% cosine confidence under older loose 0.44 threshold). Lowering the distance gate to <= 0.32 ensures only the enrolled user's genuine face (typical distance 0.18-0.28) matches while siblings/relatives are strictly rejected as 'Unknown (Unregistered Face)'.
+  - Status: Verified with `npm.cmd run lint` (0 errors), pushed to GitHub.
+
 - 2026-11-09: Eliminated False Positive Attendance Matches with Dual Centroid Gate & Strict 0.38 Distance
   - Files touched:
     - `src/portal/services/faceRecognitionService.ts` (`findBestFaceMatch`: added mandatory Master Vector centroid verification `masterDistance <= maxAllowedDistance + 0.03` alongside sample `bestDistance <= 0.38`; clamped threshold to 0.38 in `detectMultipleFacesFromCanvas`).

@@ -74,9 +74,9 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
       const saved = localStorage.getItem('pk_terminal_config');
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Ensure threshold is strictly clamped to high-discrimination <= 0.38
-        if (parsed.minRecognitionConfidence > 0.38) {
-          parsed.minRecognitionConfidence = 0.38;
+        // Ensure threshold is strictly clamped to high-discrimination <= 0.32
+        if (parsed.minRecognitionConfidence > 0.32) {
+          parsed.minRecognitionConfidence = 0.32;
         }
         return parsed;
       }
@@ -85,7 +85,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
       activeLocationId: 'mumbai-hq',
       strictGeofence: false, // Default false so camera and face attendance punch works smoothly everywhere
       bypassGeofenceForDev: true, // Default true for testing and mobile deployment
-      minRecognitionConfidence: 0.38, // High-discrimination threshold prevents recognizing other faces
+      minRecognitionConfidence: 0.32, // High-security threshold (<= 0.32) strictly isolates sibling / family faces
       cooldownMinutes: 1,
       requiredConsecutiveFrames: 1, // Instant punch on first confident recognition frame
       minRecognitionMargin: 0.04,
@@ -218,9 +218,9 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
   // Preset security threshold adjustments
   const handlePresetChange = (preset: 'STRICT' | 'NORMAL' | 'FAST') => {
     setSecurityPreset(preset);
-    if (preset === 'STRICT') setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.34 }));
-    else if (preset === 'NORMAL') setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.38 }));
-    else setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.40 }));
+    if (preset === 'STRICT') setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.28 }));
+    else if (preset === 'NORMAL') setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.32 }));
+    else setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.35 }));
   };
 
   // 3. Start Camera Stream (with mobile portrait fallbacks & HTTPS checks)
