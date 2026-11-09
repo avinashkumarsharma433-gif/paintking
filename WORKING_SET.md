@@ -1,5 +1,13 @@
 # WORKING SET
 
+- 2026-11-09: Integrated 20-Pose Protocol with Spectacles Filter and Camera Rotation into Kiosk Enrollment Modal
+  - Files touched:
+    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (`ALL_20_POSE_STEPS` with 12 Standard, 6 Spectacles, 2 Appearance poses; numbered interactive step selector pills 1-20; single manual `Capture Now` trigger button; camera rotation switcher 0°/90°/180°/270°; spectacles toggle; multi-pose visual directional guides)
+    - `src/portal/services/faceRecognitionService.ts` (`assessEnrollmentQuality` updated for all 20 poses; `estimateHeadPoseFromLandmarks` returns `distEyeNose` & `distNoseChin`; pose classifier recognizes `DOWN` and `TILT`)
+    - `src/portal/types/hrAttendanceTypes.ts` (Added `wearsGlasses?: boolean` and `'DOWN' | 'TILT'` pose types)
+  - Issue Diagnosed: User required all 20 poses on the full-screen kiosk enrollment modal with the single manual capture button, numbered step pills (1–20), spectacles filtering, and camera orientation rotation.
+  - Status: Verified with `npm run lint` (0 errors) and `npm run build` (built in 11.47s).
+
 - 2026-11-09: Reverted Face Enrollment Screen to Stable 6-Pose 512-D ArcFace Biometrics
   - Files restored to commit `d00f2e6`:
     - `src/portal/modules/hr/HREnrollFaceModal.tsx` (Restored 6-pose reliable auto-capture pipeline with live camera preview, natural smile & turn detection, and 512-D ArcFace biometrics)

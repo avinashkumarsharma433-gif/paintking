@@ -11,6 +11,7 @@ export interface Employee {
   faceEnrolled: boolean;
   faceDescriptors?: number[][]; // 128-D or 512-D face embedding vectors (multiple angles)
   embeddingDimensions?: 128 | 512;
+  wearsGlasses?: boolean;
   status: 'ACTIVE' | 'ON_LEAVE' | 'INACTIVE';
   dailyRate?: number; // Per-day standard salary in INR (e.g. 750, 1000)
   monthlySalary?: number; // Standard monthly base salary in INR (e.g. 22000)
@@ -132,7 +133,7 @@ export interface EnrollmentQualityDetails {
   exposureScore: number; // 0 - 255 luminance
   eyeAspectRatio: number; // EAR
   boxCoveragePct: number; // % of frame
-  detectedPose: 'NEUTRAL' | 'SMILE' | 'LEFT' | 'RIGHT' | 'UP' | 'GLASSES_EXPRESSION' | 'UNKNOWN';
+  detectedPose: 'NEUTRAL' | 'SMILE' | 'LEFT' | 'RIGHT' | 'UP' | 'DOWN' | 'TILT' | 'GLASSES_EXPRESSION' | 'UNKNOWN';
 }
 
 export interface UnknownAttemptLog {

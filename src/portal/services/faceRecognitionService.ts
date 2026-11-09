@@ -228,6 +228,8 @@ export function estimateHeadPoseFromLandmarks(
   cornerLift: number;
   eyeNoseYaw: number;
   jawYaw: number;
+  distEyeNose: number;
+  distNoseChin: number;
 } {
   const pts = landmarks.positions;
   const leftEyeCenter = { x: (pts[36].x + pts[39].x) / 2, y: (pts[36].y + pts[39].y) / 2 };
@@ -307,6 +309,8 @@ export function estimateHeadPoseFromLandmarks(
     cornerLift,
     eyeNoseYaw,
     jawYaw,
+    distEyeNose,
+    distNoseChin,
   };
 }
 
@@ -318,7 +322,7 @@ export function assessEnrollmentQuality(
   ctx: CanvasRenderingContext2D,
   frameWidth: number,
   frameHeight: number,
-  requestedStepId: number, // 1 to 6
+  requestedStepId: number, // 1 to 20
   baseline?: EnrollmentBaseline | null
 ): EnrollmentQualityDetails {
   const box = detection.detection.box;
@@ -328,6 +332,8 @@ export function assessEnrollmentQuality(
 
   const ear = calculateEyeAspectRatio(landmarks);
   const pose = estimateHeadPoseFromLandmarks(landmarks, expressions, baseline);
+  const distEyeNose = pose.distEyeNose;
+  const distNoseChin = pose.distNoseChin;
   const blurScore = computeLaplacianVariance(ctx, box);
   const exposureScore = computeExposureScore(ctx, box);
   const boxCoveragePct = Math.round((box.height / (frameHeight || 1)) * 100);
@@ -360,70 +366,93 @@ export function assessEnrollmentQuality(
 
   if (pose.isSmiling) {
     detectedPose = 'SMILE';
-  } else if (requestedStepId === 5 ? (pitchDelta >= 0.035 || pose.pitch >= -0.08) : (pitchDelta >= 0.06 || pose.pitch >= 0.04)) {
+  } else if (pitchDelta >= 0.035 || pose.pitch >= -0.08) {
     detectedPose = 'UP';
+  } else if (pitchDelta <= -0.035 || (distNoseChin / distEyeNose >= 1.25)) {
+    detectedPose = 'DOWN';
+  } else if (Math.abs(pose.roll) >= 4) {
+    detectedPose = 'TILT';
   } else if (yawMag >= 0.025) {
-    if (requestedStepId === 3) {
-      detectedPose = 'LEFT';
-    } else if (requestedStepId === 4) {
-      detectedPose = 'RIGHT';
-    } else {
-      detectedPose = (effectiveYaw >= 0 || effectiveJawYaw >= 0) ? 'LEFT' : 'RIGHT';
-    }
+    detectedPose = (effectiveYaw >= 0 || effectiveJawYaw >= 0) ? 'LEFT' : 'RIGHT';
   } else {
     detectedPose = 'NEUTRAL';
   }
 
-  // 5. Intelligent Step-by-Step Pose Verification (Guarantees user executes each requested pose)
-  if (requestedStepId === 1) {
-    // Pose 1: Straight & Neutral
-    if (Math.abs(effectiveYaw) > 0.075 || Math.abs(effectiveJawYaw) > 0.11) {
+  // 5. Intelligent Step-by-Step Pose Verification (1 to 20)
+  if (requestedStepId === 1 || requestedStepId === 13 || requestedStepId === 19 || requestedStepId === 20) {
+    // 1: Straight Front, 13: Glasses Straight, 19: Alternate Lighting, 20: Natural Appearance
+    if (Math.abs(effectiveYaw) > 0.08 || Math.abs(effectiveJawYaw) > 0.12) {
       reasons.push('Look directly straight at the camera.');
     }
-    if (pose.pitch > 0.22 || pose.pitch < -0.45) {
+    if (pose.pitch > 0.25 || pose.pitch < -0.45) {
       reasons.push('Keep head level (not tilted up/down).');
     }
-  } else if (requestedStepId === 2) {
-    // Pose 2: Natural Smile (Multi-modal verification: Neural expression + Biometrics)
-    if (!pose.isSmiling) {
-      reasons.push('Please give a natural smile (हल्की मुस्कान दें).');
+  } else if (requestedStepId === 2 || requestedStepId === 14) {
+    // 2: Slight Left (~10°) / 14: Glasses Left
+    const isLeft = (effectiveYaw <= -0.018) || (effectiveJawYaw <= -0.022);
+    if (!isLeft) {
+      reasons.push('Turn head slightly towards your left (थोड़ा बायीं तरफ घुमाएं ~10°).');
     }
-  } else if (requestedStepId === 3) {
-    // Pose 3: Turn Head Left (Accepts natural 8-15° turn in either webcam orientation)
-    const hasTurned = yawMag >= 0.025;
-    if (!hasTurned) {
-      reasons.push('Turn head slightly towards your left (चेहरा थोड़ा बायीं तरफ घुमाएं).');
+  } else if (requestedStepId === 3 || requestedStepId === 15) {
+    // 3: Slight Right (~10°) / 15: Glasses Right
+    const isRight = (effectiveYaw >= 0.018) || (effectiveJawYaw >= 0.022);
+    if (!isRight) {
+      reasons.push('Turn head slightly towards your right (थोड़ा दायीं तरफ घुमाएं ~10°).');
     }
   } else if (requestedStepId === 4) {
-    // Pose 4: Turn Head Right (Requires turn in opposite direction from Step 3)
-    if (baseline && baseline.step3YawSign !== undefined) {
-      const isOpposite = (effectiveYaw * baseline.step3YawSign <= -0.012) ||
-                         (effectiveJawYaw * baseline.step3YawSign <= -0.016);
-      if (!isOpposite) {
-        if (yawMag < 0.025) {
-          reasons.push('Turn head slightly towards your right (चेहरा दायीं तरफ घुमाएं).');
-        } else {
-          reasons.push('Turn head to the OTHER side (चेहरे को दूसरी दिशा में घुमाएं).');
-        }
-      }
-    } else {
-      if (yawMag < 0.025) {
-        reasons.push('Turn head slightly towards your right (चेहरा दायीं तरफ घुमाएं).');
-      }
+    // 4: Left (~15°)
+    const isLeft = (effectiveYaw <= -0.04) || (effectiveJawYaw <= -0.045);
+    if (!isLeft) {
+      reasons.push('Turn head further to your left (बायीं तरफ घुमाएं ~15°).');
     }
   } else if (requestedStepId === 5) {
-    // Pose 5: Chin Up (Verified either by pitch delta relative to Step 1 baseline or absolute pitch)
+    // 5: Right (~15°)
+    const isRight = (effectiveYaw >= 0.04) || (effectiveJawYaw >= 0.045);
+    if (!isRight) {
+      reasons.push('Turn head further to your right (दायीं तरफ घुमाएं ~15°).');
+    }
+  } else if (requestedStepId === 6 || requestedStepId === 16) {
+    // 6: Looking Up (~10°) / 16: Glasses Up
     const isChinUp = (pitchDelta >= 0.035) || (pose.pitch >= -0.08);
     if (!isChinUp) {
-      reasons.push('Tilt chin slightly upward (ठोड़ी को ऊपर उठाएं).');
+      reasons.push('Tilt chin slightly upward (ठोड़ी को थोड़ा ऊपर उठाएं ~10°).');
     }
-  } else if (requestedStepId === 6) {
-    // Pose 6: Final Verification (Straight neutral)
-    if (Math.abs(effectiveYaw) > 0.075 || Math.abs(effectiveJawYaw) > 0.11) {
-      reasons.push('Look straight into the camera for final verification.');
+  } else if (requestedStepId === 7 || requestedStepId === 17) {
+    // 7: Looking Down (~10°) / 17: Glasses Down
+    const isChinDown = (pitchDelta <= -0.035) || (distNoseChin / distEyeNose >= 1.25);
+    if (!isChinDown) {
+      reasons.push('Tilt chin slightly downward (ठोड़ी को थोड़ा नीचे झुकाएं ~10°).');
     }
-    if (pose.pitch > 0.22 || pose.pitch < -0.45) {
-      reasons.push('Keep head level (not tilted up/down).');
+  } else if (requestedStepId === 8 || requestedStepId === 18) {
+    // 8: Head Tilt Left (~10°) / 18: Glasses Tilt
+    if (pose.roll > -4) {
+      reasons.push('Tilt head towards left shoulder (सिर को बायीं तरफ झुकाएं ~10°).');
+    }
+  } else if (requestedStepId === 9) {
+    // 9: Head Tilt Right (~10°)
+    if (pose.roll < 4) {
+      reasons.push('Tilt head towards right shoulder (सिर को दायीं तरफ झुकाएं ~10°).');
+    }
+  } else if (requestedStepId === 10) {
+    // 10: Left + Up
+    const isLeft = (effectiveYaw <= -0.018) || (effectiveJawYaw <= -0.02);
+    const isUp = (pitchDelta >= 0.025) || (pose.pitch >= -0.10);
+    if (!isLeft || !isUp) {
+      reasons.push('Turn slightly left and tilt chin up (थोड़ा बायीं ओर ऊपर देखें).');
+    }
+  } else if (requestedStepId === 11) {
+    // 11: Right + Up
+    const isRight = (effectiveYaw >= 0.018) || (effectiveJawYaw >= 0.02);
+    const isUp = (pitchDelta >= 0.025) || (pose.pitch >= -0.10);
+    if (!isRight || !isUp) {
+      reasons.push('Turn slightly right and tilt chin up (थोड़ा दायीं ओर ऊपर देखें).');
+    }
+  } else if (requestedStepId === 12) {
+    // 12: Left + Down
+    const isLeft = (effectiveYaw <= -0.018) || (effectiveJawYaw <= -0.02);
+    const isDown = (pitchDelta <= -0.025) || (distNoseChin / distEyeNose >= 1.20);
+    if (!isLeft || !isDown) {
+      reasons.push('Turn slightly left and look downward (थोड़ा बायीं ओर नीचे देखें).');
     }
   }
 

@@ -1,17 +1,25 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { 
   Camera,
   X, 
   Check, 
   RefreshCw, 
+  RotateCw,
   Upload, 
   Smile, 
   Glasses, 
   ArrowLeft, 
   ArrowRight, 
   ArrowUp, 
+  ArrowDown,
+  CornerDownLeft,
+  CornerDownRight,
+  ArrowUpLeft,
+  ArrowUpRight,
+  ArrowDownLeft,
   UserCheck, 
   Sparkles, 
+  Sun,
   CheckCircle2,
   AlertTriangle,
   ShieldAlert,
@@ -46,6 +54,7 @@ interface PoseInstruction {
   hindiInstruction: string;
   icon: React.ReactNode;
   guideVisual: string;
+  category?: 'STANDARD' | 'SPECTACLES' | 'APPEARANCE';
 }
 
 export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
@@ -56,6 +65,11 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   onSaveFaceDescriptors,
 }) => {
   if (!employee || !employee.id) return null;
+
+  const [wearsGlasses, setWearsGlasses] = useState<boolean>(() => {
+    return employee.wearsGlasses ?? false;
+  });
+  const [cameraRotation, setCameraRotation] = useState<0 | 90 | 180 | 270>(0);
 
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const currentStepIndexRef = useRef<number>(0);
@@ -97,56 +111,195 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   const bypassDuplicateCheckRef = useRef<boolean>(false);
   const baselineRef = useRef<EnrollmentBaseline | null>(null);
 
-  const POSE_STEPS: PoseInstruction[] = [
+  const ALL_20_POSE_STEPS: PoseInstruction[] = [
     {
       id: 1,
-      title: 'Straight & Neutral',
-      subtitle: 'Look directly at camera',
-      hindiInstruction: 'सीधा कैमरे की तरफ देखें (Look Straight)',
+      title: 'Straight Front',
+      subtitle: 'Look directly at camera (Yaw 0°, Pitch 0°)',
+      hindiInstruction: 'सीधा कैमरे की तरफ देखें (Straight Front)',
       icon: <UserCheck size={24} className="text-[#c09748]" />,
       guideVisual: 'CENTER',
+      category: 'STANDARD',
     },
     {
       id: 2,
-      title: 'Natural Smile',
-      subtitle: 'Smile naturally with eyes open',
-      hindiInstruction: 'हल्की मुस्कान दें (Smile Naturally)',
-      icon: <Smile size={24} className="text-[#c09748]" />,
-      guideVisual: 'CENTER_SMILE',
+      title: 'Slight Left',
+      subtitle: 'Turn head slightly left (~10°)',
+      hindiInstruction: 'थोड़ा बायीं तरफ घुमाएं (Slight Left ~10°)',
+      icon: <ArrowLeft size={24} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_LEFT',
+      category: 'STANDARD',
     },
     {
       id: 3,
-      title: 'Turn Head Left',
-      subtitle: 'Turn head slightly left (15°)',
-      hindiInstruction: 'चेहरे को थोड़ा बायीं तरफ घुमाएं (Turn Left)',
-      icon: <ArrowLeft size={24} className="text-[#c09748]" />,
-      guideVisual: 'ARROW_LEFT',
+      title: 'Slight Right',
+      subtitle: 'Turn head slightly right (~10°)',
+      hindiInstruction: 'थोड़ा दायीं तरफ घुमाएं (Slight Right ~10°)',
+      icon: <ArrowRight size={24} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_RIGHT',
+      category: 'STANDARD',
     },
     {
       id: 4,
-      title: 'Turn Head Right',
-      subtitle: 'Turn head slightly right (15°)',
-      hindiInstruction: 'चेहरे को थोड़ा दायीं तरफ घुमाएं (Turn Right)',
-      icon: <ArrowRight size={24} className="text-[#c09748]" />,
-      guideVisual: 'ARROW_RIGHT',
+      title: 'Left',
+      subtitle: 'Turn head further left (~15°)',
+      hindiInstruction: 'बायीं तरफ घुमाएं (Turn Left ~15°)',
+      icon: <ArrowLeft size={24} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_LEFT',
+      category: 'STANDARD',
     },
     {
       id: 5,
-      title: 'Chin Slightly Up',
-      subtitle: 'Tilt chin slightly upward',
-      hindiInstruction: 'ठोड़ी (Chin) को थोड़ा ऊपर उठाएं (Tilt Up)',
-      icon: <ArrowUp size={24} className="text-[#c09748]" />,
-      guideVisual: 'ARROW_UP',
+      title: 'Right',
+      subtitle: 'Turn head further right (~15°)',
+      hindiInstruction: 'दायीं तरफ घुमाएं (Turn Right ~15°)',
+      icon: <ArrowRight size={24} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_RIGHT',
+      category: 'STANDARD',
     },
     {
       id: 6,
-      title: 'Final Verification',
-      subtitle: 'Look straight to finalize master profile',
-      hindiInstruction: 'सीधा देखें - अंतिम सत्यापन (Final Verification)',
+      title: 'Looking Up',
+      subtitle: 'Tilt chin slightly upward (~10°)',
+      hindiInstruction: 'ठोड़ी को थोड़ा ऊपर उठाएं (Look Up ~10°)',
+      icon: <ArrowUp size={24} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_UP',
+      category: 'STANDARD',
+    },
+    {
+      id: 7,
+      title: 'Looking Down',
+      subtitle: 'Tilt chin slightly downward (~10°)',
+      hindiInstruction: 'ठोड़ी को थोड़ा नीचे झुकाएं (Look Down ~10°)',
+      icon: <ArrowDown size={24} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_DOWN',
+      category: 'STANDARD',
+    },
+    {
+      id: 8,
+      title: 'Head Tilt Left',
+      subtitle: 'Tilt head slightly to left shoulder (~10°)',
+      hindiInstruction: 'सिर को बायीं तरफ झुकाएं (Tilt Left ~10°)',
+      icon: <CornerDownLeft size={24} className="text-[#c09748]" />,
+      guideVisual: 'TILT_LEFT',
+      category: 'STANDARD',
+    },
+    {
+      id: 9,
+      title: 'Head Tilt Right',
+      subtitle: 'Tilt head slightly to right shoulder (~10°)',
+      hindiInstruction: 'सिर को दायीं तरफ झुकाएं (Tilt Right ~10°)',
+      icon: <CornerDownRight size={24} className="text-[#c09748]" />,
+      guideVisual: 'TILT_RIGHT',
+      category: 'STANDARD',
+    },
+    {
+      id: 10,
+      title: 'Left + Up',
+      subtitle: 'Turn slightly left and tilt chin up',
+      hindiInstruction: 'थोड़ा बायीं ओर ऊपर देखें (Left + Up)',
+      icon: <ArrowUpLeft size={24} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_LEFT_UP',
+      category: 'STANDARD',
+    },
+    {
+      id: 11,
+      title: 'Right + Up',
+      subtitle: 'Turn slightly right and tilt chin up',
+      hindiInstruction: 'थोड़ा दायीं ओर ऊपर देखें (Right + Up)',
+      icon: <ArrowUpRight size={24} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_RIGHT_UP',
+      category: 'STANDARD',
+    },
+    {
+      id: 12,
+      title: 'Left + Down',
+      subtitle: 'Turn slightly left and look downward',
+      hindiInstruction: 'थोड़ा बायीं ओर नीचे देखें (Left + Down)',
+      icon: <ArrowDownLeft size={24} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_LEFT_DOWN',
+      category: 'STANDARD',
+    },
+    {
+      id: 13,
+      title: 'Glasses – Straight Front',
+      subtitle: 'Straight front with everyday spectacles',
+      hindiInstruction: 'चश्मे के साथ सीधा देखें (Glasses Straight)',
       icon: <Glasses size={24} className="text-[#c09748]" />,
       guideVisual: 'CENTER_GLASSES',
+      category: 'SPECTACLES',
+    },
+    {
+      id: 14,
+      title: 'Glasses – Left',
+      subtitle: 'Turn head left with spectacles',
+      hindiInstruction: 'चश्मे के साथ बायीं तरफ घुमाएं (Glasses Left)',
+      icon: <Glasses size={24} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_LEFT_GLASSES',
+      category: 'SPECTACLES',
+    },
+    {
+      id: 15,
+      title: 'Glasses – Right',
+      subtitle: 'Turn head right with spectacles',
+      hindiInstruction: 'चश्मे के साथ दायीं तरफ घुमाएं (Glasses Right)',
+      icon: <Glasses size={24} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_RIGHT_GLASSES',
+      category: 'SPECTACLES',
+    },
+    {
+      id: 16,
+      title: 'Glasses – Looking Up',
+      subtitle: 'Tilt chin up with spectacles',
+      hindiInstruction: 'चश्मे के साथ ऊपर देखें (Glasses Up)',
+      icon: <Glasses size={24} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_UP_GLASSES',
+      category: 'SPECTACLES',
+    },
+    {
+      id: 17,
+      title: 'Glasses – Looking Down',
+      subtitle: 'Tilt chin down with spectacles',
+      hindiInstruction: 'चश्मे के साथ नीचे देखें (Glasses Down)',
+      icon: <Glasses size={24} className="text-[#c09748]" />,
+      guideVisual: 'ARROW_DOWN_GLASSES',
+      category: 'SPECTACLES',
+    },
+    {
+      id: 18,
+      title: 'Glasses – Head Tilt',
+      subtitle: 'Tilt head with spectacles',
+      hindiInstruction: 'चश्मे के साथ सिर झुकाएं (Glasses Tilt)',
+      icon: <Glasses size={24} className="text-[#c09748]" />,
+      guideVisual: 'TILT_GLASSES',
+      category: 'SPECTACLES',
+    },
+    {
+      id: 19,
+      title: 'Alternate Lighting',
+      subtitle: 'Front-facing under ambient / diffuse light',
+      hindiInstruction: 'हल्की अलग रोशनी में सीधा देखें (Alternate Light)',
+      icon: <Sun size={24} className="text-[#c09748]" />,
+      guideVisual: 'CENTER_LIGHT',
+      category: 'APPEARANCE',
+    },
+    {
+      id: 20,
+      title: 'Natural Appearance',
+      subtitle: 'Everyday normal hairstyle and expression',
+      hindiInstruction: 'सामान्य प्राकृतिक रूप (Natural Appearance)',
+      icon: <Sparkles size={24} className="text-[#c09748]" />,
+      guideVisual: 'CENTER_NATURAL',
+      category: 'APPEARANCE',
     },
   ];
+
+  const POSE_STEPS = useMemo(() => {
+    if (!wearsGlasses) {
+      return ALL_20_POSE_STEPS.filter((p) => p.category !== 'SPECTACLES');
+    }
+    return ALL_20_POSE_STEPS;
+  }, [wearsGlasses]);
 
   const currentPose = POSE_STEPS[Math.min(currentStepIndex, POSE_STEPS.length - 1)] || POSE_STEPS[0];
 
@@ -269,6 +422,31 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     setShowOverridePanel(false);
   };
 
+  // Canvas drawing helper respecting camera mounting rotation (0, 90, 180, 270)
+  const drawFrameToCanvas = useCallback(
+    (video: HTMLVideoElement, targetCanvas: HTMLCanvasElement) => {
+      const isSideways = cameraRotation === 90 || cameraRotation === 270;
+      const vW = video.videoWidth || 640;
+      const vH = video.videoHeight || 480;
+      targetCanvas.width = isSideways ? vH : vW;
+      targetCanvas.height = isSideways ? vW : vH;
+      const ctx = targetCanvas.getContext('2d');
+      if (!ctx) return null;
+
+      if (cameraRotation !== 0) {
+        ctx.save();
+        ctx.translate(targetCanvas.width / 2, targetCanvas.height / 2);
+        ctx.rotate((cameraRotation * Math.PI) / 180);
+        ctx.drawImage(video, -vW / 2, -vH / 2, vW, vH);
+        ctx.restore();
+      } else {
+        ctx.drawImage(video, 0, 0, targetCanvas.width, targetCanvas.height);
+      }
+      return ctx;
+    },
+    [cameraRotation]
+  );
+
   // Capture Current Step Pose (called automatically when hold progress reaches 100% or via manual click)
   const handleCapturePose = useCallback(async (
     cachedCanvas?: HTMLCanvasElement,
@@ -289,12 +467,8 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         const video = videoRef.current;
         if (!video) return;
         canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
-        const ctx = canvas.getContext('2d');
+        const ctx = drawFrameToCanvas(video, canvas);
         if (!ctx) return;
-
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
         detection = await faceapi
           .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.18 }))
@@ -373,11 +547,23 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       setSteadyHoldProgress(0);
       holdProgressRef.current = 0;
 
-      // Check if this was the last pose (Step 6)
-      if (activeIdx >= POSE_STEPS.length - 1) {
+      // Check if all poses are now completed
+      const allRequiredCaptured = POSE_STEPS.every((s) =>
+        updatedPoses.some((p) => p.stepId === s.id)
+      );
+
+      if (allRequiredCaptured) {
         finalizeEnrollment(updatedPoses);
       } else {
-        setCurrentStepIndex(activeIdx + 1);
+        // Jump to next uncaptured pose or step index + 1
+        const nextMissingIndex = POSE_STEPS.findIndex(
+          (s) => !updatedPoses.some((p) => p.stepId === s.id)
+        );
+        if (nextMissingIndex !== -1) {
+          setCurrentStepIndex(nextMissingIndex);
+        } else if (activeIdx < POSE_STEPS.length - 1) {
+          setCurrentStepIndex(activeIdx + 1);
+        }
       }
     } catch (err) {
       console.warn('Capture pose error:', err);
@@ -385,7 +571,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       isProcessingRef.current = false;
       setIsProcessing(false);
     }
-  }, [allEmployees, employee.id]);
+  }, [allEmployees, employee.id, POSE_STEPS, drawFrameToCanvas]);
 
   // Live Auto-Pose Detection & Verified Auto-Capture Loop (runs every 180ms)
   useEffect(() => {
@@ -399,12 +585,8 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
 
       try {
         const offscreen = document.createElement('canvas');
-        offscreen.width = video.videoWidth || 640;
-        offscreen.height = video.videoHeight || 480;
-        const ctx = offscreen.getContext('2d');
+        const ctx = drawFrameToCanvas(video, offscreen);
         if (!ctx) return;
-
-        ctx.drawImage(video, 0, 0, offscreen.width, offscreen.height);
 
         const activeIdx = currentStepIndexRef.current;
         const targetPose = POSE_STEPS[Math.min(activeIdx, POSE_STEPS.length - 1)] || POSE_STEPS[0];
@@ -466,7 +648,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     }, 180);
 
     return () => clearInterval(interval);
-  }, [isOpen, isSuccessModalOpen, duplicateError, handleCapturePose]);
+  }, [isOpen, isSuccessModalOpen, duplicateError, handleCapturePose, POSE_STEPS, drawFrameToCanvas]);
 
   const handleReset = () => {
     baselineRef.current = null;
@@ -488,6 +670,8 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       case 'LEFT': return 'Turned Left (बाएं)';
       case 'RIGHT': return 'Turned Right (दाएं)';
       case 'UP': return 'Chin Up (ठोड़ी ऊपर)';
+      case 'DOWN': return 'Looking Down (नीचे)';
+      case 'TILT': return 'Head Tilt (झुका हुआ)';
       case 'NEUTRAL': return 'Straight (सीधा)';
       default: return 'Positioning...';
     }
@@ -503,36 +687,76 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
           autoPlay
           playsInline
           muted
-          className={`w-full h-full object-cover scale-x-[-1] transition-opacity duration-150 ${
+          style={{
+            transform: `scaleX(-1) rotate(${cameraRotation}deg)`,
+          }}
+          className={`w-full h-full object-cover transition-all duration-200 ${
             justCapturedFlash ? 'opacity-40' : 'opacity-100'
           }`}
         />
 
-        {/* TOP BAR: Clean & Minimal - Name, Step Counter, AI Live Pose & Close */}
-        <div className="absolute top-0 inset-x-0 p-4 sm:p-6 bg-gradient-to-b from-black/85 via-black/40 to-transparent flex items-center justify-between z-20">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-white/10 backdrop-blur-md border border-white/15 flex items-center justify-center text-white font-bold text-sm">
+        {/* TOP BAR: Clean & Minimal - Name, Step Counter, Orientation, Spectacles, AI Live Pose & Close */}
+        <div className="absolute top-0 inset-x-0 p-3 sm:p-5 bg-gradient-to-b from-black/90 via-black/50 to-transparent flex items-center justify-between z-20 gap-2">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-white/10 backdrop-blur-md border border-white/15 flex items-center justify-center text-white font-bold text-xs sm:text-sm shrink-0">
               {employee.name.charAt(0)}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-white font-bold text-base sm:text-lg drop-shadow-md leading-tight">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-white font-bold text-sm sm:text-base drop-shadow-md leading-tight truncate">
                   {employee.name}
                 </h3>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 font-mono">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 font-mono hidden sm:inline-block">
                   Auto-Capture Active
                 </span>
               </div>
-              <p className="text-xs text-white/60 font-mono">
-                {employee.id} • Step {currentPose.id} of {POSE_STEPS.length}
+              <p className="text-[11px] sm:text-xs text-white/60 font-mono truncate">
+                {employee.id} • Pose {currentPose.id} ({currentStepIndex + 1}/{POSE_STEPS.length})
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Camera Rotation Switcher (0, 90, 180, 270) */}
+            <button
+              type="button"
+              onClick={() => {
+                setCameraRotation((prev) => {
+                  if (prev === 0) return 90;
+                  if (prev === 90) return 180;
+                  if (prev === 180) return 270;
+                  return 0;
+                });
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/20 text-xs text-white/90 hover:text-white hover:bg-black/70 transition cursor-pointer select-none"
+              title="Camera Orientation: 0°, 90°, 180°, 270°"
+            >
+              <RotateCw size={12} className="text-[#c09748]" />
+              <span className="font-mono text-[11px]">{cameraRotation}°</span>
+            </button>
+
+            {/* Wears Spectacles Toggle */}
+            <label className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/20 text-xs text-white cursor-pointer select-none hover:bg-black/70 transition">
+              <Glasses size={13} className="text-[#c09748]" />
+              <span className="text-white/80 hidden xs:inline text-[11px] font-medium">Glasses</span>
+              <input
+                type="checkbox"
+                checked={wearsGlasses}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setWearsGlasses(checked);
+                  setCurrentStepIndex(0);
+                  setCapturedPoses([]);
+                  setSteadyHoldProgress(0);
+                  holdProgressRef.current = 0;
+                }}
+                className="w-3.5 h-3.5 accent-[#c09748] rounded cursor-pointer"
+              />
+            </label>
+
             {/* Live AI Detected Pose Badge */}
             {qualityDetails && (
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/20 text-xs text-white">
+              <div className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md border border-white/20 text-xs text-white">
                 <Zap size={13} className="text-[#c09748]" />
                 <span className="text-white/60">AI Sees:</span>
                 <span className="font-semibold text-emerald-400">
@@ -544,9 +768,9 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             <button
               onClick={onClose}
               aria-label="Close"
-              className="h-10 w-10 rounded-full flex items-center justify-center bg-black/40 text-white/80 hover:text-white border border-white/15 backdrop-blur-md cursor-pointer active:scale-95 transition"
+              className="h-9 w-9 sm:h-10 sm:w-10 rounded-full flex items-center justify-center bg-black/40 text-white/80 hover:text-white border border-white/15 backdrop-blur-md cursor-pointer active:scale-95 transition"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
           </div>
         </div>
@@ -592,49 +816,109 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         {/* CENTRAL OVAL GUIDE WITH DYNAMIC GLOW */}
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
           <div
-            className={`relative w-[220px] h-[290px] sm:w-[260px] sm:h-[340px] rounded-[50%] border-2 transition-all duration-300 flex items-center justify-center ${
+            className={`relative w-[210px] h-[280px] sm:w-[260px] sm:h-[340px] rounded-[50%] border-2 transition-all duration-300 flex items-center justify-center ${
               qualityDetails?.passed
                 ? 'border-emerald-400 shadow-[0_0_35px_rgba(52,211,153,0.45)]'
                 : 'border-white/40 border-dashed'
             }`}
           >
-            {/* Guide Arrows for Turn Pose */}
-            {currentPose.guideVisual === 'ARROW_LEFT' && (
-              <div className="absolute -left-14 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/80 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce">
+            {/* Guide Visuals for Turn / Tilt / Direction / Extras */}
+            {(currentPose.guideVisual === 'ARROW_LEFT' || currentPose.guideVisual === 'ARROW_LEFT_GLASSES') && (
+              <div className="absolute -left-16 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/85 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce shadow-lg">
                 <ArrowLeft size={16} />
                 <span>Turn Left</span>
               </div>
             )}
 
-            {currentPose.guideVisual === 'ARROW_RIGHT' && (
-              <div className="absolute -right-14 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/80 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce">
+            {(currentPose.guideVisual === 'ARROW_RIGHT' || currentPose.guideVisual === 'ARROW_RIGHT_GLASSES') && (
+              <div className="absolute -right-16 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/85 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce shadow-lg">
                 <span>Turn Right</span>
                 <ArrowRight size={16} />
               </div>
             )}
 
-            {currentPose.guideVisual === 'ARROW_UP' && (
-              <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/80 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce">
+            {(currentPose.guideVisual === 'ARROW_UP' || currentPose.guideVisual === 'ARROW_UP_GLASSES') && (
+              <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/85 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce shadow-lg">
                 <ArrowUp size={16} />
                 <span>Chin Up</span>
               </div>
             )}
 
-            {currentPose.guideVisual === 'CENTER_SMILE' && (
-              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/80 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce">
-                <Smile size={16} />
-                <span>Smile Naturally</span>
+            {(currentPose.guideVisual === 'ARROW_DOWN' || currentPose.guideVisual === 'ARROW_DOWN_GLASSES') && (
+              <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/85 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce shadow-lg">
+                <ArrowDown size={16} />
+                <span>Look Down</span>
+              </div>
+            )}
+
+            {currentPose.guideVisual === 'TILT_LEFT' && (
+              <div className="absolute -left-16 top-1/3 -translate-y-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/85 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce shadow-lg">
+                <CornerDownLeft size={16} />
+                <span>Tilt Left</span>
+              </div>
+            )}
+
+            {(currentPose.guideVisual === 'TILT_RIGHT' || currentPose.guideVisual === 'TILT_GLASSES') && (
+              <div className="absolute -right-16 top-1/3 -translate-y-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/85 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce shadow-lg">
+                <span>Tilt Right</span>
+                <CornerDownRight size={16} />
+              </div>
+            )}
+
+            {currentPose.guideVisual === 'ARROW_LEFT_UP' && (
+              <div className="absolute -left-14 -top-8 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/85 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce shadow-lg">
+                <ArrowUpLeft size={16} />
+                <span>Left + Up</span>
+              </div>
+            )}
+
+            {currentPose.guideVisual === 'ARROW_RIGHT_UP' && (
+              <div className="absolute -right-14 -top-8 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/85 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce shadow-lg">
+                <span>Right + Up</span>
+                <ArrowUpRight size={16} />
+              </div>
+            )}
+
+            {currentPose.guideVisual === 'ARROW_LEFT_DOWN' && (
+              <div className="absolute -left-14 -bottom-8 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/85 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce shadow-lg">
+                <ArrowDownLeft size={16} />
+                <span>Left + Down</span>
+              </div>
+            )}
+
+            {(currentPose.guideVisual === 'CENTER_GLASSES' || currentPose.category === 'SPECTACLES') && (
+              <div className="absolute -top-12 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-cyan-300 font-bold text-xs bg-black/85 px-3 py-1.5 rounded-full border border-cyan-400 animate-pulse shadow-lg">
+                <Glasses size={16} />
+                <span>Wear Glasses</span>
+              </div>
+            )}
+
+            {currentPose.guideVisual === 'CENTER_LIGHT' && (
+              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/85 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce shadow-lg">
+                <Sun size={16} />
+                <span>Diffuse Light</span>
+              </div>
+            )}
+
+            {currentPose.guideVisual === 'CENTER_NATURAL' && (
+              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-amber-300 font-bold text-xs bg-black/85 px-3 py-1.5 rounded-full border border-amber-400 animate-bounce shadow-lg">
+                <Sparkles size={16} />
+                <span>Natural Look</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* BOTTOM INSTRUCTION OVERLAY */}
-        <div className="absolute bottom-0 inset-x-0 p-5 pb-8 sm:pb-10 bg-gradient-to-t from-black/95 via-black/60 to-transparent flex flex-col items-center z-20">
-          <div className="w-full max-w-sm flex flex-col items-center text-center space-y-3">
+        {/* BOTTOM INSTRUCTION & STEP OVERLAY */}
+        <div className="absolute bottom-0 inset-x-0 p-3 sm:p-5 pb-5 sm:pb-7 bg-gradient-to-t from-black/95 via-black/80 to-transparent flex flex-col items-center z-20">
+          <div className="w-full max-w-xl flex flex-col items-center text-center space-y-2">
             {/* Main Instruction */}
             <div>
-              <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-wide drop-shadow-md">
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white/10 border border-white/15 text-[11px] text-white/80 font-mono mb-1">
+                <span>Pose {currentPose.id} of {POSE_STEPS.length}:</span>
+                <span className="text-[#c09748] font-bold">{currentPose.title}</span>
+              </div>
+              <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-wide drop-shadow-md">
                 {currentPose.hindiInstruction}
               </h2>
               <p className="text-xs sm:text-sm text-white/70 mt-0.5 font-medium">
@@ -653,16 +937,17 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             </div>
 
             {/* Auto-Capture Steady Hold Progress Bar */}
-            <div className="w-full bg-white/20 h-2.5 rounded-full overflow-hidden p-0.5 backdrop-blur-sm border border-white/10">
+            <div className="w-full max-w-xs sm:max-w-sm bg-white/20 h-2 rounded-full overflow-hidden p-0.5 backdrop-blur-sm border border-white/10">
               <div
                 className="h-full rounded-full bg-emerald-400 transition-all duration-150 shadow-[0_0_12px_rgba(52,211,153,0.9)]"
                 style={{ width: `${steadyHoldProgress}%` }}
               />
             </div>
 
-            {/* Manual Backup Trigger Button (Guarantees user is NEVER stuck!) */}
-            <div className="pt-1 w-full flex items-center justify-between gap-3">
+            {/* Manual Controls & Progress Counter */}
+            <div className="pt-0.5 w-full flex items-center justify-between gap-3 max-w-xs sm:max-w-sm">
               <button
+                type="button"
                 onClick={handleReset}
                 className="text-xs text-white/50 hover:text-white flex items-center gap-1 cursor-pointer transition active:scale-95"
               >
@@ -671,37 +956,48 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
               </button>
 
               <button
+                type="button"
                 onClick={() => handleCapturePose()}
                 disabled={isProcessing}
-                className="px-4 py-1.5 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 text-white text-xs font-semibold backdrop-blur-md transition active:scale-95 cursor-pointer flex items-center gap-1.5"
+                className="px-5 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-sm transition active:scale-95 cursor-pointer flex items-center gap-1.5"
                 title="Manual snapshot if you do not want to wait for auto-capture"
               >
                 <Camera size={13} className="text-[#c09748]" />
                 <span>Capture Now</span>
               </button>
 
-              <div className="flex items-center gap-1.5">
-                {POSE_STEPS.map((s, idx) => {
-                  const isDone = capturedPoses.some((p) => p.stepId === s.id);
-                  const isCurrent = idx === currentStepIndex;
-                  return (
-                    <div
-                      key={s.id}
-                      className={`h-2 rounded-full transition-all duration-300 ${
-                        isDone
-                          ? 'w-5 bg-emerald-400'
-                          : isCurrent
-                          ? 'w-5 bg-amber-400'
-                          : 'w-2 bg-white/30'
-                      }`}
-                    />
-                  );
-                })}
-              </div>
-
-              <span className="text-xs font-mono text-white/50">
-                {capturedPoses.length}/6
+              <span className="text-xs font-mono font-semibold text-emerald-400">
+                {capturedPoses.length}/{POSE_STEPS.length}
               </span>
+            </div>
+
+            {/* ALL 20 POSE INTERACTIVE STEP PILLS */}
+            <div className="w-full flex items-center justify-center gap-1 sm:gap-1.5 flex-wrap pt-1 px-2">
+              {POSE_STEPS.map((s, idx) => {
+                const isDone = capturedPoses.some((p) => p.stepId === s.id);
+                const isCurrent = idx === currentStepIndex;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      setCurrentStepIndex(idx);
+                      setSteadyHoldProgress(0);
+                      holdProgressRef.current = 0;
+                    }}
+                    title={`${s.id}. ${s.title}`}
+                    className={`h-6 min-w-[24px] sm:h-7 sm:min-w-[28px] px-1 sm:px-1.5 rounded-full text-[10px] sm:text-xs font-semibold flex items-center justify-center transition-all cursor-pointer ${
+                      isCurrent
+                        ? 'bg-[#c09748] text-black font-bold ring-2 ring-[#c09748]/60 shadow-[0_0_10px_rgba(192,151,72,0.6)] scale-105'
+                        : isDone
+                        ? 'bg-emerald-500/80 hover:bg-emerald-500 text-white'
+                        : 'bg-white/10 hover:bg-white/20 text-white/60'
+                    }`}
+                  >
+                    {isDone ? '✓' : s.id}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
