@@ -1,5 +1,15 @@
 # WORKING SET
 
+- 2026-11-09: 20 Manual Pose Captures & Physical Camera Orientation Correction System (0°, 90°, 180°, 270°)
+  - Files touched:
+    - `src/portal/types/hrAttendanceTypes.ts` (`CameraOrientation`, `PoseDefinition`, `PoseCaptureRecord`, `PoseCaptureStatus`, `PoseCategory`; `Employee.poseRecords`, `TerminalConfig.cameraOrientation`)
+    - `src/portal/services/cameraOrientationService.ts` (`drawOrientedFrame` pixel-level canvas transformation for 0°, 90°, 180°, 270°; `getStoredCameraOrientation`, `setStoredCameraOrientation`)
+    - `src/portal/services/faceRecognitionService.ts` (`ENROLLMENT_20_POSES` catalog 01–20; `estimateHeadPoseDegrees` angle calculation; `validatePoseMatch` quality & angle tolerance check)
+    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (20 individual manual capture buttons; Pending/Ready/Capturing/Completed/Failed/Retake states; zero auto-capture; live oriented preview with HUD; glasses toggle for non-spectacles; 512-D ArcFace centroid vector generation)
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Camera rotation selector in AI settings drawer; `drawOrientedFrame` in live attendance loop)
+    - `src/portal/views/HRSuiteView.tsx` (`handleSaveFaceDescriptors` accepts and persists `poseRecords`)
+  - Status: Verified with `tsc --noEmit` (0 errors) and `vite build` (0 errors).
+
 - 2026-11-08: Calibrated 6-Pose Reliable Auto-Capture Engine & Zero-Miss Direct Frame Pipeline
   - Files touched:
     - `src/portal/services/faceRecognitionService.ts` (`extractBiometricBaseline` stores natural resting yaw, pitch, and chin-eye ratios; `assessEnrollmentQuality` uses relative pitch delta and wide level range for Step 1/5/6; smile classifier calibrated to 0.16 happy; turn left/right checks relative yaw sign and opposite turn)

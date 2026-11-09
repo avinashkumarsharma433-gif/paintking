@@ -17,15 +17,22 @@ import {
   Maximize2,
   Minimize2,
   Activity,
-  Zap
+  Zap,
+  RotateCw
 } from 'lucide-react';
 import { 
   Employee, 
   AttendanceRecord, 
   LocationStamp, 
   TerminalConfig,
-  UnknownAttemptLog
+  UnknownAttemptLog,
+  CameraOrientation
 } from '../../types/hrAttendanceTypes';
+import { 
+  drawOrientedFrame, 
+  getStoredCameraOrientation, 
+  setStoredCameraOrientation 
+} from '../../services/cameraOrientationService';
 import { 
   PAINTKING_LOCATIONS, 
   getVerifiedDeviceLocation 
@@ -80,6 +87,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
     terminalMode: 'AUTO',
     minPunchGapMinutes: 2,
     maxShiftDurationHours: 16,
+    cameraOrientation: getStoredCameraOrientation(),
   });
 
   const [requireLiveness, setRequireLiveness] = useState(true);
@@ -305,16 +313,16 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
       if (video.readyState !== 4) return;
 
       const canvas = canvasRef.current;
-      // Preserve native un-stretched aspect ratio of video stream
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
       isScanningRef.current = true;
       setIsScanning(true);
       try {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const orientation = config.cameraOrientation ?? getStoredCameraOrientation();
+        const ctx = drawOrientedFrame(video, canvas, orientation, false);
+        if (!ctx) {
+          isScanningRef.current = false;
+          setIsScanning(false);
+          return;
+        }
 
         // Neural multi-face detection with CompreFace-style margin & multi-sample evaluation
         const detected = await detectMultipleFacesFromCanvas(
@@ -860,6 +868,33 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
               )}
             </div>
 
+            {/* Camera Orientation Selector */}
+            <div className="flex items-center gap-2 border-l border-[#dcdfe4] pl-3">
+              <span className="text-xs font-semibold text-[#17191c] flex items-center gap-1">
+                <RotateCw size={13} className="text-[#c09748]" />
+                <span>Rotation:</span>
+              </span>
+              <div className="flex items-center gap-1 bg-[#fafafb] p-0.5 rounded-lg border border-[#dcdfe4]">
+                {([0, 90, 180, 270] as CameraOrientation[]).map((deg) => (
+                  <button
+                    key={deg}
+                    type="button"
+                    onClick={() => {
+                      setConfig((prev) => ({ ...prev, cameraOrientation: deg }));
+                      setStoredCameraOrientation(deg);
+                    }}
+                    className={`px-2 py-0.5 text-[10px] font-semibold rounded-md transition cursor-pointer ${
+                      (config.cameraOrientation ?? getStoredCameraOrientation()) === deg
+                        ? 'bg-[#17191c] text-white shadow-2xs'
+                        : 'text-[#777b86] hover:text-[#17191c]'
+                    }`}
+                  >
+                    {deg}°
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Shift Mode Selector */}
             <div className="flex items-center gap-1.5 ml-auto text-xs">
               <span className="text-[#777b86] font-medium">Terminal Mode:</span>
@@ -891,7 +926,16 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
           autoPlay
           playsInline
           muted
-          className={`w-full h-full object-cover scale-x-[-1] transition-opacity duration-300 ${
+          style={
+            (config.cameraOrientation ?? getStoredCameraOrientation()) === 90
+              ? { transform: 'rotate(90deg) scaleX(-1)' }
+              : (config.cameraOrientation ?? getStoredCameraOrientation()) === 180
+              ? { transform: 'rotate(180deg) scaleX(-1)' }
+              : (config.cameraOrientation ?? getStoredCameraOrientation()) === 270
+              ? { transform: 'rotate(270deg) scaleX(-1)' }
+              : { transform: 'scaleX(-1)' }
+          }
+          className={`w-full h-full object-cover transition-opacity duration-300 ${
             isLockedOut ? 'opacity-20 blur-sm' : 'opacity-100'
           }`}
         />

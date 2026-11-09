@@ -25,7 +25,8 @@ import {
   LocationStamp,
   PunchEvidenceMetadata,
   PlantShiftDefinition,
-  PlantHoliday
+  PlantHoliday,
+  PoseCaptureRecord
 } from '../types/hrAttendanceTypes';
 import { biometricVault, recordBiometricAudit } from '../services/secureBiometricStorage';
 
@@ -211,7 +212,12 @@ export const HRSuiteView: React.FC = () => {
   };
 
   // Save Face Descriptors with Encrypted Vault and Audit Logging
-  const handleSaveFaceDescriptors = async (empId: string, descriptors: number[][], avatarUrl?: string) => {
+  const handleSaveFaceDescriptors = async (
+    empId: string, 
+    descriptors: number[][], 
+    avatarUrl?: string,
+    poseRecords?: Record<string, PoseCaptureRecord>
+  ) => {
     // 1. Save to encrypted IndexedDB Vault
     await biometricVault.saveEncryptedBiometrics(empId, descriptors, avatarUrl);
 
@@ -234,6 +240,7 @@ export const HRSuiteView: React.FC = () => {
               faceDescriptors: descriptors,
               embeddingDimensions: descriptors[0]?.length === 512 ? 512 : 128,
               avatarUrl: avatarUrl || e.avatarUrl,
+              poseRecords: poseRecords || e.poseRecords,
             }
           : e
       )
