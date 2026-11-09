@@ -604,14 +604,16 @@ export function calculateEyeAspectRatio(landmarks: faceapi.FaceLandmarks68): num
 
 /**
  * Searches enrolled employees to find best match using CompreFace-style matching:
+ * - Master Vector (Centroid) verification: requires live face to be within master vector boundary (<= threshold)
+ *   to guarantee global facial identity consistency and prevent false positives from single extreme poses
  * - Computes best match per employee across individual example vectors
- * - Master vector used as tie-breaker if top employees have identical minimal distances
- * - Enforces minimum recognition margin between top-1 and top-2 candidate
+ * - Master vector used as primary identity gate and tie-breaker
+ * - Enforces minimum recognition margin between top-1 and top-2 candidate when multiple employees exist
  */
 export function findBestFaceMatch(
   liveDescriptor: number[],
   enrolledEmployees: Employee[],
-  threshold: number = 0.46,
+  threshold: number = 0.38,
   isLive: boolean = true,
   minMargin: number = 0.04
 ): FaceMatchResult {
@@ -636,7 +638,7 @@ export function findBestFaceMatch(
       }
     }
 
-    // Master vector tie-breaker: index 0 is already the pre-computed master vector (stored during enrollment)
+    // Master vector: index 0 is the centroid master vector stored during enrollment
     const masterVec = emp.faceDescriptors[0];
     const masterDist = calculateEuclideanDistance(liveDescriptor, masterVec);
 
@@ -660,11 +662,24 @@ export function findBestFaceMatch(
   const top2 = candidates[1];
 
   const bestDistance = top1 ? Number(top1.bestDistance.toFixed(4)) : 999;
+  const masterDistance = top1 ? Number(top1.masterDistance.toFixed(4)) : 999;
   const secondBestDistance = top2 ? Number(top2.bestDistance.toFixed(4)) : 999;
   const margin = top2 ? Number((secondBestDistance - bestDistance).toFixed(4)) : 999;
 
   const confidence = distanceToConfidence(bestDistance);
-  const isMatch = isLive && top1 !== undefined && bestDistance <= threshold && (bestDistance <= 0.40 || margin >= minMargin);
+
+  // Strict Double-Verification Gate:
+  // 1. bestDistance must be <= threshold (e.g. 0.38)
+  // 2. masterDistance must also be <= threshold + 0.02 to ensure identity belongs to this specific person
+  // 3. If multiple employees are enrolled, top-1 must maintain minMargin separation from top-2
+  const maxAllowedDistance = Math.min(0.40, threshold);
+  const isCandidatePass =
+    top1 !== undefined &&
+    bestDistance <= maxAllowedDistance &&
+    masterDistance <= maxAllowedDistance + 0.03;
+
+  const isMarginPass = candidates.length <= 1 || margin >= minMargin;
+  const isMatch = isLive && isCandidatePass && isMarginPass;
 
   return {
     matchedEmployee: isMatch ? top1.employee : undefined,
@@ -711,7 +726,7 @@ export async function generateFaceEmbedding512(
 export async function detectMultipleFacesFromCanvas(
   input: HTMLCanvasElement | HTMLVideoElement,
   enrolledEmployees: Employee[],
-  threshold: number = 0.46,
+  threshold: number = 0.38,
   requireLiveness: boolean = true,
   minMargin: number = 0.04
 ): Promise<DetectedFaceSlot[]> {

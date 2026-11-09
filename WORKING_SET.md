@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-09: Eliminated False Positive Attendance Matches with Dual Centroid Gate & Strict 0.38 Distance
+  - Files touched:
+    - `src/portal/services/faceRecognitionService.ts` (`findBestFaceMatch`: added mandatory Master Vector centroid verification `masterDistance <= maxAllowedDistance + 0.03` alongside sample `bestDistance <= 0.38`; clamped threshold to 0.38 in `detectMultipleFacesFromCanvas`).
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Clamped `localStorage` loaded config to `minRecognitionConfidence <= 0.38` and preset thresholds STRICT 0.34 / NORMAL 0.38 / FAST 0.40).
+  - Issue Diagnosed: Terminal was evaluating match only on the single closest sample pose among 20 poses without verifying the master centroid, allowing another family member who had a minor pose similarity to falsely match with a green rectangle. Now both master centroid and sample vector must strictly confirm.
+  - Status: Verified with `npm.cmd run lint` (0 errors).
+
 - 2026-11-09: Fixed False Positive Face Recognition & Duplicate Enrollment Blocking
   - Files touched:
     - `src/portal/services/faceRecognitionService.ts` (Fixed `calculateEuclideanDistance` where comparing 128-D sub-slices of 512-D L2-normalized unit vectors squashed distance down to 0.20, causing different people to match and blocking new employee enrollment with duplicate alerts; strictly compare matching vector dimensions and re-normalize sub-vectors before comparison).

@@ -72,13 +72,20 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
   const [config, setConfig] = useState<TerminalConfig>(() => {
     try {
       const saved = localStorage.getItem('pk_terminal_config');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Ensure threshold is strictly clamped to high-discrimination <= 0.38
+        if (parsed.minRecognitionConfidence > 0.38) {
+          parsed.minRecognitionConfidence = 0.38;
+        }
+        return parsed;
+      }
     } catch {}
     return {
       activeLocationId: 'mumbai-hq',
       strictGeofence: false, // Default false so camera and face attendance punch works smoothly everywhere
       bypassGeofenceForDev: true, // Default true for testing and mobile deployment
-      minRecognitionConfidence: 0.44, // Responsive and reliable threshold for 512-D
+      minRecognitionConfidence: 0.38, // High-discrimination threshold prevents recognizing other faces
       cooldownMinutes: 1,
       requiredConsecutiveFrames: 1, // Instant punch on first confident recognition frame
       minRecognitionMargin: 0.04,
@@ -211,9 +218,9 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
   // Preset security threshold adjustments
   const handlePresetChange = (preset: 'STRICT' | 'NORMAL' | 'FAST') => {
     setSecurityPreset(preset);
-    if (preset === 'STRICT') setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.42 }));
-    else if (preset === 'NORMAL') setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.47 }));
-    else setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.53 }));
+    if (preset === 'STRICT') setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.34 }));
+    else if (preset === 'NORMAL') setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.38 }));
+    else setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.40 }));
   };
 
   // 3. Start Camera Stream (with mobile portrait fallbacks & HTTPS checks)
