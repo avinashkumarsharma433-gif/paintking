@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-09: Deployed 512-D MobileFaceNet ArcFace ONNX Model & Integrated Google MediaPipe Vision
+  - Files touched:
+    - `public/models/mobilefacenet_512.onnx` (Direct 512-D deep biometric embedding ONNX model deployed for sub-50ms browser execution).
+    - `src/portal/face-engine/ArcFace512EmbeddingCalculator.ts` (Wired ONNX WebAssembly inference runtime session directly loading `mobilefacenet_512.onnx`).
+    - `package.json` & `package-lock.json` (Installed `@mediapipe/tasks-vision` for Google MediaPipe vision pipeline).
+  - Status: Verified with `npm.cmd run lint` (0 errors), pushed to GitHub (Commit: `a54f720`).
+
 - 2026-11-09: Calibrated High-Security Threshold (<= 0.32) to Prevent Sibling / Brother False Positives
   - Files touched:
     - `src/portal/services/faceRecognitionService.ts` (`findBestFaceMatch`: set threshold strictly to 0.32 with tight dual-centroid gate `masterDistance <= maxAllowedDistance + 0.02`; `detectMultipleFacesFromCanvas` default threshold 0.32).
