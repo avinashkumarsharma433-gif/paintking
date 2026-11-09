@@ -124,16 +124,10 @@ export class ArcFace512EmbeddingCalculator implements IEmbeddingCalculator {
         const dShift = base128Descriptor[(i + 64) % 128];
         vec[256 + i] = Math.tanh(2.0 * d) * (dShift >= 0 ? 1 : -0.5);
       }
-      if (ctx) {
-        const img = ctx.getImageData(0, 0, width, height).data;
-        const step = Math.max(1, Math.floor(img.length / (128 * 4)));
-        for (let i = 0; i < 128; i++) {
-          const idx = (i * step * 4) % img.length;
-          const r = (img[idx] - 127.5) / 128.0;
-          const g = (img[idx + 1] - 127.5) / 128.0;
-          const b = (img[idx + 2] - 127.5) / 128.0;
-          vec[384 + i] = r * 0.45 + g * 0.40 + b * 0.15;
-        }
+      for (let i = 0; i < 128; i++) {
+        const d1 = base128Descriptor[(i + 47) % 128];
+        const d2 = base128Descriptor[(i + 97) % 128];
+        vec[384 + i] = Math.sin((i + 1) * 0.36) * d1 + Math.cos((i + 1) * 0.36) * d2;
       }
     } else if (ctx) {
       const img = ctx.getImageData(0, 0, width, height).data;

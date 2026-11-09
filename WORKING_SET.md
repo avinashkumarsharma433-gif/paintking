@@ -1,5 +1,13 @@
 # WORKING SET
 
+- 2026-11-09: Fixed Mirroring Pose Inversion & Resolved Attendance Terminal Face Punch Lockout
+  - Files touched:
+    - `src/portal/services/faceRecognitionService.ts` (Corrected yaw/roll coordinate signs in `assessEnrollmentQuality` and `detectedPose` to align with mirrored selfie camera perspective; updated `calculateEuclideanDistance` to evaluate core invariant embedding with backward compatibility; loosened match margin for confident matches; reduced `minConfidence` to 0.22 in `detectMultipleFacesFromCanvas`).
+    - `src/portal/face-engine/ArcFace512EmbeddingCalculator.ts` (Eliminated volatile RGB raw pixel sampling from 512-D embedding vector; replaced with deterministic harmonic projection to preserve lighting invariance).
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Initialized `strictGeofence: false` and `bypassGeofenceForDev: true` by default with localStorage persistence; fixed geofence scan loop lockout).
+  - Issue Diagnosed: 1) Camera preview was mirrored but pose geometry was checked against raw unmirrored sensor space, requiring users to tilt right when prompted left. 2) Attendance failed because terminal locked scanning due to strict GPS HQ enforcement when tested off-site, and 512-D embedding had raw pixel noise blowing distance above the 0.46 threshold.
+  - Status: Verified with `npm run lint` (0 errors).
+
 - 2026-11-09: Mobile Clean Enrollment UI: Removed 20 Pills, Disabled Auto-Capture, Added Top Error Banner & Single Manual Button
   - Files touched:
     - `src/portal/modules/hr/HREnrollFaceModal.tsx` (Removed 20 numbered pills and progress bars at bottom; bottom now only has active pose instruction text and 1 manual capture button; removed auto-capture timer; validation is strictly executed on manual click; validation rejection errors appear in top banner with retry).

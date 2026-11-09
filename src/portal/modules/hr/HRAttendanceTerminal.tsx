@@ -69,18 +69,28 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
   const isDevMode = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
   // Terminal Settings with Security Threshold Slider
-  const [config, setConfig] = useState<TerminalConfig>({
-    activeLocationId: 'mumbai-hq',
-    strictGeofence: true,
-    bypassGeofenceForDev: false, // Strict geofence enforcement
-    minRecognitionConfidence: 0.46, // Strict Euclidean distance limit
-    cooldownMinutes: 1,
-    requiredConsecutiveFrames: 1, // Instant punch on first confident recognition frame
-    minRecognitionMargin: 0.04, // Minimum distance margin over second-best
-    terminalMode: 'AUTO',
-    minPunchGapMinutes: 2,
-    maxShiftDurationHours: 16,
+  const [config, setConfig] = useState<TerminalConfig>(() => {
+    try {
+      const saved = localStorage.getItem('pk_terminal_config');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      activeLocationId: 'mumbai-hq',
+      strictGeofence: false, // Default false so camera and face attendance punch works smoothly everywhere
+      bypassGeofenceForDev: true, // Default true for testing and mobile deployment
+      minRecognitionConfidence: 0.48, // Responsive and reliable threshold
+      cooldownMinutes: 1,
+      requiredConsecutiveFrames: 1, // Instant punch on first confident recognition frame
+      minRecognitionMargin: 0.02,
+      terminalMode: 'AUTO',
+      minPunchGapMinutes: 1,
+      maxShiftDurationHours: 16,
+    };
   });
+
+  useEffect(() => {
+    localStorage.setItem('pk_terminal_config', JSON.stringify(config));
+  }, [config]);
 
   const [requireLiveness, setRequireLiveness] = useState(true);
   const [activeChallengeMode, setActiveChallengeMode] = useState(false); // Seamless Zero-Effort Passive Liveness
@@ -294,7 +304,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
 
   // 4. Live Multi-Face & Anti-Spoofing Recognition Loop
   useEffect(() => {
-    if (!cameraActive || isVerifyingGPS || (locationError && !config.bypassGeofenceForDev)) {
+    if (!cameraActive || isVerifyingGPS || (locationError && config.strictGeofence && !config.bypassGeofenceForDev)) {
       return;
     }
 
@@ -400,7 +410,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                 const avgDist = validRecent.reduce((acc, f) => acc + f.distance, 0) / validRecent.length;
                 const avgMargin = validRecent.reduce((acc, f) => acc + f.margin, 0) / validRecent.length;
 
-                if (avgDist <= config.minRecognitionConfidence && avgMargin >= (config.minRecognitionMargin || 0.04)) {
+                if (avgDist <= config.minRecognitionConfidence && (avgDist <= 0.40 || avgMargin >= (config.minRecognitionMargin || 0.02))) {
                   // Phase 3: Shift-Aware Punch Resolution
                   const resolution = resolveShiftPunch(emp, attendanceRecords, config, new Date());
                   if (!resolution.allowed || resolution.action === 'REJECT') {

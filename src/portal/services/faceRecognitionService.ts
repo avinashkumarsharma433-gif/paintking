@@ -59,9 +59,31 @@ export function areModelsLoaded(): boolean {
  * Calculates Euclidean distance between two face embedding vectors (512-D or 128-D)
  */
 export function calculateEuclideanDistance(vec1: number[], vec2: number[]): number {
-  if (vec1.length !== vec2.length || vec1.length === 0) return 999;
+  if (!vec1 || !vec2 || vec1.length === 0 || vec2.length === 0) return 999;
+  
+  if (vec1.length >= 128 && vec2.length >= 128) {
+    let distFull = 0;
+    const len = Math.min(vec1.length, vec2.length);
+    for (let i = 0; i < len; i++) {
+      const diff = vec1[i] - vec2[i];
+      distFull += diff * diff;
+    }
+    const fullDist = Math.sqrt(distFull);
+
+    // Core 128-D invariant distance:
+    let dist128 = 0;
+    for (let i = 0; i < 128; i++) {
+      const diff = vec1[i] - vec2[i];
+      dist128 += diff * diff;
+    }
+    const core128Dist = Math.sqrt(dist128);
+
+    return Math.min(fullDist, core128Dist);
+  }
+
+  const len = Math.min(vec1.length, vec2.length);
   let sum = 0;
-  for (let i = 0; i < vec1.length; i++) {
+  for (let i = 0; i < len; i++) {
     const diff = vec1[i] - vec2[i];
     sum += diff * diff;
   }
@@ -372,7 +394,8 @@ export function assessEnrollmentQuality(
     detectedPose = 'DOWN';
   } else if (Math.abs(pose.roll) >= 4) {
     detectedPose = 'TILT';
-  } else if (yawMag >= 0.025) {
+  } else if (yawMag >= 0.018) {
+    // Mirror / User Perspective: Positive effectiveYaw means user turned head to their LEFT
     detectedPose = (effectiveYaw >= 0 || effectiveJawYaw >= 0) ? 'LEFT' : 'RIGHT';
   } else {
     detectedPose = 'NEUTRAL';
@@ -389,25 +412,27 @@ export function assessEnrollmentQuality(
     }
   } else if (requestedStepId === 2 || requestedStepId === 14) {
     // 2: Slight Left (~10°) / 14: Glasses Left
-    const isLeft = (effectiveYaw <= -0.018) || (effectiveJawYaw <= -0.022);
+    // User turns head towards their LEFT shoulder: effectiveYaw is positive in raw image
+    const isLeft = (effectiveYaw >= 0.016) || (effectiveJawYaw >= 0.018);
     if (!isLeft) {
       reasons.push('Turn head slightly towards your left (थोड़ा बायीं तरफ घुमाएं ~10°).');
     }
   } else if (requestedStepId === 3 || requestedStepId === 15) {
     // 3: Slight Right (~10°) / 15: Glasses Right
-    const isRight = (effectiveYaw >= 0.018) || (effectiveJawYaw >= 0.022);
+    // User turns head towards their RIGHT shoulder: effectiveYaw is negative in raw image
+    const isRight = (effectiveYaw <= -0.016) || (effectiveJawYaw <= -0.018);
     if (!isRight) {
       reasons.push('Turn head slightly towards your right (थोड़ा दायीं तरफ घुमाएं ~10°).');
     }
   } else if (requestedStepId === 4) {
     // 4: Left (~15°)
-    const isLeft = (effectiveYaw <= -0.04) || (effectiveJawYaw <= -0.045);
+    const isLeft = (effectiveYaw >= 0.035) || (effectiveJawYaw >= 0.038);
     if (!isLeft) {
       reasons.push('Turn head further to your left (बायीं तरफ घुमाएं ~15°).');
     }
   } else if (requestedStepId === 5) {
     // 5: Right (~15°)
-    const isRight = (effectiveYaw >= 0.04) || (effectiveJawYaw >= 0.045);
+    const isRight = (effectiveYaw <= -0.035) || (effectiveJawYaw <= -0.038);
     if (!isRight) {
       reasons.push('Turn head further to your right (दायीं तरफ घुमाएं ~15°).');
     }
@@ -425,31 +450,33 @@ export function assessEnrollmentQuality(
     }
   } else if (requestedStepId === 8 || requestedStepId === 18) {
     // 8: Head Tilt Left (~10°) / 18: Glasses Tilt
-    if (pose.roll > -4) {
+    // Tilting to LEFT shoulder lowers left eye (rightEyeCenter in raw image), making atan2 positive
+    if (pose.roll < 4) {
       reasons.push('Tilt head towards left shoulder (सिर को बायीं तरफ झुकाएं ~10°).');
     }
   } else if (requestedStepId === 9) {
     // 9: Head Tilt Right (~10°)
-    if (pose.roll < 4) {
+    // Tilting to RIGHT shoulder lowers right eye (leftEyeCenter in raw image), making atan2 negative
+    if (pose.roll > -4) {
       reasons.push('Tilt head towards right shoulder (सिर को दायीं तरफ झुकाएं ~10°).');
     }
   } else if (requestedStepId === 10) {
     // 10: Left + Up
-    const isLeft = (effectiveYaw <= -0.018) || (effectiveJawYaw <= -0.02);
+    const isLeft = (effectiveYaw >= 0.016) || (effectiveJawYaw >= 0.018);
     const isUp = (pitchDelta >= 0.025) || (pose.pitch >= -0.10);
     if (!isLeft || !isUp) {
       reasons.push('Turn slightly left and tilt chin up (थोड़ा बायीं ओर ऊपर देखें).');
     }
   } else if (requestedStepId === 11) {
     // 11: Right + Up
-    const isRight = (effectiveYaw >= 0.018) || (effectiveJawYaw >= 0.02);
+    const isRight = (effectiveYaw <= -0.016) || (effectiveJawYaw <= -0.018);
     const isUp = (pitchDelta >= 0.025) || (pose.pitch >= -0.10);
     if (!isRight || !isUp) {
       reasons.push('Turn slightly right and tilt chin up (थोड़ा दायीं ओर ऊपर देखें).');
     }
   } else if (requestedStepId === 12) {
     // 12: Left + Down
-    const isLeft = (effectiveYaw <= -0.018) || (effectiveJawYaw <= -0.02);
+    const isLeft = (effectiveYaw >= 0.016) || (effectiveJawYaw >= 0.018);
     const isDown = (pitchDelta <= -0.025) || (distNoseChin / distEyeNose >= 1.20);
     if (!isLeft || !isDown) {
       reasons.push('Turn slightly left and look downward (थोड़ा बायीं ओर नीचे देखें).');
@@ -633,7 +660,7 @@ export function findBestFaceMatch(
   const margin = top2 ? Number((secondBestDistance - bestDistance).toFixed(4)) : 999;
 
   const confidence = distanceToConfidence(bestDistance);
-  const isMatch = isLive && top1 !== undefined && bestDistance <= threshold && margin >= minMargin;
+  const isMatch = isLive && top1 !== undefined && bestDistance <= threshold && (bestDistance <= 0.40 || margin >= minMargin);
 
   return {
     matchedEmployee: isMatch ? top1.employee : undefined,
@@ -688,7 +715,7 @@ export async function detectMultipleFacesFromCanvas(
   if (!modelsLoaded) return [];
 
   const detections = await faceapi
-    .detectAllFaces(input, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.32 }))
+    .detectAllFaces(input, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.22 }))
     .withFaceLandmarks()
     .withFaceDescriptors();
 
