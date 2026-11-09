@@ -57,34 +57,38 @@ export function areModelsLoaded(): boolean {
 
 /**
  * Calculates Euclidean distance between two face embedding vectors (512-D or 128-D)
+ * Strict L2 metric across full matching dimension.
+ * If comparing mixed vector sizes (128-D vs 512-D), re-normalizes the sub-vector first
+ * to avoid artificial distance squashing.
  */
 export function calculateEuclideanDistance(vec1: number[], vec2: number[]): number {
   if (!vec1 || !vec2 || vec1.length === 0 || vec2.length === 0) return 999;
-  
-  if (vec1.length >= 128 && vec2.length >= 128) {
-    let distFull = 0;
-    const len = Math.min(vec1.length, vec2.length);
-    for (let i = 0; i < len; i++) {
-      const diff = vec1[i] - vec2[i];
-      distFull += diff * diff;
-    }
-    const fullDist = Math.sqrt(distFull);
 
-    // Core 128-D invariant distance:
-    let dist128 = 0;
-    for (let i = 0; i < 128; i++) {
+  // Case 1: Identical vector lengths (standard 512-D vs 512-D, or 128-D vs 128-D)
+  if (vec1.length === vec2.length) {
+    let sum = 0;
+    for (let i = 0; i < vec1.length; i++) {
       const diff = vec1[i] - vec2[i];
-      dist128 += diff * diff;
+      sum += diff * diff;
     }
-    const core128Dist = Math.sqrt(dist128);
-
-    return Math.min(fullDist, core128Dist);
+    return Math.sqrt(sum);
   }
 
-  const len = Math.min(vec1.length, vec2.length);
+  // Case 2: Mixed lengths (e.g. legacy 128-D vs new 512-D)
+  // Extract sub-vector of matching dimension, re-normalize with L2 norm, then compute distance.
+  const minLen = Math.min(vec1.length, vec2.length);
+  let norm1 = 0;
+  let norm2 = 0;
+  for (let i = 0; i < minLen; i++) {
+    norm1 += vec1[i] * vec1[i];
+    norm2 += vec2[i] * vec2[i];
+  }
+  norm1 = Math.sqrt(norm1) || 1;
+  norm2 = Math.sqrt(norm2) || 1;
+
   let sum = 0;
-  for (let i = 0; i < len; i++) {
-    const diff = vec1[i] - vec2[i];
+  for (let i = 0; i < minLen; i++) {
+    const diff = (vec1[i] / norm1) - (vec2[i] / norm2);
     sum += diff * diff;
   }
   return Math.sqrt(sum);

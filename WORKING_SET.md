@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-09: Fixed False Positive Face Recognition & Duplicate Enrollment Blocking
+  - Files touched:
+    - `src/portal/services/faceRecognitionService.ts` (Fixed `calculateEuclideanDistance` where comparing 128-D sub-slices of 512-D L2-normalized unit vectors squashed distance down to 0.20, causing different people to match and blocking new employee enrollment with duplicate alerts; strictly compare matching vector dimensions and re-normalize sub-vectors before comparison).
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Calibrated `minRecognitionConfidence` to 0.44 and `minRecognitionMargin` to 0.04 for high-discrimination 512-D ArcFace matching).
+  - Issue Diagnosed: Family member's face recognized as enrolled user on attendance camera, and new employee enrollment blocked with "face already registered" error due to mathematical vector sub-slice distance squashing bug.
+  - Status: Verified with `npm.cmd run lint` (0 errors).
+
 - 2026-11-09: Fixed Mirroring Pose Inversion & Resolved Attendance Terminal Face Punch Lockout
   - Files touched:
     - `src/portal/services/faceRecognitionService.ts` (Corrected yaw/roll coordinate signs in `assessEnrollmentQuality` and `detectedPose` to align with mirrored selfie camera perspective; updated `calculateEuclideanDistance` to evaluate core invariant embedding with backward compatibility; loosened match margin for confident matches; reduced `minConfidence` to 0.22 in `detectMultipleFacesFromCanvas`).

@@ -78,10 +78,10 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
       activeLocationId: 'mumbai-hq',
       strictGeofence: false, // Default false so camera and face attendance punch works smoothly everywhere
       bypassGeofenceForDev: true, // Default true for testing and mobile deployment
-      minRecognitionConfidence: 0.48, // Responsive and reliable threshold
+      minRecognitionConfidence: 0.44, // Responsive and reliable threshold for 512-D
       cooldownMinutes: 1,
       requiredConsecutiveFrames: 1, // Instant punch on first confident recognition frame
-      minRecognitionMargin: 0.02,
+      minRecognitionMargin: 0.04,
       terminalMode: 'AUTO',
       minPunchGapMinutes: 1,
       maxShiftDurationHours: 16,
