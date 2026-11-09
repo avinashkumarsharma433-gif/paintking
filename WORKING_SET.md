@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-09: Mobile Clean Enrollment UI: Removed 20 Pills, Disabled Auto-Capture, Added Top Error Banner & Single Manual Button
+  - Files touched:
+    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (Removed 20 numbered pills and progress bars at bottom; bottom now only has active pose instruction text and 1 manual capture button; removed auto-capture timer; validation is strictly executed on manual click; validation rejection errors appear in top banner with retry).
+  - Issue Diagnosed: User requested zero bottom pill numbers, single capture button, strict manual verification on click with top error banner on failure, and automatic advance only upon approved verification.
+  - Status: Verified with `npm run lint` (0 errors).
+
 - 2026-11-09: Integrated 20-Pose Protocol with Spectacles Filter and Camera Rotation into Kiosk Enrollment Modal
   - Files touched:
     - `src/portal/modules/hr/HREnrollFaceModal.tsx` (`ALL_20_POSE_STEPS` with 12 Standard, 6 Spectacles, 2 Appearance poses; numbered interactive step selector pills 1-20; single manual `Capture Now` trigger button; camera rotation switcher 0°/90°/180°/270°; spectacles toggle; multi-pose visual directional guides)

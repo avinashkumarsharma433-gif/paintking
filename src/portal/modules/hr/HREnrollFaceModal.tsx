@@ -88,10 +88,10 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [justCapturedFlash, setJustCapturedFlash] = useState(false);
 
-  // Real-time quality gate & auto-capture
+  // Real-time quality gate & visual tracker
   const [qualityDetails, setQualityDetails] = useState<EnrollmentQualityDetails | null>(null);
-  const [steadyHoldProgress, setSteadyHoldProgress] = useState<number>(0);
   const [detectedBox, setDetectedBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [topErrorMessage, setTopErrorMessage] = useState<string | null>(null);
 
   // Duplicate face block error
   const [duplicateError, setDuplicateError] = useState<{
@@ -106,8 +106,6 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const isProcessingRef = useRef<boolean>(false);
-  const isCapturingRef = useRef<boolean>(false);
-  const holdProgressRef = useRef<number>(0);
   const bypassDuplicateCheckRef = useRef<boolean>(false);
   const baselineRef = useRef<EnrollmentBaseline | null>(null);
 
@@ -397,8 +395,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
   const handleForceReassignToCurrent = () => {
     bypassDuplicateCheckRef.current = true;
     setDuplicateError(null);
-    holdProgressRef.current = 0;
-    setSteadyHoldProgress(0);
+    setTopErrorMessage(null);
 
     if (duplicateError?.pendingPose) {
       const pending = duplicateError.pendingPose;
@@ -447,50 +444,69 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     [cameraRotation]
   );
 
-  // Capture Current Step Pose (called automatically when hold progress reaches 100% or via manual click)
-  const handleCapturePose = useCallback(async (
-    cachedCanvas?: HTMLCanvasElement,
-    cachedDetection?: faceapi.WithFaceDescriptor<faceapi.WithFaceExpressions<faceapi.WithFaceLandmarks<{ detection: faceapi.FaceDetection }>>>
-  ) => {
+  // Manual Pose Capture Trigger (operator or employee clicks the button)
+  const handleCapturePose = useCallback(async () => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
     setIsProcessing(true);
+    setTopErrorMessage(null);
 
     try {
       const activeIdx = currentStepIndexRef.current;
       const targetPose = POSE_STEPS[Math.min(activeIdx, POSE_STEPS.length - 1)] || POSE_STEPS[0];
 
-      let canvas = cachedCanvas;
-      let detection = cachedDetection;
-
-      if (!canvas || !detection) {
-        const video = videoRef.current;
-        if (!video) return;
-        canvas = document.createElement('canvas');
-        const ctx = drawFrameToCanvas(video, canvas);
-        if (!ctx) return;
-
-        detection = await faceapi
-          .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.18 }))
-          .withFaceLandmarks()
-          .withFaceExpressions()
-          .withFaceDescriptor();
-
-        if (!detection) {
-          // Fallback with lower threshold to ensure budget webcams are never dropped
-          detection = await faceapi
-            .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.12 }))
-            .withFaceLandmarks()
-            .withFaceExpressions()
-            .withFaceDescriptor();
-        }
-      }
-
-      if (!canvas || !detection) {
-        console.warn('Face missed on snapshot, will retry on next frame');
+      const video = videoRef.current;
+      if (!video) {
+        setTopErrorMessage('कैमरा उपलब्ध नहीं है (Camera not available).');
         return;
       }
 
+      const canvas = document.createElement('canvas');
+      const ctx = drawFrameToCanvas(video, canvas);
+      if (!ctx) {
+        setTopErrorMessage('कैमरा फ्रेम कैप्चर नहीं हो सका (Frame capture failed).');
+        return;
+      }
+
+      let detection = await faceapi
+        .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.18 }))
+        .withFaceLandmarks()
+        .withFaceExpressions()
+        .withFaceDescriptor();
+
+      if (!detection) {
+        // Fallback with lower threshold to ensure budget webcams are never dropped
+        detection = await faceapi
+          .detectSingleFace(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.12 }))
+          .withFaceLandmarks()
+          .withFaceExpressions()
+          .withFaceDescriptor();
+      }
+
+      if (!detection) {
+        setTopErrorMessage('चेहरा नहीं दिखा (Face not detected). कृपया कैमरे के ठीक सामने आएं और दोबारा क्लिक करें।');
+        return;
+      }
+
+      // Explicit Quality & Pose Verification
+      const quality = assessEnrollmentQuality(
+        detection,
+        ctx,
+        canvas.width,
+        canvas.height,
+        targetPose.id,
+        baselineRef.current
+      );
+
+      if (!quality.passed) {
+        const errReason = quality.reasons.length > 0
+          ? quality.reasons[0]
+          : 'Pose match nahi hua. Kripya instruction ke mutabiq pose banayein aur retry karein.';
+        setTopErrorMessage(errReason);
+        return;
+      }
+
+      // Pose Approved! Generate 512-D embedding
       const base128 = Array.from(detection.descriptor);
       const descriptor = await generateFaceEmbedding512(canvas, detection.detection.box, base128);
       const imgDataUrl = canvas.toDataURL('image/jpeg', 0.85);
@@ -513,8 +529,6 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             similarity,
             pendingPose: newPose,
           });
-          setSteadyHoldProgress(0);
-          holdProgressRef.current = 0;
           return; // Strictly abort and block saving!
         }
       }
@@ -536,7 +550,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
         }
       }
 
-      // Flash feedback & audio chime on capture
+      // Approved! Flash feedback & audio chime
       playAttendanceConfirmationChime();
       setJustCapturedFlash(true);
       setTimeout(() => setJustCapturedFlash(false), 300);
@@ -544,8 +558,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       const currentList = capturedPosesRef.current;
       const updatedPoses = [...currentList.filter((p) => p.stepId !== targetPose.id), newPose];
       setCapturedPoses(updatedPoses);
-      setSteadyHoldProgress(0);
-      holdProgressRef.current = 0;
+      setTopErrorMessage(null);
 
       // Check if all poses are now completed
       const allRequiredCaptured = POSE_STEPS.every((s) =>
@@ -555,7 +568,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       if (allRequiredCaptured) {
         finalizeEnrollment(updatedPoses);
       } else {
-        // Jump to next uncaptured pose or step index + 1
+        // Move to next pose!
         const nextMissingIndex = POSE_STEPS.findIndex(
           (s) => !updatedPoses.some((p) => p.stepId === s.id)
         );
@@ -567,13 +580,14 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
       }
     } catch (err) {
       console.warn('Capture pose error:', err);
+      setTopErrorMessage('प्रक्रिया में त्रुटि (Processing error). कृपया दोबारा प्रयास करें।');
     } finally {
       isProcessingRef.current = false;
       setIsProcessing(false);
     }
   }, [allEmployees, employee.id, POSE_STEPS, drawFrameToCanvas]);
 
-  // Live Auto-Pose Detection & Verified Auto-Capture Loop (runs every 180ms)
+  // Live Face Detection Tracker Loop (runs every 180ms - purely visual tracking, NEVER auto-captures)
   useEffect(() => {
     if (!isOpen || isSuccessModalOpen || duplicateError) {
       return;
@@ -581,7 +595,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
 
     const interval = setInterval(async () => {
       const video = videoRef.current;
-      if (!video || video.readyState !== 4 || isProcessingRef.current || isCapturingRef.current) return;
+      if (!video || video.readyState !== 4 || isProcessingRef.current) return;
 
       try {
         const offscreen = document.createElement('canvas');
@@ -614,33 +628,9 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             baselineRef.current
           );
           setQualityDetails(quality);
-
-          // AUTO-CAPTURE: Hold requested pose steady for ~0.45s (3 frames x 35% = 100%)
-          if (quality.passed) {
-            const nextProgress = Math.min(100, holdProgressRef.current + 35);
-            holdProgressRef.current = nextProgress;
-            setSteadyHoldProgress(nextProgress);
-
-            if (nextProgress >= 100 && !isCapturingRef.current && !isProcessingRef.current) {
-              isCapturingRef.current = true;
-              try {
-                await handleCapturePose(offscreen, det);
-              } finally {
-                holdProgressRef.current = 0;
-                setSteadyHoldProgress(0);
-                isCapturingRef.current = false;
-              }
-            }
-          } else {
-            // Smooth decay when pose is broken
-            holdProgressRef.current = Math.max(0, holdProgressRef.current - 10);
-            setSteadyHoldProgress(holdProgressRef.current);
-          }
         } else {
           setDetectedBox(null);
           setQualityDetails(null);
-          holdProgressRef.current = Math.max(0, holdProgressRef.current - 12);
-          setSteadyHoldProgress(holdProgressRef.current);
         }
       } catch {
         // scan frame glitch ignored
@@ -648,20 +638,18 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
     }, 180);
 
     return () => clearInterval(interval);
-  }, [isOpen, isSuccessModalOpen, duplicateError, handleCapturePose, POSE_STEPS, drawFrameToCanvas]);
+  }, [isOpen, isSuccessModalOpen, duplicateError, POSE_STEPS, drawFrameToCanvas]);
 
   const handleReset = () => {
     baselineRef.current = null;
     setCapturedPoses([]);
     setCurrentStepIndex(0);
-    setSteadyHoldProgress(0);
-    holdProgressRef.current = 0;
-    isCapturingRef.current = false;
     isProcessingRef.current = false;
     bypassDuplicateCheckRef.current = false;
     setDuplicateError(null);
     setAdminOverrideReason('');
     setShowOverridePanel(false);
+    setTopErrorMessage(null);
   };
 
   const getPoseLabel = (poseType?: string) => {
@@ -706,8 +694,8 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                 <h3 className="text-white font-bold text-sm sm:text-base drop-shadow-md leading-tight truncate">
                   {employee.name}
                 </h3>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 font-mono hidden sm:inline-block">
-                  Auto-Capture Active
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 font-mono hidden sm:inline-block">
+                  Manual Mode
                 </span>
               </div>
               <p className="text-[11px] sm:text-xs text-white/60 font-mono truncate">
@@ -747,8 +735,7 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
                   setWearsGlasses(checked);
                   setCurrentStepIndex(0);
                   setCapturedPoses([]);
-                  setSteadyHoldProgress(0);
-                  holdProgressRef.current = 0;
+                  setTopErrorMessage(null);
                 }}
                 className="w-3.5 h-3.5 accent-[#c09748] rounded cursor-pointer"
               />
@@ -774,6 +761,26 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* SCREEN TOP VALIDATION ERROR BANNER */}
+        {topErrorMessage && (
+          <div className="absolute top-16 sm:top-20 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 max-w-md z-30 bg-rose-600/95 text-white px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-md border border-rose-400 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <AlertTriangle size={18} className="shrink-0 text-amber-300" />
+              <div className="text-xs sm:text-sm font-semibold leading-snug">
+                {topErrorMessage}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTopErrorMessage(null)}
+              className="text-white/80 hover:text-white p-1 rounded-full cursor-pointer shrink-0"
+              title="Dismiss"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        )}
 
         {/* DYNAMIC FACE DETECTION TRACKER (Corner Brackets) */}
         {detectedBox && (
@@ -909,96 +916,33 @@ export const HREnrollFaceModal: React.FC<HREnrollFaceModalProps> = ({
           </div>
         </div>
 
-        {/* BOTTOM INSTRUCTION & STEP OVERLAY */}
-        <div className="absolute bottom-0 inset-x-0 p-3 sm:p-5 pb-5 sm:pb-7 bg-gradient-to-t from-black/95 via-black/80 to-transparent flex flex-col items-center z-20">
-          <div className="w-full max-w-xl flex flex-col items-center text-center space-y-2">
-            {/* Main Instruction */}
+        {/* BOTTOM SECTION: Pose Instruction Text + Exactly 1 Capture Button */}
+        <div className="absolute bottom-0 inset-x-0 p-4 pb-6 sm:pb-8 bg-gradient-to-t from-black/95 via-black/80 to-transparent flex flex-col items-center z-20">
+          <div className="w-full max-w-sm flex flex-col items-center text-center space-y-3">
+            {/* Pose Instruction Text */}
             <div>
               <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white/10 border border-white/15 text-[11px] text-white/80 font-mono mb-1">
-                <span>Pose {currentPose.id} of {POSE_STEPS.length}:</span>
+                <span>Pose {currentStepIndex + 1} of {POSE_STEPS.length}:</span>
                 <span className="text-[#c09748] font-bold">{currentPose.title}</span>
               </div>
-              <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-wide drop-shadow-md">
+              <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-wide drop-shadow-md">
                 {currentPose.hindiInstruction}
               </h2>
-              <p className="text-xs sm:text-sm text-white/70 mt-0.5 font-medium">
-                {qualityDetails?.passed ? (
-                  <span className="text-emerald-400 font-bold animate-pulse">
-                    ✓ Pose Matched! Hold steady ({Math.round(steadyHoldProgress)}%)...
-                  </span>
-                ) : qualityDetails?.reasons && qualityDetails.reasons.length > 0 ? (
-                  <span className="text-amber-300 font-semibold animate-pulse">
-                    {qualityDetails.reasons[0]}
-                  </span>
-                ) : (
-                  currentPose.subtitle
-                )}
+              <p className="text-xs text-white/70 mt-0.5 font-medium">
+                {currentPose.subtitle}
               </p>
             </div>
 
-            {/* Auto-Capture Steady Hold Progress Bar */}
-            <div className="w-full max-w-xs sm:max-w-sm bg-white/20 h-2 rounded-full overflow-hidden p-0.5 backdrop-blur-sm border border-white/10">
-              <div
-                className="h-full rounded-full bg-emerald-400 transition-all duration-150 shadow-[0_0_12px_rgba(52,211,153,0.9)]"
-                style={{ width: `${steadyHoldProgress}%` }}
-              />
-            </div>
-
-            {/* Manual Controls & Progress Counter */}
-            <div className="pt-0.5 w-full flex items-center justify-between gap-3 max-w-xs sm:max-w-sm">
-              <button
-                type="button"
-                onClick={handleReset}
-                className="text-xs text-white/50 hover:text-white flex items-center gap-1 cursor-pointer transition active:scale-95"
-              >
-                <RefreshCw size={13} />
-                <span>Reset</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleCapturePose()}
-                disabled={isProcessing}
-                className="px-5 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-sm transition active:scale-95 cursor-pointer flex items-center gap-1.5"
-                title="Manual snapshot if you do not want to wait for auto-capture"
-              >
-                <Camera size={13} className="text-[#c09748]" />
-                <span>Capture Now</span>
-              </button>
-
-              <span className="text-xs font-mono font-semibold text-emerald-400">
-                {capturedPoses.length}/{POSE_STEPS.length}
-              </span>
-            </div>
-
-            {/* ALL 20 POSE INTERACTIVE STEP PILLS */}
-            <div className="w-full flex items-center justify-center gap-1 sm:gap-1.5 flex-wrap pt-1 px-2">
-              {POSE_STEPS.map((s, idx) => {
-                const isDone = capturedPoses.some((p) => p.stepId === s.id);
-                const isCurrent = idx === currentStepIndex;
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => {
-                      setCurrentStepIndex(idx);
-                      setSteadyHoldProgress(0);
-                      holdProgressRef.current = 0;
-                    }}
-                    title={`${s.id}. ${s.title}`}
-                    className={`h-6 min-w-[24px] sm:h-7 sm:min-w-[28px] px-1 sm:px-1.5 rounded-full text-[10px] sm:text-xs font-semibold flex items-center justify-center transition-all cursor-pointer ${
-                      isCurrent
-                        ? 'bg-[#c09748] text-black font-bold ring-2 ring-[#c09748]/60 shadow-[0_0_10px_rgba(192,151,72,0.6)] scale-105'
-                        : isDone
-                        ? 'bg-emerald-500/80 hover:bg-emerald-500 text-white'
-                        : 'bg-white/10 hover:bg-white/20 text-white/60'
-                    }`}
-                  >
-                    {isDone ? '✓' : s.id}
-                  </button>
-                );
-              })}
-            </div>
+            {/* Exactly 1 Single Manual Capture Button */}
+            <button
+              type="button"
+              onClick={() => handleCapturePose()}
+              disabled={isProcessing}
+              className="w-full py-3.5 px-6 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-sm sm:text-base font-bold shadow-lg transition active:scale-95 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <Camera size={18} className="text-[#c09748]" />
+              <span>{isProcessing ? 'Verifying Pose...' : `Capture Pose ${currentStepIndex + 1}`}</span>
+            </button>
           </div>
         </div>
 
