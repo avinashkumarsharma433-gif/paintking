@@ -17,8 +17,6 @@ export interface Employee {
   isOtEligible?: boolean; // Whether employee is eligible for Overtime (default true)
   otHourlyRate?: number; // Optional custom OT hourly rate; defaults to (dailyRate / 8)
   locationId?: string; // Optional assigned location/plant ID
-  wearsGlasses?: boolean; // Whether employee regularly wears spectacles
-  poseRecords?: Record<string, PoseCaptureRecord>; // Detailed 20-pose capture records
 }
 
 export interface DailyAttendanceSummary {
@@ -124,7 +122,6 @@ export interface TerminalConfig {
   terminalMode?: 'AUTO' | 'FIXED_IN' | 'FIXED_OUT';
   minPunchGapMinutes?: number; // default 15 minutes minimum gap between IN and OUT
   maxShiftDurationHours?: number; // default 16 hours
-  cameraOrientation?: CameraOrientation; // 0, 90, 180, 270 degrees
 }
 
 export interface EnrollmentQualityDetails {
@@ -173,42 +170,4 @@ export interface PlantHoliday {
   name: string; // e.g. "Diwali / Deepawali"
   date: string; // YYYY-MM-DD
   isOptional: boolean;
-}
-
-export type CameraOrientation = 0 | 90 | 180 | 270;
-
-export type PoseCategory = 'STANDARD' | 'SPECTACLES' | 'ADDITIONAL';
-
-export type PoseCaptureStatus = 'PENDING' | 'READY' | 'CAPTURING' | 'COMPLETED' | 'FAILED' | 'NOT_APPLICABLE';
-
-export interface PoseDefinition {
-  id: string; // '01' to '20'
-  title: string;
-  category: PoseCategory;
-  hindiTitle: string;
-  instruction: string;
-  targetYaw: number; // degrees
-  targetPitch: number; // degrees
-  targetRoll: number; // degrees
-  yawTolerance: number; // default ±6°
-  pitchTolerance: number; // default ±6°
-  rollTolerance: number; // default ±6°
-  requiresGlasses?: boolean;
-  notes?: string;
-}
-
-export interface PoseCaptureRecord {
-  poseId: string;
-  poseTitle: string;
-  category: PoseCategory;
-  status: PoseCaptureStatus;
-  descriptor?: number[]; // 512-D embedding
-  imgDataUrl?: string; // High-resolution cropped face snapshot
-  actualYaw?: number; // Actual measured yaw in degrees
-  actualPitch?: number; // Actual measured pitch in degrees
-  actualRoll?: number; // Actual measured roll in degrees
-  qualityScore?: number; // 0 - 100
-  failureReason?: string;
-  capturedAt?: string;
-  isSpectacles?: boolean;
 }

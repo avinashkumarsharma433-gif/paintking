@@ -1,21 +1,14 @@
 # WORKING SET
 
-- 2026-11-09: Live Camera Preview Viewport Fix & Single Active Manual Capture Button Streamlining
-  - Files touched:
-    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (Rendered live hardware-accelerated `<video>` natively in fixed `h-[280px] sm:h-[330px]` container with `overlayCanvasRef`; added camera connection fallback handling; removed 20 redundant capture buttons from pose cards; streamlined to 1 single prominent capture button targeting active selected pose with auto-advancing; made pose cards interactive selectable status items)
-    - `package.json` (Allocated 4GB heap to Vite and tsc scripts to prevent Node.js out-of-memory during builds)
-  - Issue Diagnosed: User reported missing camera preview caused by invalid Tailwind aspect ratio and hidden video element; user requested only 1 capture button at a time instead of buttons inside every card.
-  - Status: Verified with `npm run lint` (0 errors) and `npm run build` (built in 11.24s).
-
-- 2026-11-09: 20 Manual Pose Captures & Physical Camera Orientation Correction System (0°, 90°, 180°, 270°)
-  - Files touched:
-    - `src/portal/types/hrAttendanceTypes.ts` (`CameraOrientation`, `PoseDefinition`, `PoseCaptureRecord`, `PoseCaptureStatus`, `PoseCategory`; `Employee.poseRecords`, `TerminalConfig.cameraOrientation`)
-    - `src/portal/services/cameraOrientationService.ts` (`drawOrientedFrame` pixel-level canvas transformation for 0°, 90°, 180°, 270°; `getStoredCameraOrientation`, `setStoredCameraOrientation`)
-    - `src/portal/services/faceRecognitionService.ts` (`ENROLLMENT_20_POSES` catalog 01–20; `estimateHeadPoseDegrees` angle calculation; `validatePoseMatch` quality & angle tolerance check)
-    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (20 individual manual capture buttons; Pending/Ready/Capturing/Completed/Failed/Retake states; zero auto-capture; live oriented preview with HUD; glasses toggle for non-spectacles; 512-D ArcFace centroid vector generation)
-    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Camera rotation selector in AI settings drawer; `drawOrientedFrame` in live attendance loop)
-    - `src/portal/views/HRSuiteView.tsx` (`handleSaveFaceDescriptors` accepts and persists `poseRecords`)
-  - Status: Verified with `tsc --noEmit` (0 errors) and `vite build` (0 errors).
+- 2026-11-09: Reverted Face Enrollment Screen to Stable 6-Pose 512-D ArcFace Biometrics
+  - Files restored to commit `d00f2e6`:
+    - `src/portal/modules/hr/HREnrollFaceModal.tsx` (Restored 6-pose reliable auto-capture pipeline with live camera preview, natural smile & turn detection, and 512-D ArcFace biometrics)
+    - `src/portal/services/faceRecognitionService.ts` (Restored 6-step enrollment assessment and relative baseline turn/smile verification)
+    - `src/portal/types/hrAttendanceTypes.ts` (Restored clean attendance types)
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx` (Restored terminal configuration)
+    - `src/portal/views/HRSuiteView.tsx` (Restored biometric descriptor persistence)
+    - Removed temporary `src/portal/services/cameraOrientationService.ts`
+  - Status: Verified with `npm run lint` (0 errors) and `npm run build` (built in 11.56s).
 
 - 2026-11-08: Calibrated 6-Pose Reliable Auto-Capture Engine & Zero-Miss Direct Frame Pipeline
   - Files touched:
