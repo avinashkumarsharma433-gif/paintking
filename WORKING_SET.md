@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-10: Fixed Duplicate Employee ID Generation (PK-EMP-xxxx Collision) & Added Auto-Deduplication
+  - Files touched:
+    - `src/portal/views/HRSuiteView.tsx`: Changed ID generator from naive `employees.length + 101` to regex-based max number tracking `Math.max(...nums) + 1` preventing ID collisions when employees are added/removed. Added auto-healing sanitizer in `useState<Employee[]>` initializer to rename existing duplicate IDs in localStorage (`PK-EMP-0104`, etc.) so multiple employees never share the same ID.
+  - Status: Verified with `npm.cmd run lint` (0 errors).
+
 - 2026-11-10: Calibrated Expression Tolerance (Threshold <= 0.44) & Relaxed Margin Blocking Across Multi-Enrollments
   - Files touched:
     - `src/portal/services/faceRecognitionService.ts`: Calibrated `maxAllowedDistance` up to 0.44 (master centroid gate +0.05). Relaxed multi-employee margin check (`bestDistance <= 0.40 || margin >= 0.02`), preventing the 2nd enrolled employee from being blocked as 'Unknown' when standing in camera.

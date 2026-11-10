@@ -145,6 +145,7 @@ export const HRSuiteView: React.FC = () => {
   };
 
   // Load from localStorage or initialize with clean empty state (Zero hardcoded profiles)
+  // Automatically deduplicates any duplicate employee IDs found in localStorage
   const [employees, setEmployees] = useState<Employee[]>(() => {
     try {
       const saved = localStorage.getItem('pk_hr_employees');
@@ -152,7 +153,31 @@ export const HRSuiteView: React.FC = () => {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
           const valid = parsed.filter((e): e is Employee => Boolean(e && e.id && e.name));
-          return valid;
+          // Sanitize: ensure every employee has a strictly unique ID
+          const seenIds = new Set<string>();
+          let maxIdNum = 100;
+          for (const e of valid) {
+            const m = (e.id || '').match(/PK-EMP-(\d+)/i);
+            if (m) {
+              const n = parseInt(m[1], 10);
+              if (!isNaN(n) && n > maxIdNum) maxIdNum = n;
+            }
+          }
+
+          const uniqueEmployees: Employee[] = [];
+          for (const emp of valid) {
+            if (seenIds.has(emp.id)) {
+              // Collision detected! Assign fresh unique ID so it doesn't overwrite
+              maxIdNum++;
+              const freshId = `PK-EMP-${String(maxIdNum).padStart(4, '0')}`;
+              uniqueEmployees.push({ ...emp, id: freshId });
+              seenIds.add(freshId);
+            } else {
+              seenIds.add(emp.id);
+              uniqueEmployees.push(emp);
+            }
+          }
+          return uniqueEmployees;
         }
       }
       return [];
@@ -198,16 +223,28 @@ export const HRSuiteView: React.FC = () => {
   // Face Enrollment Modal State
   const [enrollingEmployee, setEnrollingEmployee] = useState<Employee | null>(null);
 
-  // Add new employee
+  // Add new employee with strictly monotonic, collision-free ID generation
   const handleAddEmployee = (empData: Omit<Employee, 'id' | 'faceEnrolled' | 'faceDescriptors' | 'status'>) => {
-    const nextNum = employees.length + 101;
-    const newEmp: Employee = {
-      ...empData,
-      id: `PK-EMP-${String(nextNum).padStart(4, '0')}`,
-      faceEnrolled: false,
-      status: 'ACTIVE',
-    };
-    setEmployees((prev) => [newEmp, ...prev]);
+    setEmployees((prev) => {
+      let maxNum = 100;
+      for (const e of prev) {
+        const match = (e.id || '').match(/PK-EMP-(\d+)/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (!isNaN(num) && num > maxNum) {
+            maxNum = num;
+          }
+        }
+      }
+      const nextId = `PK-EMP-${String(maxNum + 1).padStart(4, '0')}`;
+      const newEmp: Employee = {
+        ...empData,
+        id: nextId,
+        faceEnrolled: false,
+        status: 'ACTIVE',
+      };
+      return [newEmp, ...prev];
+    });
   };
 
   // Save Face Descriptors with Encrypted Vault and Audit Logging
