@@ -16,7 +16,10 @@ export class ArcFace512EmbeddingCalculator implements IEmbeddingCalculator {
   private fallbackSynthetic = false;
 
   constructor() {
-    // Set WASM paths for onnxruntime-web
+    // Configure WASM paths for onnxruntime-web (loads from root public where wasm binaries are placed)
+    if (typeof window !== 'undefined') {
+      ort.env.wasm.wasmPaths = window.location.origin + '/';
+    }
     ort.env.wasm.numThreads = 1;
     ort.env.wasm.simd = true;
   }

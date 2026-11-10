@@ -613,7 +613,7 @@ export function calculateEyeAspectRatio(landmarks: faceapi.FaceLandmarks68): num
 export function findBestFaceMatch(
   liveDescriptor: number[],
   enrolledEmployees: Employee[],
-  threshold: number = 0.32,
+  threshold: number = 0.38,
   isLive: boolean = true,
   minMargin: number = 0.04
 ): FaceMatchResult {
@@ -669,14 +669,14 @@ export function findBestFaceMatch(
   const confidence = distanceToConfidence(bestDistance);
 
   // Strict High-Security Double-Verification Gate (Anti-Sibling / Anti-Impostor):
-  // 1. bestDistance must be strictly <= threshold (<= 0.32), guaranteeing high biometric precision
-  // 2. masterDistance (centroid identity) must also confirm <= threshold + 0.02 (<= 0.34)
+  // 1. bestDistance must be <= threshold (e.g. <= 0.38)
+  // 2. masterDistance (centroid identity) must also confirm <= threshold + 0.04 (<= 0.42)
   // 3. If multiple employees are enrolled, top-1 must maintain minMargin separation from top-2
-  const maxAllowedDistance = Math.min(0.34, threshold);
+  const maxAllowedDistance = Math.min(0.40, threshold);
   const isCandidatePass =
     top1 !== undefined &&
     bestDistance <= maxAllowedDistance &&
-    masterDistance <= maxAllowedDistance + 0.02;
+    masterDistance <= maxAllowedDistance + 0.04;
 
   const isMarginPass = candidates.length <= 1 || margin >= minMargin;
   const isMatch = isLive && isCandidatePass && isMarginPass;
@@ -726,7 +726,7 @@ export async function generateFaceEmbedding512(
 export async function detectMultipleFacesFromCanvas(
   input: HTMLCanvasElement | HTMLVideoElement,
   enrolledEmployees: Employee[],
-  threshold: number = 0.32,
+  threshold: number = 0.38,
   requireLiveness: boolean = true,
   minMargin: number = 0.04
 ): Promise<DetectedFaceSlot[]> {

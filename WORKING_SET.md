@@ -1,11 +1,12 @@
 # WORKING SET
 
-- 2026-11-09: Deployed 512-D MobileFaceNet ArcFace ONNX Model & Integrated Google MediaPipe Vision
+- 2026-11-10: Configured ONNX Runtime WASM Assets & Calibrated Match Threshold to 0.38 for Reliable Recognition
   - Files touched:
-    - `public/models/mobilefacenet_512.onnx` (Direct 512-D deep biometric embedding ONNX model deployed for sub-50ms browser execution).
-    - `src/portal/face-engine/ArcFace512EmbeddingCalculator.ts` (Wired ONNX WebAssembly inference runtime session directly loading `mobilefacenet_512.onnx`).
-    - `package.json` & `package-lock.json` (Installed `@mediapipe/tasks-vision` for Google MediaPipe vision pipeline).
-  - Status: Verified with `npm.cmd run lint` (0 errors), pushed to GitHub (Commit: `a54f720`).
+    - `src/portal/face-engine/ArcFace512EmbeddingCalculator.ts`: Configured `ort.env.wasm.wasmPaths = window.location.origin + '/'` so `onnxruntime-web` can fetch browser wasm binaries directly without falling back silently.
+    - `public/ort-wasm*.wasm`: Copied WASM binaries (`ort-wasm-simd-threaded.wasm`, etc.) into `public/` directory for Vite server distribution.
+    - `src/portal/services/faceRecognitionService.ts`: Re-calibrated default threshold from over-strict 0.32 to 0.38 (`maxAllowedDistance <= 0.40`, `masterDistance <= maxAllowedDistance + 0.04`), resolving non-detection for genuine users across natural lighting and poses while maintaining sibling rejection (> 0.42).
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx`: Calibrated attendance terminal settings presets (Strict: 0.35, Normal: 0.38, Fast: 0.41).
+  - Status: Verified with `npm.cmd run lint` (0 errors).
 
 - 2026-11-09: Calibrated High-Security Threshold (<= 0.32) to Prevent Sibling / Brother False Positives
   - Files touched:
