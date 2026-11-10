@@ -74,8 +74,11 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
       const saved = localStorage.getItem('pk_terminal_config');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.minRecognitionConfidence > 0.40) {
-          parsed.minRecognitionConfidence = 0.38;
+        if (parsed.minRecognitionConfidence < 0.40) {
+          parsed.minRecognitionConfidence = 0.44;
+        }
+        if (!parsed.minRecognitionMargin || parsed.minRecognitionMargin > 0.03) {
+          parsed.minRecognitionMargin = 0.02;
         }
         return parsed;
       }
@@ -84,10 +87,10 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
       activeLocationId: 'mumbai-hq',
       strictGeofence: false, // Default false so camera and face attendance punch works smoothly everywhere
       bypassGeofenceForDev: true, // Default true for testing and mobile deployment
-      minRecognitionConfidence: 0.38, // Calibrated threshold (<= 0.38)
+      minRecognitionConfidence: 0.44, // Calibrated threshold (<= 0.44 allows expression changes)
       cooldownMinutes: 1,
       requiredConsecutiveFrames: 1, // Instant punch on first confident recognition frame
-      minRecognitionMargin: 0.04,
+      minRecognitionMargin: 0.02,
       terminalMode: 'AUTO',
       minPunchGapMinutes: 1,
       maxShiftDurationHours: 16,
@@ -217,9 +220,9 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
   // Preset security threshold adjustments
   const handlePresetChange = (preset: 'STRICT' | 'NORMAL' | 'FAST') => {
     setSecurityPreset(preset);
-    if (preset === 'STRICT') setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.35 }));
-    else if (preset === 'NORMAL') setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.38 }));
-    else setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.42 }));
+    if (preset === 'STRICT') setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.38 }));
+    else if (preset === 'NORMAL') setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.44 }));
+    else setConfig((prev) => ({ ...prev, minRecognitionConfidence: 0.48 }));
   };
 
   // 3. Start Camera Stream (with mobile portrait fallbacks & HTTPS checks)
@@ -416,7 +419,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                 const avgDist = validRecent.reduce((acc, f) => acc + f.distance, 0) / validRecent.length;
                 const avgMargin = validRecent.reduce((acc, f) => acc + f.margin, 0) / validRecent.length;
 
-                if (avgDist <= config.minRecognitionConfidence && (avgDist <= 0.30 || avgMargin >= (config.minRecognitionMargin || 0.04))) {
+                if (avgDist <= config.minRecognitionConfidence && (avgDist <= 0.40 || avgMargin >= (config.minRecognitionMargin || 0.02))) {
                   // Phase 3: Shift-Aware Punch Resolution
                   const resolution = resolveShiftPunch(emp, attendanceRecords, config, new Date());
                   if (!resolution.allowed || resolution.action === 'REJECT') {

@@ -668,17 +668,22 @@ export function findBestFaceMatch(
 
   const confidence = distanceToConfidence(bestDistance);
 
-  // Strict High-Security Double-Verification Gate (Anti-Sibling / Anti-Impostor):
-  // 1. bestDistance must be <= threshold (e.g. <= 0.38)
-  // 2. masterDistance (centroid identity) must also confirm <= threshold + 0.04 (<= 0.42)
-  // 3. If multiple employees are enrolled, top-1 must maintain minMargin separation from top-2
-  const maxAllowedDistance = Math.min(0.40, threshold);
+  // Balanced Dual-Verification Gate:
+  // 1. bestDistance must be <= threshold (e.g. <= 0.44 allows normal expression/lighting changes)
+  // 2. masterDistance (centroid identity) must confirm <= threshold + 0.05 (<= 0.49)
+  // 3. Margin check between top 1 and top 2: if top 1 is very confident (<= 0.40), margin is not required.
+  //    If top 1 is borderline (0.40 - 0.44), require a gentle separation (minMargin) from top 2.
+  const maxAllowedDistance = Math.max(0.38, Math.min(0.48, threshold));
   const isCandidatePass =
     top1 !== undefined &&
     bestDistance <= maxAllowedDistance &&
-    masterDistance <= maxAllowedDistance + 0.04;
+    masterDistance <= maxAllowedDistance + 0.05;
 
-  const isMarginPass = candidates.length <= 1 || margin >= minMargin;
+  const isMarginPass =
+    candidates.length <= 1 ||
+    bestDistance <= 0.40 ||
+    margin >= (minMargin || 0.02);
+
   const isMatch = isLive && isCandidatePass && isMarginPass;
 
   return {
@@ -726,9 +731,9 @@ export async function generateFaceEmbedding512(
 export async function detectMultipleFacesFromCanvas(
   input: HTMLCanvasElement | HTMLVideoElement,
   enrolledEmployees: Employee[],
-  threshold: number = 0.38,
+  threshold: number = 0.44,
   requireLiveness: boolean = true,
-  minMargin: number = 0.04
+  minMargin: number = 0.02
 ): Promise<DetectedFaceSlot[]> {
   await loadFaceModels();
   if (!modelsLoaded) return [];

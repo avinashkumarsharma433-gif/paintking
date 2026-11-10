@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-10: Calibrated Expression Tolerance (Threshold <= 0.44) & Relaxed Margin Blocking Across Multi-Enrollments
+  - Files touched:
+    - `src/portal/services/faceRecognitionService.ts`: Calibrated `maxAllowedDistance` up to 0.44 (master centroid gate +0.05). Relaxed multi-employee margin check (`bestDistance <= 0.40 || margin >= 0.02`), preventing the 2nd enrolled employee from being blocked as 'Unknown' when standing in camera.
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx`: Calibrated default confidence threshold to 0.44 (presets Strict: 0.38, Normal: 0.44, Fast: 0.48), updated saved localStorage config to auto-upgrade to 0.44.
+  - Status: Verified with `npm.cmd run lint` (0 errors).
+
 - 2026-11-10: Configured ONNX Runtime WASM Assets & Calibrated Match Threshold to 0.38 for Reliable Recognition
   - Files touched:
     - `src/portal/face-engine/ArcFace512EmbeddingCalculator.ts`: Configured `ort.env.wasm.wasmPaths = window.location.origin + '/'` so `onnxruntime-web` can fetch browser wasm binaries directly without falling back silently.
