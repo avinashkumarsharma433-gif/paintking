@@ -80,6 +80,9 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
         if (!parsed.minRecognitionMargin || parsed.minRecognitionMargin > 0.03) {
           parsed.minRecognitionMargin = 0.02;
         }
+        if (!parsed.requiredConsecutiveFrames || parsed.requiredConsecutiveFrames < 3) {
+          parsed.requiredConsecutiveFrames = 3;
+        }
         return parsed;
       }
     } catch {}
@@ -89,7 +92,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
       bypassGeofenceForDev: true, // Default true for testing and mobile deployment
       minRecognitionConfidence: 0.44, // Calibrated threshold (<= 0.44 allows expression changes)
       cooldownMinutes: 1,
-      requiredConsecutiveFrames: 1, // Instant punch on first confident recognition frame
+      requiredConsecutiveFrames: 3, // Requires 3 continuous confirmed frames (~1.2s stability) to prevent false triggers
       minRecognitionMargin: 0.02,
       terminalMode: 'AUTO',
       minPunchGapMinutes: 1,

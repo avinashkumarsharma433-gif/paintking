@@ -739,7 +739,7 @@ export async function detectMultipleFacesFromCanvas(
   if (!modelsLoaded) return [];
 
   const detections = await faceapi
-    .detectAllFaces(input, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.22 }))
+    .detectAllFaces(input, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.50 }))
     .withFaceLandmarks()
     .withFaceDescriptors();
 

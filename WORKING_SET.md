@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-10: Increased Face Detection Confidence to 0.50 & Required 3 Continuous Consecutive Frames for Punch
+  - Files touched:
+    - `src/portal/services/faceRecognitionService.ts`: Increased SSD MobileNet face detection confidence threshold from 0.22 to 0.50 (`SsdMobilenetv1Options({ minConfidence: 0.50 })`) preventing background shadows/motion blur from triggering false face slots.
+    - `src/portal/modules/hr/HRAttendanceTerminal.tsx`: Set `requiredConsecutiveFrames = 3` (with localStorage auto-upgrade to >= 3), ensuring a genuine employee must match continuously across ~1.2s before attendance is punched.
+  - Status: Verified with `npm.cmd run lint` (0 errors).
+
 - 2026-11-10: Fixed Duplicate Employee ID Generation (PK-EMP-xxxx Collision) & Added Auto-Deduplication
   - Files touched:
     - `src/portal/views/HRSuiteView.tsx`: Changed ID generator from naive `employees.length + 101` to regex-based max number tracking `Math.max(...nums) + 1` preventing ID collisions when employees are added/removed. Added auto-healing sanitizer in `useState<Employee[]>` initializer to rename existing duplicate IDs in localStorage (`PK-EMP-0104`, etc.) so multiple employees never share the same ID.
