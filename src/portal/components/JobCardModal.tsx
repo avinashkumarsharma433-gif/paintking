@@ -52,7 +52,8 @@ import {
   downloadStandardJobCardPdf,
   downloadStandardPreProductionPdf,
   downloadStandardFPAPdf,
-  downloadStandardIPQCPdf
+  downloadStandardIPQCPdf,
+  downloadStandardProductionOfferingPdf
 } from '../utils/pdfStandardHeader';
 import { BalanceReturnModal } from './BalanceReturnModal';
 import { PreProductionInspectionModal } from './PreProductionInspectionModal';
@@ -2544,15 +2545,28 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
         {/* Right Action Icons: Mode Switcher & Close */}
         <div className="flex items-center gap-2.5">
           {isExistingCard && (
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              className="px-3.5 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-              title="Download Job Card PDF Slip to print and hand to painter"
-            >
-              <Download className="w-3.5 h-3.5 text-[#8a6521]" />
-              <span className="hidden sm:inline">Download PDF Slip</span>
-            </button>
+            <>
+              {(currentGoodQty > 0 || (currentJcForModals.goodQty || 0) > 0) && (
+                <button
+                  type="button"
+                  onClick={() => downloadStandardProductionOfferingPdf(currentJcForModals)}
+                  className="px-3.5 py-1.5 rounded-full bg-white hover:bg-[#fafafb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                  title="Download Production Offering & QA Handover Slip (Doc: PK-PRD-OFF-01)"
+                >
+                  <FileText className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span className="hidden sm:inline">Offering Slip</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                className="px-3.5 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                title="Download Job Card PDF Slip to print and hand to painter"
+              >
+                <Download className="w-3.5 h-3.5 text-[#8a6521]" />
+                <span className="hidden sm:inline">Download PDF Slip</span>
+              </button>
+            </>
           )}
 
           <div className="flex items-center p-1 rounded-full bg-[#fafafb] border border-[#ececec] text-xs">
@@ -3922,6 +3936,17 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   <RotateCcw className="w-4 h-4 text-[#c09748]" />
                   <span>Return Leftover to Store</span>
                 </button>
+                {(currentGoodQty > 0 || (currentJcForModals.goodQty || 0) > 0) && (
+                  <button
+                    type="button"
+                    onClick={() => downloadStandardProductionOfferingPdf(currentJcForModals)}
+                    className="px-4 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition cursor-pointer flex items-center gap-2 active:scale-95 shadow-2xs"
+                    title="Download Production Offering & QA Handover Slip (Doc: PK-PRD-OFF-01)"
+                  >
+                    <FileText className="w-4 h-4 text-[#777b86]" />
+                    <span>Offering Slip (PK-PRD-OFF-01)</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleDownloadPdf}

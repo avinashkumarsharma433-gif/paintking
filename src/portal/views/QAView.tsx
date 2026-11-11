@@ -51,6 +51,7 @@ import { FPAModal } from '../components/FPAModal';
 import { OQCModal } from '../components/OQCModal';
 import { PDIModal } from '../components/PDIModal';
 import { composeIqcEmailDraft, EmailDispatchPayload } from '../utils/emailDispatchEngine';
+import { CalibrationView } from './CalibrationView';
 
 export const QAView: React.FC = () => {
   const { 
@@ -73,13 +74,14 @@ export const QAView: React.FC = () => {
     submitPreSprayIQC,
     submitFinalQA,
     materialRequisitions,
+    calibrationList,
     activePlant, 
     currentUser,
     activeSubTab: globalSubTab,
     setActiveSubTab: setGlobalSubTab
   } = usePortalStore();
 
-  const [activeSubTab, setActiveSubTab] = useState<'IQC' | 'PIR' | 'FPA' | 'IPQC' | 'OQC' | 'PDI' | 'UNIVERSAL_IQC' | 'UNIVERSAL_QA'>('IQC');
+  const [activeSubTab, setActiveSubTab] = useState<'IQC' | 'PIR' | 'FPA' | 'IPQC' | 'OQC' | 'PDI' | 'CALIBRATION' | 'UNIVERSAL_IQC' | 'UNIVERSAL_QA'>('IQC');
   const [iqcViewTab, setIqcViewTab] = useState<'PENDING' | 'COMPLETED'>('PENDING');
 
   useEffect(() => {
@@ -89,7 +91,7 @@ export const QAView: React.FC = () => {
     } else if (globalSubTab === 'IQC') {
       setIqcViewTab('PENDING');
       setActiveSubTab('IQC');
-    } else if (globalSubTab === 'PIR' || globalSubTab === 'FPA' || globalSubTab === 'IPQC' || globalSubTab === 'OQC' || globalSubTab === 'PDI' || globalSubTab === 'UNIVERSAL_IQC' || globalSubTab === 'UNIVERSAL_QA') {
+    } else if (globalSubTab === 'PIR' || globalSubTab === 'FPA' || globalSubTab === 'IPQC' || globalSubTab === 'OQC' || globalSubTab === 'PDI' || globalSubTab === 'CALIBRATION' || globalSubTab === 'UNIVERSAL_IQC' || globalSubTab === 'UNIVERSAL_QA') {
       setActiveSubTab(globalSubTab as any);
     }
   }, [globalSubTab]);
@@ -1627,6 +1629,28 @@ export const QAView: React.FC = () => {
             pdiPendingCount > 0 ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-[#f4e5be]/60 text-[#8a6521]'
           }`}>
             {pdiPendingCount > 0 ? `${pdiPendingCount} Due • ${clearedPdiReleases.length}` : `${clearedPdiReleases.length} Cleared`}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { setActiveSubTab('CALIBRATION'); setGlobalSubTab('CALIBRATION'); }}
+          className={`px-4 py-2.5 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer shrink-0 shadow-2xs active:scale-95 ${
+            activeSubTab === 'CALIBRATION'
+              ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] ring-1 ring-[#c09748]/20'
+              : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+          }`}
+        >
+          <Wrench className="w-3.5 h-3.5 text-[#c09748]" />
+          <span>Gauges & Calibration Master</span>
+          <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold ${
+            calibrationList.some(c => c.status === 'Overdue (Locked)')
+              ? 'bg-rose-100 text-rose-900 border border-rose-300'
+              : calibrationList.some(c => c.status === 'Due Soon')
+              ? 'bg-amber-100 text-amber-900 border border-amber-300'
+              : 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+          }`}>
+            {calibrationList.filter(c => c.status === 'Calibrated (Valid)').length}/{calibrationList.length} Valid
           </span>
         </button>
 
@@ -3944,6 +3968,13 @@ export const QAView: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* GATE 6: MEASURING GAUGES & CALIBRATION MASTER */}
+      {activeSubTab === 'CALIBRATION' && (
+        <div className="space-y-4 sm:space-y-6">
+          <CalibrationView />
         </div>
       )}
 

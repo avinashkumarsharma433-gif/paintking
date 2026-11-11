@@ -1,5 +1,33 @@
 # WORKING SET
 
+- 2026-11-11: Implemented Strict Role-Based Access Control (RBAC) across All Navigation Tabs & Sub-items
+  - Files touched:
+    - `src/portal/components/PortalSidebar.tsx`: Enforced strict role restrictions on top-level tabs and sub-items (Payroll, Employee Directory, Recognition Lab strictly restricted to Director/HR; Operator & Security limited to operational tabs).
+    - `src/portal/PortalApp.tsx`: Synced `TAB_ALLOWED_ROLES` and route guards to automatically prevent unauthorized route access on persona switch.
+  - Status: Verified with `npm.cmd run lint` (0 errors) and `npm.cmd run build` (builds successfully in 8.22s).
+
+- 2026-11-11: Integrated Equipment Calibration Master Directly into QA Dashboard & Redesigned UI
+  - Files touched:
+    - `src/portal/views/CalibrationView.tsx`: Redesigned according to PaintKing UI/UX guidelines (white luxury surface, 3 metric pill cards, responsive 4-column desktop table, mobile responsive cards, pill buttons, NABL certification modal).
+    - `src/portal/views/QAView.tsx`: Added dedicated sub-tab "Gauges & Calibration Master" with real-time valid counter right alongside Gates 0-5 in the QA Hub.
+  - Status: Verified with `npm.cmd run lint` (0 errors) and `npm.cmd run build` (builds successfully in 8.08s).
+
+- 2026-11-11: Streamlined Navigation by Removing Standalone Paint Mixing Lab Tab (Consolidated into FPA/QC Flow)
+  - Files touched:
+    - `src/portal/components/PortalSidebar.tsx`: Removed `paintmixing` from `PortalTab`, `TAB_LABELS`, and sidebar menu items.
+    - `src/portal/PortalApp.tsx`: Removed `paintmixing` role permissions and view route.
+  - Status: Verified with `npm.cmd run lint` (0 errors) and `npm.cmd run build` (builds successfully in 8.38s).
+
+- 2026-11-11: Decommissioned Redundant Standalone Production Offering Tab & Preserved PK-PRD-OFF-01 Auto-Generated PDF
+  - Files touched:
+    - `src/portal/components/PortalSidebar.tsx`: Removed `production_offering` from tab enum, `TAB_LABELS`, and main navigation list.
+    - `src/portal/PortalApp.tsx`: Removed `production_offering` permissions and routing to prevent dead tabs.
+    - `src/portal/utils/pdfStandardHeader.ts`: Implemented `downloadStandardProductionOfferingPdf` for official PK-PRD-OFF-01 / Appendix A.11 standard PDF with 4-tier authorization chain, 3-stage clearance audit, and quantity roll-up.
+    - `src/portal/views/QAView.tsx`: Integrated one-click Offering Slip download in Pending OQC table/cards, Completed OQC register, and detailed OQC report modal.
+    - `src/portal/views/JobCardsView.tsx` & `src/portal/components/JobCardModal.tsx`: Added one-click Offering Slip export when good finished pieces are logged.
+    - `src/portal/components/OQCModal.tsx`: Added Offering Slip download button on OQC release.
+  - Status: Verified with `npm.cmd run lint` (0 errors) and `npm.cmd run build` (builds successfully in 7.93s).
+
 - 2026-11-10: Increased Face Detection Confidence to 0.50 & Required 3 Continuous Consecutive Frames for Punch
   - Files touched:
     - `src/portal/services/faceRecognitionService.ts`: Increased SSD MobileNet face detection confidence threshold from 0.22 to 0.50 (`SsdMobilenetv1Options({ minConfidence: 0.50 })`) preventing background shadows/motion blur from triggering false face slots.

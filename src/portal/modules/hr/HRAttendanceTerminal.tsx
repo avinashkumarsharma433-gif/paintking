@@ -405,7 +405,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
 
         // Strict Consecutive Streak: Reset streaks for employees who disappeared or failed recognition
         for (const empId of Array.from(matchHistoryRef.current.keys())) {
-          if (!currentRecognizedEmpIds.has(empId)) {
+          if (!currentRecognizedEmpIds.has(String(empId))) {
             matchHistoryRef.current.delete(empId);
           }
         }

@@ -54,7 +54,7 @@ import { IPQCModal } from '../components/IPQCModal';
 import { BoothConfigModal } from '../components/BoothConfigModal';
 import { PainterConfigModal } from '../components/PainterConfigModal';
 import { PainterDetailProfileView } from './PainterDetailProfileView';
-import { downloadStandardPreProductionPdf, downloadStandardFPAPdf, downloadStandardIPQCPdf, downloadStandardJobCardPdf } from '../utils/pdfStandardHeader';
+import { downloadStandardPreProductionPdf, downloadStandardFPAPdf, downloadStandardIPQCPdf, downloadStandardJobCardPdf, downloadStandardProductionOfferingPdf } from '../utils/pdfStandardHeader';
 import { BalanceReturnModal } from '../components/BalanceReturnModal';
 
 interface FilterOption {
@@ -3046,7 +3046,19 @@ export const JobCardsView: React.FC = () => {
                       <span>View Job Card</span>
                     </button>
 
-                    <div className="flex items-center gap-1.5 w-full sm:w-auto md:w-full justify-end">
+                    <div className="flex items-center gap-1.5 w-full sm:w-auto md:w-full justify-end flex-wrap">
+                      {(jc.goodQty || 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => downloadStandardProductionOfferingPdf(jc)}
+                          className="px-2.5 py-1.5 rounded-full bg-white hover:bg-[#fafafb] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95"
+                          title="Download Official Offering Slip (PK-PRD-OFF-01)"
+                        >
+                          <FileText className="w-3 h-3 text-[#c09748]" />
+                          <span>Offering Slip</span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => downloadStandardJobCardPdf(jc)}

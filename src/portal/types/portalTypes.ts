@@ -728,6 +728,9 @@ export interface JobCard {
   iqcApproved?: boolean;
   oqcApproved?: boolean;
   pdiApproved?: boolean;
+  date?: string;
+  plant?: PlantLocation;
+  shift?: ShiftType;
 
   // INITIAL PROCESS (Exact Screenshot 1)
   painterName: string;

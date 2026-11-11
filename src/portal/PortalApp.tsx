@@ -8,10 +8,8 @@ import { JobCardsView } from './views/JobCardsView';
 import { BillingView } from './views/BillingView';
 import { StoresView } from './views/StoresView';
 import { QAView } from './views/QAView';
-import { PaintMixingView } from './views/PaintMixingView';
 import { PackingView } from './views/PackingView';
 import { GatePassView } from './views/GatePassView';
-import { ProductionOfferingView } from './views/ProductionOfferingView';
 import { HRSuiteView } from './views/HRSuiteView';
 import { CalibrationView } from './views/CalibrationView';
 import { PainterWorkspaceView } from './views/PainterWorkspaceView';
@@ -51,11 +49,9 @@ const TAB_ALLOWED_ROLES: Record<PortalTab, UserRole[]> = {
   handovers: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'STORES'],
   billing: ['DIRECTOR', 'PLANT_HEAD', 'BILLING'],
   stores: ['DIRECTOR', 'PLANT_HEAD', 'STORES'],
-  paintmixing: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'OPERATOR'],
   qa: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA'],
   packing: ['DIRECTOR', 'PLANT_HEAD', 'STORES', 'PRODUCTION', 'QA_QC', 'MANAGER_QA'],
   gatepass: ['DIRECTOR', 'PLANT_HEAD', 'SECURITY', 'STORES'],
-  production_offering: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'OPERATOR', 'DEPT_INCHARGE'],
   hr_leave: ALL_ROLES,
   calibration: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA', 'PRODUCTION']
 };
@@ -231,16 +227,12 @@ const PortalInner: React.FC<PortalAppProps> = ({ onBackToWebsite }) => {
         return <BillingView />;
       case 'stores':
         return <StoresView />;
-      case 'paintmixing':
-        return <PaintMixingView />;
       case 'qa':
         return <QAView />;
       case 'packing':
         return <PackingView />;
       case 'gatepass':
         return <GatePassView />;
-      case 'production_offering':
-        return <ProductionOfferingView />;
       case 'hr_leave':
         return <HRSuiteView />;
       case 'calibration':

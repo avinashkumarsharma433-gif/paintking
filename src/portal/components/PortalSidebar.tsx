@@ -26,11 +26,9 @@ export type PortalTab =
   | 'painter_desk'
   | 'billing'
   | 'stores'
-  | 'paintmixing'
   | 'qa'
   | 'packing'
   | 'gatepass'
-  | 'production_offering'
   | 'hr_leave'
   | 'calibration';
 
@@ -41,11 +39,9 @@ export const TAB_LABELS: Record<PortalTab, string> = {
   painter_desk: 'Painter Floor Desk (Kiosk)',
   billing: 'Billing & PO Rec',
   stores: 'Stores & Inward GRN',
-  paintmixing: 'Paint Mixing Lab',
   qa: 'Incoming Quality Control (IQC)',
   packing: 'Packing & Box QR',
   gatepass: 'Gate Security & Inward',
-  production_offering: 'Production Offering',
   hr_leave: 'HR Suite & Attendance',
   calibration: 'Equipment Calibration'
 };
@@ -53,6 +49,7 @@ export const TAB_LABELS: Record<PortalTab, string> = {
 interface SubMenuItem {
   label: string;
   subTab: string;
+  allowedRoles?: string[];
 }
 
 interface PortalSidebarProps {
@@ -135,7 +132,7 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       icon: Briefcase,
       badge: openOverrunCount > 0 ? 'Color Over-run' : null,
       badgeColor: 'bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521]',
-      roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA'],
+      roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'OPERATOR', 'DEPT_INCHARGE'],
       subItems: [
         { label: 'All Job Cards', subTab: 'ALL' },
         { label: 'Store Demands & Arriving (MRN)', subTab: 'REQUISITIONS' },
@@ -192,21 +189,6 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       ]
     },
     {
-      id: 'paintmixing',
-      label: 'Paint Mixing Lab',
-      subtitle: 'Formulation, Viscosity & Pot-Life',
-      docCode: 'PK-PRD-PMX-001',
-      icon: Pipette,
-      badge: null,
-      roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA'],
-      subItems: [
-        { label: 'Shade Formulations & Recipes', subTab: 'RECIPES' },
-        { label: 'Ford Cup 4 Viscosity Checks', subTab: 'VISCOSITY' },
-        { label: '2K Pot-Life & Expiry Watch', subTab: 'POT_LIFE' },
-        { label: 'Thinner Ratio Compliance', subTab: 'THINNER' }
-      ]
-    },
-    {
       id: 'qa',
       label: 'Quality Assurance & Control (QA Hub)',
       subtitle: 'IQC • PIR • FPA Golden Gate • IPQC Line Audit',
@@ -253,23 +235,6 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       ]
     },
     {
-      id: 'production_offering',
-      label: 'Production Offering',
-      subtitle: '4-Tier Inspection Sign-off',
-      docCode: 'PK-PRD-OFF-01',
-      icon: ClipboardList,
-      badge: '4-Tier Sign',
-      badgeColor: 'bg-blue-50 border border-blue-200 text-blue-800',
-      roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'OPERATOR'],
-      subItems: [
-        { label: 'Line Clearance Offering Slip', subTab: 'OFFERING_SLIP' },
-        { label: 'Tier 1: Operator Check', subTab: 'TIER_1' },
-        { label: 'Tier 2: QC Inspector Sign', subTab: 'TIER_2' },
-        { label: 'Tier 3: Line Supervisor Sign', subTab: 'TIER_3' },
-        { label: 'Tier 4: Production Head Sign', subTab: 'TIER_4' }
-      ]
-    },
-    {
       id: 'hr_leave',
       label: 'Human Resources & Admin',
       subtitle: 'Attendance, Biometrics & Payroll',
@@ -279,12 +244,12 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       roles: ['DIRECTOR', 'PLANT_HEAD', 'HR', 'DEPT_INCHARGE', 'PRODUCTION', 'STORES', 'QA_QC', 'MANAGER_QA', 'OPERATOR', 'SECURITY', 'BILLING'],
       subItems: [
         { label: 'Live Face Terminal', subTab: 'TERMINAL' },
-        { label: 'Attendance Register', subTab: 'REGISTER' },
-        { label: 'Employee Master & Biometrics', subTab: 'DIRECTORY' },
-        { label: 'Leave Sanctions (PK-HR-LV-01)', subTab: 'LEAVE' },
-        { label: 'Recognition Lab (Admin)', subTab: 'LAB' },
-        { label: 'Payroll & OT Wages', subTab: 'PAYROLL' },
-        { label: 'Shift Rules & Holidays', subTab: 'SHIFTS' }
+        { label: 'Attendance Register', subTab: 'REGISTER', allowedRoles: ['DIRECTOR', 'PLANT_HEAD', 'HR', 'DEPT_INCHARGE', 'PRODUCTION', 'STORES', 'QA_QC', 'MANAGER_QA', 'BILLING'] },
+        { label: 'Employee Master & Biometrics', subTab: 'DIRECTORY', allowedRoles: ['DIRECTOR', 'PLANT_HEAD', 'HR'] },
+        { label: 'Leave Sanctions (PK-HR-LV-01)', subTab: 'LEAVE', allowedRoles: ['DIRECTOR', 'PLANT_HEAD', 'HR', 'DEPT_INCHARGE', 'PRODUCTION', 'STORES', 'QA_QC', 'MANAGER_QA', 'BILLING', 'SECURITY'] },
+        { label: 'Recognition Lab (Admin)', subTab: 'LAB', allowedRoles: ['DIRECTOR', 'PLANT_HEAD', 'HR'] },
+        { label: 'Payroll & OT Wages', subTab: 'PAYROLL', allowedRoles: ['DIRECTOR', 'PLANT_HEAD', 'HR'] },
+        { label: 'Shift Rules & Holidays', subTab: 'SHIFTS', allowedRoles: ['DIRECTOR', 'PLANT_HEAD', 'HR'] }
       ]
     },
     {
@@ -432,7 +397,14 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
                     className="overflow-hidden bg-[#fafafb] border-t border-[#ececec]/60"
                   >
                     <div className="py-1.5 px-2.5 pl-8 space-y-0.5">
-                      {item.subItems.map((sub, sIdx) => {
+                      {item.subItems
+                        .filter(sub => 
+                          !sub.allowedRoles || 
+                          currentUser.role === 'DIRECTOR' || 
+                          currentUser.role === 'PLANT_HEAD' || 
+                          sub.allowedRoles.includes(currentUser.role)
+                        )
+                        .map((sub, sIdx) => {
                         const isSubActive = isActive && (
                           activeSubTab === sub.subTab || 
                           (!activeSubTab && sIdx === 0) ||

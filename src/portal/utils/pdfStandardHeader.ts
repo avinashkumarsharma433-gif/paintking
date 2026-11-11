@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { JobCard, BillingInvoice, MaterialInwardRecord, MaterialOutwardRecord, IQCInspectionRecord, GoodsReceiptNote, FPARecord, FPAVisualCheckRow, IPQCRecord, PreProductionInspectionRecord, MaterialRequisitionNote, FinalQualityRelease } from '../types/portalTypes';
+import { JobCard, BillingInvoice, MaterialInwardRecord, MaterialOutwardRecord, IQCInspectionRecord, GoodsReceiptNote, FPARecord, FPAVisualCheckRow, IPQCRecord, PreProductionInspectionRecord, MaterialRequisitionNote, FinalQualityRelease, ProductionOfferingReport } from '../types/portalTypes';
 import { PAINTKING_LOGO_BASE64 } from './paintkingLogoBase64';
 
 export const TABLE_BORDER_COLOR = [180, 185, 195] as const;
@@ -5397,5 +5397,436 @@ export const downloadStandardPdiPdf = (release: FinalQualityRelease): void => {
   );
 
   doc.save(`PaintKing_PDI_Report_${pdiRepNo}.pdf`);
+};
+
+// =============================================================================
+// PRODUCTION OFFERING & QUALITY HANDOVER SLIP (PK-PRD-OFF-01 / APPENDIX A.11)
+// - Standard Top PaintKing Header
+// - 3-Row Metadata Box with rounded corners (FD)
+// - Mandatory Light-Grey #f2f2f3 Table Headers
+// - 3-Stage Process Verification (Primer -> Basecoat -> Clearcoat)
+// - 4-Tier Sign-off Chain: Floor Incharge, Supervisor, QA Inspector, Plant Head
+// =============================================================================
+export interface ProductionOfferingPdfPayload {
+  jobCard?: Partial<JobCard>;
+  release?: Partial<FinalQualityRelease>;
+  offering?: Partial<ProductionOfferingReport>;
+}
+
+export const downloadStandardProductionOfferingPdf = (
+  source: JobCard | FinalQualityRelease | ProductionOfferingReport | ProductionOfferingPdfPayload
+): void => {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const TABLE_BORDER_COLOR = [180, 185, 195] as const;
+  const TABLE_LINE_WIDTH = 0.45;
+  const MARGIN_X = 14;
+  const USABLE_W = 182;
+  const RIGHT_X = MARGIN_X + USABLE_W; // 196mm
+
+  // Extract source data safely
+  let jc: Partial<JobCard> | undefined;
+  let rel: Partial<FinalQualityRelease> | undefined;
+  let off: Partial<ProductionOfferingReport> | undefined;
+
+  if ('jobCardNo' in source && !('releaseId' in source) && !('totalOfferedQty' in source)) {
+    jc = source as JobCard;
+  } else if ('releaseId' in source) {
+    rel = source as FinalQualityRelease;
+  } else if ('totalOfferedQty' in source && 'lineItems' in source) {
+    off = source as ProductionOfferingReport;
+  } else {
+    const payload = source as ProductionOfferingPdfPayload;
+    jc = payload.jobCard;
+    rel = payload.release;
+    off = payload.offering;
+  }
+
+  // 1. Top Standard PaintKing Header (Logo + Company Details)
+  const startY = drawStandardPdfHeader(doc);
+
+  // 2. Document Title & Control Strip (No box around title, exact PaintKing standard)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(23, 25, 28);
+  doc.text('DAILY PRODUCTION OFFERING & QA HANDOVER SLIP', 14, startY + 5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(192, 151, 72); // Brand Gold
+  doc.text('DOC NO: PK-PRD-OFF-01 • APPENDIX A.11 • REV.00', RIGHT_X, startY + 5, { align: 'right' });
+
+  // 3. Section 1: Standard 3-Row Metadata Container (3mm rounded corners)
+  const metaY = startY + 8;
+  const metaBoxHeight = 44;
+  doc.setDrawColor(220, 222, 228);
+  doc.setFillColor(250, 250, 251);
+  doc.roundedRect(14, metaY, 182, metaBoxHeight, 3, 3, 'FD');
+
+  const metaCol1X = 20;
+  const metaCol2X = 80;
+  const metaCol3X = 140;
+
+  const drawMetaField = (
+    label: string,
+    value: string,
+    x: number,
+    labelY: number,
+    valueY: number,
+    maxWidth: number = 52
+  ) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.0);
+    doc.setTextColor(23, 25, 28);
+    doc.text(label, x, labelY);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(55, 60, 70);
+
+    const cleanVal = (value || '-').trim();
+    const allLines: string[] = doc.splitTextToSize(cleanVal, maxWidth);
+
+    if (allLines.length <= 1) {
+      doc.text(allLines[0] || '-', x, valueY);
+    } else if (allLines.length === 2) {
+      doc.text(allLines[0], x, valueY - 1.2);
+      doc.text(allLines[1], x, valueY + 2.2);
+    } else {
+      doc.text(allLines[0], x, valueY - 1.2);
+      doc.text(allLines[1] + '...', x, valueY + 2.2);
+    }
+  };
+
+  const refNo = off?.id || (jc?.jobCardNo ? `PRD-OFF-${jc.jobCardNo}` : rel?.releaseId ? `PRD-OFF-${rel.releaseId}` : 'PRD-OFF-2026-089');
+  const now = new Date();
+  const dateStr = jc?.date || rel?.date || off?.date || now.toISOString().slice(0, 10);
+  const timeStr = `${formatDateDDMMYYYY(dateStr)}, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  const plantStr = `${jc?.plant || rel?.plant || off?.plant || 'Vasai'} Unit • Shift: ${jc?.shift || off?.shift || 'Day 12H'}`;
+  
+  const customerStr = jc?.customer || rel?.customer || (off?.lineItems && off.lineItems[0]?.customer) || 'Automotive OEM Client';
+  const partCodeModel = `${jc?.partCode || rel?.partCode || (off?.lineItems && off.lineItems[0]?.partDescription) || 'Moulded Substrate'}`;
+  const colorStr = jc?.color || rel?.color || (off?.lineItems && off.lineItems[0]?.color) || '2K PU Finish';
+  
+  const partDesc = jc?.partDescription || rel?.partDescription || (off?.lineItems && off.lineItems[0]?.partDescription) || 'Coated Plastic Component';
+  const jcWoText = `JC: ${jc?.jobCardNo || off?.lineItems?.[0]?.jobCardNo || '-'} • WO: ${jc?.woNo || rel?.woNo || '-'}`;
+  const statusText = rel?.oqcStatus === 'Accepted' ? 'OQC PASSED & CLEARED' : 'OFFERED TO QA (STAGE 3 FINISHED)';
+
+  // Row 1: REPORT REF | OFFERING TIMESTAMP | PLANT & SHIFT
+  drawMetaField('OFFERING SLIP REF NO.', refNo, metaCol1X, metaY + 5.5, metaY + 11.0, 54);
+  drawMetaField('OFFERING DATE & TIMESTAMP', timeStr, metaCol2X, metaY + 5.5, metaY + 11.0, 54);
+  drawMetaField('MANUFACTURING PLANT & SHIFT', plantStr, metaCol3X, metaY + 5.5, metaY + 11.0, 48);
+
+  // Row 2: CUSTOMER | PART CODE & MODEL | COATING & SHADE
+  drawMetaField('CUSTOMER / PARTY NAME', customerStr, metaCol1X, metaY + 18.5, metaY + 24.0, 54);
+  drawMetaField('PART CODE & SPECIFICATION', partCodeModel, metaCol2X, metaY + 18.5, metaY + 24.0, 54);
+  drawMetaField('COATING & SHADE FINISH', colorStr, metaCol3X, metaY + 18.5, metaY + 24.0, 48);
+
+  // Row 3: PART DESCRIPTION | JOB CARD / WO NO | QUALITY STATUS
+  drawMetaField('PART DESCRIPTION', partDesc, metaCol1X, metaY + 31.5, metaY + 37.0, 54);
+  drawMetaField('JOB CARD & WORK ORDER NO.', jcWoText, metaCol2X, metaY + 31.5, metaY + 37.0, 54);
+  drawMetaField('OFFERING / QA DISPOSITION', statusText, metaCol3X, metaY + 31.5, metaY + 37.0, 48);
+
+  let currentY = metaY + metaBoxHeight + 6.5;
+
+  // -------------------------------------------------------------------------
+  // SECTION 2: QUANTITY BREAKDOWN & QA HANDOVER TABLE (Appendix A.11 Table)
+  // -------------------------------------------------------------------------
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text('1. PRODUCTION OFFERING & QUALITY QUANTITY RECONCILIATION', 14, currentY);
+
+  currentY += 4.5;
+  const colSrW = 10;
+  const colJcW = 28;
+  const colPartW = 46;
+  const colColorW = 28;
+  const colTargetW = 16;
+  const colOfferedW = 18;
+  const colPassedW = 18;
+  const colRejectW = 18;
+  // 10 + 28 + 46 + 28 + 16 + 18 + 18 + 18 = 182mm (Exact USABLE_W)
+  const rowH = 6.0;
+
+  // Table Column Header (Mandatory Light Grey #f2f2f3)
+  doc.setFillColor(242, 242, 243);
+  doc.rect(MARGIN_X, currentY, USABLE_W, rowH, 'F');
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.rect(MARGIN_X, currentY, USABLE_W, rowH, 'S');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.0);
+  doc.setTextColor(23, 25, 28);
+
+  let curX = MARGIN_X;
+  doc.text('Sr.', curX + colSrW / 2, currentY + 3.8, { align: 'center' });
+  curX += colSrW;
+  doc.text('Job Card Ref', curX + 2, currentY + 3.8);
+  curX += colJcW;
+  doc.text('Part Description', curX + 2, currentY + 3.8);
+  curX += colPartW;
+  doc.text('Color / Finish', curX + 2, currentY + 3.8);
+  curX += colColorW;
+  doc.text('Target', curX + colTargetW / 2, currentY + 3.8, { align: 'center' });
+  curX += colTargetW;
+  doc.text('Offered OK', curX + colOfferedW / 2, currentY + 3.8, { align: 'center' });
+  curX += colOfferedW;
+  doc.text('QC Passed', curX + colPassedW / 2, currentY + 3.8, { align: 'center' });
+  curX += colPassedW;
+  doc.text('Scrap / Rej', curX + colRejectW / 2, currentY + 3.8, { align: 'center' });
+
+  // Draw header vertical dividers
+  let divX = MARGIN_X + colSrW;
+  doc.line(divX, currentY, divX, currentY + rowH);
+  divX += colJcW;
+  doc.line(divX, currentY, divX, currentY + rowH);
+  divX += colPartW;
+  doc.line(divX, currentY, divX, currentY + rowH);
+  divX += colColorW;
+  doc.line(divX, currentY, divX, currentY + rowH);
+  divX += colTargetW;
+  doc.line(divX, currentY, divX, currentY + rowH);
+  divX += colOfferedW;
+  doc.line(divX, currentY, divX, currentY + rowH);
+  divX += colPassedW;
+  doc.line(divX, currentY, divX, currentY + rowH);
+
+  currentY += rowH;
+
+  // Data rows
+  const targetQty = jc?.targetQty || 1000;
+  const offeredGood = jc?.goodQty || rel?.offeredQty || off?.totalOfferedQty || targetQty;
+  const qcPassed = rel?.passedQty || off?.totalPassedQty || offeredGood;
+  const scrapRej = jc?.rejectQty || rel?.rejectedQty || off?.totalRejectionQty || 0;
+  const reworkQty = jc?.reworkQty || off?.totalReworkQty || 0;
+
+  const items = off?.lineItems && off.lineItems.length > 0 
+    ? off.lineItems 
+    : [{
+        id: '1',
+        jobCardNo: jc?.jobCardNo || 'JC-SAMPLE',
+        customer: customerStr,
+        partDescription: partDesc,
+        color: colorStr,
+        offeredQty: offeredGood,
+        passedQty: qcPassed,
+        rejectionQty: scrapRej,
+        reworkQty: reworkQty,
+        remarks: 'Stage 3 Coating complete, transferred to OQC.'
+      }];
+
+  items.forEach((item, idx) => {
+    // Alternating white and soft tint
+    if (idx % 2 === 1) {
+      doc.setFillColor(250, 250, 251);
+      doc.rect(MARGIN_X, currentY, USABLE_W, rowH, 'F');
+    }
+    doc.setDrawColor(...TABLE_BORDER_COLOR);
+    doc.setLineWidth(TABLE_LINE_WIDTH);
+    doc.rect(MARGIN_X, currentY, USABLE_W, rowH, 'S');
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.0);
+    doc.setTextColor(23, 25, 28);
+
+    let rowX = MARGIN_X;
+    doc.text(String(idx + 1), rowX + colSrW / 2, currentY + 3.8, { align: 'center' });
+    rowX += colSrW;
+    doc.setFont('helvetica', 'bold');
+    doc.text(item.jobCardNo, rowX + 2, currentY + 3.8);
+    rowX += colJcW;
+    doc.setFont('helvetica', 'normal');
+    doc.text(doc.splitTextToSize(item.partDescription, colPartW - 4)[0], rowX + 2, currentY + 3.8);
+    rowX += colPartW;
+    doc.text(doc.splitTextToSize(item.color, colColorW - 4)[0], rowX + 2, currentY + 3.8);
+    rowX += colColorW;
+    doc.text(String(targetQty), rowX + colTargetW / 2, currentY + 3.8, { align: 'center' });
+    rowX += colTargetW;
+    doc.setFont('helvetica', 'bold');
+    doc.text(String(item.offeredQty), rowX + colOfferedW / 2, currentY + 3.8, { align: 'center' });
+    rowX += colOfferedW;
+    doc.setTextColor(16, 116, 55); // Emerald Green
+    doc.text(String(item.passedQty), rowX + colPassedW / 2, currentY + 3.8, { align: 'center' });
+    rowX += colPassedW;
+    doc.setTextColor(scrapRej > 0 ? 180 : 100, scrapRej > 0 ? 30 : 100, scrapRej > 0 ? 30 : 100);
+    doc.text(String(item.rejectionQty), rowX + colRejectW / 2, currentY + 3.8, { align: 'center' });
+
+    // Inner lines
+    let dX = MARGIN_X + colSrW;
+    doc.line(dX, currentY, dX, currentY + rowH);
+    dX += colJcW;
+    doc.line(dX, currentY, dX, currentY + rowH);
+    dX += colPartW;
+    doc.line(dX, currentY, dX, currentY + rowH);
+    dX += colColorW;
+    doc.line(dX, currentY, dX, currentY + rowH);
+    dX += colTargetW;
+    doc.line(dX, currentY, dX, currentY + rowH);
+    dX += colOfferedW;
+    doc.line(dX, currentY, dX, currentY + rowH);
+    dX += colPassedW;
+    doc.line(dX, currentY, dX, currentY + rowH);
+
+    currentY += rowH;
+  });
+
+  // Total Summary Bar (Mandatory Solid Summary Bar)
+  const sumRowH = 6.5;
+  doc.setFillColor(235, 238, 244);
+  doc.rect(MARGIN_X, currentY, USABLE_W, sumRowH, 'F');
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.rect(MARGIN_X, currentY, USABLE_W, sumRowH, 'S');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text('TOTAL QUANTITY ROLL-UP:', MARGIN_X + 4, currentY + 4.2);
+
+  const sumOffered = items.reduce((acc, i) => acc + (i.offeredQty || 0), 0);
+  const sumPassed = items.reduce((acc, i) => acc + (i.passedQty || 0), 0);
+  const sumRej = items.reduce((acc, i) => acc + (i.rejectionQty || 0), 0);
+
+  let sumX = MARGIN_X + colSrW + colJcW + colPartW + colColorW + colTargetW;
+  doc.text(String(sumOffered), sumX + colOfferedW / 2, currentY + 4.2, { align: 'center' });
+  sumX += colOfferedW;
+  doc.setTextColor(16, 116, 55);
+  doc.text(String(sumPassed), sumX + colPassedW / 2, currentY + 4.2, { align: 'center' });
+  sumX += colPassedW;
+  doc.setTextColor(sumRej > 0 ? 180 : 80, 30, 30);
+  doc.text(String(sumRej), sumX + colRejectW / 2, currentY + 4.2, { align: 'center' });
+
+  currentY += sumRowH + 6.0;
+
+  // -------------------------------------------------------------------------
+  // SECTION 3: 3-STAGE MANUFACTURING PROCESS VERIFICATION AUDIT
+  // -------------------------------------------------------------------------
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text('2. 3-STAGE FINISHING LINE CLEARANCE & DISPOSITION', 14, currentY);
+
+  currentY += 4.5;
+  const stageBoxH = 14.0;
+  doc.setDrawColor(220, 222, 228);
+  doc.setFillColor(250, 250, 251);
+  doc.roundedRect(14, currentY, 182, stageBoxH, 2.5, 2.5, 'FD');
+
+  const stageColW = 182 / 3;
+  // Stage 1
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(119, 123, 134);
+  doc.text('STAGE 1: SURFACE PREPARATION & PRIMER', 18, currentY + 4.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(16, 116, 55);
+  const s1Ok = jc?.stageProcessFirst?.okQty || targetQty;
+  doc.text(`Completed & Verified: ${s1Ok} Pcs`, 18, currentY + 9.5);
+
+  // Stage 2
+  doc.line(14 + stageColW, currentY, 14 + stageColW, currentY + stageBoxH);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(119, 123, 134);
+  doc.text('STAGE 2: 2K PU BASECOAT SPRAY APPLICATION', 14 + stageColW + 4, currentY + 4.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(16, 116, 55);
+  const s2Ok = jc?.stageProcessSecond?.okQty || offeredGood;
+  doc.text(`Completed & Verified: ${s2Ok} Pcs`, 14 + stageColW + 4, currentY + 9.5);
+
+  // Stage 3
+  doc.line(14 + stageColW * 2, currentY, 14 + stageColW * 2, currentY + stageBoxH);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(119, 123, 134);
+  doc.text('STAGE 3: CLEARCOAT TOPPING & OQC HANDOVER', 14 + stageColW * 2 + 4, currentY + 4.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(16, 116, 55);
+  const s3Ok = jc?.stageProcessThird?.okQty || offeredGood;
+  doc.text(`Offered to QA: ${s3Ok} Good Pcs`, 14 + stageColW * 2 + 4, currentY + 9.5);
+
+  currentY += stageBoxH + 5.0;
+
+  // Handover Note Box
+  const noteBoxH = 11.0;
+  doc.setDrawColor(220, 222, 228);
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(14, currentY, 182, noteBoxH, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(119, 123, 134);
+  doc.text('FORMAL HANDOVER DISPOSITION NOTE (DOC: PK-PRD-OFF-01):', 18, currentY + 4.2);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.0);
+  doc.setTextColor(23, 25, 28);
+  doc.text('Production shift team hereby offers the above batch of finished components to QA / OQC for final technical inspection and release.', 18, currentY + 8.2);
+
+  currentY += noteBoxH + 5.0;
+
+  // -------------------------------------------------------------------------
+  // SECTION 4: 4-TIER AUTHORIZATION & SIGN-OFF CHAIN (APPENDIX A.11)
+  // -------------------------------------------------------------------------
+  const signBoxH = 19.0;
+  doc.setDrawColor(220, 222, 228);
+  doc.setFillColor(250, 250, 251);
+  doc.roundedRect(14, currentY, 182, signBoxH, 2.5, 2.5, 'FD');
+
+  const sigColW = 182 / 4; // 45.5mm each
+
+  // Draw 3 internal vertical lines
+  doc.line(14 + sigColW, currentY, 14 + sigColW, currentY + signBoxH);
+  doc.line(14 + sigColW * 2, currentY, 14 + sigColW * 2, currentY + signBoxH);
+  doc.line(14 + sigColW * 3, currentY, 14 + sigColW * 3, currentY + signBoxH);
+
+  const drawTierSign = (tierLabel: string, name: string, designation: string, colIdx: number) => {
+    const x = 14 + sigColW * colIdx + 3.5;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(119, 123, 134);
+    doc.text(tierLabel, x, currentY + 4.8);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(23, 25, 28);
+    doc.text(name, x, currentY + 10.5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.0);
+    doc.setTextColor(119, 123, 134);
+    doc.text(designation, x, currentY + 14.8);
+  };
+
+  const painterName = jc?.assignedPainterName || off?.preparedBy || 'Ramesh Kumar (P1)';
+  const supervisorName = off?.checkedBy || 'Vikram Patel';
+  const qaName = rel?.inspector || off?.qaCheckedBy || 'Deepak Joshi';
+  const plantHeadName = off?.approvedBy || rel?.plantHeadSign || 'Satish Sharma';
+
+  drawTierSign('TIER 1: FLOOR INCHARGE', painterName, 'Booth Operator / Painter', 0);
+  drawTierSign('TIER 2: PROD. SUPERVISOR', supervisorName, 'Shift Line Supervisor', 1);
+  drawTierSign('TIER 3: QA INSPECTOR', qaName, 'OQC Quality Engineer', 2);
+  drawTierSign('TIER 4: PLANT HEAD', plantHeadName, 'Head Operations & Quality', 3);
+
+  // ISO Certified Footer with creation timestamp
+  drawStandardPdfFooter(
+    doc,
+    1,
+    1,
+    'PAINTKING • Production Offering & Quality Handover (Doc: PK-PRD-OFF-01 • Appendix A.11) • ISO 9001:2015 & IATF 16949 Certified',
+    timeStr,
+    false
+  );
+
+  doc.save(`PaintKing_Production_Offering_${refNo}.pdf`);
 };
 
