@@ -18,8 +18,10 @@ export interface DetectedFaceSlot {
   box: { x: number; y: number; width: number; height: number };
   descriptor: number[];
   matchResult: FaceMatchResult;
-  status: 'RECOGNIZED' | 'UNKNOWN' | 'SPOOF_SUSPECTED';
+  status: 'RECOGNIZED' | 'UNKNOWN' | 'SPOOF_SUSPECTED' | 'ANGLE_TOO_STEEP';
   landmarks?: faceapi.FaceLandmarks68;
+  poseAngle?: { yaw: number; pitch: number; roll: number };
+  holdingProgress?: number; // 0% to 100% progress for 3-second consecutive hold
 }
 
 let modelsLoaded = false;
@@ -755,11 +757,26 @@ export async function detectMultipleFacesFromCanvas(
 
       // Long-Range Distance Gate: Supports 5MP (2560x1920) deep optical detection down to 24px face crop
       const isLive = !requireLiveness || (ear > 0.10 && box.width >= 24 && box.height >= 24);
-      const match = findBestFaceMatch(descriptor, enrolledEmployees, threshold, isLive, minMargin);
+      
+      // Calculate pose angles from 68 landmarks
+      let poseAngle: { yaw: number; pitch: number; roll: number } | undefined;
+      let isAngleTooSteep = false;
+      if (det.landmarks) {
+        const pose = estimateHeadPoseFromLandmarks(det.landmarks);
+        poseAngle = { yaw: pose.yaw, pitch: pose.pitch, roll: pose.roll };
+        // If yaw magnitude > 0.08 (~22°+ side profile) or steep pitch, flag as extreme angle
+        if (Math.abs(pose.yaw) > 0.08 || pose.pitch > 0.35 || pose.pitch < -0.45) {
+          isAngleTooSteep = true;
+        }
+      }
+
+      const match = findBestFaceMatch(descriptor, enrolledEmployees, threshold, isLive && !isAngleTooSteep, minMargin);
 
       let status: DetectedFaceSlot['status'] = 'UNKNOWN';
       if (!isLive) {
         status = 'SPOOF_SUSPECTED';
+      } else if (isAngleTooSteep) {
+        status = 'ANGLE_TOO_STEEP';
       } else if (match.isMatch && match.matchedEmployee) {
         status = 'RECOGNIZED';
       }
@@ -778,6 +795,7 @@ export async function detectMultipleFacesFromCanvas(
         },
         status,
         landmarks: det.landmarks,
+        poseAngle,
       };
     })
   );

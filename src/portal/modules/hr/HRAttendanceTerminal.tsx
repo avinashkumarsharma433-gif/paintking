@@ -74,14 +74,14 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
       const saved = localStorage.getItem('pk_terminal_config');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.minRecognitionConfidence < 0.40) {
-          parsed.minRecognitionConfidence = 0.44;
+        if (parsed.minRecognitionConfidence > 0.40) {
+          parsed.minRecognitionConfidence = 0.38; // Strict threshold to prevent false matches
         }
-        if (!parsed.minRecognitionMargin || parsed.minRecognitionMargin > 0.03) {
-          parsed.minRecognitionMargin = 0.02;
+        if (!parsed.minRecognitionMargin || parsed.minRecognitionMargin < 0.03) {
+          parsed.minRecognitionMargin = 0.03;
         }
-        if (!parsed.requiredConsecutiveFrames || parsed.requiredConsecutiveFrames < 3) {
-          parsed.requiredConsecutiveFrames = 3;
+        if (!parsed.requiredConsecutiveFrames || parsed.requiredConsecutiveFrames < 7) {
+          parsed.requiredConsecutiveFrames = 7; // 7 continuous frames (~2.5-2.8s)
         }
         return parsed;
       }
@@ -90,10 +90,10 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
       activeLocationId: 'mumbai-hq',
       strictGeofence: false, // Default false so camera and face attendance punch works smoothly everywhere
       bypassGeofenceForDev: true, // Default true for testing and mobile deployment
-      minRecognitionConfidence: 0.44, // Calibrated threshold (<= 0.44 allows expression changes)
+      minRecognitionConfidence: 0.38, // Calibrated strict threshold (prevent accidental match on side profile)
       cooldownMinutes: 1,
-      requiredConsecutiveFrames: 3, // Requires 3 continuous confirmed frames (~1.2s stability) to prevent false triggers
-      minRecognitionMargin: 0.02,
+      requiredConsecutiveFrames: 7, // 7 continuous confirmed frames (~2.5-2.8s hold) for 100% exact match
+      minRecognitionMargin: 0.03,
       terminalMode: 'AUTO',
       minPunchGapMinutes: 1,
       maxShiftDurationHours: 16,
@@ -395,7 +395,38 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
           setActiveChallengeState(null);
         }
 
-        setDetectedFaces(updatedDetected);
+        // Determine matching employees in current frame
+        const currentRecognizedEmpIds = new Set<string>();
+        for (const face of updatedDetected) {
+          if (face.status === 'RECOGNIZED' && face.matchResult.matchedEmployee) {
+            currentRecognizedEmpIds.add(face.matchResult.matchedEmployee.id);
+          }
+        }
+
+        // Strict Consecutive Streak: Reset streaks for employees who disappeared or failed recognition
+        for (const empId of Array.from(matchHistoryRef.current.keys())) {
+          if (!currentRecognizedEmpIds.has(empId)) {
+            matchHistoryRef.current.delete(empId);
+          }
+        }
+
+        const requiredFrames = config.requiredConsecutiveFrames || 7;
+
+        // Augment detected faces with live holding progress (0% to 100%)
+        const facesWithProgress = updatedDetected.map((face) => {
+          if (face.status === 'RECOGNIZED' && face.matchResult.matchedEmployee) {
+            const empId = face.matchResult.matchedEmployee.id;
+            const currentHistory = matchHistoryRef.current.get(empId) || [];
+            const progress = Math.min(100, Math.round(((currentHistory.length + 1) / requiredFrames) * 100));
+            return {
+              ...face,
+              holdingProgress: progress,
+            };
+          }
+          return face;
+        });
+
+        setDetectedFaces(facesWithProgress);
 
         for (const face of updatedDetected) {
           if (face.status === 'RECOGNIZED' && face.matchResult.matchedEmployee && (!activeChallengeMode || challengePassed)) {
@@ -405,24 +436,26 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
             const cooldownMs = config.cooldownMinutes * 60 * 1000;
 
             if (nowMs - lastPunchTime > cooldownMs) {
-              // Instant recognition: punch immediately on first confident match (configurable via requiredConsecutiveFrames)
-              const requiredFrames = config.requiredConsecutiveFrames || 1;
               const history = matchHistoryRef.current.get(emp.id) || [];
-              const validRecent = history.filter((h) => nowMs - h.time < 3500); // 3.5s sliding window
+              
+              // Only keep strictly consecutive recent frames within 1000ms gap
+              const lastEntry = history[history.length - 1];
+              const isContinuous = !lastEntry || (nowMs - lastEntry.time < 1000);
 
-              validRecent.push({
+              const nextStreak = isContinuous ? [...history] : [];
+              nextStreak.push({
                 distance: face.matchResult.distance,
                 margin: face.matchResult.margin || 0.05,
                 time: nowMs,
               });
-              matchHistoryRef.current.set(emp.id, validRecent);
+              matchHistoryRef.current.set(emp.id, nextStreak);
 
-              if (validRecent.length >= requiredFrames) {
-                // Compute average distance and average margin across confirmed frames
-                const avgDist = validRecent.reduce((acc, f) => acc + f.distance, 0) / validRecent.length;
-                const avgMargin = validRecent.reduce((acc, f) => acc + f.margin, 0) / validRecent.length;
+              if (nextStreak.length >= requiredFrames) {
+                // Compute average distance and average margin across all confirmed frames
+                const avgDist = nextStreak.reduce((acc, f) => acc + f.distance, 0) / nextStreak.length;
+                const avgMargin = nextStreak.reduce((acc, f) => acc + f.margin, 0) / nextStreak.length;
 
-                if (avgDist <= config.minRecognitionConfidence && (avgDist <= 0.40 || avgMargin >= (config.minRecognitionMargin || 0.02))) {
+                if (avgDist <= config.minRecognitionConfidence && (avgDist <= 0.36 || avgMargin >= (config.minRecognitionMargin || 0.03))) {
                   // Phase 3: Shift-Aware Punch Resolution
                   const resolution = resolveShiftPunch(emp, attendanceRecords, config, new Date());
                   if (!resolution.allowed || resolution.action === 'REJECT') {
@@ -567,7 +600,7 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
         isScanningRef.current = false;
         setIsScanning(false);
       }
-    }, 400); // Fast scan cycle: 400ms (~2.5 FPS recognition)
+    }, 350); // High-Precision scan cycle: 350ms (~2.8 FPS) - 7 frames = exactly ~2.5 to 2.8s hold
 
     return () => clearInterval(interval);
   }, [
@@ -1034,7 +1067,9 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                   {detectedFaces.map((slot, index) => {
                     const isRecognized = slot.status === 'RECOGNIZED';
                     const isSpoof = slot.status === 'SPOOF_SUSPECTED';
+                    const isSteep = slot.status === 'ANGLE_TOO_STEEP';
                     const empName = slot.matchResult.matchedEmployee?.name;
+                    const progress = slot.holdingProgress || 0;
 
                     // Mirror-align X coordinate with CSS scale-x-[-1] video preview
                     const mirroredLeft = Math.max(0, Math.min(100, 100 - slot.box.x - slot.box.width));
@@ -1053,26 +1088,35 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                             ? 'border-emerald-400 bg-emerald-500/10 shadow-[0_0_15px_rgba(52,211,153,0.3)]'
                             : isSpoof
                             ? 'border-amber-400 bg-amber-500/15 shadow-[0_0_15px_rgba(251,191,36,0.4)]'
+                            : isSteep
+                            ? 'border-blue-400 bg-blue-500/10 shadow-[0_0_15px_rgba(96,165,250,0.3)]'
                             : 'border-rose-400 bg-rose-500/10 shadow-[0_0_15px_rgba(251,113,133,0.3)]'
                         }`}
                       >
                         {/* Status Label on Top of Face */}
-                        <div className={`absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold flex items-center gap-1 whitespace-nowrap shadow-md ${
+                        <div className={`absolute -top-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold flex items-center gap-1.5 whitespace-nowrap shadow-md ${
                           isRecognized
                             ? 'bg-emerald-600 text-white'
                             : isSpoof
                             ? 'bg-amber-600 text-white animate-bounce'
+                            : isSteep
+                            ? 'bg-blue-600 text-white'
                             : 'bg-rose-600 text-white animate-pulse'
                         }`}>
                           {isRecognized ? (
                             <>
                               <CheckCircle2 size={11} />
-                              <span>{empName} ({slot.matchResult.confidence}% • d={slot.matchResult.distance})</span>
+                              <span>{empName} ({slot.matchResult.confidence}%)</span>
                             </>
                           ) : isSpoof ? (
                             <>
                               <AlertTriangle size={11} />
                               <span>Liveness Check Failed (Spoof Suspected)</span>
+                            </>
+                          ) : isSteep ? (
+                            <>
+                              <Eye size={11} />
+                              <span>Look Straight (कृपया सीधा देखें)</span>
                             </>
                           ) : (
                             <>
@@ -1082,11 +1126,26 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                           )}
                         </div>
 
+                        {/* Continuous 3-Sec Hold Progress Ring / Bar for Recognized Face */}
+                        {isRecognized && (
+                          <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-32 bg-[#17191c]/80 backdrop-blur-sm p-1 rounded-full border border-emerald-400/50 shadow-md flex items-center gap-1.5">
+                            <div className="w-full bg-white/20 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className="bg-emerald-400 h-full transition-all duration-300 rounded-full"
+                                style={{ width: `${progress}%` }}
+                              />
+                            </div>
+                            <span className="text-[8px] font-mono font-bold text-emerald-300 whitespace-nowrap pr-1">
+                              {progress >= 100 ? 'CONFIRMED' : `HOLD ${Math.ceil((100 - progress) / 33)}s`}
+                            </span>
+                          </div>
+                        )}
+
                         {/* Four Corner Target Brackets */}
-                        <div className={`absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : 'border-rose-300'}`} />
-                        <div className={`absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : 'border-rose-300'}`} />
-                        <div className={`absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : 'border-rose-300'}`} />
-                        <div className={`absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : 'border-rose-300'}`} />
+                        <div className={`absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : isSteep ? 'border-blue-300' : 'border-rose-300'}`} />
+                        <div className={`absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : isSteep ? 'border-blue-300' : 'border-rose-300'}`} />
+                        <div className={`absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : isSteep ? 'border-blue-300' : 'border-rose-300'}`} />
+                        <div className={`absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : isSteep ? 'border-blue-300' : 'border-rose-300'}`} />
                       </div>
                     );
                   })}
