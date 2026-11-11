@@ -1067,7 +1067,6 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                   {detectedFaces.map((slot, index) => {
                     const isRecognized = slot.status === 'RECOGNIZED';
                     const isSpoof = slot.status === 'SPOOF_SUSPECTED';
-                    const isSteep = slot.status === 'ANGLE_TOO_STEEP';
                     const empName = slot.matchResult.matchedEmployee?.name;
                     const progress = slot.holdingProgress || 0;
 
@@ -1088,8 +1087,6 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                             ? 'border-emerald-400 bg-emerald-500/10 shadow-[0_0_15px_rgba(52,211,153,0.3)]'
                             : isSpoof
                             ? 'border-amber-400 bg-amber-500/15 shadow-[0_0_15px_rgba(251,191,36,0.4)]'
-                            : isSteep
-                            ? 'border-blue-400 bg-blue-500/10 shadow-[0_0_15px_rgba(96,165,250,0.3)]'
                             : 'border-rose-400 bg-rose-500/10 shadow-[0_0_15px_rgba(251,113,133,0.3)]'
                         }`}
                       >
@@ -1099,8 +1096,6 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                             ? 'bg-emerald-600 text-white'
                             : isSpoof
                             ? 'bg-amber-600 text-white animate-bounce'
-                            : isSteep
-                            ? 'bg-blue-600 text-white'
                             : 'bg-rose-600 text-white animate-pulse'
                         }`}>
                           {isRecognized ? (
@@ -1112,11 +1107,6 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                             <>
                               <AlertTriangle size={11} />
                               <span>Liveness Check Failed (Spoof Suspected)</span>
-                            </>
-                          ) : isSteep ? (
-                            <>
-                              <Eye size={11} />
-                              <span>Look Straight (कृपया सीधा देखें)</span>
                             </>
                           ) : (
                             <>
@@ -1136,16 +1126,16 @@ export const HRAttendanceTerminal: React.FC<HRAttendanceTerminalProps> = ({
                               />
                             </div>
                             <span className="text-[8px] font-mono font-bold text-emerald-300 whitespace-nowrap pr-1">
-                              {progress >= 100 ? 'CONFIRMED' : `HOLD ${Math.ceil((100 - progress) / 33)}s`}
+                              {progress >= 100 ? 'CONFIRMED' : `HOLD ${Math.max(1, Math.ceil((100 - progress) / 33))}s`}
                             </span>
                           </div>
                         )}
 
                         {/* Four Corner Target Brackets */}
-                        <div className={`absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : isSteep ? 'border-blue-300' : 'border-rose-300'}`} />
-                        <div className={`absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : isSteep ? 'border-blue-300' : 'border-rose-300'}`} />
-                        <div className={`absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : isSteep ? 'border-blue-300' : 'border-rose-300'}`} />
-                        <div className={`absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : isSteep ? 'border-blue-300' : 'border-rose-300'}`} />
+                        <div className={`absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : 'border-rose-300'}`} />
+                        <div className={`absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : 'border-rose-300'}`} />
+                        <div className={`absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : 'border-rose-300'}`} />
+                        <div className={`absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 ${isRecognized ? 'border-emerald-300' : isSpoof ? 'border-amber-300' : 'border-rose-300'}`} />
                       </div>
                     );
                   })}
