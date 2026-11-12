@@ -174,8 +174,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
 
   // Rework Route Modal
   const [showReworkModal, setShowReworkModal] = useState<boolean>(false);
-  const [selectedParentJc, setSelectedParentJc] = useState<string>('JC-1042-RED');
-  const [reworkQtyInput, setReworkQtyInput] = useState<number>(10);
+  const [selectedParentJc, setSelectedParentJc] = useState<string>('');
+  const [reworkQtyInput, setReworkQtyInput] = useState<number>(0);
   const [defectCatInput, setDefectCatInput] = useState<DefectCategory>('dust_nibs');
   const [reworkInstructionsInput, setReworkInstructionsInput] = useState<string>('De-nib with 1500 grit, solvent clean and apply 1 touch-up mist coat.');
 
@@ -190,32 +190,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
   const totalReworkRecovered = reworkChildCards.reduce((acc, curr) => acc + (curr.reworkRecoveredQty || 0), 0);
   const totalScrap = jobCards.reduce((acc, curr) => acc + (curr.scrapQty || 0), 0);
   
-  const firstPassYield = totalSprayed > 0 ? (((totalSprayed - totalReworkQueue - totalScrap) / totalSprayed) * 100).toFixed(1) : '98.2';
+  const firstPassYield = totalSprayed > 0 ? (((totalSprayed - totalReworkQueue - totalScrap) / totalSprayed) * 100).toFixed(1) : '0.0';
   const reworkRecoveryRate = (totalReworkRecovered + totalScrap) > 0 
     ? ((totalReworkRecovered / (totalReworkRecovered + totalScrap)) * 100).toFixed(1)
-    : '94.3';
+    : '0.0';
 
   const totalInvoicedRevenue = billingInvoices.reduce((acc, curr) => acc + curr.grandTotal, 0);
 
-  // 3-Painters Specific Metrics
-  const painter1Card = painterChildCards.find(p => p.assignedPainterName?.includes('Painter 1') || p.jobCardNo.includes('-P1'));
-  const painter2Card = painterChildCards.find(p => p.assignedPainterName?.includes('Painter 2') || p.jobCardNo.includes('-P2'));
-  const painter3Card = painterChildCards.find(p => p.assignedPainterName?.includes('Painter 3') || p.jobCardNo.includes('-P3'));
+  // 3-Painters Specific Metrics (Strictly live data, zero hardcoded fallback)
+  const painter1Card = painterChildCards.find(p => p.assignedPainterName?.includes('Painter 1') || p.assignedPainterName?.includes('P1') || p.jobCardNo.includes('-P1'));
+  const painter2Card = painterChildCards.find(p => p.assignedPainterName?.includes('Painter 2') || p.assignedPainterName?.includes('P2') || p.jobCardNo.includes('-P2'));
+  const painter3Card = painterChildCards.find(p => p.assignedPainterName?.includes('Painter 3') || p.assignedPainterName?.includes('P3') || p.jobCardNo.includes('-P3'));
 
-  const p1Sprayed = painter1Card?.sprayedQty || 650;
-  const p1Target = painter1Card?.targetQty || 1000;
-  const p1Good = painter1Card?.firstPassGoodQty || 638;
-  const p1Rework = painter1Card?.reworkFlaggedQty || 12;
+  const p1Sprayed = painter1Card?.sprayedQty || 0;
+  const p1Target = painter1Card?.targetQty || 0;
+  const p1Good = painter1Card?.firstPassGoodQty || 0;
+  const p1Rework = painter1Card?.reworkFlaggedQty || 0;
 
-  const p2Sprayed = painter2Card?.sprayedQty || 620;
-  const p2Target = painter2Card?.targetQty || 1000;
-  const p2Good = painter2Card?.firstPassGoodQty || 611;
-  const p2Rework = painter2Card?.reworkFlaggedQty || 9;
+  const p2Sprayed = painter2Card?.sprayedQty || 0;
+  const p2Target = painter2Card?.targetQty || 0;
+  const p2Good = painter2Card?.firstPassGoodQty || 0;
+  const p2Rework = painter2Card?.reworkFlaggedQty || 0;
 
-  const p3Sprayed = painter3Card?.sprayedQty || 640;
-  const p3Target = painter3Card?.targetQty || 1000;
-  const p3Good = painter3Card?.firstPassGoodQty || 626;
-  const p3Rework = painter3Card?.reworkFlaggedQty || 14;
+  const p3Sprayed = painter3Card?.sprayedQty || 0;
+  const p3Target = painter3Card?.targetQty || 0;
+  const p3Good = painter3Card?.firstPassGoodQty || 0;
+  const p3Rework = painter3Card?.reworkFlaggedQty || 0;
 
   const handleConfirmEod = () => {
     executeDayEndClosure(eodRemarks);
@@ -310,7 +310,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
           <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777b86]">Today's Sprayed</div>
           <div className="text-2xl font-serif font-normal text-[#17191c] mt-1.5">{totalSprayed.toLocaleString()} <span className="text-xs font-sans text-[#777b86]">/ 2,000 pcs</span></div>
           <div className="text-[10px] text-emerald-700 flex items-center gap-1 mt-1 font-medium">
-            <TrendingUp className="w-3 h-3 text-emerald-600" /> 95.5% Shift Target Met
+            <TrendingUp className="w-3 h-3 text-emerald-600" /> {totalSprayed > 0 ? `${((totalSprayed / 2000) * 100).toFixed(1)}% Shift Target Met` : '0.0% Shift Output'}
           </div>
         </div>
 
@@ -325,21 +325,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
         <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-xs">
           <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777b86]">Rework Recovery</div>
           <div className="text-2xl font-serif font-normal text-[#c09748] mt-1.5">{reworkRecoveryRate}%</div>
-          <div className="text-[10px] text-emerald-700 mt-1 font-medium">33/35 Salvaged from Defect</div>
+          <div className="text-[10px] text-emerald-700 mt-1 font-medium">{totalReworkRecovered}/{totalReworkRecovered + totalScrap} Salvaged from Defect</div>
         </div>
 
         {/* Irrecoverable Scrap Rate */}
         <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-xs">
           <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777b86]">Irrecoverable Scrap</div>
           <div className="text-2xl font-serif font-normal text-rose-600 mt-1.5">{totalScrap} pcs</div>
-          <div className="text-[10px] text-emerald-700 font-medium mt-1">0.10% (OEM Spec &lt;0.5%)</div>
+          <div className="text-[10px] text-emerald-700 font-medium mt-1">{totalSprayed > 0 ? `${((totalScrap / totalSprayed) * 100).toFixed(2)}%` : '0.00%'} (OEM Spec &lt;0.5%)</div>
         </div>
 
         {/* Active Line Orders */}
         <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-xs">
           <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777b86]">Active WIP Lots</div>
           <div className="text-2xl font-serif font-normal text-[#17191c] mt-1.5">{masterJobCards.length} Batches</div>
-          <div className="text-[10px] text-[#777b86] mt-1">3 Line Booths Engaged</div>
+          <div className="text-[10px] text-[#777b86] mt-1">{new Set(jobCards.map(j => j.boothNo).filter(Boolean)).size} Line Booths Engaged</div>
         </div>
 
         {/* Billed Revenue */}
@@ -672,7 +672,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
           </div>
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Line Balanced: 98.4% Pace Parity (Zero Bottlenecks)</span>
+            <span>{painterChildCards.length > 0 ? 'Live Shift Line Allocation Active' : 'Awaiting Shift Allocation'}</span>
           </span>
         </div>
 
@@ -687,7 +687,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                 <h3 className="font-serif font-medium text-sm text-[#17191c]">Ramesh Kumar (P1)</h3>
               </div>
               <span className="px-2.5 py-0.5 rounded-full bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c]">
-                JC-1042-RED-P1
+                {painter1Card?.jobCardNo || 'Unassigned'}
               </span>
             </div>
 
@@ -709,10 +709,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
             <div className="space-y-1">
               <div className="flex justify-between text-[11px] text-[#777b86]">
                 <span>Progress: {p1Sprayed} / {p1Target} pcs</span>
-                <span className="font-semibold text-[#17191c]">{((p1Sprayed / p1Target) * 100).toFixed(0)}%</span>
+                <span className="font-semibold text-[#17191c]">{p1Target > 0 ? ((p1Sprayed / p1Target) * 100).toFixed(0) : 0}%</span>
               </div>
               <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full bg-[#c09748] rounded-full" style={{ width: `${(p1Sprayed / p1Target) * 100}%` }}></div>
+                <div className="h-full bg-[#c09748] rounded-full" style={{ width: `${p1Target > 0 ? Math.min(100, (p1Sprayed / p1Target) * 100) : 0}%` }}></div>
               </div>
             </div>
           </div>
@@ -727,7 +727,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                 <h3 className="font-serif font-medium text-sm text-[#17191c]">Suresh Verma (P2)</h3>
               </div>
               <span className="px-2.5 py-0.5 rounded-full bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c]">
-                JC-1042-RED-P2
+                {painter2Card?.jobCardNo || 'Unassigned'}
               </span>
             </div>
 
@@ -749,10 +749,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
             <div className="space-y-1">
               <div className="flex justify-between text-[11px] text-[#777b86]">
                 <span>Progress: {p2Sprayed} / {p2Target} pcs</span>
-                <span className="font-semibold text-[#17191c]">{((p2Sprayed / p2Target) * 100).toFixed(0)}%</span>
+                <span className="font-semibold text-[#17191c]">{p2Target > 0 ? ((p2Sprayed / p2Target) * 100).toFixed(0) : 0}%</span>
               </div>
               <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full bg-[#c09748] rounded-full" style={{ width: `${(p2Sprayed / p2Target) * 100}%` }}></div>
+                <div className="h-full bg-[#c09748] rounded-full" style={{ width: `${p2Target > 0 ? Math.min(100, (p2Sprayed / p2Target) * 100) : 0}%` }}></div>
               </div>
             </div>
           </div>
@@ -767,7 +767,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                 <h3 className="font-serif font-medium text-sm text-[#17191c]">Mahesh Sharma (P3)</h3>
               </div>
               <span className="px-2.5 py-0.5 rounded-full bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c]">
-                JC-1042-RED-P3
+                {painter3Card?.jobCardNo || 'Unassigned'}
               </span>
             </div>
 
@@ -789,10 +789,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
             <div className="space-y-1">
               <div className="flex justify-between text-[11px] text-[#777b86]">
                 <span>Progress: {p3Sprayed} / {p3Target} pcs</span>
-                <span className="font-semibold text-[#17191c]">{((p3Sprayed / p3Target) * 100).toFixed(0)}%</span>
+                <span className="font-semibold text-[#17191c]">{p3Target > 0 ? ((p3Sprayed / p3Target) * 100).toFixed(0) : 0}%</span>
               </div>
               <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full bg-[#c09748] rounded-full" style={{ width: `${(p3Sprayed / p3Target) * 100}%` }}></div>
+                <div className="h-full bg-[#c09748] rounded-full" style={{ width: `${p3Target > 0 ? Math.min(100, (p3Sprayed / p3Target) * 100) : 0}%` }}></div>
               </div>
             </div>
           </div>

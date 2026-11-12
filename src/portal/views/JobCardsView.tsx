@@ -360,9 +360,7 @@ export const JobCardsView: React.FC = () => {
   const [jobCardForReturn, setJobCardForReturn] = useState<string | undefined>(undefined);
 
   // Expanded master cards for sub-tree view
-  const [expandedMasterIds, setExpandedMasterIds] = useState<Record<string, boolean>>({
-    'JC-1042-RED': true
-  });
+  const [expandedMasterIds, setExpandedMasterIds] = useState<Record<string, boolean>>({});
 
   // Floor Booth / Line Fleet & Painter Fleet Modals
   const [targetLineForReq, setTargetLineForReq] = useState<string>('Booth #1 (Continuous Conveyor Line)');

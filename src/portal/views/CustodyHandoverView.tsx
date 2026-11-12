@@ -39,20 +39,20 @@ export const CustodyHandoverView: React.FC = () => {
 
   // Send Form State
   const [sendForm, setSendForm] = useState({
-    woNo: 'WO-1042',
-    jobCardNo: 'JC-1042-RED',
-    partCode: 'RP-8841',
-    color: 'Monza Red Gloss',
+    woNo: '',
+    jobCardNo: '',
+    partCode: '',
+    color: '',
     fromStage: 'Base Coat Painting' as ProductionStage,
     toStage: 'Hydrographic Dipping / UV' as ProductionStage,
     senderName: currentUser.name,
-    senderQty: 300
+    senderQty: 0
   });
 
   // Receive Form State
   const [receiveForm, setReceiveForm] = useState({
     receiverName: currentUser.name,
-    receiverQty: 300,
+    receiverQty: 0,
     discrepancyReason: 'Left in Drying/Oven Rack' as CustodyHandover['discrepancyReason'],
     discrepancyNote: ''
   });
