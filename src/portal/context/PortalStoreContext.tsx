@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   UserProfile,
   UserRole,
@@ -96,7 +96,7 @@ import {
   INITIAL_FIFO_OVERRIDE_LOGS,
   INITIAL_BALANCE_RETURN_SLIPS
 } from '../data/mockInitialData';
-import { supabase, persistRemoteState, fetchRemoteState } from '../lib/supabaseClient';
+import { persistRemoteState, fetchAllRemoteState } from '../lib/supabaseClient';
 
 
 interface PortalContextType {
@@ -408,9 +408,55 @@ interface PortalContextType {
   reopenPlant: () => void;
 }
 
+const PK_STORAGE_VERSION = '3.0.0-clean';
+const TRANSACTIONAL_STORAGE_KEYS = [
+  'pk_plant_head_priorities',
+  'pk_universal_jobs',
+  'pk_stock_batches',
+  'pk_fifo_override_logs',
+  'pk_balance_return_slips',
+  'pk_grn_data',
+  'pk_material_requisitions',
+  'pk_iqc_data',
+  'pk_handovers_data',
+  'pk_jobcards_data',
+  'pk_pir_data',
+  'pk_fpa_data',
+  'pk_pmx_data',
+  'pk_ipqc_data',
+  'pk_packing_data',
+  'pk_quality_releases',
+  'pk_billing_invoices',
+  'pk_gate_passes',
+  'pk_material_inward',
+  'pk_material_outward',
+  'pk_capa_8d',
+  'pk_4m_changes',
+  'pk_prod_offerings',
+  'pk_hr_leaves',
+  'pk_day_end_closures',
+  'pk_master_box_counter'
+];
+
+function ensureCleanStorageVersion(): void {
+  try {
+    if (localStorage.getItem('pk_storage_version') !== PK_STORAGE_VERSION) {
+      for (const k of TRANSACTIONAL_STORAGE_KEYS) {
+        localStorage.removeItem(k);
+      }
+      localStorage.setItem('pk_storage_version', PK_STORAGE_VERSION);
+    }
+  } catch {
+    // ignore storage errors
+  }
+}
+
 const PortalContext = createContext<PortalContextType | undefined>(undefined);
 
 export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  ensureCleanStorageVersion();
+  const isCloudHydratedRef = useRef<boolean>(false);
+
   // Current logged in user (defaults to Director for full initial visibility)
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('pk_current_user');
@@ -446,8 +492,15 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [activeSubTab, setActiveSubTab] = useState<string | null>(null);
 
+  const syncState = (key: string, value: unknown) => {
+    localStorage.setItem(key, JSON.stringify(value));
+    if (isCloudHydratedRef.current) {
+      persistRemoteState(key, value, currentUser?.name);
+    }
+  };
+
   useEffect(() => {
-    localStorage.setItem('pk_day_end_closures', JSON.stringify(dayEndClosures));
+    syncState('pk_day_end_closures', dayEndClosures);
   }, [dayEndClosures]);
 
   // Smart Cache Helper: Merges newly seeded records into existing localStorage state without overwriting user data
@@ -472,7 +525,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   useEffect(() => {
-    localStorage.setItem('pk_plant_head_priorities', JSON.stringify(plantHeadPriorities));
+    syncState('pk_plant_head_priorities', plantHeadPriorities);
   }, [plantHeadPriorities]);
 
   const assignProductionPriority = (assignment: Omit<PlantHeadPriorityAssignment, 'id' | 'assignedAt' | 'status'>) => {
@@ -503,8 +556,6 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return mergeByUniqueKey(localStorage.getItem('pk_universal_jobs'), INITIAL_UNIVERSAL_JOBS, 'jobId');
   });
 
-  const PK_STORAGE_VERSION = '2.0.0';
-
   const [stockBatches, setStockBatches] = useState<StockBatch[]>(() => {
     return mergeByUniqueKey(localStorage.getItem('pk_stock_batches'), INITIAL_STOCK_BATCHES, 'batchId');
   });
@@ -518,52 +569,63 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   useEffect(() => {
-    const curVer = localStorage.getItem('pk_storage_version');
-    if (curVer !== PK_STORAGE_VERSION) {
-      if (!localStorage.getItem('pk_stock_batches')) {
-        localStorage.setItem('pk_stock_batches', JSON.stringify(INITIAL_STOCK_BATCHES));
-      }
-      localStorage.setItem('pk_storage_version', PK_STORAGE_VERSION);
-    }
-
     // Hydrate initial state from Supabase if available in cloud
     async function hydrateCloudState() {
       try {
-        const cloudJobs = await fetchRemoteState<JobCard[] | null>('pk_jobcards_data', null);
-        if (cloudJobs && Array.isArray(cloudJobs) && cloudJobs.length > 0) {
-          setJobCards(cloudJobs);
-        }
-        const cloudIqc = await fetchRemoteState<IQCInspectionRecord[] | null>('pk_iqc_data', null);
-        if (cloudIqc && Array.isArray(cloudIqc) && cloudIqc.length > 0) {
-          setIqcRecords(cloudIqc);
-        }
-        const cloudBatches = await fetchRemoteState<StockBatch[] | null>('pk_stock_batches', null);
-        if (cloudBatches && Array.isArray(cloudBatches) && cloudBatches.length > 0) {
-          setStockBatches(cloudBatches);
-        }
-        const cloudReturns = await fetchRemoteState<BalanceReturnSlip[] | null>('pk_balance_return_slips', null);
-        if (cloudReturns && Array.isArray(cloudReturns) && cloudReturns.length > 0) {
-          setBalanceReturnSlips(cloudReturns);
+        const remote = await fetchAllRemoteState();
+        if (remote) {
+          if (Array.isArray(remote.pk_plant_head_priorities)) setPlantHeadPriorities(remote.pk_plant_head_priorities as PlantHeadPriorityAssignment[]);
+          if (Array.isArray(remote.pk_universal_jobs)) setUniversalJobs(remote.pk_universal_jobs as UniversalJobRecord[]);
+          if (Array.isArray(remote.pk_stock_batches)) setStockBatches(remote.pk_stock_batches as StockBatch[]);
+          if (Array.isArray(remote.pk_fifo_override_logs)) setFifoOverrideLogs(remote.pk_fifo_override_logs as FifoOverrideLog[]);
+          if (Array.isArray(remote.pk_balance_return_slips)) setBalanceReturnSlips(remote.pk_balance_return_slips as BalanceReturnSlip[]);
+          if (remote.pk_plant_shift_config && typeof remote.pk_plant_shift_config === 'object') {
+            setPlantShiftConfig(prev => ({ ...prev, ...(remote.pk_plant_shift_config as Partial<PlantShiftConfig>) }));
+          }
+          if (Array.isArray(remote.pk_grn_data)) setGrnList(remote.pk_grn_data as GoodsReceiptNote[]);
+          if (Array.isArray(remote.pk_material_requisitions)) setMaterialRequisitions(remote.pk_material_requisitions as MaterialRequisitionNote[]);
+          if (Array.isArray(remote.pk_iqc_data)) setIqcRecords(remote.pk_iqc_data as IQCInspectionRecord[]);
+          if (Array.isArray(remote.pk_handovers_data)) setHandovers(remote.pk_handovers_data as CustodyHandover[]);
+          if (Array.isArray(remote.pk_jobcards_data)) setJobCards(remote.pk_jobcards_data as JobCard[]);
+          if (Array.isArray(remote.pk_painters)) setPainters(remote.pk_painters as PainterProfile[]);
+          if (Array.isArray(remote.pk_painting_booths)) setPaintingBooths(remote.pk_painting_booths as PaintingBooth[]);
+          if (Array.isArray(remote.pk_pir_data)) setPreProductionReports(remote.pk_pir_data as PreProductionInspectionRecord[]);
+          if (Array.isArray(remote.pk_fpa_data)) setFpaRecords(remote.pk_fpa_data as FPARecord[]);
+          if (Array.isArray(remote.pk_pmx_data)) setPaintMixing(remote.pk_pmx_data as PaintMixingRecord[]);
+          if (Array.isArray(remote.pk_ipqc_data)) setIpqcRecords(remote.pk_ipqc_data as IPQCRecord[]);
+          if (Array.isArray(remote.pk_packing_data)) setPackingSlips(remote.pk_packing_data as PackingSlipRecord[]);
+          if (Array.isArray(remote.pk_quality_releases)) setQualityReleases(remote.pk_quality_releases as FinalQualityRelease[]);
+          if (Array.isArray(remote.pk_billing_invoices)) setBillingInvoices(remote.pk_billing_invoices as BillingInvoice[]);
+          if (Array.isArray(remote.pk_gate_passes)) setGatePasses(remote.pk_gate_passes as GatePassRecord[]);
+          if (Array.isArray(remote.pk_material_inward)) setMaterialInwardLogs(remote.pk_material_inward as MaterialInwardRecord[]);
+          if (Array.isArray(remote.pk_material_outward)) setMaterialOutwardLogs(remote.pk_material_outward as MaterialOutwardRecord[]);
+          if (Array.isArray(remote.pk_calibration_list)) setCalibrationList(remote.pk_calibration_list as CalibrationRecord[]);
+          if (Array.isArray(remote.pk_audit_questions)) setAuditQuestions(remote.pk_audit_questions as AuditQuestionItem[]);
+          if (Array.isArray(remote.pk_capa_8d)) setCapa8DList(remote.pk_capa_8d as Capa8DRecord[]);
+          if (Array.isArray(remote.pk_4m_changes)) setFourMChanges(remote.pk_4m_changes as FourMChangeRecord[]);
+          if (Array.isArray(remote.pk_prod_offerings)) setProductionOfferings(remote.pk_prod_offerings as ProductionOfferingReport[]);
+          if (Array.isArray(remote.pk_hr_leaves)) setHrLeaves(remote.pk_hr_leaves as HRLeaveRecord[]);
+          if (Array.isArray(remote.pk_day_end_closures)) setDayEndClosures(remote.pk_day_end_closures as PlantDayEndClosure[]);
         }
       } catch (e) {
         console.warn('Hydration error:', e);
+      } finally {
+        isCloudHydratedRef.current = true;
       }
     }
     hydrateCloudState();
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('pk_stock_batches', JSON.stringify(stockBatches));
-    persistRemoteState('pk_stock_batches', stockBatches, currentUser?.name);
+    syncState('pk_stock_batches', stockBatches);
   }, [stockBatches]);
 
   useEffect(() => {
-    localStorage.setItem('pk_fifo_override_logs', JSON.stringify(fifoOverrideLogs));
+    syncState('pk_fifo_override_logs', fifoOverrideLogs);
   }, [fifoOverrideLogs]);
 
   useEffect(() => {
-    localStorage.setItem('pk_balance_return_slips', JSON.stringify(balanceReturnSlips));
-    persistRemoteState('pk_balance_return_slips', balanceReturnSlips, currentUser?.name);
+    syncState('pk_balance_return_slips', balanceReturnSlips);
   }, [balanceReturnSlips]);
 
   // Plant Shift & 20:45 Floor Return Cutoff Configuration (9 PM Factory Closing)
@@ -587,7 +649,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   useEffect(() => {
-    localStorage.setItem('pk_plant_shift_config', JSON.stringify(plantShiftConfig));
+    syncState('pk_plant_shift_config', plantShiftConfig);
   }, [plantShiftConfig]);
 
   const updatePlantShiftConfig = (updates: Partial<PlantShiftConfig>) => {
@@ -603,7 +665,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   useEffect(() => {
-    localStorage.setItem('pk_material_requisitions', JSON.stringify(materialRequisitions));
+    syncState('pk_material_requisitions', materialRequisitions);
   }, [materialRequisitions]);
 
   // Store Role Upgrade: Batch-Wise Stock Management & Returns Engine
@@ -950,7 +1012,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   useEffect(() => {
-    localStorage.setItem('pk_universal_jobs', JSON.stringify(universalJobs));
+    syncState('pk_universal_jobs', universalJobs);
   }, [universalJobs]);
 
   const addUniversalJob = (job: UniversalJobRecord) => {
@@ -1054,7 +1116,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   useEffect(() => {
-    localStorage.setItem('pk_painting_booths', JSON.stringify(paintingBooths));
+    syncState('pk_painting_booths', paintingBooths);
   }, [paintingBooths]);
 
   // Painting Lines & Spray Booth Fleet Handlers
@@ -1250,98 +1312,87 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [activeShift]);
 
   useEffect(() => {
-    localStorage.setItem('pk_grn_data', JSON.stringify(grnList));
+    syncState('pk_grn_data', grnList);
   }, [grnList]);
 
   useEffect(() => {
-    localStorage.setItem('pk_handovers_data', JSON.stringify(handovers));
+    syncState('pk_handovers_data', handovers);
   }, [handovers]);
 
   useEffect(() => {
-    localStorage.setItem('pk_jobcards_data', JSON.stringify(jobCards));
-    persistRemoteState('pk_jobcards_data', jobCards, currentUser?.name);
+    syncState('pk_jobcards_data', jobCards);
   }, [jobCards]);
 
   useEffect(() => {
-    localStorage.setItem('pk_painters', JSON.stringify(painters));
+    syncState('pk_painters', painters);
   }, [painters]);
 
   useEffect(() => {
-    localStorage.setItem('pk_pir_data', JSON.stringify(preProductionReports));
-    persistRemoteState('pk_pir_data', preProductionReports, currentUser?.name);
+    syncState('pk_pir_data', preProductionReports);
   }, [preProductionReports]);
 
   useEffect(() => {
-    localStorage.setItem('pk_fpa_data', JSON.stringify(fpaRecords));
-    persistRemoteState('pk_fpa_data', fpaRecords, currentUser?.name);
+    syncState('pk_fpa_data', fpaRecords);
   }, [fpaRecords]);
 
   useEffect(() => {
-    localStorage.setItem('pk_pmx_data', JSON.stringify(paintMixing));
+    syncState('pk_pmx_data', paintMixing);
   }, [paintMixing]);
 
   useEffect(() => {
-    localStorage.setItem('pk_ipqc_data', JSON.stringify(ipqcRecords));
-    persistRemoteState('pk_ipqc_data', ipqcRecords, currentUser?.name);
+    syncState('pk_ipqc_data', ipqcRecords);
   }, [ipqcRecords]);
 
   useEffect(() => {
-    localStorage.setItem('pk_iqc_data', JSON.stringify(iqcRecords));
-    persistRemoteState('pk_iqc_data', iqcRecords, currentUser?.name);
+    syncState('pk_iqc_data', iqcRecords);
   }, [iqcRecords]);
 
   useEffect(() => {
-    localStorage.setItem('pk_packing_data', JSON.stringify(packingSlips));
-    persistRemoteState('pk_packing_data', packingSlips, currentUser?.name);
+    syncState('pk_packing_data', packingSlips);
   }, [packingSlips]);
 
   useEffect(() => {
-    localStorage.setItem('pk_quality_releases', JSON.stringify(qualityReleases));
-    persistRemoteState('pk_quality_releases', qualityReleases, currentUser?.name);
+    syncState('pk_quality_releases', qualityReleases);
   }, [qualityReleases]);
 
   useEffect(() => {
-    localStorage.setItem('pk_billing_invoices', JSON.stringify(billingInvoices));
-    persistRemoteState('pk_billing_invoices', billingInvoices, currentUser?.name);
+    syncState('pk_billing_invoices', billingInvoices);
   }, [billingInvoices]);
 
   useEffect(() => {
-    localStorage.setItem('pk_gate_passes', JSON.stringify(gatePasses));
-    persistRemoteState('pk_gate_passes', gatePasses, currentUser?.name);
+    syncState('pk_gate_passes', gatePasses);
   }, [gatePasses]);
 
   useEffect(() => {
-    localStorage.setItem('pk_material_inward', JSON.stringify(materialInwardLogs));
-    persistRemoteState('pk_material_inward', materialInwardLogs, currentUser?.name);
+    syncState('pk_material_inward', materialInwardLogs);
   }, [materialInwardLogs]);
 
   useEffect(() => {
-    localStorage.setItem('pk_calibration_list', JSON.stringify(calibrationList));
-    persistRemoteState('pk_calibration_list', calibrationList, currentUser?.name);
+    syncState('pk_calibration_list', calibrationList);
   }, [calibrationList]);
 
   useEffect(() => {
-    localStorage.setItem('pk_material_outward', JSON.stringify(materialOutwardLogs));
+    syncState('pk_material_outward', materialOutwardLogs);
   }, [materialOutwardLogs]);
 
   useEffect(() => {
-    localStorage.setItem('pk_audit_questions', JSON.stringify(auditQuestions));
+    syncState('pk_audit_questions', auditQuestions);
   }, [auditQuestions]);
 
   useEffect(() => {
-    localStorage.setItem('pk_capa_8d', JSON.stringify(capa8DList));
+    syncState('pk_capa_8d', capa8DList);
   }, [capa8DList]);
 
   useEffect(() => {
-    localStorage.setItem('pk_4m_changes', JSON.stringify(fourMChanges));
+    syncState('pk_4m_changes', fourMChanges);
   }, [fourMChanges]);
 
   useEffect(() => {
-    localStorage.setItem('pk_prod_offerings', JSON.stringify(productionOfferings));
+    syncState('pk_prod_offerings', productionOfferings);
   }, [productionOfferings]);
 
   useEffect(() => {
-    localStorage.setItem('pk_hr_leaves', JSON.stringify(hrLeaves));
+    syncState('pk_hr_leaves', hrLeaves);
   }, [hrLeaves]);
 
   // 20:45 Cutoff Automated Floor Reconciliation Engine (15m before 21:00 Factory Closing)

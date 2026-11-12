@@ -112,15 +112,7 @@ export const StoresView: React.FC = () => {
   const [emailTriggersEnabled, setEmailTriggersEnabled] = useState<boolean>(true);
   const [showEmailConfigModal, setShowEmailConfigModal] = useState<boolean>(false);
   const [emailSentToast, setEmailSentToast] = useState<string | null>(null);
-  const [sentAlertHistory, setSentAlertHistory] = useState<Array<{ id: string; timestamp: string; recipient: string; itemsCount: number; partCodes: string }>>([
-    {
-      id: 'EML-ALERT-01',
-      timestamp: '2026-09-26 09:30 AM',
-      recipient: 'stores@paintking.in, production@paintking.in',
-      itemsCount: 1,
-      partCodes: 'ABSCARAC (Roop Polymers - 14 Days)'
-    }
-  ]);
+  const [sentAlertHistory, setSentAlertHistory] = useState<Array<{ id: string; timestamp: string; recipient: string; itemsCount: number; partCodes: string }>>([]);
 
   // 1. MATERIAL ISSUE SLIP (MIN - Material Issue Note) SYSTEM
   const [showIssueModal, setShowIssueModal] = useState<boolean>(false);
@@ -143,32 +135,7 @@ export const StoresView: React.FC = () => {
     issuedTo: string;
     jobCardId: string;
     remarks?: string;
-  }>>([
-    {
-      slipNo: 'MIN-2026-001',
-      date: '2026-09-26 11:30 AM',
-      grnNo: 'PK-GRN-2026-1252',
-      partCode: 'RP-8841',
-      customer: 'TATA AUTOCOMP SYSTEMS',
-      qty: 1000,
-      uom: 'Pcs',
-      issuedTo: 'Ramesh Kumar (Line 1 Supervisor)',
-      jobCardId: 'JC-2026-001',
-      remarks: 'Issued for Primer + Basecoat line'
-    },
-    {
-      slipNo: 'MIN-2026-002',
-      date: '2026-09-26 02:15 PM',
-      grnNo: 'PK-GRN-2026-1250',
-      partCode: 'MR-PNT-99',
-      customer: 'ENDURANCE TECHNOLOGIES',
-      qty: 20,
-      uom: 'Litres',
-      issuedTo: 'Suresh Verma (Line 2 Painter)',
-      jobCardId: 'JC-2026-002',
-      remarks: 'Issued Monza Red Basecoat for batch run'
-    }
-  ]);
+  }>>([]);
 
   // Pending Jobs: Material Inward lots cleared by IQC that await official Store Intake & GRN
   const pendingJobs = useMemo(() => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ScanFace, 
   Users, 
@@ -28,6 +28,7 @@ import {
   PlantHoliday
 } from '../types/hrAttendanceTypes';
 import { biometricVault, recordBiometricAudit } from '../services/secureBiometricStorage';
+import { fetchRemoteState, persistRemoteState } from '../lib/supabaseClient';
 
 // Zero Hardcoded Mock Employees - All managed via LocalStorage / User Input
 const INITIAL_EMPLOYEES: Employee[] = [];
@@ -211,13 +212,43 @@ export const HRSuiteView: React.FC = () => {
     return [];
   });
 
-  // Save changes to localStorage
+  const isHrCloudHydratedRef = useRef(false);
+
+  useEffect(() => {
+    async function hydrateHrCloud() {
+      try {
+        const [cloudEmployees, cloudAttendance] = await Promise.all([
+          fetchRemoteState<Employee[] | null>('pk_hr_employees', null),
+          fetchRemoteState<AttendanceRecord[] | null>('pk_hr_attendance_records', null)
+        ]);
+        if (Array.isArray(cloudEmployees)) {
+          setEmployees(cloudEmployees);
+        }
+        if (Array.isArray(cloudAttendance)) {
+          setAttendanceRecords(cloudAttendance);
+        }
+      } catch {
+        // fallback to localStorage
+      } finally {
+        isHrCloudHydratedRef.current = true;
+      }
+    }
+    hydrateHrCloud();
+  }, []);
+
+  // Save changes to localStorage + Supabase
   useEffect(() => {
     localStorage.setItem('pk_hr_employees', JSON.stringify(employees));
+    if (isHrCloudHydratedRef.current) {
+      persistRemoteState('pk_hr_employees', employees, 'HR Suite');
+    }
   }, [employees]);
 
   useEffect(() => {
     localStorage.setItem('pk_hr_attendance_records', JSON.stringify(attendanceRecords));
+    if (isHrCloudHydratedRef.current) {
+      persistRemoteState('pk_hr_attendance_records', attendanceRecords, 'HR Suite');
+    }
   }, [attendanceRecords]);
 
   // Face Enrollment Modal State

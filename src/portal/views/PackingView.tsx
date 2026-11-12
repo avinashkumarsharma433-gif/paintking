@@ -422,15 +422,15 @@ export const PackingView: React.FC = () => {
               <div className="space-y-1.5 text-[9px] border-b border-[#dcdfe4] pb-2">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500 font-semibold">CUSTOMER:</span>
-                  <strong className="text-black truncate max-w-[170px]">{activeLot?.customer || 'ROOP POLYMERS LTD'}</strong>
+                  <strong className="text-black truncate max-w-[170px]">{activeLot?.customer || '—'}</strong>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500 font-semibold">WORK ORDER:</span>
-                  <strong className="text-[#8a6521] font-bold font-mono">{activeLot?.woNo || 'WO-1042'}</strong>
+                  <strong className="text-[#8a6521] font-bold font-mono">{activeLot?.woNo || '—'}</strong>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500 font-semibold">PART CODE:</span>
-                  <strong className="text-black font-bold font-mono">{activeLot?.partCode || 'RP-8841-A'}</strong>
+                  <strong className="text-black font-bold font-mono">{activeLot?.partCode || '—'}</strong>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500 font-semibold">PART NAME:</span>

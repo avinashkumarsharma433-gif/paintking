@@ -41,6 +41,35 @@ export async function fetchRemoteState<T>(key: string, localFallback: T): Promis
 }
 
 /**
+ * Universal Sync Helper: Loads all persisted portal state keys in a single query
+ */
+export async function fetchAllRemoteState(): Promise<Record<string, unknown> | null> {
+  try {
+    const { data, error } = await supabase
+      .from('pk_portal_state')
+      .select('key, data');
+
+    if (error) {
+      console.warn('[SupabaseSync] fetchAll error:', error.message);
+      return null;
+    }
+
+    if (data && Array.isArray(data)) {
+      const result: Record<string, unknown> = {};
+      for (const row of data) {
+        if (row && typeof row.key === 'string') {
+          result[row.key] = row.data;
+        }
+      }
+      return result;
+    }
+  } catch (err) {
+    console.warn('[SupabaseSync] fetchAll network exception:', err);
+  }
+  return null;
+}
+
+/**
  * Universal Sync Helper: Persists state to Supabase in background
  */
 export async function persistRemoteState(key: string, data: unknown, updatedBy?: string): Promise<void> {

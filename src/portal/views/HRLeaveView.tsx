@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
 import { HRLeaveRecord } from '../types/portalTypes';
-import { INITIAL_HR_LEAVE_RECORDS } from '../data/mockInitialData';
 import { 
   UserCheck, 
   Plus, 
@@ -21,12 +20,12 @@ import { motion, AnimatePresence } from 'motion/react';
 export const HRLeaveView: React.FC = () => {
   const { hrLeaves, addHRLeave, approveHRLeave, currentUser, activePlant } = usePortalStore();
 
-  const safeLeaves: HRLeaveRecord[] = Array.isArray(hrLeaves) && hrLeaves.length > 0
+  const safeLeaves: HRLeaveRecord[] = Array.isArray(hrLeaves)
     ? hrLeaves.filter((l): l is HRLeaveRecord => Boolean(l && l.id))
-    : INITIAL_HR_LEAVE_RECORDS;
+    : [];
 
   const [selectedLeaveId, setSelectedLeaveId] = useState<string>(
-    safeLeaves[0]?.id || 'LV-2026-044'
+    safeLeaves[0]?.id || ''
   );
   const [showApplyModal, setShowApplyModal] = useState<boolean>(false);
   const [showPrintModal, setShowPrintModal] = useState<boolean>(false);

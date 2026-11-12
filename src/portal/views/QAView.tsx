@@ -428,32 +428,7 @@ export const QAView: React.FC = () => {
   const [showPdiModal, setShowPdiModal] = useState<boolean>(false);
 
   // Auto-Fill Source List from active Job Cards / GRNs
-  const availableOrders = jobCards.length > 0 ? jobCards : [
-    {
-      woNo: 'WO-1042',
-      jobCardNo: 'JC-1042-RED',
-      customer: 'ROOP POLYMERS LTD',
-      partCode: 'RP-8841',
-      color: 'Monza Red Gloss',
-      painterName: 'Ramesh Sharma',
-      boothNo: 'Booth #2',
-      paintBatch: 'BAT-PPG-2609-R4',
-      targetQty: 250,
-      sprayedQty: 300
-    },
-    {
-      woNo: 'WO-1042',
-      jobCardNo: 'JC-1042-BLK',
-      customer: 'ROOP POLYMERS LTD',
-      partCode: 'RP-8841',
-      color: 'Matte Jet Black',
-      painterName: 'Kailash Yadav',
-      boothNo: 'Booth #1',
-      paintBatch: 'BAT-PPG-2609-K1',
-      targetQty: 750,
-      sprayedQty: 700
-    }
-  ];
+  const availableOrders = jobCards;
 
   // Legacy IQC Defect Checklist Form State
   const [iqcForm, setIqcForm] = useState({
