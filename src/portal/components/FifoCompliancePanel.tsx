@@ -33,7 +33,7 @@ export const FifoCompliancePanel: React.FC = () => {
 
   const isManagementOrStores = useMemo(() => {
     const role = currentUser?.role;
-    return role === 'DIRECTOR' || role === 'PLANT_HEAD' || role === 'STORES';
+    return role === 'SUPER_ADMIN' || role === 'DIRECTOR' || role === 'PLANT_HEAD' || role === 'STORES';
   }, [currentUser]);
 
   // Filter logs by plant and search

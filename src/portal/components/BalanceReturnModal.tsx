@@ -78,7 +78,7 @@ export const BalanceReturnModal: React.FC<BalanceReturnModalProps> = ({
   // Role validation: Store Incharge, Plant Head, Director
   const isAuthorized = useMemo(() => {
     const role = currentUser?.role;
-    return role === 'STORES' || role === 'PLANT_HEAD' || role === 'DIRECTOR';
+    return role === 'SUPER_ADMIN' || role === 'STORES' || role === 'PLANT_HEAD' || role === 'DIRECTOR';
   }, [currentUser]);
 
   // Filter job cards for this plant

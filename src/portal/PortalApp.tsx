@@ -1,5 +1,6 @@
 import React, { Component, useState, useEffect, useRef } from 'react';
-import { PortalProvider, usePortalStore } from './context/PortalStoreContext';
+import { Loader2 } from 'lucide-react';
+import { PortalProvider, usePortalStore, clearLocalPortalCache } from './context/PortalStoreContext';
 import { PortalHeader } from './components/PortalHeader';
 import { PortalSidebar, PortalTab, TAB_LABELS } from './components/PortalSidebar';
 import { DashboardView } from './views/DashboardView';
@@ -13,48 +14,15 @@ import { GatePassView } from './views/GatePassView';
 import { HRSuiteView } from './views/HRSuiteView';
 import { CalibrationView } from './views/CalibrationView';
 import { PainterWorkspaceView } from './views/PainterWorkspaceView';
-import { UserRole } from './types/portalTypes';
+import { PortalLoginView } from './views/PortalLoginView';
+import { UserManagementView } from './views/UserManagementView';
+import { UserProfile } from './types/portalTypes';
+import { supabase, fetchMyPortalProfile } from './lib/supabaseClient';
+import { canAccessPortalTab, getDefaultTabForUser } from './utils/portalAuth';
 
 interface PortalAppProps {
   onBackToWebsite: () => void;
 }
-
-const ROLE_DEFAULT_TABS: Record<UserRole, PortalTab> = {
-  DIRECTOR: 'dashboard',
-  PLANT_HEAD: 'dashboard',
-  STORES: 'stores',
-  PRODUCTION: 'jobcards',
-  QA_QC: 'qa',
-  BILLING: 'billing',
-  SECURITY: 'gatepass',
-  IQC_INSPECTOR: 'qa',
-  FPA_IPQC_INSPECTOR: 'qa',
-  OQC_PDI_INSPECTOR: 'qa',
-  MANAGER_QA: 'qa',
-  OPERATOR: 'painter_desk',
-  HR: 'hr_leave',
-  DEPT_INCHARGE: 'hr_leave'
-};
-
-const ALL_ROLES: UserRole[] = [
-  'DIRECTOR', 'PLANT_HEAD', 'STORES', 'PRODUCTION', 'QA_QC', 
-  'BILLING', 'SECURITY', 'IQC_INSPECTOR', 'FPA_IPQC_INSPECTOR', 'OQC_PDI_INSPECTOR',
-  'MANAGER_QA', 'OPERATOR', 'HR', 'DEPT_INCHARGE'
-];
-
-const TAB_ALLOWED_ROLES: Record<PortalTab, UserRole[]> = {
-  dashboard: ['DIRECTOR', 'PLANT_HEAD'],
-  jobcards: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'OPERATOR', 'DEPT_INCHARGE'],
-  painter_desk: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'OPERATOR', 'DEPT_INCHARGE'],
-  handovers: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'STORES'],
-  billing: ['DIRECTOR', 'PLANT_HEAD', 'BILLING'],
-  stores: ['DIRECTOR', 'PLANT_HEAD', 'STORES'],
-  qa: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA'],
-  packing: ['DIRECTOR', 'PLANT_HEAD', 'STORES', 'PRODUCTION', 'QA_QC', 'MANAGER_QA'],
-  gatepass: ['DIRECTOR', 'PLANT_HEAD', 'SECURITY', 'STORES'],
-  hr_leave: ALL_ROLES,
-  calibration: ['DIRECTOR', 'PLANT_HEAD', 'QA_QC', 'MANAGER_QA', 'PRODUCTION']
-};
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -81,7 +49,7 @@ class PortalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("Portal Module Caught Error:", error, errorInfo);
+    console.error('Portal Module Caught Error:', error, errorInfo);
   }
 
   componentDidUpdate(prevProps: ErrorBoundaryProps) {
@@ -108,11 +76,11 @@ class PortalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
       return (
         <div className="p-6 sm:p-8 bg-white rounded-[24px] border border-rose-200 shadow-sm max-w-xl mx-auto my-8 text-center space-y-4">
           <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-700 flex items-center justify-center mx-auto font-bold text-xl border border-rose-200">
-            ⚠️
+            !
           </div>
           <h2 className="text-xl font-serif font-normal text-[#17191c]">Module Loading Exception Caught</h2>
           <p className="text-xs text-rose-700 font-mono leading-relaxed bg-rose-50 p-2.5 rounded-lg border border-rose-200">
-            {this.state.error?.message || "An unexpected error occurred while rendering this module."}
+            {this.state.error?.message || 'An unexpected error occurred while rendering this module.'}
           </p>
           {this.state.error?.stack && (
             <div className="text-left bg-neutral-900 text-neutral-300 p-3 rounded-[16px] text-[10px] font-mono overflow-x-auto max-h-48 border border-neutral-700">
@@ -126,15 +94,15 @@ class PortalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
                 this.setState({ hasError: false, error: null });
                 this.props.onReset();
               }}
-              className="px-5 py-2.5 rounded-full bg-[#17191c] text-[#c09748] font-bold text-xs cursor-pointer shadow-xs hover:bg-black transition"
+              className="px-5 py-2.5 rounded-full bg-[#c09748] text-[#17191c] font-bold text-xs cursor-pointer shadow-xs hover:bg-[#a97e35] transition"
             >
-              Reset Module & Return to Home
+              Reset Module &amp; Return to Home
             </button>
             <button
               onClick={this.handleClearCorruptedCache}
               className="px-4 py-2.5 rounded-full bg-[#fff1f2] border border-[#fecdd3] text-[#9f1239] font-semibold text-xs cursor-pointer hover:bg-[#ffe4e6] transition"
             >
-              Clear HR Storage Cache & Reload
+              Clear HR Storage Cache &amp; Reload
             </button>
           </div>
         </div>
@@ -146,74 +114,51 @@ class PortalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
 
 const PortalInner: React.FC<PortalAppProps> = ({ onBackToWebsite }) => {
   const { currentUser } = usePortalStore();
-  
+
   const [activeTab, setActiveTab] = useState<PortalTab>(() => {
     try {
       const urlTab = new URLSearchParams(window.location.search).get('tab');
-      if (urlTab && urlTab in TAB_ALLOWED_ROLES) {
-        const isDirectorOrHead = currentUser.role === 'DIRECTOR' || currentUser.role === 'PLANT_HEAD';
-        const allowed = TAB_ALLOWED_ROLES[urlTab as PortalTab];
-        if (isDirectorOrHead || (allowed && allowed.includes(currentUser.role))) {
-          return urlTab as PortalTab;
-        }
+      if (urlTab && urlTab in TAB_LABELS && canAccessPortalTab(currentUser, urlTab)) {
+        return urlTab as PortalTab;
       }
 
       const savedTab = localStorage.getItem('pk_portal_active_tab');
-      if (savedTab && savedTab in TAB_ALLOWED_ROLES) {
-        const isDirectorOrHead = currentUser.role === 'DIRECTOR' || currentUser.role === 'PLANT_HEAD';
-        const allowed = TAB_ALLOWED_ROLES[savedTab as PortalTab];
-        if (isDirectorOrHead || (allowed && allowed.includes(currentUser.role))) {
-          return savedTab as PortalTab;
-        }
+      if (savedTab && savedTab in TAB_LABELS && canAccessPortalTab(currentUser, savedTab)) {
+        return savedTab as PortalTab;
       }
-    } catch (e) {
+    } catch {
       // fallback
     }
-    return ROLE_DEFAULT_TABS[currentUser.role] || 'dashboard';
+    return getDefaultTabForUser(currentUser) as PortalTab;
   });
 
   const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false);
-  const prevUserRoleRef = useRef<UserRole>(currentUser.role);
+  const prevUserIdRef = useRef<string>(currentUser.id);
 
-  // Sync activeTab to localStorage & URL without reload
   useEffect(() => {
     try {
       localStorage.setItem('pk_portal_active_tab', activeTab);
       const url = new URL(window.location.href);
       url.searchParams.set('tab', activeTab);
       window.history.replaceState(null, '', url.toString());
-    } catch (e) {
+    } catch {
       // fallback
     }
   }, [activeTab]);
 
-  // When switching persona, auto-navigate to that specific role's primary module & close drawer
   useEffect(() => {
-    if (prevUserRoleRef.current !== currentUser.role) {
-      prevUserRoleRef.current = currentUser.role;
-      const targetTab = ROLE_DEFAULT_TABS[currentUser.role] || 'stores';
-      setActiveTab(targetTab);
+    if (prevUserIdRef.current !== currentUser.id) {
+      prevUserIdRef.current = currentUser.id;
+      setActiveTab(getDefaultTabForUser(currentUser) as PortalTab);
       setMobileNavOpen(false);
     }
-  }, [currentUser.role]);
+  }, [currentUser]);
 
-  // Safety protection: if current tab is not allowed for the active user, redirect to their home tab
   useEffect(() => {
-    const isDirectorOrHead = currentUser.role === 'DIRECTOR' || currentUser.role === 'PLANT_HEAD';
-    const allowed = TAB_ALLOWED_ROLES[activeTab];
-    if (!isDirectorOrHead && (!allowed || !allowed.includes(currentUser.role))) {
-      setActiveTab(ROLE_DEFAULT_TABS[currentUser.role] || 'stores');
+    if (!canAccessPortalTab(currentUser, activeTab)) {
+      setActiveTab(getDefaultTabForUser(currentUser) as PortalTab);
     }
-  }, [currentUser.role, activeTab]);
-
-  const renderActiveTabContent = () => {
-    // If a non-director tries to open dashboard, fallback to their default tab
-    if (activeTab === 'dashboard' && currentUser.role !== 'DIRECTOR' && currentUser.role !== 'PLANT_HEAD') {
-      const fallbackTab = ROLE_DEFAULT_TABS[currentUser.role] || 'stores';
-      return renderTabById(fallbackTab);
-    }
-    return renderTabById(activeTab);
-  };
+  }, [currentUser, activeTab]);
 
   const renderTabById = (tab: PortalTab) => {
     switch (tab) {
@@ -223,6 +168,8 @@ const PortalInner: React.FC<PortalAppProps> = ({ onBackToWebsite }) => {
         return <JobCardsView />;
       case 'painter_desk':
         return <PainterWorkspaceView />;
+      case 'handovers':
+        return <CustodyHandoverView />;
       case 'billing':
         return <BillingView />;
       case 'stores':
@@ -237,34 +184,45 @@ const PortalInner: React.FC<PortalAppProps> = ({ onBackToWebsite }) => {
         return <HRSuiteView />;
       case 'calibration':
         return <CalibrationView />;
+      case 'user_management':
+        return <UserManagementView />;
       default:
         return <DashboardView onNavigateTab={(t) => { setActiveTab(t); setMobileNavOpen(false); }} />;
     }
   };
 
+  const renderActiveTabContent = () => {
+    if (!canAccessPortalTab(currentUser, activeTab)) {
+      return renderTabById(getDefaultTabForUser(currentUser) as PortalTab);
+    }
+    return renderTabById(activeTab);
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#fafafb] text-[#17191c] font-sans antialiased selection:bg-[#faf3e0] selection:text-[#8a6521]">
-      <PortalHeader 
-        onBackToWebsite={onBackToWebsite} 
+      <PortalHeader
+        onBackToWebsite={onBackToWebsite}
         onToggleMobileNav={() => setMobileNavOpen(prev => !prev)}
-        activeTabLabel={TAB_LABELS[activeTab] || 'Dashboard'}
+        activeTabLabel={TAB_LABELS[activeTab] || 'Operations OS'}
       />
 
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
-        <PortalSidebar 
-          activeTab={activeTab} 
+        <PortalSidebar
+          activeTab={activeTab}
           onSelectTab={(tab) => {
-            setActiveTab(tab);
-            setMobileNavOpen(false);
+            if (canAccessPortalTab(currentUser, tab)) {
+              setActiveTab(tab);
+              setMobileNavOpen(false);
+            }
           }}
           mobileOpen={mobileNavOpen}
           onCloseMobile={() => setMobileNavOpen(false)}
         />
 
         <main className="flex-1 overflow-y-auto p-3.5 sm:p-6 max-w-7xl mx-auto w-full">
-          <PortalErrorBoundary 
-            activeKey={activeTab} 
-            onReset={() => setActiveTab(ROLE_DEFAULT_TABS[currentUser.role] || 'stores')}
+          <PortalErrorBoundary
+            activeKey={activeTab}
+            onReset={() => setActiveTab(getDefaultTabForUser(currentUser) as PortalTab)}
           >
             {renderActiveTabContent()}
           </PortalErrorBoundary>
@@ -275,8 +233,92 @@ const PortalInner: React.FC<PortalAppProps> = ({ onBackToWebsite }) => {
 };
 
 export const PortalApp: React.FC<PortalAppProps> = ({ onBackToWebsite }) => {
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authUser, setAuthUser] = useState<UserProfile | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const authUserRef = useRef<UserProfile | null>(null);
+  authUserRef.current = authUser;
+
+  const loadAuthenticatedProfile = async (userId: string, silent = false) => {
+    if (!silent) {
+      setAuthLoading(true);
+    }
+    setAuthError(null);
+    const res = await fetchMyPortalProfile(userId);
+    if (!res.profile) {
+      await supabase.auth.signOut();
+      setAuthUser(null);
+      setAuthError(res.error || 'User profile not found. Contact Super Admin.');
+      setAuthLoading(false);
+      return;
+    }
+
+    if (res.profile.isActive === false) {
+      await supabase.auth.signOut();
+      clearLocalPortalCache();
+      setAuthUser(null);
+      setAuthError('Your account has been suspended by the Super Admin.');
+      setAuthLoading(false);
+      return;
+    }
+
+    setAuthUser(res.profile);
+    setAuthLoading(false);
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      if (data.session?.user) {
+        loadAuthenticatedProfile(data.session.user.id, false);
+      } else {
+        setAuthUser(null);
+        setAuthLoading(false);
+      }
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+      if (session?.user) {
+        const isSameUser = authUserRef.current?.id === session.user.id;
+        loadAuthenticatedProfile(session.user.id, isSameUser || event === 'TOKEN_REFRESHED');
+      } else {
+        setAuthUser(null);
+        setAuthLoading(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    clearLocalPortalCache();
+    await supabase.auth.signOut();
+    setAuthUser(null);
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#fafafb] flex flex-col items-center justify-center p-6 text-center space-y-3">
+        <img src="/logo.svg" alt="PaintKing" className="h-9 w-auto" />
+        <Loader2 className="w-6 h-6 animate-spin text-[#c09748]" />
+        <p className="text-xs font-mono text-[#777b86]">Verifying PaintKing Operations OS Session...</p>
+      </div>
+    );
+  }
+
+  if (!authUser) {
+    return <PortalLoginView onBackToWebsite={onBackToWebsite} externalError={authError} />;
+  }
+
   return (
-    <PortalProvider>
+    <PortalProvider authenticatedUser={authUser} onLogout={handleLogout}>
       <PortalInner onBackToWebsite={onBackToWebsite} />
     </PortalProvider>
   );

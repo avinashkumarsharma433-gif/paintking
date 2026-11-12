@@ -97,7 +97,7 @@ export const IssueWizardModal: React.FC<IssueWizardModalProps> = ({
   // Role validation: only Store Incharge / Plant Head / Director can issue
   const isAuthorizedToIssue = useMemo(() => {
     const role = currentUser?.role;
-    return role === 'STORES' || role === 'PLANT_HEAD' || role === 'DIRECTOR';
+    return role === 'SUPER_ADMIN' || role === 'STORES' || role === 'PLANT_HEAD' || role === 'DIRECTOR';
   }, [currentUser]);
 
   // Available batches matching plant

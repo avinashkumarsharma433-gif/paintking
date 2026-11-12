@@ -4,6 +4,7 @@
  */
 
 export type UserRole = 
+  | 'SUPER_ADMIN'      // Root Controller: Full ERP + User/Account & Access Management
   | 'DIRECTOR'         // Executive / Director (Kuldeep Singh, Gurprit Singh)
   | 'PLANT_HEAD'       // Plant Head (Vasai / Haridwar / Vapi / Mumbai)
   | 'STORES'           // Stores & Inventory Manager
@@ -233,10 +234,28 @@ export type DocumentStatus = 'Draft' | 'Submitted' | 'Verified' | 'Approved' | '
 export interface UserProfile {
   id: string;
   name: string;
+  email?: string;
   role: UserRole;
   roleTitle: string;
   plant: PlantLocation;
+  assignedPlant?: PlantLocation | 'ALL';
+  allowedModules?: string[];
+  isActive?: boolean;
   avatar: string;
+}
+
+export interface PortalUserAccount {
+  id: string;
+  email: string;
+  fullName: string;
+  role: UserRole;
+  roleTitle: string;
+  plant: PlantLocation | 'ALL';
+  allowedModules: string[];
+  isActive: boolean;
+  createdBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // NEXT-GEN SINGLE UNIVERSAL JOB RECORD & STRICT GATING TYPES

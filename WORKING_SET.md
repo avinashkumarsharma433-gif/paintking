@@ -1,5 +1,14 @@
 # WORKING SET
 
+- 2026-11-12: Implemented Supabase Authentication, `SUPER_ADMIN` Root Role, Plant Assignment & Module-Level Permissions
+  - Files touched:
+    - `supabase_schema.sql`: Added `pk_portal_users` table (`role`, `plant`, `allowed_modules`, `is_active`), `is_active_portal_user()` / `is_super_admin()` helper functions, and tightened RLS across all 6 ERP tables to `TO authenticated` active users only.
+    - `supabase/functions/admin-users/index.ts`: Created secure Supabase Edge Function for `SUPER_ADMIN`-only staff `@paintking.in` account creation (`email_confirm: true`), module/plant updates, password resets, and deletion.
+    - `src/portal/types/portalTypes.ts`, `src/portal/utils/portalAuth.ts`, `src/portal/lib/supabaseClient.ts`: Added `SUPER_ADMIN` role, `ERP_MODULE_CATALOG`, `ROLE_PRESETS`, `normalizePortalEmail`, `canAccessPortalTab`, and profile/admin API helpers.
+    - `src/portal/views/PortalLoginView.tsx`, `src/portal/views/UserManagementView.tsx`: Built `@paintking.in` Login Gate and Super Admin User & Access Control console (create/edit accounts, assign plant, toggle exact ERP modules).
+    - `src/portal/PortalApp.tsx`, `src/portal/components/PortalSidebar.tsx`, `src/portal/components/PortalHeader.tsx`, `src/portal/context/PortalStoreContext.tsx`: Replaced insecure role switcher with verified Supabase session auth, Change Password modal, Logout + cache wipe, plant lock enforcement, and `SUPER_ADMIN` privileges across `StoresView.tsx`, `BalanceReturnModal.tsx`, `FifoCompliancePanel.tsx`, and `IssueWizardModal.tsx`.
+  - Status: Verified with `npm.cmd run lint` (`tsc --noEmit`, 0 errors) and `npm.cmd run build` (built in 8.92s).
+
 - 2026-11-12: Purged All Demo Data (Local + Supabase) & Upgraded Full Cloud Hydration/Sync
   - Files touched:
     - `src/portal/data/mockInitialData.ts`: Emptied all 25 transactional demo arrays (`INITIAL_MATERIAL_INWARD`, `INITIAL_GRN_DATA`, `INITIAL_JOB_CARDS`, `INITIAL_IQC_RECORDS`, `INITIAL_FPA_RECORDS`, `INITIAL_IPQC_RECORDS`, `INITIAL_QUALITY_RELEASES`, `INITIAL_BILLING_INVOICES`, `INITIAL_GATE_PASSES`, `INITIAL_STOCK_BATCHES`, etc.) and reset `MASTER_DEFECTS` counts to `0`; kept system masters (`INITIAL_USER_PROFILES`, `INITIAL_PAINTING_BOOTHS`, `INITIAL_PAINTERS`, `INITIAL_CALIBRATION_RECORDS`, `INITIAL_MNC_AUDIT_QUESTIONS`).
@@ -60,12 +69,4 @@
   - Files touched:
     - `src/portal/services/faceRecognitionService.ts`: Calibrated `maxAllowedDistance` up to 0.44 (master centroid gate +0.05). Relaxed multi-employee margin check (`bestDistance <= 0.40 || margin >= 0.02`), preventing the 2nd enrolled employee from being blocked as 'Unknown' when standing in camera.
     - `src/portal/modules/hr/HRAttendanceTerminal.tsx`: Calibrated default confidence threshold to 0.44 (presets Strict: 0.38, Normal: 0.44, Fast: 0.48), updated saved localStorage config to auto-upgrade to 0.44.
-  - Status: Verified with `npm.cmd run lint` (0 errors).
-
-- 2026-11-10: Configured ONNX Runtime WASM Assets & Calibrated Match Threshold to 0.38 for Reliable Recognition
-  - Files touched:
-    - `src/portal/face-engine/ArcFace512EmbeddingCalculator.ts`: Configured `ort.env.wasm.wasmPaths = window.location.origin + '/'` so `onnxruntime-web` can fetch browser wasm binaries directly without falling back silently.
-    - `public/ort-wasm*.wasm`: Copied WASM binaries (`ort-wasm-simd-threaded.wasm`, etc.) into `public/` directory for Vite server distribution.
-    - `src/portal/services/faceRecognitionService.ts`: Re-calibrated default threshold from over-strict 0.32 to 0.38 (`maxAllowedDistance <= 0.40`, `masterDistance <= maxAllowedDistance + 0.04`), resolving non-detection for genuine users across natural lighting and poses while maintaining sibling rejection (> 0.42).
-    - `src/portal/modules/hr/HRAttendanceTerminal.tsx`: Calibrated attendance terminal settings presets (Strict: 0.35, Normal: 0.38, Fast: 0.41).
   - Status: Verified with `npm.cmd run lint` (0 errors).

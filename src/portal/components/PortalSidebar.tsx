@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
+import { canAccessPortalTab } from '../utils/portalAuth';
 import {
   LayoutDashboard,
-  ArrowRightLeft,
   Briefcase,
   ReceiptText,
   Boxes,
-  Pipette,
-  CheckCircle2,
   PackageCheck,
   ShieldCheck,
   X,
-  ClipboardList,
   UserCheck,
+  Users,
   Wrench,
   ChevronRight,
   Paintbrush
@@ -30,7 +28,8 @@ export type PortalTab =
   | 'packing'
   | 'gatepass'
   | 'hr_leave'
-  | 'calibration';
+  | 'calibration'
+  | 'user_management';
 
 export const TAB_LABELS: Record<PortalTab, string> = {
   dashboard: 'Executive Cockpit',
@@ -43,7 +42,8 @@ export const TAB_LABELS: Record<PortalTab, string> = {
   packing: 'Packing & Box QR',
   gatepass: 'Gate Security & Inward',
   hr_leave: 'HR Suite & Attendance',
-  calibration: 'Equipment Calibration'
+  calibration: 'Equipment Calibration',
+  user_management: 'Users & Access Control'
 };
 
 interface SubMenuItem {
@@ -266,14 +266,23 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
         { label: 'DFT & Gloss Meter Calibration', subTab: 'GAUGES' },
         { label: 'Calibration Due & Recertification', subTab: 'CAL_DUE' }
       ]
+    },
+    {
+      id: 'user_management',
+      label: 'Users & Access Control',
+      subtitle: 'Create Logins, Plants & Modules',
+      docCode: 'PK-SYS-USR-001',
+      icon: Users,
+      badge: 'Super Admin',
+      badgeColor: 'bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521]',
+      roles: ['SUPER_ADMIN'],
+      subItems: [
+        { label: 'Staff Accounts & Modules', subTab: 'DIRECTORY' }
+      ]
     }
   ];
 
-  const visibleItems = navItems.filter(item => 
-    currentUser.role === 'DIRECTOR' || 
-    currentUser.role === 'PLANT_HEAD' || 
-    item.roles.includes(currentUser.role)
-  );
+  const visibleItems = navItems.filter(item => canAccessPortalTab(currentUser, item.id));
 
   const handleTabClick = (item: typeof navItems[0]) => {
     onSelectTab(item.id);
@@ -398,11 +407,16 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
                   >
                     <div className="py-1.5 px-2.5 pl-8 space-y-0.5">
                       {item.subItems
-                        .filter(sub => 
-                          !sub.allowedRoles || 
-                          currentUser.role === 'DIRECTOR' || 
-                          currentUser.role === 'PLANT_HEAD' || 
-                          sub.allowedRoles.includes(currentUser.role)
+                        .filter(sub =>
+                          !sub.allowedRoles ||
+                          currentUser.role === 'SUPER_ADMIN' ||
+                          currentUser.role === 'DIRECTOR' ||
+                          currentUser.role === 'PLANT_HEAD' ||
+                          sub.allowedRoles.includes(currentUser.role) ||
+                          Boolean(
+                            currentUser.allowedModules?.includes(item.id) &&
+                              !['DIRECTORY', 'LAB', 'PAYROLL', 'SHIFTS'].includes(sub.subTab)
+                          )
                         )
                         .map((sub, sIdx) => {
                         const isSubActive = isActive && (

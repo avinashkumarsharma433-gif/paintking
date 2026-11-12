@@ -64,7 +64,6 @@ import {
   isChemicalConsumable
 } from '../utils/stockEngine';
 import {
-  INITIAL_USER_PROFILES,
   INITIAL_UNIVERSAL_JOBS,
   INITIAL_GRN_DATA,
   INITIAL_IQC_RECORDS,
@@ -103,6 +102,8 @@ interface PortalContextType {
   // Authentication & Context
   currentUser: UserProfile;
   switchUser: (userId: string) => void;
+  canSwitchPlant: boolean;
+  logoutUser: () => void;
   activePlant: PlantLocation;
   setActivePlant: (plant: PlantLocation) => void;
   activeShift: ShiftType;
@@ -451,31 +452,66 @@ function ensureCleanStorageVersion(): void {
   }
 }
 
+export function clearLocalPortalCache(): void {
+  try {
+    for (const k of TRANSACTIONAL_STORAGE_KEYS) {
+      localStorage.removeItem(k);
+    }
+    localStorage.removeItem('pk_current_user');
+    localStorage.removeItem('pk_portal_active_tab');
+    localStorage.removeItem('pk_active_plant');
+  } catch {
+    // ignore storage errors
+  }
+}
+
 const PortalContext = createContext<PortalContextType | undefined>(undefined);
 
-export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const PortalProvider: React.FC<{
+  children: React.ReactNode;
+  authenticatedUser: UserProfile;
+  onLogout: () => void;
+}> = ({ children, authenticatedUser, onLogout }) => {
   ensureCleanStorageVersion();
   const isCloudHydratedRef = useRef<boolean>(false);
 
-  // Current logged in user (defaults to Director for full initial visibility)
-  const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('pk_current_user');
-    if (saved) {
-      try { 
-        const parsed = JSON.parse(saved);
-        if (parsed.role === 'IQC_INSPECTOR' || parsed.role === 'FPA_IPQC_INSPECTOR' || parsed.role === 'OQC_PDI_INSPECTOR') {
-          return INITIAL_USER_PROFILES.find(u => u.role === 'MANAGER_QA') || INITIAL_USER_PROFILES[0];
-        }
-        return parsed; 
-      } catch (e) { /* fallback */ }
+  const canSwitchPlant =
+    authenticatedUser.role === 'SUPER_ADMIN' ||
+    authenticatedUser.role === 'DIRECTOR' ||
+    authenticatedUser.assignedPlant === 'ALL';
+
+  // Current logged in user is strictly derived from verified Supabase Auth + pk_portal_users
+  const [currentUser, setCurrentUser] = useState<UserProfile>(authenticatedUser);
+
+  useEffect(() => {
+    setCurrentUser(authenticatedUser);
+  }, [authenticatedUser]);
+
+  const [activePlant, setActivePlantState] = useState<PlantLocation>(() => {
+    if (authenticatedUser.assignedPlant && authenticatedUser.assignedPlant !== 'ALL') {
+      return authenticatedUser.assignedPlant;
     }
-    return INITIAL_USER_PROFILES[0]; // Kuldeep Singh
+    const s = localStorage.getItem('pk_active_plant');
+    return (s as PlantLocation) || authenticatedUser.plant || 'Haridwar';
   });
 
-  const [activePlant, setActivePlant] = useState<PlantLocation>(() => {
-    const s = localStorage.getItem('pk_active_plant');
-    return (s as PlantLocation) || 'Haridwar';
-  });
+  useEffect(() => {
+    if (authenticatedUser.assignedPlant && authenticatedUser.assignedPlant !== 'ALL') {
+      setActivePlantState(authenticatedUser.assignedPlant);
+    }
+  }, [authenticatedUser.assignedPlant]);
+
+  const setActivePlant = (plant: PlantLocation) => {
+    if (!canSwitchPlant && authenticatedUser.assignedPlant && authenticatedUser.assignedPlant !== 'ALL') {
+      return;
+    }
+    setActivePlantState(plant);
+  };
+
+  const logoutUser = () => {
+    clearLocalPortalCache();
+    onLogout();
+  };
   const [activeShift, setActiveShift] = useState<ShiftType>(() => {
     const s = localStorage.getItem('pk_active_shift');
     return (s as ShiftType) || 'General Day Shift (08:30 - 18:30)';
@@ -1717,11 +1753,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
 
-  const switchUser = (userId: string) => {
-    const found = INITIAL_USER_PROFILES.find(u => u.id === userId);
-    if (found) {
-      setCurrentUser(found);
-    }
+  const switchUser = (_userId: string) => {
+    // Role switching disabled: identity is strictly enforced by Supabase Auth + pk_portal_users
   };
 
   const addJobCard = (jc: JobCard) => {
@@ -3274,6 +3307,8 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       value={{
         currentUser,
         switchUser,
+        canSwitchPlant,
+        logoutUser,
         activePlant,
         setActivePlant,
         activeShift,

@@ -83,8 +83,8 @@ export const StoresView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'TRACKER' | 'REQUISITIONS' | 'ISSUED_SLIPS' | 'RETURNS' | 'PENDING' | 'GRN_REGISTER' | 'FIFO_COMPLIANCE'>('TRACKER');
 
   // Role Permissions
-  const isStoreIncharge = currentUser.role === 'STORES' || currentUser.role === 'PLANT_HEAD' || currentUser.role === 'DIRECTOR';
-  const canViewCompliance = currentUser.role === 'PLANT_HEAD' || currentUser.role === 'DIRECTOR' || currentUser.role === 'STORES';
+  const isStoreIncharge = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'STORES' || currentUser.role === 'PLANT_HEAD' || currentUser.role === 'DIRECTOR';
+  const canViewCompliance = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'PLANT_HEAD' || currentUser.role === 'DIRECTOR' || currentUser.role === 'STORES';
 
   // New Modals State
   const [showIssueWizard, setShowIssueWizard] = useState<boolean>(false);
