@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-12: Integrated Supabase (PostgreSQL) Live Cloud Database & Offline-First Realtime Sync
+  - Files touched:
+    - `src/portal/lib/supabaseClient.ts`: Configured production Supabase client with offline fallback helpers `fetchRemoteState` and `persistRemoteState`.
+    - `src/portal/context/PortalStoreContext.tsx`: Connected Job Cards, IQC, Stock Batches, Balance Returns, and Calibration records to background cloud synchronization with mount hydration.
+    - `supabase_schema.sql`: Authored production DDL schema for 6 core tables with permissive factory terminal RLS policies.
+  - Status: Verified with `npm.cmd run lint` (0 errors) and `npm.cmd run build` (builds in 8.09s).
+
 - 2026-11-11: Implemented Strict Role-Based Access Control (RBAC) across All Navigation Tabs & Sub-items
   - Files touched:
     - `src/portal/components/PortalSidebar.tsx`: Enforced strict role restrictions on top-level tabs and sub-items (Payroll, Employee Directory, Recognition Lab strictly restricted to Director/HR; Operator & Security limited to operational tabs).

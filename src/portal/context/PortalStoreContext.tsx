@@ -96,6 +96,7 @@ import {
   INITIAL_FIFO_OVERRIDE_LOGS,
   INITIAL_BALANCE_RETURN_SLIPS
 } from '../data/mockInitialData';
+import { supabase, persistRemoteState, fetchRemoteState } from '../lib/supabaseClient';
 
 
 interface PortalContextType {
@@ -524,10 +525,36 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       localStorage.setItem('pk_storage_version', PK_STORAGE_VERSION);
     }
+
+    // Hydrate initial state from Supabase if available in cloud
+    async function hydrateCloudState() {
+      try {
+        const cloudJobs = await fetchRemoteState<JobCard[] | null>('pk_jobcards_data', null);
+        if (cloudJobs && Array.isArray(cloudJobs) && cloudJobs.length > 0) {
+          setJobCards(cloudJobs);
+        }
+        const cloudIqc = await fetchRemoteState<IQCInspectionRecord[] | null>('pk_iqc_data', null);
+        if (cloudIqc && Array.isArray(cloudIqc) && cloudIqc.length > 0) {
+          setIqcRecords(cloudIqc);
+        }
+        const cloudBatches = await fetchRemoteState<StockBatch[] | null>('pk_stock_batches', null);
+        if (cloudBatches && Array.isArray(cloudBatches) && cloudBatches.length > 0) {
+          setStockBatches(cloudBatches);
+        }
+        const cloudReturns = await fetchRemoteState<BalanceReturnSlip[] | null>('pk_balance_return_slips', null);
+        if (cloudReturns && Array.isArray(cloudReturns) && cloudReturns.length > 0) {
+          setBalanceReturnSlips(cloudReturns);
+        }
+      } catch (e) {
+        console.warn('Hydration error:', e);
+      }
+    }
+    hydrateCloudState();
   }, []);
 
   useEffect(() => {
     localStorage.setItem('pk_stock_batches', JSON.stringify(stockBatches));
+    persistRemoteState('pk_stock_batches', stockBatches, currentUser?.name);
   }, [stockBatches]);
 
   useEffect(() => {
@@ -536,6 +563,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     localStorage.setItem('pk_balance_return_slips', JSON.stringify(balanceReturnSlips));
+    persistRemoteState('pk_balance_return_slips', balanceReturnSlips, currentUser?.name);
   }, [balanceReturnSlips]);
 
   // Plant Shift & 20:45 Floor Return Cutoff Configuration (9 PM Factory Closing)
@@ -1231,6 +1259,7 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     localStorage.setItem('pk_jobcards_data', JSON.stringify(jobCards));
+    persistRemoteState('pk_jobcards_data', jobCards, currentUser?.name);
   }, [jobCards]);
 
   useEffect(() => {
@@ -1239,10 +1268,12 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     localStorage.setItem('pk_pir_data', JSON.stringify(preProductionReports));
+    persistRemoteState('pk_pir_data', preProductionReports, currentUser?.name);
   }, [preProductionReports]);
 
   useEffect(() => {
     localStorage.setItem('pk_fpa_data', JSON.stringify(fpaRecords));
+    persistRemoteState('pk_fpa_data', fpaRecords, currentUser?.name);
   }, [fpaRecords]);
 
   useEffect(() => {
@@ -1251,31 +1282,43 @@ export const PortalProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   useEffect(() => {
     localStorage.setItem('pk_ipqc_data', JSON.stringify(ipqcRecords));
+    persistRemoteState('pk_ipqc_data', ipqcRecords, currentUser?.name);
   }, [ipqcRecords]);
 
   useEffect(() => {
     localStorage.setItem('pk_iqc_data', JSON.stringify(iqcRecords));
+    persistRemoteState('pk_iqc_data', iqcRecords, currentUser?.name);
   }, [iqcRecords]);
 
   useEffect(() => {
     localStorage.setItem('pk_packing_data', JSON.stringify(packingSlips));
+    persistRemoteState('pk_packing_data', packingSlips, currentUser?.name);
   }, [packingSlips]);
 
   useEffect(() => {
     localStorage.setItem('pk_quality_releases', JSON.stringify(qualityReleases));
+    persistRemoteState('pk_quality_releases', qualityReleases, currentUser?.name);
   }, [qualityReleases]);
 
   useEffect(() => {
     localStorage.setItem('pk_billing_invoices', JSON.stringify(billingInvoices));
+    persistRemoteState('pk_billing_invoices', billingInvoices, currentUser?.name);
   }, [billingInvoices]);
 
   useEffect(() => {
     localStorage.setItem('pk_gate_passes', JSON.stringify(gatePasses));
+    persistRemoteState('pk_gate_passes', gatePasses, currentUser?.name);
   }, [gatePasses]);
 
   useEffect(() => {
     localStorage.setItem('pk_material_inward', JSON.stringify(materialInwardLogs));
+    persistRemoteState('pk_material_inward', materialInwardLogs, currentUser?.name);
   }, [materialInwardLogs]);
+
+  useEffect(() => {
+    localStorage.setItem('pk_calibration_list', JSON.stringify(calibrationList));
+    persistRemoteState('pk_calibration_list', calibrationList, currentUser?.name);
+  }, [calibrationList]);
 
   useEffect(() => {
     localStorage.setItem('pk_material_outward', JSON.stringify(materialOutwardLogs));
