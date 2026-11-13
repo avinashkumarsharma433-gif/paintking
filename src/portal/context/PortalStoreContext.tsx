@@ -6,7 +6,6 @@ import {
   ShiftType,
   GoodsReceiptNote,
   IQCInspectionRecord,
-  CustodyHandover,
   JobCard,
   FPARecord,
   PaintMixingRecord,
@@ -67,7 +66,6 @@ import {
   INITIAL_UNIVERSAL_JOBS,
   INITIAL_GRN_DATA,
   INITIAL_IQC_RECORDS,
-  INITIAL_HANDOVERS,
   INITIAL_JOB_CARDS,
   INITIAL_PRE_PRODUCTION_REPORTS,
   INITIAL_FPA_RECORDS,
@@ -115,7 +113,6 @@ interface PortalContextType {
   universalJobs: UniversalJobRecord[];
   grnList: GoodsReceiptNote[];
   iqcRecords: IQCInspectionRecord[];
-  handovers: CustodyHandover[];
   jobCards: JobCard[];
   painters: PainterProfile[];
   paintingBooths: PaintingBooth[];
@@ -290,27 +287,6 @@ interface PortalContextType {
   addMaterialOutwardRecord: (record: MaterialOutwardRecord) => void;
 
   
-  // Problem 2: Inter-stage Handover & Custody Logic
-  sendHandover: (transfer: {
-    woNo: string;
-    jobCardNo: string;
-    partCode: string;
-    color: string;
-    fromStage: CustodyHandover['fromStage'];
-    toStage: CustodyHandover['toStage'];
-    senderName: string;
-    senderQty: number;
-    plant?: PlantLocation;
-  }) => void;
-  receiveHandover: (
-    transferId: string,
-    receiverName: string,
-    receiverQty: number,
-    discrepancyReason?: CustodyHandover['discrepancyReason'],
-    discrepancyNote?: string
-  ) => void;
-  resolveHandoverDiscrepancy: (transferId: string, action: string, supervisorName: string) => void;
-
   // Problem 1: Job Cards, Target Caps & Color Over-run
   updateJobCardProgress: (
     jobCardNo: string,
@@ -343,7 +319,6 @@ interface PortalContextType {
   updateGatePassStatus: (gatePassNo: string, status: GatePassRecord['status']) => void;
 
   // Active Discrepancy Alerts Counter
-  unresolvedHandoversCount: number;
   openOverrunCount: number;
 
   // 100-Question MNC Audit Engine (Module E)
@@ -419,7 +394,6 @@ const TRANSACTIONAL_STORAGE_KEYS = [
   'pk_grn_data',
   'pk_material_requisitions',
   'pk_iqc_data',
-  'pk_handovers_data',
   'pk_jobcards_data',
   'pk_pir_data',
   'pk_fpa_data',
@@ -631,7 +605,6 @@ export const PortalProvider: React.FC<{
           if (Array.isArray(remote.pk_grn_data)) setGrnList(remote.pk_grn_data as GoodsReceiptNote[]);
           if (Array.isArray(remote.pk_material_requisitions)) setMaterialRequisitions(remote.pk_material_requisitions as MaterialRequisitionNote[]);
           if (Array.isArray(remote.pk_iqc_data)) setIqcRecords(remote.pk_iqc_data as IQCInspectionRecord[]);
-          if (Array.isArray(remote.pk_handovers_data)) setHandovers(remote.pk_handovers_data as CustodyHandover[]);
           if (Array.isArray(remote.pk_jobcards_data)) setJobCards(remote.pk_jobcards_data as JobCard[]);
           if (Array.isArray(remote.pk_painters)) setPainters(remote.pk_painters as PainterProfile[]);
           if (Array.isArray(remote.pk_painting_booths)) setPaintingBooths(remote.pk_painting_booths as PaintingBooth[]);
@@ -1145,10 +1118,6 @@ export const PortalProvider: React.FC<{
     return mergeByUniqueKey(localStorage.getItem('pk_iqc_data'), INITIAL_IQC_RECORDS, 'reportNo');
   });
 
-  const [handovers, setHandovers] = useState<CustodyHandover[]>(() => {
-    return mergeByUniqueKey(localStorage.getItem('pk_handovers_data'), INITIAL_HANDOVERS, 'transferId');
-  });
-
   const [jobCards, setJobCards] = useState<JobCard[]>(() => {
     return mergeByUniqueKey(localStorage.getItem('pk_jobcards_data'), INITIAL_JOB_CARDS, 'jobCardNo');
   });
@@ -1360,10 +1329,6 @@ export const PortalProvider: React.FC<{
   useEffect(() => {
     syncState('pk_grn_data', grnList);
   }, [grnList]);
-
-  useEffect(() => {
-    syncState('pk_handovers_data', handovers);
-  }, [handovers]);
 
   useEffect(() => {
     syncState('pk_jobcards_data', jobCards);
@@ -2176,93 +2141,6 @@ export const PortalProvider: React.FC<{
         };
       }
       return rec;
-    }));
-  };
-
-  // PROBLEM 2: Inter-stage Handover & Custody Logic
-  const sendHandover = (transfer: {
-    woNo: string;
-    jobCardNo: string;
-    partCode: string;
-    color: string;
-    fromStage: CustodyHandover['fromStage'];
-    toStage: CustodyHandover['toStage'];
-    senderName: string;
-    senderQty: number;
-    plant?: PlantLocation;
-  }) => {
-    const woSuffix = transfer.woNo ? transfer.woNo.replace(/^WO-/, '') : Date.now().toString().slice(-4);
-    const uniqueTransferId = `TRF-${woSuffix}-${Math.floor(10 + Math.random() * 90)}`;
-    const newTransfer: CustodyHandover = {
-      transferId: uniqueTransferId,
-      date: new Date().toISOString().split('T')[0],
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      plant: transfer.plant || activePlant,
-      woNo: transfer.woNo,
-      jobCardNo: transfer.jobCardNo,
-      partCode: transfer.partCode,
-      color: transfer.color,
-      fromStage: transfer.fromStage,
-      toStage: transfer.toStage,
-      senderName: transfer.senderName,
-      senderQty: Number(transfer.senderQty) || 0,
-      status: 'Pending Receipt'
-    };
-
-    setHandovers(prev => [newTransfer, ...prev]);
-  };
-
-  const receiveHandover = (
-    transferId: string,
-    receiverName: string,
-    receiverQty: number,
-    discrepancyReason?: CustodyHandover['discrepancyReason'],
-    discrepancyNote?: string
-  ) => {
-    setHandovers(prev => prev.map(t => {
-      if (t.transferId !== transferId) return t;
-
-      const numReceiver = Number(receiverQty) || 0;
-      // Formula: discrepancyQty = senderQty - receiverQty (shortage positive, excess negative)
-      const discrepancy = Number(t.senderQty) - numReceiver;
-
-      if (discrepancy === 0) {
-        return {
-          ...t,
-          receiverName,
-          receiverQty: numReceiver,
-          status: 'Accepted (Match)',
-          discrepancyQty: 0
-        };
-      } else {
-        // Discrepancy detected (e.g. 300 sent, 270 received => 30 pieces shortage)
-        return {
-          ...t,
-          receiverName,
-          receiverQty: numReceiver,
-          status: 'Discrepancy Halt',
-          discrepancyQty: discrepancy,
-          discrepancyReason: discrepancyReason || 'Unaccounted Loss',
-          discrepancyNote: discrepancyNote || `Count mismatch: ${t.senderQty} sent by ${t.senderName}, but ${numReceiver} counted by ${receiverName} (${discrepancy > 0 ? `${discrepancy} Shortage` : `${Math.abs(discrepancy)} Excess`}).`
-        };
-      }
-    }));
-  };
-
-  const resolveHandoverDiscrepancy = (transferId: string, action: string, supervisorName: string) => {
-    const today = new Date().toISOString().split('T')[0];
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const resolvedAt = `${today} ${time}`;
-
-    setHandovers(prev => prev.map(t => {
-      if (t.transferId !== transferId) return t;
-      return {
-        ...t,
-        status: 'Supervisor Resolved',
-        supervisorAction: action,
-        supervisorApprovedBy: supervisorName,
-        resolvedAt
-      };
     }));
   };
 
@@ -3318,7 +3196,6 @@ export const PortalProvider: React.FC<{
   };
 
   // Counts for Top Notification badges
-  const unresolvedHandoversCount = handovers.filter(h => h.status === 'Discrepancy Halt').length;
   const openOverrunCount = jobCards.filter(jc => jc.status === 'Over-Run Flagged').length;
 
   return (
@@ -3339,7 +3216,6 @@ export const PortalProvider: React.FC<{
         advanceJobStage,
         grnList,
         iqcRecords,
-        handovers,
         jobCards,
         painters,
         paintingBooths,
@@ -3391,9 +3267,6 @@ export const PortalProvider: React.FC<{
         createMultiPainterJobCards,
         addMaterialInwardRecord,
         addMaterialOutwardRecord,
-        sendHandover,
-        receiveHandover,
-        resolveHandoverDiscrepancy,
 
         updateJobCardProgress,
         updateJobCardSprayed,
@@ -3407,7 +3280,6 @@ export const PortalProvider: React.FC<{
         markInvoiceDispatched,
         createGatePass,
         updateGatePassStatus,
-        unresolvedHandoversCount,
         openOverrunCount,
 
         // Module E: MNC Audit

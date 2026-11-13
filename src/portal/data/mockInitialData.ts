@@ -1,7 +1,6 @@
 import { 
   UserProfile, 
   GoodsReceiptNote, 
-  CustodyHandover, 
   JobCard, 
   FPARecord, 
   PaintMixingRecord, 
@@ -235,7 +234,6 @@ export const INITIAL_USER_PROFILES: UserProfile[] = [
 // Zero Demo Data — All transactional records start empty for live production input
 export const INITIAL_UNIVERSAL_JOBS: UniversalJobRecord[] = [];
 export const INITIAL_GRN_DATA: GoodsReceiptNote[] = [];
-export const INITIAL_HANDOVERS: CustodyHandover[] = [];
 export const INITIAL_JOB_CARDS: JobCard[] = [];
 export const INITIAL_PRE_PRODUCTION_REPORTS: PreProductionInspectionRecord[] = [];
 export const INITIAL_FPA_RECORDS: FPARecord[] = [];

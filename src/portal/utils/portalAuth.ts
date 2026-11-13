@@ -40,12 +40,6 @@ export const ERP_MODULE_CATALOG: ErpModuleOption[] = [
     docCode: 'PK-PRD-FLR-001',
   },
   {
-    id: 'handovers',
-    label: 'Stage Handover',
-    description: 'Inter-stage custody & count discrepancy tracking',
-    docCode: 'PK-PRD-HND-001',
-  },
-  {
     id: 'qa',
     label: 'Quality Assurance (QA Hub)',
     description: 'IQC, PIR, FPA, IPQC, OQC, PDI, 8D CAPA & MNC Audit',
@@ -109,12 +103,12 @@ export const ROLE_PRESETS: Record<UserRole, { label: string; defaultTitle: strin
   STORES: {
     label: 'Stores Incharge',
     defaultTitle: 'Stores & Material Inward Incharge',
-    defaultModules: ['stores', 'gatepass', 'packing', 'handovers', 'calibration', 'hr_leave'],
+    defaultModules: ['stores', 'gatepass', 'packing', 'calibration', 'hr_leave'],
   },
   PRODUCTION: {
     label: 'Production Supervisor',
     defaultTitle: 'Senior Production Supervisor',
-    defaultModules: ['jobcards', 'painter_desk', 'handovers', 'packing', 'calibration', 'hr_leave'],
+    defaultModules: ['jobcards', 'painter_desk', 'packing', 'calibration', 'hr_leave'],
   },
   MANAGER_QA: {
     label: 'Manager QA',

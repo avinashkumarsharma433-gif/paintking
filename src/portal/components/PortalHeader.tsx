@@ -45,7 +45,6 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
     setActivePlant,
     activeShift,
     setActiveShift,
-    unresolvedHandoversCount,
     openOverrunCount,
     isPlantDayClosed,
   } = usePortalStore();
@@ -355,13 +354,6 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
             </button>
           ))}
         </div>
-
-        {unresolvedHandoversCount > 0 && (
-          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-50 border border-red-200 text-red-700 text-[10.5px] font-bold shrink-0">
-            <AlertTriangle className="w-3 h-3 text-red-600" />
-            <span>{unresolvedHandoversCount} Alert</span>
-          </div>
-        )}
 
         {openOverrunCount > 0 && (
           <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10.5px] font-bold shrink-0">

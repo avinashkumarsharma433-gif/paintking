@@ -458,40 +458,6 @@ export interface MaterialRequisitionNote {
   batchLines?: BatchIssueLine[];
 }
 
-// 2. Inter-Stage Handover & Custody Transfer (PK-PRD-TRF-001)
-export type ProductionStage = 
-  | 'Raw Stores'
-  | 'Surface Prep & Jigging'
-  | 'Base Coat Painting'
-  | 'Hydrographic Dipping / UV'
-  | 'Clear Lacquer / Top Coat'
-  | 'Oven Curing & De-jigging'
-  | 'Final QA & Packing';
-
-export interface CustodyHandover {
-  transferId: string;
-  date: string;
-  time: string;
-  plant: PlantLocation;
-  woNo: string;
-  jobCardNo: string;
-  partCode: string;
-  color: string;
-  fromStage: ProductionStage;
-  toStage: ProductionStage;
-  senderName: string;
-  senderQty: number;
-  receiverName?: string;
-  receiverQty?: number;
-  status: 'Pending Receipt' | 'Accepted (Match)' | 'Discrepancy Halt' | 'Supervisor Resolved';
-  discrepancyQty?: number; // e.g. -30
-  discrepancyReason?: 'Dropped / In-Transit Damage' | 'Left in Drying/Oven Rack' | 'Booth Scrap' | 'Unaccounted Loss';
-  discrepancyNote?: string;
-  supervisorAction?: string;
-  supervisorApprovedBy?: string;
-  resolvedAt?: string;
-}
-
 // 3. Job Card Cubic Paint Frame (PK-PRD-JCR-001 / Doc No: 001)
 export interface IssuedMaterialItem {
   id?: string;

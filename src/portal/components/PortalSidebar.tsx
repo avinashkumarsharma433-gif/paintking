@@ -21,7 +21,6 @@ import { motion, AnimatePresence } from 'motion/react';
 
 export type PortalTab = 
   | 'dashboard'
-  | 'handovers'
   | 'jobcards'
   | 'painter_desk'
   | 'billing'
@@ -35,7 +34,6 @@ export type PortalTab =
 
 export const TAB_LABELS: Record<PortalTab, string> = {
   dashboard: 'Executive Cockpit',
-  handovers: 'Stage Handover',
   jobcards: 'Job Cards & Batches',
   painter_desk: 'Painter Floor Desk (Kiosk)',
   billing: 'Billing & PO Rec',
@@ -69,7 +67,6 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
 }) => {
   const { 
     currentUser, 
-    unresolvedHandoversCount, 
     openOverrunCount, 
     pendingVerificationJobsCount,
     balanceReturnSlips,

@@ -4,7 +4,6 @@ import { PortalProvider, usePortalStore, clearLocalPortalCache } from './context
 import { PortalHeader } from './components/PortalHeader';
 import { PortalSidebar, PortalTab, TAB_LABELS } from './components/PortalSidebar';
 import { DashboardView } from './views/DashboardView';
-import { CustodyHandoverView } from './views/CustodyHandoverView';
 import { JobCardsView } from './views/JobCardsView';
 import { BillingView } from './views/BillingView';
 import { StoresView } from './views/StoresView';
@@ -168,8 +167,6 @@ const PortalInner: React.FC<PortalAppProps> = ({ onBackToWebsite }) => {
         return <JobCardsView />;
       case 'painter_desk':
         return <PainterWorkspaceView />;
-      case 'handovers':
-        return <CustodyHandoverView />;
       case 'billing':
         return <BillingView />;
       case 'stores':
