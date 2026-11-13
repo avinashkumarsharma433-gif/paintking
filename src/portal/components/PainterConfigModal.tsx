@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, UserPlus, Save, User, Sparkles, Phone, Layers, ChevronDown, Check, MapPin } from 'lucide-react';
-import { PainterProfile, PaintingBooth, PlantLocation } from '../types/portalTypes';
+import { X, UserPlus, Save, User, Sparkles, Phone, Layers, ChevronDown, Check, MapPin, Clock } from 'lucide-react';
+import { PainterProfile, PaintingBooth, PlantLocation, ShiftType } from '../types/portalTypes';
 
 interface PainterConfigModalProps {
   isOpen: boolean;
@@ -24,6 +24,7 @@ export const PainterConfigModal: React.FC<PainterConfigModalProps> = ({
   const [name, setName] = useState<string>('');
   const [code, setCode] = useState<string>('');
   const [boothNo, setBoothNo] = useState<string>('');
+  const [shift, setShift] = useState<ShiftType>('General Day Shift (08:30 - 18:30)');
   const [specialization, setSpecialization] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
   const [plant, setPlant] = useState<PlantLocation>('Haridwar');
@@ -39,14 +40,16 @@ export const PainterConfigModal: React.FC<PainterConfigModalProps> = ({
     if (editingPainter) {
       setName(editingPainter.name);
       setCode(editingPainter.code);
-      setBoothNo(editingPainter.boothNo || (availableBooths[0]?.name || 'Booth #1 (Continuous Conveyor Line)'));
+      setBoothNo(editingPainter.boothNo || (availableBooths[0]?.name || 'Floating / Reliever Pool'));
+      setShift(editingPainter.shift || 'General Day Shift (08:30 - 18:30)');
       setSpecialization(editingPainter.specialization || '');
       setPhone(editingPainter.phone || '');
     } else {
-      const defaultBooth = availableBooths[0]?.name || 'Booth #1 (Continuous Conveyor Line)';
+      const defaultBooth = availableBooths[0]?.name || 'Floating / Reliever Pool';
       setName('');
       setCode('');
       setBoothNo(defaultBooth);
+      setShift('General Day Shift (08:30 - 18:30)');
       setSpecialization('');
       setPhone('');
     }
@@ -87,6 +90,7 @@ export const PainterConfigModal: React.FC<PainterConfigModalProps> = ({
         name: formattedName,
         code: assignedCode,
         boothNo,
+        shift,
         specialization,
         phone: phone.trim(),
         plant,
@@ -98,6 +102,7 @@ export const PainterConfigModal: React.FC<PainterConfigModalProps> = ({
         code: assignedCode,
         avatar: `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 50000000)}?auto=format&fit=crop&w=150&q=80`,
         boothNo,
+        shift,
         specialization,
         phone: phone.trim(),
         plant,
@@ -245,6 +250,34 @@ export const PainterConfigModal: React.FC<PainterConfigModalProps> = ({
               {/* Dropdown Menu */}
               {isBoothDropdownOpen && (
                 <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-[20px] border border-[#ececec] shadow-2xl p-1.5 space-y-1 animate-in fade-in zoom-in-95 duration-150 max-h-56 overflow-y-auto no-scrollbar">
+                  {/* Floating / Reliever Pool Special Option */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBoothNo('Floating / Reliever Pool');
+                      setIsBoothDropdownOpen(false);
+                    }}
+                    className={`w-full p-2.5 rounded-[14px] text-left transition cursor-pointer flex items-center justify-between gap-3 ${
+                      boothNo === 'Floating / Reliever Pool'
+                        ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]'
+                        : 'hover:bg-[#fafafb] text-[#17191c]'
+                    }`}
+                  >
+                    <div className="truncate">
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="font-mono font-bold text-xs text-[#c09748] shrink-0">F-POOL</span>
+                        <span className="font-semibold text-xs text-[#17191c] truncate">Floating / Reliever Pool</span>
+                        {boothNo === 'Floating / Reliever Pool' && <Check className="w-3.5 h-3.5 text-[#c09748] shrink-0" />}
+                      </div>
+                      <div className="text-[10px] text-[#777b86] mt-0.5 font-mono truncate">
+                        Temporary / 1-Day replacement operator across any booth
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 bg-blue-50 text-blue-800 border border-blue-200">
+                      Flexible
+                    </span>
+                  </button>
+
                   {availableBooths.map(b => {
                     const isSelected = b.name === boothNo;
                     return (
@@ -286,11 +319,32 @@ export const PainterConfigModal: React.FC<PainterConfigModalProps> = ({
               )}
             </div>
 
-            {/* Contact Phone */}
+            {/* Shift Assignment Dropdown */}
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
+                <Clock className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>3. Operating Shift Allocation</span>
+                <span className="text-[#c09748]">*</span>
+              </label>
+              <select
+                value={shift}
+                onChange={e => setShift(e.target.value as ShiftType)}
+                className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs font-semibold text-[#17191c] focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs"
+              >
+                <option value="General Day Shift (08:30 - 18:30)">General Day Shift (08:30 - 18:30)</option>
+                <option value="Day 12H">Day 12H (Extended Shift)</option>
+                <option value="Night 12H">Night 12H (Night Operating Shift)</option>
+                <option value="Rotational Shift">Rotational / Floating Replacement</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Row 3: Contact Phone & Specialization */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
                 <Phone className="w-3.5 h-3.5 text-[#c09748]" />
-                <span>3. Contact Phone (Optional)</span>
+                <span>4. Contact Phone (Optional)</span>
               </label>
               <input
                 type="text"
@@ -300,22 +354,20 @@ export const PainterConfigModal: React.FC<PainterConfigModalProps> = ({
                 className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs"
               />
             </div>
-          </div>
 
-          {/* Row 3: Specialization Input */}
-          <div className="space-y-1.5 pt-1">
-            <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
-              <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
-              <span>4. Finishing Specialization / Expertise</span>
-            </label>
-
-            <input
-              type="text"
-              value={specialization}
-              onChange={e => setSpecialization(e.target.value)}
-              placeholder="e.g. Carbon Fiber PVA Film Dipping & Base, High Gloss 2K PU Coating"
-              className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs"
-            />
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
+                <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>5. Finishing Specialization</span>
+              </label>
+              <input
+                type="text"
+                value={specialization}
+                onChange={e => setSpecialization(e.target.value)}
+                placeholder="e.g. PU Metallic Spray, Topcoat"
+                className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs"
+              />
+            </div>
           </div>
 
           {/* Action Footer */}
