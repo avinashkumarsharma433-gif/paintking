@@ -385,8 +385,10 @@ interface PortalContextType {
   reopenPlant: () => void;
 }
 
-const PK_STORAGE_VERSION = '3.0.0-clean';
+const PK_STORAGE_VERSION = '3.1.0-clean-fleet';
 const TRANSACTIONAL_STORAGE_KEYS = [
+  'pk_painters',
+  'pk_painting_booths',
   'pk_plant_head_priorities',
   'pk_universal_jobs',
   'pk_stock_batches',

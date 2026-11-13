@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
 import { JobCard } from '../types/portalTypes';
 import { 
