@@ -251,3 +251,19 @@ When maintaining or adding features to this codebase:
      - **Zebra Striping**: Alternating white (`255, 255, 255`) and soft tint (`235, 238, 244` / `250, 250, 251`).
      - **Total / Summary Row**: Light grey `242, 242, 243` or solid summary bar `215, 220, 228` with bold charcoal text.
 
+---
+
+## 9. Elephant-Goldfish Model (EGM) Spec-Driven Workflow
+
+For non-trivial features, architectural redesigns, and new ERP modules, follow the **Elephant-Goldfish Model (EGM)** specification protocol before writing production code:
+
+1. **Role Division**:
+   - **The Elephant (Main Chat Session)**: Holds long-term codebase context (`AGENTS.md`, `Design.md`, `RAG.md`, `WORKING_SET.md`). Formulates concepts (`/egm:egm-brainstorm`) and drafts structured specifications (`/egm:egm-draft`) in `docs/specs/` using `docs/specs/template_rfc.md`. Does NOT write production code prematurely.
+   - **The Goldfish (Review Subagents)**: Launched via `/egm:egm-review` into isolated, zero-context subagent environments. Zero conversation history is passed. The Goldfish evaluates the draft strictly against architectural simplicity, clarity, edge cases, and PaintKing UI/UX rules.
+2. **Review Triage & Resolution**:
+   - Run `/egm:egm-resolve` to categorize findings (`PROPOSE FIX` or `CONTEST`).
+   - Update the spec draft in `docs/specs/`.
+3. **Implementation Hand-off**:
+   - Once the spec is approved, the coding agent implements following Section 0 (Master Operating Instructions): smallest possible diff, zero new TypeScript errors, no pitch-black buttons, 4-column desktop tables, and mobile responsive card layouts.
+
+

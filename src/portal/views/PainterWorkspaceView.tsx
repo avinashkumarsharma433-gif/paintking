@@ -53,6 +53,11 @@ export const PainterWorkspaceView: React.FC = () => {
 
   const isManager = currentUser.role !== 'OPERATOR';
 
+  // Plant-filtered painters
+  const filteredPainters = useMemo(() => {
+    return painters.filter(p => matchesPlant(p.plant, activePlant));
+  }, [painters, activePlant]);
+
   // FPA & IPQC Modals State
   const [showFpaModal, setShowFpaModal] = useState<boolean>(false);
   const [selectedJcForFpa, setSelectedJcForFpa] = useState<JobCard | null>(null);
@@ -60,21 +65,30 @@ export const PainterWorkspaceView: React.FC = () => {
   const [selectedJcForIpqc, setSelectedJcForIpqc] = useState<JobCard | null>(null);
 
   // For individual painter login (OPERATOR role)
-  const loggedInPainter = painters.find(p => 
+  const loggedInPainter = filteredPainters.find(p => 
     p.name.toLowerCase().includes(currentUser.name.toLowerCase()) || 
     currentUser.name.toLowerCase().includes(p.name.toLowerCase())
-  ) || painters[0];
+  ) || filteredPainters[0];
 
   // If manager, allow switching between painters or viewing all
   const [selectedPainterId, setSelectedPainterId] = useState<string>(() => {
     if (!isManager && loggedInPainter) {
       return loggedInPainter.id;
     }
-    return painters[0]?.id || 'ptr_1';
+    return filteredPainters[0]?.id || 'ptr_1';
   });
 
   // Modal state for viewing painter SLA breakdown
   const [selectedPainterForSlaModal, setSelectedPainterForSlaModal] = useState<any | null>(null);
+
+  // When plant switches or filteredPainters changes, update selected painter if needed
+  useEffect(() => {
+    if (filteredPainters.length > 0) {
+      if (!selectedPainterId || !filteredPainters.some(p => p.id === selectedPainterId)) {
+        setSelectedPainterId(filteredPainters[0].id);
+      }
+    }
+  }, [filteredPainters, selectedPainterId]);
 
   // When persona switches from header, auto update selected painter
   useEffect(() => {
@@ -84,7 +98,7 @@ export const PainterWorkspaceView: React.FC = () => {
   }, [currentUser, isManager, loggedInPainter]);
 
   const activeTargetPainter = isManager 
-    ? (painters.find(p => p.id === selectedPainterId) || painters[0])
+    ? (filteredPainters.find(p => p.id === selectedPainterId) || filteredPainters[0])
     : loggedInPainter;
 
   const [activeTab, setActiveTab] = useState<'PENDING' | 'COMPLETED'>('PENDING');
@@ -196,7 +210,7 @@ export const PainterWorkspaceView: React.FC = () => {
                 👤 {currentUser.name} ({currentUser.roleTitle})
               </span>
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold">
-                {painters.length} Spray Booths Active
+                {filteredPainters.length} Spray Technicians Active
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-serif font-normal text-[#17191c] tracking-tight">
@@ -334,7 +348,7 @@ export const PainterWorkspaceView: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {painters.map(p => {
+            {filteredPainters.map(p => {
               const count = getPainterActiveJobCount(p.name);
               const isSelected = p.id === selectedPainterId;
               const stats = getPainterPerformanceStats(p.name);
@@ -417,8 +431,11 @@ export const PainterWorkspaceView: React.FC = () => {
                   </div>
 
                   <div className="pt-2 border-t border-[#ececec]/60 flex items-center justify-between gap-2">
-                    <span className="text-[10.5px] text-[#8a6521] font-semibold">
-                      {isSelected ? '✓ Active in Floor Queue' : 'Click to inspect queue'}
+                    <span className="text-[10.5px] text-[#8a6521] font-semibold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#c09748]" />
+                      <span>{p.plant || 'Haridwar'}</span>
+                      <span className="text-[#979799]">•</span>
+                      <span>{isSelected ? '✓ Active in Floor Queue' : 'Click to inspect queue'}</span>
                     </span>
                     <button
                       type="button"
@@ -434,6 +451,12 @@ export const PainterWorkspaceView: React.FC = () => {
                 </div>
               );
             })}
+            {filteredPainters.length === 0 && (
+              <div className="col-span-full p-8 rounded-[20px] bg-white border border-[#ececec] text-center space-y-2">
+                <p className="text-xs font-semibold text-[#17191c]">Is Plant ({activePlant}) me koi floor painter configured nahi hai.</p>
+                <p className="text-[11px] text-[#777b86]">Naye technicians add karne ke liye Job Cards &gt; Painting Lines & Spray Booth Fleet me jayein.</p>
+              </div>
+            )}
           </div>
         </div>
       )}

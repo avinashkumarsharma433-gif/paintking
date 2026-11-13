@@ -532,6 +532,7 @@ export interface PainterProfile {
   specialization: string; // e.g. "PU Metallic Spray", "Clear Coat & Dipping"
   phone?: string;
   status?: 'Active' | 'On Leave' | 'Inactive';
+  plant: PlantLocation;
   onTimeJobsCount?: number;
   delayedJobsCount?: number;
 }

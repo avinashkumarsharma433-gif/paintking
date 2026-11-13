@@ -76,6 +76,50 @@ export const INITIAL_PAINTING_BOOTHS: PaintingBooth[] = [
     curingTempC: 45,
     plant: 'Haridwar',
     notes: '1440 DPI Multi-Substrate Flatbed LED-UV Instant Curing Station'
+  },
+  {
+    id: 'LINE-VASAI-1',
+    name: 'Booth #1 (Vasai Conveyor PU Line)',
+    type: 'Conveyor Liquid PU',
+    status: 'Active',
+    capacityPerShift: 1000,
+    airPressureBar: 4.0,
+    curingTempC: 65,
+    plant: 'Vasai',
+    notes: 'Vasai High Output Liquid Coating Line'
+  },
+  {
+    id: 'LINE-VASAI-2',
+    name: 'Booth #2 (Vasai Cleanroom Manual Booth)',
+    type: 'Dust-Free Cleanroom 2K',
+    status: 'Active',
+    capacityPerShift: 600,
+    airPressureBar: 3.8,
+    curingTempC: 60,
+    plant: 'Vasai',
+    notes: 'Vasai Cleanroom for Precision Components'
+  },
+  {
+    id: 'LINE-VAPI-1',
+    name: 'Booth #1 (Vapi Industrial Coating Line)',
+    type: 'Conveyor Liquid PU',
+    status: 'Active',
+    capacityPerShift: 1100,
+    airPressureBar: 4.0,
+    curingTempC: 65,
+    plant: 'Vapi',
+    notes: 'Vapi Chemical & Polymer Coating Line'
+  },
+  {
+    id: 'LINE-MUMBAI-1',
+    name: 'Booth #1 (Mumbai R&D Prototype Line)',
+    type: 'Precision R&D Prototype Booth',
+    status: 'Active',
+    capacityPerShift: 400,
+    airPressureBar: 3.5,
+    curingTempC: 55,
+    plant: 'Mumbai',
+    notes: 'Mumbai Head Office Sampling & Prototype Booth'
   }
 ];
 
@@ -89,6 +133,7 @@ export const INITIAL_PAINTERS: PainterProfile[] = [
     shift: 'General Day Shift (08:30 - 18:30)',
     specialization: 'High Gloss Metallic Red & Basecoat',
     status: 'Active',
+    plant: 'Haridwar',
     phone: '+91 98765 43210'
   },
   {
@@ -100,6 +145,7 @@ export const INITIAL_PAINTERS: PainterProfile[] = [
     shift: 'General Day Shift (08:30 - 18:30)',
     specialization: 'Carbon Fiber PVA Film Dipping & Base',
     status: 'Active',
+    plant: 'Haridwar',
     phone: '+91 98765 43211'
   },
   {
@@ -111,6 +157,7 @@ export const INITIAL_PAINTERS: PainterProfile[] = [
     shift: 'General Day Shift (08:30 - 18:30)',
     specialization: 'UV Digital Primer & Anti-Scratch Topcoat',
     status: 'Active',
+    plant: 'Haridwar',
     phone: '+91 98765 43212'
   },
   {
@@ -122,6 +169,7 @@ export const INITIAL_PAINTERS: PainterProfile[] = [
     shift: 'General Day Shift (08:30 - 18:30)',
     specialization: '2K Polyurethane Satin & Matte Jet Black',
     status: 'Active',
+    plant: 'Haridwar',
     phone: '+91 98765 43213'
   },
   {
@@ -133,6 +181,7 @@ export const INITIAL_PAINTERS: PainterProfile[] = [
     shift: 'Day 12H',
     specialization: 'Soft-Touch Velvet Feel & Dual-Tone',
     status: 'Active',
+    plant: 'Haridwar',
     phone: '+91 98765 43214'
   },
   {
@@ -144,7 +193,56 @@ export const INITIAL_PAINTERS: PainterProfile[] = [
     shift: 'Night 12H',
     specialization: 'Automotive Clear Lacquer Topcoat 2K',
     status: 'Active',
+    plant: 'Haridwar',
     phone: '+91 98765 43215'
+  },
+  {
+    id: 'ptr_vasai_1',
+    name: 'Anil Shinde (P1 - Vasai)',
+    code: 'P1',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
+    boothNo: 'Booth #1 (Vasai Conveyor PU Line)',
+    shift: 'General Day Shift (08:30 - 18:30)',
+    specialization: 'High Solids Polyurethane Finishing',
+    status: 'Active',
+    plant: 'Vasai',
+    phone: '+91 98201 11223'
+  },
+  {
+    id: 'ptr_vasai_2',
+    name: 'Ganesh Patil (P2 - Vasai)',
+    code: 'P2',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80',
+    boothNo: 'Booth #2 (Vasai Cleanroom Manual Booth)',
+    shift: 'General Day Shift (08:30 - 18:30)',
+    specialization: 'Automotive Primer & Basecoat Application',
+    status: 'Active',
+    plant: 'Vasai',
+    phone: '+91 98201 11224'
+  },
+  {
+    id: 'ptr_vapi_1',
+    name: 'Nilesh Patel (P1 - Vapi)',
+    code: 'P1',
+    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&q=80',
+    boothNo: 'Booth #1 (Vapi Industrial Coating Line)',
+    shift: 'General Day Shift (08:30 - 18:30)',
+    specialization: 'Industrial Chemical & High Heat Spray',
+    status: 'Active',
+    plant: 'Vapi',
+    phone: '+91 98250 33445'
+  },
+  {
+    id: 'ptr_mumbai_1',
+    name: 'Vikram Sawant (P1 - Mumbai)',
+    code: 'P1',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
+    boothNo: 'Booth #1 (Mumbai R&D Prototype Line)',
+    shift: 'General Day Shift (08:30 - 18:30)',
+    specialization: 'R&D Color Matching & Prototype Formulation',
+    status: 'Active',
+    plant: 'Mumbai',
+    phone: '+91 98210 55667'
   }
 ];
 

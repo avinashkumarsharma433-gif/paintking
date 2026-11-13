@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, UserPlus, Save, User, Sparkles, Phone, Layers, ChevronDown, Check } from 'lucide-react';
-import { PainterProfile, PaintingBooth } from '../types/portalTypes';
+import { X, UserPlus, Save, User, Sparkles, Phone, Layers, ChevronDown, Check, MapPin } from 'lucide-react';
+import { PainterProfile, PaintingBooth, PlantLocation } from '../types/portalTypes';
 
 interface PainterConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
   editingPainter?: PainterProfile | null;
   availableBooths: PaintingBooth[];
+  currentPlant?: PlantLocation | 'ALL';
   onSave: (painterData: Omit<PainterProfile, 'id'>) => void;
   onUpdate?: (id: string, updates: Partial<PainterProfile>) => void;
 }
@@ -16,6 +17,7 @@ export const PainterConfigModal: React.FC<PainterConfigModalProps> = ({
   onClose,
   editingPainter,
   availableBooths,
+  currentPlant = 'Haridwar',
   onSave,
   onUpdate
 }) => {
@@ -24,12 +26,16 @@ export const PainterConfigModal: React.FC<PainterConfigModalProps> = ({
   const [boothNo, setBoothNo] = useState<string>('');
   const [specialization, setSpecialization] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
+  const [plant, setPlant] = useState<PlantLocation>('Haridwar');
 
   // Custom Booth Dropdown state
   const [isBoothDropdownOpen, setIsBoothDropdownOpen] = useState<boolean>(false);
   const boothDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const effectivePlant: PlantLocation = editingPainter?.plant || (currentPlant === 'ALL' ? 'Haridwar' : currentPlant);
+    setPlant(effectivePlant);
+
     if (editingPainter) {
       setName(editingPainter.name);
       setCode(editingPainter.code);
@@ -45,7 +51,7 @@ export const PainterConfigModal: React.FC<PainterConfigModalProps> = ({
       setPhone('');
     }
     setIsBoothDropdownOpen(false);
-  }, [editingPainter, availableBooths, isOpen]);
+  }, [editingPainter, availableBooths, isOpen, currentPlant]);
 
   // Click outside listener for booth dropdown
   useEffect(() => {
@@ -83,6 +89,7 @@ export const PainterConfigModal: React.FC<PainterConfigModalProps> = ({
         boothNo,
         specialization,
         phone: phone.trim(),
+        plant,
         status: 'Active'
       });
     } else {
@@ -93,6 +100,7 @@ export const PainterConfigModal: React.FC<PainterConfigModalProps> = ({
         boothNo,
         specialization,
         phone: phone.trim(),
+        plant,
         status: 'Active'
       });
     }
@@ -133,6 +141,24 @@ export const PainterConfigModal: React.FC<PainterConfigModalProps> = ({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Plant Scope Banner */}
+          <div className="flex items-center justify-between p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec]">
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-[#c09748]" />
+              <span className="text-xs font-semibold text-[#17191c]">Assigned Manufacturing Plant:</span>
+            </div>
+            <select
+              value={plant}
+              onChange={e => setPlant(e.target.value as PlantLocation)}
+              className="h-8 px-3 rounded-full border border-[#dcdfe4] bg-white text-xs font-bold font-mono text-[#8a6521] focus:border-[#c09748] focus:outline-none"
+            >
+              <option value="Haridwar">Haridwar</option>
+              <option value="Vasai">Vasai</option>
+              <option value="Vapi">Vapi</option>
+              <option value="Mumbai">Mumbai</option>
+            </select>
+          </div>
+
           {/* Row 1: Name & Code Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="sm:col-span-3 space-y-1.5">

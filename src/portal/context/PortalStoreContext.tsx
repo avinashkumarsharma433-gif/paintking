@@ -94,6 +94,7 @@ import {
   INITIAL_BALANCE_RETURN_SLIPS
 } from '../data/mockInitialData';
 import { persistRemoteState, fetchAllRemoteState } from '../lib/supabaseClient';
+import { matchesPlant } from '../utils/portalAuth';
 
 
 interface PortalContextType {
@@ -606,8 +607,8 @@ export const PortalProvider: React.FC<{
           if (Array.isArray(remote.pk_material_requisitions)) setMaterialRequisitions(remote.pk_material_requisitions as MaterialRequisitionNote[]);
           if (Array.isArray(remote.pk_iqc_data)) setIqcRecords(remote.pk_iqc_data as IQCInspectionRecord[]);
           if (Array.isArray(remote.pk_jobcards_data)) setJobCards(remote.pk_jobcards_data as JobCard[]);
-          if (Array.isArray(remote.pk_painters)) setPainters(remote.pk_painters as PainterProfile[]);
-          if (Array.isArray(remote.pk_painting_booths)) setPaintingBooths(remote.pk_painting_booths as PaintingBooth[]);
+          if (Array.isArray(remote.pk_painters)) setPainters((remote.pk_painters as PainterProfile[]).map(p => ({ ...p, plant: (p.plant as PlantLocation) || 'Haridwar' })));
+          if (Array.isArray(remote.pk_painting_booths)) setPaintingBooths((remote.pk_painting_booths as PaintingBooth[]).map(b => ({ ...b, plant: (b.plant as PlantLocation) || 'Haridwar' })));
           if (Array.isArray(remote.pk_pir_data)) setPreProductionReports(remote.pk_pir_data as PreProductionInspectionRecord[]);
           if (Array.isArray(remote.pk_fpa_data)) setFpaRecords(remote.pk_fpa_data as FPARecord[]);
           if (Array.isArray(remote.pk_pmx_data)) setPaintMixing(remote.pk_pmx_data as PaintMixingRecord[]);
@@ -1123,11 +1124,19 @@ export const PortalProvider: React.FC<{
   });
 
   const [painters, setPainters] = useState<PainterProfile[]>(() => {
-    return mergeByUniqueKey(localStorage.getItem('pk_painters'), INITIAL_PAINTERS, 'id');
+    const raw = mergeByUniqueKey(localStorage.getItem('pk_painters'), INITIAL_PAINTERS, 'id');
+    return raw.map(p => ({
+      ...p,
+      plant: (p.plant as PlantLocation) || 'Haridwar'
+    }));
   });
 
   const [paintingBooths, setPaintingBooths] = useState<PaintingBooth[]>(() => {
-    return mergeByUniqueKey(localStorage.getItem('pk_painting_booths'), INITIAL_PAINTING_BOOTHS, 'id');
+    const raw = mergeByUniqueKey(localStorage.getItem('pk_painting_booths'), INITIAL_PAINTING_BOOTHS, 'id');
+    return raw.map(b => ({
+      ...b,
+      plant: (b.plant as PlantLocation) || 'Haridwar'
+    }));
   });
 
   useEffect(() => {
@@ -1137,8 +1146,10 @@ export const PortalProvider: React.FC<{
   // Painting Lines & Spray Booth Fleet Handlers
   const addPaintingBooth = (boothData: Omit<PaintingBooth, 'id'>) => {
     const nextId = `LINE-${paintingBooths.length + 1}`;
+    const fallbackPlant: PlantLocation = activePlant === 'ALL' ? 'Haridwar' : activePlant;
     const newBooth: PaintingBooth = {
       ...boothData,
+      plant: boothData.plant || fallbackPlant,
       id: nextId
     };
     setPaintingBooths(prev => [...prev, newBooth]);
@@ -1170,9 +1181,11 @@ export const PortalProvider: React.FC<{
   const addPainter = (painterData: Omit<PainterProfile, 'id'>) => {
     const nextNum = painters.length + 1;
     const nextId = `ptr_${nextNum}_${Date.now()}`;
+    const fallbackPlant: PlantLocation = activePlant === 'ALL' ? 'Haridwar' : activePlant;
     const newPainter: PainterProfile = {
       ...painterData,
       id: nextId,
+      plant: (painterData.plant as PlantLocation) || fallbackPlant,
       avatar: painterData.avatar || `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80`,
       code: painterData.code || `P${nextNum}`,
       status: painterData.status || 'Active',
@@ -2468,12 +2481,14 @@ export const PortalProvider: React.FC<{
   const getPainterActiveJobCount = (painterNameOrId: string): number => {
     if (!painterNameOrId) return 0;
     const cleanTarget = painterNameOrId.trim().toLowerCase();
-    return jobCards.filter(jc => {
-      const assigned = (jc.assignedPainterName || jc.painterName || '').trim().toLowerCase();
-      const isMatchingPainter = assigned.includes(cleanTarget) || cleanTarget.includes(assigned);
-      const isJobActive = jc.status !== 'Completed' && jc.status !== 'Closed' && jc.painterJobStatus !== 'Verified & Accepted';
-      return isMatchingPainter && isJobActive;
-    }).length;
+    return jobCards
+      .filter(jc => matchesPlant(jc.plant, activePlant))
+      .filter(jc => {
+        const assigned = (jc.assignedPainterName || jc.painterName || '').trim().toLowerCase();
+        const isMatchingPainter = assigned.includes(cleanTarget) || cleanTarget.includes(assigned);
+        const isJobActive = jc.status !== 'Completed' && jc.status !== 'Closed' && jc.painterJobStatus !== 'Verified & Accepted';
+        return isMatchingPainter && isJobActive;
+      }).length;
   };
 
   const canAssignPainter = (painterNameOrId: string): boolean => {
@@ -2633,7 +2648,9 @@ export const PortalProvider: React.FC<{
     }));
   };
 
-  const pendingVerificationJobsCount = jobCards.filter(j => j.painterJobStatus === 'Painter Finished (Pending Review)').length;
+  const pendingVerificationJobsCount = jobCards
+    .filter(j => matchesPlant(j.plant, activePlant))
+    .filter(j => j.painterJobStatus === 'Painter Finished (Pending Review)').length;
 
   // Single General Day Shift Day-End (EOD) Plant Shutdown
   const executeDayEndClosure = (notes?: string) => {

@@ -267,6 +267,15 @@ export const JobCardsView: React.FC = () => {
     requestNextDayTarget
   } = usePortalStore();
 
+  // Plant-filtered painters and booths
+  const filteredPainters = useMemo(() => {
+    return painters.filter(p => matchesPlant(p.plant, activePlant));
+  }, [painters, activePlant]);
+
+  const filteredBooths = useMemo(() => {
+    return paintingBooths.filter(b => matchesPlant(b.plant, activePlant));
+  }, [paintingBooths, activePlant]);
+
   // Multi-Day Shift Quota Modal State
   const [showNextQuotaModal, setShowNextQuotaModal] = useState<boolean>(false);
   const [selectedJcForQuota, setSelectedJcForQuota] = useState<JobCard | null>(null);
@@ -981,8 +990,8 @@ export const JobCardsView: React.FC = () => {
 
   // Delete confirmation handlers for Booths and Painters
   const handleDeleteBooth = (id: string, name: string) => {
-    if (paintingBooths.length <= 1) {
-      alert("At least one painting booth must remain configured in the fleet.");
+    if (filteredBooths.length <= 1) {
+      alert("At least one painting booth must remain configured in this plant's fleet.");
       return;
     }
     if (window.confirm(`Are you sure you want to remove "${name}" from the booth fleet?`)) {
@@ -993,11 +1002,11 @@ export const JobCardsView: React.FC = () => {
   };
 
   const handleDeletePainter = (id: string, name: string) => {
-    if (painters.length <= 1) {
-      alert("At least one painter must remain configured in the fleet.");
+    if (filteredPainters.length <= 1) {
+      alert("At least one painter must remain configured in this plant's fleet.");
       return;
     }
-    const targetPainter = painters.find(p => p.id === id);
+    const targetPainter = filteredPainters.find(p => p.id === id);
     if (targetPainter) {
       const pName = targetPainter.name.toLowerCase().trim();
       const pCode = targetPainter.code?.toLowerCase().trim();
@@ -1517,7 +1526,8 @@ export const JobCardsView: React.FC = () => {
             setEditingPainter(null);
           }}
           editingPainter={editingPainter}
-          availableBooths={paintingBooths}
+          availableBooths={filteredBooths}
+          currentPlant={activePlant}
           onSave={(data) => {
             addPainter(data);
             setToastMessage(`✓ Added painter ${data.name} to technician fleet!`);
@@ -1698,7 +1708,7 @@ export const JobCardsView: React.FC = () => {
           }`}
         >
           <Settings className="w-3.5 h-3.5 text-[#c09748]" />
-          <span>Painting Lines & Spray Booth Fleet ({paintingBooths.length})</span>
+          <span>Painting Lines & Spray Booth Fleet ({filteredBooths.length})</span>
         </button>
       </div>
 
@@ -1721,7 +1731,10 @@ export const JobCardsView: React.FC = () => {
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
-            {jobCards.filter(j => j.painterJobStatus === 'Pending Verification' || j.status === 'Pending Verification').map(jc => (
+            {jobCards
+              .filter(j => matchesPlant(j.plant, activePlant))
+              .filter(j => j.painterJobStatus === 'Pending Verification' || j.status === 'Pending Verification')
+              .map(jc => (
               <div
                 key={jc.jobCardNo}
                 className="p-3.5 rounded-[18px] bg-white border border-amber-200 shadow-xs flex flex-col justify-between gap-3"
@@ -2419,7 +2432,7 @@ export const JobCardsView: React.FC = () => {
                     Operational Painting Lines & Spray Booth Fleet
                   </h3>
                   <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold">
-                    {paintingBooths.filter(b => b.status === 'Active').length}/{paintingBooths.length} Active Lines
+                    {filteredBooths.filter(b => b.status === 'Active').length}/{filteredBooths.length} Active Lines
                   </span>
                 </div>
                 <p className="text-xs text-[#777b86] mt-1">
@@ -2442,7 +2455,7 @@ export const JobCardsView: React.FC = () => {
 
             {/* Comprehensive Fleet Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {paintingBooths.map(booth => {
+              {filteredBooths.map(booth => {
                 const isActive = booth.status === 'Active';
                 const isMaintenance = booth.status === 'Under Maintenance';
                 return (
@@ -2568,7 +2581,7 @@ export const JobCardsView: React.FC = () => {
                     Floor Painters & Coating Technicians Fleet
                   </h3>
                   <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono font-bold">
-                    {painters.length} Certified Painters
+                    {filteredPainters.length} Certified Painters
                   </span>
                 </div>
                 <p className="text-xs text-[#777b86] mt-1">
@@ -2591,7 +2604,7 @@ export const JobCardsView: React.FC = () => {
 
             {/* Painters Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {painters.map(painter => {
+              {filteredPainters.map(painter => {
                 const activeJobsCount = getPainterActiveJobCount(painter.name);
                 const isCapped = !canAssignPainter(painter.name);
                 const stats = getPainterPerformanceStats(painter.id);
@@ -4274,7 +4287,8 @@ export const JobCardsView: React.FC = () => {
           setEditingPainter(null);
         }}
         editingPainter={editingPainter}
-        availableBooths={paintingBooths}
+        availableBooths={filteredBooths}
+        currentPlant={activePlant}
         onSave={(data) => {
           addPainter(data);
           setToastMessage(`✓ Added painter ${data.name} to technician fleet!`);
@@ -4334,7 +4348,7 @@ export const JobCardsView: React.FC = () => {
                   Select Target Floor Painter (Showing Live Workload):
                 </label>
                 <div className="space-y-2">
-                  {painters.map(painter => {
+                  {filteredPainters.map(painter => {
                     const activeCount = getPainterActiveJobCount(painter.name);
                     const isAvailable = canAssignPainter(painter.name);
                     const isSelected = selectedPainterToAssign === painter.name;

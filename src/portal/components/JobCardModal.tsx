@@ -48,6 +48,7 @@ import { PaintkingDatePicker } from './PaintkingDatePicker';
 import { PaintkingDateTimePicker } from './PaintkingDateTimePicker';
 import { CustomCombobox, ComboboxOption } from './CustomCombobox';
 import { TypeableDropdown } from './TypeableDropdown';
+import { matchesPlant } from '../utils/portalAuth';
 import { 
   downloadStandardJobCardPdf,
   downloadStandardPreProductionPdf,
@@ -536,9 +537,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     return historicalColors.filter(c => c.toLowerCase().includes(q));
   }, [batchColor, historicalColors]);
 
-  // Dynamic Booth Options mapped strictly from Central Booth Fleet
+  // Dynamic Booth Options mapped strictly from Central Booth Fleet (filtered by plant)
   const boothOptions = useMemo<ComboboxOption[]>(() => {
-    const list: ComboboxOption[] = paintingBooths.map(b => {
+    const targetPlant = activePlant !== 'ALL' ? activePlant : (initialData?.plant || 'Haridwar');
+    const availableBooths = paintingBooths.filter(b => matchesPlant(b.plant, targetPlant));
+    const list: ComboboxOption[] = availableBooths.map(b => {
       const isMaintenance = b.status === 'Under Maintenance';
       const isChangeover = b.status === 'Changeover';
       return {
@@ -565,11 +568,13 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     }
 
     return list;
-  }, [paintingBooths, dept]);
+  }, [paintingBooths, dept, activePlant, initialData]);
 
-  // Dynamic Painter Options mapped strictly from Central Painters Fleet
+  // Dynamic Painter Options mapped strictly from Central Painters Fleet (filtered by plant)
   const painterOptions = useMemo<ComboboxOption[]>(() => {
-    const list: ComboboxOption[] = painters.map(p => {
+    const targetPlant = activePlant !== 'ALL' ? activePlant : (initialData?.plant || 'Haridwar');
+    const availablePainters = painters.filter(p => matchesPlant(p.plant, targetPlant));
+    const list: ComboboxOption[] = availablePainters.map(p => {
       const count = getPainterActiveJobCount ? getPainterActiveJobCount(p.name) : 0;
       const isCap = count >= 2;
       return {
@@ -599,7 +604,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     }
 
     return list;
-  }, [painters, getPainterActiveJobCount, painterName]);
+  }, [painters, getPainterActiveJobCount, painterName, activePlant, initialData]);
 
   // Available Store GRN lots (Customer accepted lots)
   const availableGrnLots = useMemo(() => {

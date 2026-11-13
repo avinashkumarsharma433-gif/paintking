@@ -1,5 +1,23 @@
 # WORKING SET
 
+- 2026-11-13: Fixed Painter & Booth Fleet Strict Plant Data Isolation (Floor Desk & Fleet Management)
+  - Files touched:
+    - `src/portal/types/portalTypes.ts`: Added `plant: PlantLocation` to `PainterProfile`.
+    - `src/portal/data/mockInitialData.ts`: Assigned specific plants to `INITIAL_PAINTERS` and added initial technicians and booths for Haridwar, Vasai, Vapi, and Mumbai.
+    - `src/portal/context/PortalStoreContext.tsx`: Initialized painters/booths with plant defaults, updated `addPainter`/`addPaintingBooth` to stamp active plant, and plant-isolated `pendingVerificationJobsCount` and `getPainterActiveJobCount`.
+    - `src/portal/components/PainterConfigModal.tsx`: Added plant scope assignment and passed `currentPlant` on add/update.
+    - `src/portal/views/PainterWorkspaceView.tsx`: Filtered Painter Floor Desk by `matchesPlant(p.plant, activePlant)`, updated active target selection on plant switch, and displayed plant badges.
+    - `src/portal/components/JobCardModal.tsx`: Filtered painter & booth combobox options by the job card's plant.
+  - Status: Verified with `npm run build` (production build succeeded in 8.12s with 0 errors).
+
+- 2026-11-13: Integrated Google Elephant-Goldfish Model (EGM) Spec-Driven Framework
+  - Files touched:
+    - Installed official marketplace plugin `antigravity-plugins-official/plugin/egm`.
+    - `docs/specs/template_rfc.md`: Created standard RFC template with PaintKing design tokens and Goldfish checklist.
+    - `docs/specs/README.md`: Created registry guide for specifications and review lifecycle.
+    - `AGENTS.md`: Added Section 9 defining Elephant vs Goldfish roles, review triage, and hand-off rules.
+  - Status: Verified plugin activation and build check.
+
 - 2026-11-13: Completely Deleted "Stage Custody Handover" Module & References Across Project
   - Files touched:
     - Deleted `src/portal/views/CustodyHandoverView.tsx`.
