@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-13: Fixed Supabase Permission Denied by Granting Table Permissions to Authenticated Roles
+  - Files touched:
+    - `supabase_schema.sql`: Added explicit schema, table, sequence, and routine grants for `anon`, `authenticated`, and `service_role` with default privileges.
+  - Status: Committed `06ac276` and pushed to `origin/main`.
+
 - 2026-11-12: Implemented Supabase Authentication, `SUPER_ADMIN` Root Role, Plant Assignment & Module-Level Permissions
   - Files touched:
     - `supabase_schema.sql`: Added `pk_portal_users` table (`role`, `plant`, `allowed_modules`, `is_active`), `is_active_portal_user()` / `is_super_admin()` helper functions, and tightened RLS across all 6 ERP tables to `TO authenticated` active users only.
