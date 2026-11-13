@@ -19,6 +19,16 @@ CREATE TABLE IF NOT EXISTS public.pk_portal_users (
 
 ALTER TABLE public.pk_portal_users ENABLE ROW LEVEL SECURITY;
 
+-- Explicit PostgreSQL Grants (Ensures API roles have access under RLS)
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO anon, authenticated, service_role;
+
 -- Security helper functions (SECURITY DEFINER avoids recursive RLS evaluation)
 CREATE OR REPLACE FUNCTION public.is_active_portal_user()
 RETURNS BOOLEAN
@@ -236,6 +246,14 @@ CREATE POLICY "Authenticated active users access pk_attendance_logs" ON public.p
   TO authenticated
   USING (public.is_active_portal_user())
   WITH CHECK (public.is_active_portal_user());
+
+-- =====================================================================
+-- FINAL GRANTS & DEFAULT PERMISSIONS
+-- =====================================================================
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
 
 -- =====================================================================
 -- BOOTSTRAP FIRST SUPER ADMIN (Run AFTER creating admin@paintking.in in Supabase Auth)
