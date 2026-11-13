@@ -52,6 +52,7 @@ import { OQCModal } from '../components/OQCModal';
 import { PDIModal } from '../components/PDIModal';
 import { composeIqcEmailDraft, EmailDispatchPayload } from '../utils/emailDispatchEngine';
 import { CalibrationView } from './CalibrationView';
+import { matchesPlant } from '../utils/portalAuth';
 
 export const QAView: React.FC = () => {
   const { 
@@ -113,8 +114,8 @@ export const QAView: React.FC = () => {
   const [pdiViewTab, setPdiViewTab] = useState<'PENDING' | 'COMPLETED'>('PENDING');
   const [pdiSearchQuery, setPdiSearchQuery] = useState<string>('');
 
-  const pendingInwards = materialInwardLogs.filter(inw => !inw.iqcStatus || inw.iqcStatus === 'Pending');
-  const completedInwards = materialInwardLogs.filter(inw => inw.iqcStatus && inw.iqcStatus !== 'Pending');
+  const pendingInwards = materialInwardLogs.filter(inw => matchesPlant(inw.plant, activePlant) && (!inw.iqcStatus || inw.iqcStatus === 'Pending'));
+  const completedInwards = materialInwardLogs.filter(inw => matchesPlant(inw.plant, activePlant) && (inw.iqcStatus && inw.iqcStatus !== 'Pending'));
 
   const filteredPendingInwards = pendingInwards.filter(inw => {
     if (!iqcSearchQuery.trim()) return true;
@@ -128,16 +129,18 @@ export const QAView: React.FC = () => {
     );
   });
 
-  const filteredIqcRecords = iqcRecords.filter(rec => {
-    if (!iqcSearchQuery.trim()) return true;
-    const q = iqcSearchQuery.toLowerCase();
-    return (
-      rec.reportNo?.toLowerCase().includes(q) ||
-      (rec.vendorCustomer || rec.supplierCustomer || '').toLowerCase().includes(q) ||
-      rec.invoiceChallanNo?.toLowerCase().includes(q) ||
-      (rec.partComponent || rec.partCode || '').toLowerCase().includes(q) ||
-      (rec.partDescription || '').toLowerCase().includes(q) ||
-      (rec.batchNo || '').toLowerCase().includes(q)
+  const filteredIqcRecords = iqcRecords
+    .filter(rec => matchesPlant(rec.plant, activePlant))
+    .filter(rec => {
+      if (!iqcSearchQuery.trim()) return true;
+      const q = iqcSearchQuery.toLowerCase();
+      return (
+        rec.reportNo?.toLowerCase().includes(q) ||
+        (rec.vendorCustomer || rec.supplierCustomer || '').toLowerCase().includes(q) ||
+        rec.invoiceChallanNo?.toLowerCase().includes(q) ||
+        (rec.partComponent || rec.partCode || '').toLowerCase().includes(q) ||
+        (rec.partDescription || '').toLowerCase().includes(q) ||
+        (rec.batchNo || '').toLowerCase().includes(q)
     );
   });
 
@@ -177,15 +180,17 @@ export const QAView: React.FC = () => {
 
   const pendingPirJobs = React.useMemo(() => {
     return jobCards.filter(j => {
+      if (!matchesPlant(j.plant, activePlant)) return false;
       const isClosed = j.status === 'Completed' || j.status === 'Closed' || j.status === 'Target Met';
       if (isClosed) return false;
       return !preProductionReports.some(p => p.jobCardNo === j.jobCardNo && p.overallResult === 'Passed');
     });
-  }, [jobCards, preProductionReports]);
+  }, [jobCards, preProductionReports, activePlant]);
   const pirPendingCount = pendingPirJobs.length;
 
   const pendingFpaJobs = React.useMemo(() => {
     return jobCards.filter(j => {
+      if (!matchesPlant(j.plant, activePlant)) return false;
       const isClosed = j.status === 'Completed' || j.status === 'Closed' || j.status === 'Target Met';
       if (isClosed) return false;
       const alreadyApproved = fpaRecords.some(f => f.jobCardNo === j.jobCardNo && f.overallResult === 'Approved');
@@ -202,34 +207,36 @@ export const QAView: React.FC = () => {
 
       return isMaterialIssued;
     });
-  }, [jobCards, fpaRecords, materialRequisitions]);
+  }, [jobCards, fpaRecords, materialRequisitions, activePlant]);
   const fpaPendingCount = pendingFpaJobs.length;
 
   // Gate 3: Active floor line audits (Strictly Open/In-Process Job Cards)
   const activeIpqcJobs = React.useMemo(() => {
     return jobCards.filter(j => {
+      if (!matchesPlant(j.plant, activePlant)) return false;
       const isClosed = j.status === 'Completed' || j.status === 'Closed' || j.status === 'Target Met';
       return !isClosed;
     });
-  }, [jobCards]);
+  }, [jobCards, activePlant]);
 
   const pendingOqcJobs = React.useMemo(() => {
     return jobCards.filter(j => {
+      if (!matchesPlant(j.plant, activePlant)) return false;
       const hasGoodOutput = (j.goodQty || 0) > 0;
       const isAlreadyOqc = qualityReleases.some(r => (r.woNo === j.jobCardNo || r.woNo === j.woNo || r.releaseId.includes(j.jobCardNo)) && r.oqcStatus === 'Accepted');
       return hasGoodOutput && !isAlreadyOqc;
     });
-  }, [jobCards, qualityReleases]);
+  }, [jobCards, qualityReleases, activePlant]);
   const oqcPendingCount = pendingOqcJobs.length;
 
   const pendingPdiReleases = React.useMemo(() => {
-    return qualityReleases.filter(r => r.oqcStatus === 'Accepted' && r.pdiStatus !== 'Cleared for Invoicing');
-  }, [qualityReleases]);
+    return qualityReleases.filter(r => matchesPlant(r.plant, activePlant) && r.oqcStatus === 'Accepted' && r.pdiStatus !== 'Cleared for Invoicing');
+  }, [qualityReleases, activePlant]);
   const pdiPendingCount = pendingPdiReleases.length;
 
   const clearedPdiReleases = React.useMemo(() => {
-    return qualityReleases.filter(r => r.pdiStatus === 'Cleared for Invoicing');
-  }, [qualityReleases]);
+    return qualityReleases.filter(r => matchesPlant(r.plant, activePlant) && r.pdiStatus === 'Cleared for Invoicing');
+  }, [qualityReleases, activePlant]);
 
   const filteredPendingPirJobs = pendingPirJobs.filter(j => {
     if (!pirSearchQuery.trim()) return true;
@@ -243,17 +250,19 @@ export const QAView: React.FC = () => {
     );
   });
 
-  const filteredPirReports = preProductionReports.filter(r => {
-    if (!pirSearchQuery.trim()) return true;
-    const q = pirSearchQuery.toLowerCase();
-    return (
-      r.reportNo.toLowerCase().includes(q) ||
-      (r.customer || '').toLowerCase().includes(q) ||
-      (r.partCode || '').toLowerCase().includes(q) ||
-      (r.jobCardNo || '').toLowerCase().includes(q) ||
-      (r.substrateMaterial || '').toLowerCase().includes(q)
-    );
-  });
+  const filteredPirReports = preProductionReports
+    .filter(r => matchesPlant(r.plant, activePlant))
+    .filter(r => {
+      if (!pirSearchQuery.trim()) return true;
+      const q = pirSearchQuery.toLowerCase();
+      return (
+        r.reportNo.toLowerCase().includes(q) ||
+        (r.customer || '').toLowerCase().includes(q) ||
+        (r.partCode || '').toLowerCase().includes(q) ||
+        (r.jobCardNo || '').toLowerCase().includes(q) ||
+        (r.substrateMaterial || '').toLowerCase().includes(q)
+      );
+    });
 
   const filteredPendingFpaJobs = pendingFpaJobs.filter(j => {
     if (!fpaSearchQuery.trim()) return true;
@@ -267,18 +276,20 @@ export const QAView: React.FC = () => {
     );
   });
 
-  const filteredFpaRecords = fpaRecords.filter(r => {
-    if (!fpaSearchQuery.trim()) return true;
-    const q = fpaSearchQuery.toLowerCase();
-    return (
-      r.reportNo.toLowerCase().includes(q) ||
-      (r.customer || '').toLowerCase().includes(q) ||
-      (r.partCode || '').toLowerCase().includes(q) ||
-      (r.jobCardNo || '').toLowerCase().includes(q) ||
-      (r.color || '').toLowerCase().includes(q) ||
-      (r.painter || '').toLowerCase().includes(q)
-    );
-  });
+  const filteredFpaRecords = fpaRecords
+    .filter(r => matchesPlant(r.plant, activePlant))
+    .filter(r => {
+      if (!fpaSearchQuery.trim()) return true;
+      const q = fpaSearchQuery.toLowerCase();
+      return (
+        r.reportNo.toLowerCase().includes(q) ||
+        (r.customer || '').toLowerCase().includes(q) ||
+        (r.partCode || '').toLowerCase().includes(q) ||
+        (r.jobCardNo || '').toLowerCase().includes(q) ||
+        (r.color || '').toLowerCase().includes(q) ||
+        (r.painter || '').toLowerCase().includes(q)
+      );
+    });
 
   const filteredActiveIpqcJobs = activeIpqcJobs.filter(j => {
     if (!ipqcSearchQuery.trim()) return true;
@@ -308,7 +319,9 @@ export const QAView: React.FC = () => {
     }>();
 
     // First populate from existing IPQC records
-    ipqcRecords.forEach(rec => {
+    ipqcRecords
+      .filter(rec => matchesPlant(rec.plant, activePlant))
+      .forEach(rec => {
       const jcKey = rec.jobCardNo || rec.woNo || rec.reportNo;
       if (!map.has(jcKey)) {
         map.set(jcKey, {
@@ -348,17 +361,19 @@ export const QAView: React.FC = () => {
     );
   });
 
-  const filteredIpqcRecords = ipqcRecords.filter(r => {
-    if (!ipqcSearchQuery.trim()) return true;
-    const q = ipqcSearchQuery.toLowerCase();
-    return (
-      r.reportNo.toLowerCase().includes(q) ||
-      (r.customer || '').toLowerCase().includes(q) ||
-      (r.partCode || r.partDescription || '').toLowerCase().includes(q) ||
-      (r.color || '').toLowerCase().includes(q) ||
-      (r.painter || '').toLowerCase().includes(q)
-    );
-  });
+  const filteredIpqcRecords = ipqcRecords
+    .filter(r => matchesPlant(r.plant, activePlant))
+    .filter(r => {
+      if (!ipqcSearchQuery.trim()) return true;
+      const q = ipqcSearchQuery.toLowerCase();
+      return (
+        r.reportNo.toLowerCase().includes(q) ||
+        (r.customer || '').toLowerCase().includes(q) ||
+        (r.partCode || r.partDescription || '').toLowerCase().includes(q) ||
+        (r.color || '').toLowerCase().includes(q) ||
+        (r.painter || '').toLowerCase().includes(q)
+      );
+    });
 
   const filteredPendingOqcJobs = pendingOqcJobs.filter(j => {
     if (!oqcSearchQuery.trim()) return true;
@@ -371,7 +386,9 @@ export const QAView: React.FC = () => {
     );
   });
 
-  const filteredQualityReleases = qualityReleases.filter(r => {
+  const filteredQualityReleases = qualityReleases
+    .filter(r => matchesPlant(r.plant, activePlant))
+    .filter(r => {
     if (!oqcSearchQuery.trim()) return true;
     const q = oqcSearchQuery.toLowerCase();
     return (

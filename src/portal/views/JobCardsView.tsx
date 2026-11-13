@@ -56,6 +56,7 @@ import { PainterConfigModal } from '../components/PainterConfigModal';
 import { PainterDetailProfileView } from './PainterDetailProfileView';
 import { downloadStandardPreProductionPdf, downloadStandardFPAPdf, downloadStandardIPQCPdf, downloadStandardJobCardPdf, downloadStandardProductionOfferingPdf } from '../utils/pdfStandardHeader';
 import { BalanceReturnModal } from '../components/BalanceReturnModal';
+import { matchesPlant } from '../utils/portalAuth';
 
 interface FilterOption {
   value: string;
@@ -233,7 +234,8 @@ export const JobCardsView: React.FC = () => {
     ipqcRecords,
     updateJobCardSprayed, 
     defects, 
-    activePlant, 
+    activePlant,
+    canSwitchPlant,
     canStartBulkProduction,
     splitJobCardToPainters,
     routeToRework,
@@ -1025,6 +1027,7 @@ export const JobCardsView: React.FC = () => {
   // Live calculation of Store Stock available for Production Manager to inspect
   const storeStockList = useMemo(() => {
     return grnList
+      .filter(grn => matchesPlant(grn.plant, activePlant))
       .filter(grn => (grn.iqcStatus === 'Accepted' || grn.iqcStatus === 'Passed' || (!grn.iqcStatus && grn.grnNo)) && grn.iqcStatus !== 'Pending' && grn.iqcStatus !== 'Rejected')
       .map(grn => {
         const customer = grn.supplierCustomer;
@@ -1242,7 +1245,9 @@ export const JobCardsView: React.FC = () => {
     let pirPendingCount = 0;
     let fpaPendingCount = 0;
 
-    jobCards.forEach(jc => {
+    const plantCards = jobCards.filter(jc => matchesPlant(jc.plant, activePlant));
+
+    plantCards.forEach(jc => {
       const s = (jc.status || '').toLowerCase().trim();
       const isClosed = 
         s === 'completed' || 
@@ -1270,7 +1275,7 @@ export const JobCardsView: React.FC = () => {
       pirPending: pirPendingCount,
       fpaPending: fpaPendingCount
     };
-  }, [jobCards, activeTab, preProductionReports, fpaRecords]);
+  }, [jobCards, activeTab, preProductionReports, fpaRecords, activePlant]);
 
   // Luxury Dropdown Options Maps
   const painterDropdownOptions: FilterOption[] = useMemo(() => [
@@ -1327,6 +1332,9 @@ export const JobCardsView: React.FC = () => {
   const filteredPriorityOrders = useMemo(() => {
     return plantHeadPriorities
       .filter(prio => {
+        if (!matchesPlant(prio.plant, activePlant)) {
+          return false;
+        }
         if (priorityLevelFilter !== 'ALL' && prio.priorityLevel !== priorityLevelFilter) {
           return false;
         }
@@ -1349,15 +1357,16 @@ export const JobCardsView: React.FC = () => {
         const weight: Record<string, number> = { P1_URGENT: 1, P2_HIGH: 2, P3_NORMAL: 3, HOLD: 4 };
         return (weight[a.priorityLevel] || 9) - (weight[b.priorityLevel] || 9);
       });
-  }, [plantHeadPriorities, priorityLevelFilter, priorityStatusFilter, prioritySearchQuery]);
+  }, [plantHeadPriorities, priorityLevelFilter, priorityStatusFilter, prioritySearchQuery, activePlant]);
 
   // Material Requisitions (MRN) Status Options & Filtered List
   const mrnStatusDropdownOptions: FilterOption[] = useMemo(() => {
-    const total = materialRequisitions.length;
-    const pending = materialRequisitions.filter(r => r.status === 'Pending Store Issue').length;
-    const dispatched = materialRequisitions.filter(r => r.status === 'Dispatched by Store').length;
-    const received = materialRequisitions.filter(r => r.status === 'Received by Production').length;
-    const discrepant = materialRequisitions.filter(r => r.status === 'Discrepancy Flagged').length;
+    const plantReqs = materialRequisitions.filter(r => matchesPlant(r.plant, activePlant));
+    const total = plantReqs.length;
+    const pending = plantReqs.filter(r => r.status === 'Pending Store Issue').length;
+    const dispatched = plantReqs.filter(r => r.status === 'Dispatched by Store').length;
+    const received = plantReqs.filter(r => r.status === 'Received by Production').length;
+    const discrepant = plantReqs.filter(r => r.status === 'Discrepancy Flagged').length;
 
     return [
       { value: 'ALL', label: 'All Statuses', badge: total },
@@ -1366,10 +1375,13 @@ export const JobCardsView: React.FC = () => {
       { value: 'Received by Production', label: 'Received by Production', badge: received },
       { value: 'Discrepancy Flagged', label: 'Discrepancy Flagged', badge: discrepant },
     ];
-  }, [materialRequisitions]);
+  }, [materialRequisitions, activePlant]);
 
   const filteredMaterialRequisitions = useMemo(() => {
     return materialRequisitions.filter(req => {
+      if (!matchesPlant(req.plant, activePlant)) {
+        return false;
+      }
       if (mrnStatusFilter !== 'ALL' && req.status !== mrnStatusFilter) {
         return false;
       }
@@ -1384,7 +1396,7 @@ export const JobCardsView: React.FC = () => {
       }
       return true;
     });
-  }, [materialRequisitions, mrnStatusFilter, mrnSearchQuery]);
+  }, [materialRequisitions, mrnStatusFilter, mrnSearchQuery, activePlant]);
 
   const statusDropdownOptions: FilterOption[] = useMemo(() => [
     { value: 'ALL', label: 'All Statuses', badge: filterStats.total },
@@ -1407,6 +1419,9 @@ export const JobCardsView: React.FC = () => {
 
   // Filter Cards based on active tab, search query, painter, customer, and status
   const filteredCards = jobCards.filter(jc => {
+    // 0. Strict Plant Isolation Guard
+    if (!matchesPlant(jc.plant, activePlant)) return false;
+
     // 1. Painter Filter
     if (painterFilter !== 'ALL') {
       const raw = (jc.assignedPainterName || jc.painterName || '').toLowerCase().trim();
@@ -1601,7 +1616,7 @@ export const JobCardsView: React.FC = () => {
 
       {/* Plant Head Priority Master Banner */}
       {(() => {
-        const pendingPriorities = plantHeadPriorities.filter(p => p.status === 'Priority Assigned');
+        const pendingPriorities = plantHeadPriorities.filter(p => matchesPlant(p.plant, activePlant) && p.status === 'Priority Assigned');
         const p1Orders = pendingPriorities.filter(p => p.priorityLevel === 'P1_URGENT');
         if (pendingPriorities.length === 0) return null;
 

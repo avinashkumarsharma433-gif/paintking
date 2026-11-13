@@ -29,12 +29,14 @@ import {
 import { FPAModal } from '../components/FPAModal';
 import { IPQCModal } from '../components/IPQCModal';
 import { downloadStandardFPAPdf, downloadStandardIPQCPdf } from '../utils/pdfStandardHeader';
+import { matchesPlant } from '../utils/portalAuth';
 
 export const PainterWorkspaceView: React.FC = () => {
   const { 
     jobCards, 
     painters, 
     currentUser,
+    activePlant,
     activeSubTab,
     setActiveSubTab,
     startPainterJob, 
@@ -104,6 +106,7 @@ export const PainterWorkspaceView: React.FC = () => {
 
   // Filter jobs strictly assigned to the target painter
   const activePainterJobs = jobCards.filter(jc => {
+    if (!matchesPlant(jc.plant, activePlant)) return false;
     const assigned = (jc.assignedPainterName || jc.painterName || '').trim().toLowerCase();
     const targetName = (activeTargetPainter?.name || '').trim().toLowerCase();
     const isMatching = assigned.includes(targetName) || targetName.includes(assigned);
@@ -112,6 +115,7 @@ export const PainterWorkspaceView: React.FC = () => {
   });
 
   const completedPainterJobs = jobCards.filter(jc => {
+    if (!matchesPlant(jc.plant, activePlant)) return false;
     const assigned = (jc.assignedPainterName || jc.painterName || '').trim().toLowerCase();
     const targetName = (activeTargetPainter?.name || '').trim().toLowerCase();
     const isMatching = assigned.includes(targetName) || targetName.includes(assigned);

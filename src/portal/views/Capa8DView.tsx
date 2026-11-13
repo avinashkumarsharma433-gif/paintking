@@ -21,6 +21,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { matchesPlant } from '../utils/portalAuth';
 
 export const Capa8DView: React.FC = () => {
   const { 
@@ -32,6 +33,8 @@ export const Capa8DView: React.FC = () => {
     currentUser, 
     activePlant 
   } = usePortalStore();
+
+  const plantFourMChanges = fourMChanges.filter(c => matchesPlant(c.plant, activePlant));
 
   const [activeTab, setActiveTab] = useState<'8D_CAPA' | '4M_CHANGE'>('8D_CAPA');
   const [selectedCapaId, setSelectedCapaId] = useState<string>(capa8DList[0]?.id || 'CAPA-8D-2026-001');
@@ -90,7 +93,7 @@ export const Capa8DView: React.FC = () => {
                   : 'text-white hover:bg-white/10'
               }`}
             >
-              4M Change Register ({fourMChanges.length})
+              4M Change Register ({plantFourMChanges.length})
             </button>
           </div>
         </div>
@@ -513,7 +516,7 @@ export const Capa8DView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {fourMChanges.map((ch) => (
+                {plantFourMChanges.map((ch) => (
                   <tr key={ch.id} className="hover:bg-slate-50">
                     <td className="py-2.5 px-3 font-mono font-bold text-xs sm:text-[13px] text-slate-900 whitespace-nowrap">{ch.id}</td>
                     <td className="py-2.5 px-3 text-slate-600 text-[11px] whitespace-nowrap">{ch.date}</td>
@@ -589,7 +592,7 @@ export const Capa8DView: React.FC = () => {
                     trialFpaReportNo: (form.elements.namedItem('fpaNo') as HTMLInputElement).value || 'PK-FPA-2026-043',
                     customerIntimationRequired: (form.elements.namedItem('custRequired') as HTMLInputElement).checked,
                     customerApprovalReceived: true,
-                    plant: activePlant,
+                    plant: activePlant === 'ALL' ? 'Haridwar' : activePlant,
                     proposedBy: currentUser.name,
                     approvedByQA: 'Rajesh Nair (Head QA)',
                     status: 'Approved'

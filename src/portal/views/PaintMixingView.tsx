@@ -1,8 +1,11 @@
 import React from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
+import { matchesPlant } from '../utils/portalAuth';
 
 export const PaintMixingView: React.FC = () => {
   const { paintMixing, activePlant } = usePortalStore();
+
+  const plantMixing = paintMixing.filter(pm => matchesPlant(pm.plant, activePlant));
 
   return (
     <div className="space-y-6">
@@ -30,7 +33,7 @@ export const PaintMixingView: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {paintMixing.map(pm => (
+        {plantMixing.map(pm => (
           <div key={pm.mixNo} className="bg-white rounded-[24px] border border-[#ececec] p-6 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#f2f2f3] gap-2">
               <div>

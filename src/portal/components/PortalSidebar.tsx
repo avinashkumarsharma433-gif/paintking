@@ -13,7 +13,9 @@ import {
   Users,
   Wrench,
   ChevronRight,
-  Paintbrush
+  Paintbrush,
+  Building2,
+  Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -71,7 +73,9 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
     openOverrunCount, 
     pendingVerificationJobsCount,
     balanceReturnSlips,
-    activePlant, 
+    activePlant,
+    setActivePlant,
+    canSwitchPlant,
     isPlantDayClosed,
     activeSubTab,
     setActiveSubTab
@@ -326,6 +330,59 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
             {currentUser.roleTitle}
           </span>
         </div>
+
+        {/* Plant Scope Switcher / Indicator */}
+        {canSwitchPlant ? (
+          <div className="mt-2.5 pt-2 border-t border-[#ececec]">
+            <div className="text-[10px] uppercase font-bold text-[#777b86] tracking-[0.16em] mb-1.5 flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <Building2 className="w-3 h-3 text-[#c09748]" />
+                <span>Plant Scope</span>
+              </span>
+              <span className="font-mono text-[9px] text-[#c09748] font-bold">
+                {activePlant === 'ALL' ? 'ALL UNITS' : `${activePlant.toUpperCase()} UNIT`}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-1">
+              <button
+                type="button"
+                onClick={() => setActivePlant('ALL')}
+                className={`col-span-2 px-2 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer text-center ${
+                  activePlant === 'ALL'
+                    ? 'bg-[#c09748] text-[#17191c] shadow-xs'
+                    : 'bg-white hover:bg-[#f2f2f3] text-[#777b86] border border-[#ececec]'
+                }`}
+              >
+                All Plants (Consolidated)
+              </button>
+              {(['Haridwar', 'Vasai', 'Vapi', 'Mumbai'] as const).map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setActivePlant(p)}
+                  className={`px-2 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer text-center ${
+                    activePlant === p
+                      ? 'bg-[#c09748] text-[#17191c] font-bold shadow-xs'
+                      : 'bg-white hover:bg-[#f2f2f3] text-[#777b86] border border-[#ececec]'
+                  }`}
+                >
+                  {p} Unit
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-2 pt-2 border-t border-[#ececec] flex items-center justify-between text-[11px]">
+            <span className="text-[#777b86] flex items-center gap-1">
+              <Building2 className="w-3 h-3 text-[#c09748]" />
+              <span>Assigned Plant:</span>
+            </span>
+            <span className="font-semibold text-[#8a6521] flex items-center gap-1 bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
+              <span>{activePlant} Unit</span>
+              <Lock className="w-2.5 h-2.5" />
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Navigation Modules List */}

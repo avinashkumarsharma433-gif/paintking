@@ -39,6 +39,7 @@ import { CenteredSelectModal } from '../components/CenteredSelectModal';
 import { ScrollRemainingToast } from '../components/ScrollRemainingToast';
 import { UniversalEmailModal } from '../components/UniversalEmailModal';
 import { composeGatePassEmailDraft, composeGateOutwardEmailDraft, EmailDispatchPayload } from '../utils/emailDispatchEngine';
+import { matchesPlant } from '../utils/portalAuth';
 
 export const GatePassView: React.FC = () => {
   const { 
@@ -53,6 +54,7 @@ export const GatePassView: React.FC = () => {
     recordInvoicePayment,
     markInvoiceDispatched,
     activePlant,
+    canSwitchPlant,
     currentUser,
     activeSubTab,
     setActiveSubTab
@@ -383,8 +385,20 @@ export const GatePassView: React.FC = () => {
     downloadStandardGateOutwardPdf(item);
   };
 
-  // Filtered lists (Robust search across Inward SR No, Party, Vehicle, Challan, GRN, Description & Line Items)
-  const filteredInward = materialInwardLogs.filter(item => {
+  // Plant-filtered lists (Strict plant isolation guard + search query)
+  const plantInwards = React.useMemo(() => {
+    return materialInwardLogs.filter(item => matchesPlant(item.plant, activePlant));
+  }, [materialInwardLogs, activePlant]);
+
+  const plantOutwards = React.useMemo(() => {
+    return materialOutwardLogs.filter(item => matchesPlant(item.plant, activePlant));
+  }, [materialOutwardLogs, activePlant]);
+
+  const plantGatePasses = React.useMemo(() => {
+    return gatePasses.filter(item => matchesPlant(item.plant, activePlant));
+  }, [gatePasses, activePlant]);
+
+  const filteredInward = plantInwards.filter(item => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase().trim();
     return (
@@ -400,7 +414,7 @@ export const GatePassView: React.FC = () => {
     );
   });
 
-  const filteredOutward = materialOutwardLogs.filter(item => {
+  const filteredOutward = plantOutwards.filter(item => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase().trim();
     return (
@@ -480,7 +494,7 @@ export const GatePassView: React.FC = () => {
             <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
               activeTab === 'INWARD' ? 'bg-[#f4e5be] text-[#8a6521]' : 'bg-[#f2f2f3] text-[#777b86]'
             }`}>
-              {materialInwardLogs.length}
+              {plantInwards.length}
             </span>
           </button>
 
@@ -497,7 +511,7 @@ export const GatePassView: React.FC = () => {
             <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
               activeTab === 'OUTWARD' ? 'bg-[#f4e5be] text-[#8a6521]' : 'bg-[#f2f2f3] text-[#777b86]'
             }`}>
-              {materialOutwardLogs.length}
+              {plantOutwards.length}
             </span>
           </button>
 
@@ -514,7 +528,7 @@ export const GatePassView: React.FC = () => {
             <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
               activeTab === 'GATE_PASS' ? 'bg-[#f4e5be] text-[#8a6521]' : 'bg-[#f2f2f3] text-[#777b86]'
             }`}>
-              {gatePasses.length}
+              {plantGatePasses.length}
             </span>
           </button>
         </div>

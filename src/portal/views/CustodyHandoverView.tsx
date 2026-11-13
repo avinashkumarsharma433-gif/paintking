@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
 import { CustodyHandover, ProductionStage } from '../types/portalTypes';
+import { matchesPlant } from '../utils/portalAuth';
 import { 
   ArrowRightLeft, 
   AlertTriangle, 
@@ -36,6 +37,10 @@ export const CustodyHandoverView: React.FC = () => {
   const [showSendModal, setShowSendModal] = useState<boolean>(false);
   const [selectedHandoverForReceive, setSelectedHandoverForReceive] = useState<CustodyHandover | null>(null);
   const [selectedHandoverForResolve, setSelectedHandoverForResolve] = useState<CustodyHandover | null>(null);
+
+  const plantHandovers = React.useMemo(() => {
+    return handovers.filter(h => matchesPlant(h.plant, activePlant));
+  }, [handovers, activePlant]);
 
   // Send Form State
   const [sendForm, setSendForm] = useState({
@@ -160,7 +165,7 @@ export const CustodyHandoverView: React.FC = () => {
       <div className="space-y-3">
         <div className="flex items-center justify-between pb-1">
           <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#777b86]">
-            Active Handovers & Station Transcripts ({handovers.length})
+            Active Handovers & Station Transcripts ({plantHandovers.length})
           </h3>
           <span className="text-xs text-[#c09748] font-mono font-medium">
             Plant: {activePlant}
@@ -168,7 +173,7 @@ export const CustodyHandoverView: React.FC = () => {
         </div>
 
         <div className="space-y-3">
-          {handovers.map((h) => {
+          {plantHandovers.map((h) => {
             const hasDiscrepancy = h.status === 'Discrepancy Halt';
             const isMatch = h.status === 'Accepted (Match)';
             const isPending = h.status === 'Pending Receipt';

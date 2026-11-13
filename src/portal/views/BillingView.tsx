@@ -5,6 +5,7 @@ import {
   downloadStandardTaxInvoicePdf, 
   downloadStandardDeliveryChallanPdf 
 } from '../utils/pdfStandardHeader';
+import { matchesPlant } from '../utils/portalAuth';
 import { 
   ReceiptText, 
   Printer, 
@@ -72,8 +73,12 @@ export const BillingView: React.FC = () => {
     j => j.isFinalQaApproved || j.currentStage === '6. Billing Invoice' || j.currentStage === '7. Outward Dispatched'
   );
 
+  const plantInvoices = React.useMemo(() => {
+    return billingInvoices.filter(inv => matchesPlant(inv.plant, activePlant));
+  }, [billingInvoices, activePlant]);
+
   const [selectedInvoiceNo, setSelectedInvoiceNo] = useState<string>(
-    billingInvoices[0]?.invoiceNo || ''
+    plantInvoices[0]?.invoiceNo || ''
   );
   const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
   const [docType, setDocType] = useState<'TAX_INVOICE' | 'DELIVERY_CHALLAN'>('TAX_INVOICE');
@@ -89,11 +94,11 @@ export const BillingView: React.FC = () => {
   }, [activeSubTab]);
 
   // Active Invoice lookup (defaults to first available or selected)
-  const activeInv = billingInvoices.find(inv => inv.invoiceNo === selectedInvoiceNo) || billingInvoices[0] || null;
+  const activeInv = plantInvoices.find(inv => inv.invoiceNo === selectedInvoiceNo) || plantInvoices[0] || null;
 
   // Pending PDI releases that are cleared for dispatch & billing
   const availablePdiOrders = qualityReleases.filter(
-    r => r.pdiStatus === 'Cleared for Invoicing'
+    r => matchesPlant(r.plant, activePlant) && r.pdiStatus === 'Cleared for Invoicing'
   );
   const availableOqcOrders = availablePdiOrders;
 
@@ -442,14 +447,14 @@ export const BillingView: React.FC = () => {
       <div className="bg-white rounded-[18px] sm:rounded-[20px] p-4 border border-[#ececec] shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex-1 w-full sm:w-auto">
           <label className="block text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#777b86] mb-1">
-            Select Active Tax Invoice / Order ({billingInvoices.length} Auto-Generated):
+            Select Active Tax Invoice / Order ({plantInvoices.length} Auto-Generated):
           </label>
           <select
             value={activeInv?.invoiceNo || ''}
             onChange={e => setSelectedInvoiceNo(e.target.value)}
             className="w-full p-2.5 rounded-[12px] sm:rounded-[14px] border border-[#ececec] bg-[#fafafb] font-mono font-bold text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
           >
-            {billingInvoices.map(inv => (
+            {plantInvoices.map(inv => (
               <option key={inv.invoiceNo} value={inv.invoiceNo}>
                 {inv.invoiceNo} • {inv.customer} ({inv.woNo}) - Total ₹{inv.grandTotal.toLocaleString('en-IN')}
               </option>

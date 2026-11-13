@@ -1,5 +1,13 @@
 # WORKING SET
 
+- 2026-11-13: Added Super Admin Plant Selector & Enforced Strict Plant Data Isolation Across All 9 ERP Modules
+  - Files touched:
+    - `src/portal/utils/portalAuth.ts`: Added `matchesPlant(itemPlant, activePlant)` supporting fuzzy plant matching and `'ALL'` plant aggregation.
+    - `src/portal/context/PortalStoreContext.tsx`: Upgraded `activePlant` to `PlantLocation | 'ALL'` so Super Admin/Directors can switch between individual plants or view `'ALL'` plants consolidated. Creation handlers safely fallback to 'Haridwar' when 'ALL' is selected.
+    - `src/portal/components/PortalHeader.tsx`, `src/portal/components/PortalSidebar.tsx`: Added plant scope selectors (`All Plants`, `Haridwar`, `Vasai`, `Vapi`, `Mumbai`) for authorized roles (`SUPER_ADMIN`, `DIRECTOR`) and locked badge for standard staff.
+    - `src/portal/views/GatePassView.tsx`, `StoresView.tsx`, `JobCardsView.tsx`, `QAView.tsx`, `PackingView.tsx`, `BillingView.tsx`, `CustodyHandoverView.tsx`, `PainterWorkspaceView.tsx`, `DashboardView.tsx`, `PaintMixingView.tsx`, `ProductionOfferingView.tsx`, `Capa8DView.tsx`: Filtered all transactional records, summaries, priority orders, and requisitions by `matchesPlant(record.plant, activePlant)`.
+  - Status: Verified with `npm run build` (production build succeeded in 8.31s with zero errors).
+
 - 2026-11-13: Fixed Supabase Permission Denied by Granting Table Permissions to Authenticated Roles
   - Files touched:
     - `supabase_schema.sql`: Added explicit schema, table, sequence, and routine grants for `anon`, `authenticated`, and `service_role` with default privileges.

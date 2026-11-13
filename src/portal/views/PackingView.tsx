@@ -19,14 +19,17 @@ import {
   getCurrentBoxCounter,
   BoxLabelItem 
 } from '../services/boxLabelPdfService';
+import { matchesPlant } from '../utils/portalAuth';
 
 export const PackingView: React.FC = () => {
   const { qualityReleases, activePlant, currentUser, jobCards } = usePortalStore();
 
   // Filter QA Releases that are OQC Accepted or PDI Cleared
   const readyLots = useMemo(() => {
-    return qualityReleases.filter(r => r.oqcStatus === 'Accepted' || r.pdiStatus === 'Cleared for Invoicing');
-  }, [qualityReleases]);
+    return qualityReleases
+      .filter(r => matchesPlant(r.plant, activePlant))
+      .filter(r => r.oqcStatus === 'Accepted' || r.pdiStatus === 'Cleared for Invoicing');
+  }, [qualityReleases, activePlant]);
 
   const [selectedLotId, setSelectedLotId] = useState<string>(readyLots[0]?.releaseId || '');
   const [pcsPerBox, setPcsPerBox] = useState<number>(150);

@@ -15,6 +15,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { matchesPlant } from '../utils/portalAuth';
 
 export const ProductionOfferingView: React.FC = () => {
   const { 
@@ -27,13 +28,16 @@ export const ProductionOfferingView: React.FC = () => {
     currentUser 
   } = usePortalStore();
 
+  const plantOfferings = productionOfferings.filter(r => matchesPlant(r.plant, activePlant));
+  const plantJobCards = jobCards.filter(j => matchesPlant(j.plant, activePlant));
+
   const [selectedReportId, setSelectedReportId] = useState<string>(
-    productionOfferings[0]?.id || 'PRD-OFF-2026-089'
+    plantOfferings[0]?.id || 'PRD-OFF-2026-089'
   );
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
 
-  const selectedReport = productionOfferings.find(r => r.id === selectedReportId) || productionOfferings[0];
+  const selectedReport = plantOfferings.find(r => r.id === selectedReportId) || plantOfferings[0];
 
   return (
     <div className="space-y-8 pb-16">
@@ -68,7 +72,7 @@ export const ProductionOfferingView: React.FC = () => {
         <span className="text-xs font-bold uppercase tracking-wider text-slate-400 pl-2">
           Offering Reports:
         </span>
-        {productionOfferings.map((rep) => {
+        {plantOfferings.map((rep) => {
           const isSelected = rep.id === selectedReport?.id;
           return (
             <button
@@ -275,8 +279,8 @@ export const ProductionOfferingView: React.FC = () => {
                     docNo: 'PK-PRD-OFF-01',
                     date: new Date().toISOString().split('T')[0],
                     shift: activeShift,
-                    plant: activePlant,
-                    lineItems: jobCards.slice(0, 2).map(jc => ({
+                    plant: activePlant === 'ALL' ? 'Haridwar' : activePlant,
+                    lineItems: plantJobCards.slice(0, 2).map(jc => ({
                       id: `off_${Math.random().toString(36).substring(7)}`,
                       jobCardNo: jc.jobCardNo,
                       customer: jc.customer,

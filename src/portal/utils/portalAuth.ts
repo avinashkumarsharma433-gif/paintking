@@ -262,3 +262,16 @@ export function mapAccountToUserProfile(account: PortalUserAccount): UserProfile
     avatar: `https://ui-avatars.com/api/?name=${initials}&background=faf3e0&color=8a6521&bold=true`,
   };
 }
+
+/**
+ * Strict Plant Isolation Guard
+ * When activePlant is 'ALL' (Super Admin / Director), all records match.
+ * Otherwise, records must belong to the active plant.
+ */
+export function matchesPlant(itemPlant: string | undefined | null, activePlant: string | undefined | null): boolean {
+  if (!activePlant || activePlant === 'ALL') return true;
+  if (!itemPlant) return false;
+  const itemNorm = itemPlant.trim().toLowerCase();
+  const activeNorm = activePlant.trim().toLowerCase();
+  return itemNorm === activeNorm || itemNorm.startsWith(activeNorm) || itemNorm.includes(activeNorm);
+}

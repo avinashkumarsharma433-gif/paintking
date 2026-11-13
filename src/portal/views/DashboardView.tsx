@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
 import { PortalTab } from '../components/PortalSidebar';
 import { QuickInwardModal } from '../components/QuickInwardModal';
+import { matchesPlant } from '../utils/portalAuth';
 import { 
   TrendingUp, 
   AlertTriangle, 
@@ -69,9 +70,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
   const [priorityFilter, setPriorityFilter] = useState<'ALL' | 'P1_URGENT' | 'P2_HIGH' | 'P3_NORMAL' | 'HOLD' | 'UNASSIGNED'>('ALL');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
+  // Plant Scoped Collections (Strict Plant Isolation Guard)
+  const plantJobCards = React.useMemo(() => {
+    return jobCards.filter(j => matchesPlant(j.plant, activePlant));
+  }, [jobCards, activePlant]);
+
+  const plantInvoices = React.useMemo(() => {
+    return billingInvoices.filter(i => matchesPlant(i.plant, activePlant));
+  }, [billingInvoices, activePlant]);
+
+  const plantGrnList = React.useMemo(() => {
+    return grnList.filter(g => matchesPlant(g.plant, activePlant));
+  }, [grnList, activePlant]);
+
+  const plantPriorities = React.useMemo(() => {
+    return plantHeadPriorities.filter(p => matchesPlant(p.plant, activePlant));
+  }, [plantHeadPriorities, activePlant]);
+
   // Synchronized Store Stock Items with Priority Status
   const storeStockItems = React.useMemo(() => {
-    return grnList
+    return plantGrnList
       .filter(g => g.iqcStatus !== 'Rejected')
       .map(grn => {
         const partCode = grn.items?.[0]?.partCode || grn.partCode || 'SUBSTRATE';
@@ -80,7 +98,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
         const uom = 'Pcs';
         const customer = grn.supplierCustomer;
 
-        const matchingJobCards = jobCards.filter(jc => 
+        const matchingJobCards = plantJobCards.filter(jc => 
           (jc.customer && jc.customer.trim().toLowerCase() === customer.trim().toLowerCase()) ||
           (jc.partCode && jc.partCode.trim().toLowerCase() === partCode.trim().toLowerCase()) ||
           (jc.woNo && grn.invoiceChallanNo && jc.woNo.includes(grn.invoiceChallanNo)) ||
@@ -90,7 +108,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
         const totalIssuedToFloor = primaryJobCards.reduce((acc, curr) => acc + (Number(curr.targetQty) || 0), 0);
         const balanceAvailable = Math.max(0, totalInward - totalIssuedToFloor);
 
-        const priority = plantHeadPriorities.find(p => 
+        const priority = plantPriorities.find(p => 
           (p.grnNo && p.grnNo === grn.grnNo) ||
           (p.customer.toLowerCase().trim() === customer.toLowerCase().trim() && p.partCode.toLowerCase().trim() === partCode.toLowerCase().trim())
         );
@@ -110,7 +128,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
           vehicleNo: grn.vehicleNo
         };
       });
-  }, [grnList, jobCards, plantHeadPriorities]);
+  }, [plantGrnList, plantJobCards, plantPriorities]);
 
   const p1Count = storeStockItems.filter(s => s.priorityRecord?.priorityLevel === 'P1_URGENT').length;
   const p2Count = storeStockItems.filter(s => s.priorityRecord?.priorityLevel === 'P2_HIGH').length;
@@ -180,22 +198,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
   const [reworkInstructionsInput, setReworkInstructionsInput] = useState<string>('De-nib with 1500 grit, solvent clean and apply 1 touch-up mist coat.');
 
   // High-signal Operational Aggregations
-  const masterJobCards = jobCards.filter(j => j.jobCardType === 'master' || (!j.jobCardType && !j.parentJobCardId));
-  const painterChildCards = jobCards.filter(j => j.jobCardType === 'painter_child');
-  const reworkChildCards = jobCards.filter(j => j.jobCardType === 'rework_child');
+  const masterJobCards = plantJobCards.filter(j => j.jobCardType === 'master' || (!j.jobCardType && !j.parentJobCardId));
+  const painterChildCards = plantJobCards.filter(j => j.jobCardType === 'painter_child');
+  const reworkChildCards = plantJobCards.filter(j => j.jobCardType === 'rework_child');
 
-  const totalSprayed = jobCards.reduce((acc, curr) => acc + (curr.sprayedQty || 0), 0);
-  const totalGood = jobCards.reduce((acc, curr) => acc + (curr.goodQty || 0), 0);
+  const totalSprayed = plantJobCards.reduce((acc, curr) => acc + (curr.sprayedQty || 0), 0);
+  const totalGood = plantJobCards.reduce((acc, curr) => acc + (curr.goodQty || 0), 0);
   const totalReworkQueue = reworkChildCards.filter(r => r.status !== 'Completed').reduce((acc, curr) => acc + (curr.targetQty || 0), 0);
   const totalReworkRecovered = reworkChildCards.reduce((acc, curr) => acc + (curr.reworkRecoveredQty || 0), 0);
-  const totalScrap = jobCards.reduce((acc, curr) => acc + (curr.scrapQty || 0), 0);
+  const totalScrap = plantJobCards.reduce((acc, curr) => acc + (curr.scrapQty || 0), 0);
   
   const firstPassYield = totalSprayed > 0 ? (((totalSprayed - totalReworkQueue - totalScrap) / totalSprayed) * 100).toFixed(1) : '0.0';
   const reworkRecoveryRate = (totalReworkRecovered + totalScrap) > 0 
     ? ((totalReworkRecovered / (totalReworkRecovered + totalScrap)) * 100).toFixed(1)
     : '0.0';
 
-  const totalInvoicedRevenue = billingInvoices.reduce((acc, curr) => acc + curr.grandTotal, 0);
+  const totalInvoicedRevenue = plantInvoices.reduce((acc, curr) => acc + curr.grandTotal, 0);
 
   // 3-Painters Specific Metrics (Strictly live data, zero hardcoded fallback)
   const painter1Card = painterChildCards.find(p => p.assignedPainterName?.includes('Painter 1') || p.assignedPainterName?.includes('P1') || p.jobCardNo.includes('-P1'));
@@ -339,7 +357,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
         <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-xs">
           <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777b86]">Active WIP Lots</div>
           <div className="text-2xl font-serif font-normal text-[#17191c] mt-1.5">{masterJobCards.length} Batches</div>
-          <div className="text-[10px] text-[#777b86] mt-1">{new Set(jobCards.map(j => j.boothNo).filter(Boolean)).size} Line Booths Engaged</div>
+          <div className="text-[10px] text-[#777b86] mt-1">{new Set(plantJobCards.map(j => j.boothNo).filter(Boolean)).size} Line Booths Engaged</div>
         </div>
 
         {/* Billed Revenue */}
@@ -819,7 +837,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
 
           <div className="space-y-3">
             {masterJobCards.slice(0, 3).map((jc) => {
-              const children = jobCards.filter(c => c.parentJobCardId === jc.jobCardNo);
+              const children = plantJobCards.filter(c => c.parentJobCardId === jc.jobCardNo);
               const p1 = children.find(c => c.jobCardNo.endsWith('-P1'));
               const p2 = children.find(c => c.jobCardNo.endsWith('-P2'));
               const p3 = children.find(c => c.jobCardNo.endsWith('-P3'));
@@ -1062,7 +1080,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                   onChange={(e) => setSelectedParentJc(e.target.value)}
                   className="w-full h-10 px-3 rounded-[12px] border border-[#e5e7eb] text-xs text-[#17191c] bg-white"
                 >
-                  {jobCards.filter(j => j.jobCardType !== 'rework_child').map(jc => (
+                  {plantJobCards.filter(j => j.jobCardType !== 'rework_child').map(jc => (
                     <option key={jc.jobCardNo} value={jc.jobCardNo}>
                       {jc.jobCardNo} • {jc.partDescription} ({jc.color})
                     </option>

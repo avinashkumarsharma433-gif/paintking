@@ -104,8 +104,8 @@ interface PortalContextType {
   switchUser: (userId: string) => void;
   canSwitchPlant: boolean;
   logoutUser: () => void;
-  activePlant: PlantLocation;
-  setActivePlant: (plant: PlantLocation) => void;
+  activePlant: PlantLocation | 'ALL';
+  setActivePlant: (plant: PlantLocation | 'ALL') => void;
   activeShift: ShiftType;
   setActiveShift: (shift: ShiftType) => void;
   activeSubTab: string | null;
@@ -487,12 +487,17 @@ export const PortalProvider: React.FC<{
     setCurrentUser(authenticatedUser);
   }, [authenticatedUser]);
 
-  const [activePlant, setActivePlantState] = useState<PlantLocation>(() => {
+  const [activePlant, setActivePlantState] = useState<PlantLocation | 'ALL'>(() => {
     if (authenticatedUser.assignedPlant && authenticatedUser.assignedPlant !== 'ALL') {
       return authenticatedUser.assignedPlant;
     }
     const s = localStorage.getItem('pk_active_plant');
-    return (s as PlantLocation) || authenticatedUser.plant || 'Haridwar';
+    if (s === 'ALL' || s === 'Haridwar' || s === 'Vasai' || s === 'Vapi' || s === 'Mumbai') {
+      return s as PlantLocation | 'ALL';
+    }
+    return authenticatedUser.role === 'SUPER_ADMIN' || authenticatedUser.role === 'DIRECTOR'
+      ? 'ALL'
+      : (authenticatedUser.plant || 'Haridwar');
   });
 
   useEffect(() => {
@@ -501,11 +506,16 @@ export const PortalProvider: React.FC<{
     }
   }, [authenticatedUser.assignedPlant]);
 
-  const setActivePlant = (plant: PlantLocation) => {
+  const setActivePlant = (plant: PlantLocation | 'ALL') => {
     if (!canSwitchPlant && authenticatedUser.assignedPlant && authenticatedUser.assignedPlant !== 'ALL') {
       return;
     }
     setActivePlantState(plant);
+    try {
+      localStorage.setItem('pk_active_plant', plant);
+    } catch {
+      // ignore
+    }
   };
 
   const logoutUser = () => {
@@ -1733,8 +1743,10 @@ export const PortalProvider: React.FC<{
   }, [calibrationList]);
 
   const addMaterialInwardRecord = (record: MaterialInwardRecord) => {
+    const fallbackPlant: PlantLocation = activePlant === 'ALL' ? 'Haridwar' : activePlant;
     const recordWithDefaults: MaterialInwardRecord = {
       ...record,
+      plant: record.plant || fallbackPlant,
       iqcStatus: record.iqcStatus || 'Pending',
       status: record.status || 'Pending IQC Inspection'
     };
@@ -1743,7 +1755,12 @@ export const PortalProvider: React.FC<{
 
 
   const addMaterialOutwardRecord = (record: MaterialOutwardRecord) => {
-    setMaterialOutwardLogs(prev => [record, ...prev]);
+    const fallbackPlant: PlantLocation = activePlant === 'ALL' ? 'Haridwar' : activePlant;
+    const recordWithDefaults: MaterialOutwardRecord = {
+      ...record,
+      plant: record.plant || fallbackPlant,
+    };
+    setMaterialOutwardLogs(prev => [recordWithDefaults, ...prev]);
 
     // Update Gate Pass status to Security Out
     const matchingGp = gatePasses.find(gp => gp.gatePassNo === record.gatePassNo || gp.vehicleNo === record.vehicleNo);
@@ -1758,8 +1775,10 @@ export const PortalProvider: React.FC<{
   };
 
   const addJobCard = (jc: JobCard) => {
+    const fallbackPlant: PlantLocation = activePlant === 'ALL' ? 'Haridwar' : activePlant;
     const formattedJc: JobCard = {
       ...jc,
+      plant: jc.plant || fallbackPlant,
       painterJobStatus: jc.painterJobStatus || 'Assigned',
       assignedPainterName: jc.assignedPainterName || jc.painterName,
       allocatedQty: jc.allocatedQty || jc.targetQty,

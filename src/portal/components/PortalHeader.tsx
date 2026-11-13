@@ -24,7 +24,13 @@ interface PortalHeaderProps {
   activeTabLabel?: string;
 }
 
-const ALL_PLANTS: PlantLocation[] = ['Haridwar', 'Vasai', 'Vapi', 'Mumbai'];
+const ALL_PLANT_OPTIONS: Array<{ id: PlantLocation | 'ALL'; label: string }> = [
+  { id: 'ALL', label: 'All Plants' },
+  { id: 'Haridwar', label: 'Haridwar' },
+  { id: 'Vasai', label: 'Vasai' },
+  { id: 'Vapi', label: 'Vapi' },
+  { id: 'Mumbai', label: 'Mumbai' },
+];
 
 export const PortalHeader: React.FC<PortalHeaderProps> = ({
   onBackToWebsite,
@@ -155,17 +161,17 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
           {canSwitchPlant ? (
             <div className="flex items-center bg-[#f2f2f3] rounded-full p-1 border border-[#ececec]">
               <Building2 className="w-3.5 h-3.5 text-[#c09748] ml-2 mr-1" />
-              {ALL_PLANTS.map(plant => (
+              {ALL_PLANT_OPTIONS.map(plant => (
                 <button
-                  key={plant}
-                  onClick={() => setActivePlant(plant)}
+                  key={plant.id}
+                  onClick={() => setActivePlant(plant.id)}
                   className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200 cursor-pointer ${
-                    activePlant === plant
+                    activePlant === plant.id
                       ? 'bg-[#c09748] text-[#17191c] font-semibold shadow-xs'
                       : 'text-[#777b86] hover:text-[#17191c]'
                   }`}
                 >
-                  {plant}
+                  {plant.label}
                 </button>
               ))}
             </div>
@@ -312,17 +318,17 @@ export const PortalHeader: React.FC<PortalHeaderProps> = ({
         {canSwitchPlant ? (
           <div className="flex items-center gap-0.5 bg-[#f2f2f3] rounded-full p-0.5 border border-[#ececec] shrink-0">
             <Building2 className="w-3 h-3 text-[#c09748] ml-1.5 mr-0.5" />
-            {ALL_PLANTS.map(plant => (
+            {ALL_PLANT_OPTIONS.map(plant => (
               <button
-                key={plant}
-                onClick={() => setActivePlant(plant)}
+                key={plant.id}
+                onClick={() => setActivePlant(plant.id)}
                 className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition cursor-pointer shrink-0 ${
-                  activePlant === plant
+                  activePlant === plant.id
                     ? 'bg-[#c09748] text-[#17191c] font-semibold shadow-2xs'
                     : 'text-[#777b86]'
                 }`}
               >
-                {plant}
+                {plant.label}
               </button>
             ))}
           </div>
