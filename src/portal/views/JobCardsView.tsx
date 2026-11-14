@@ -5216,12 +5216,18 @@ export const JobCardsView: React.FC = () => {
             setSelectedMasterForAssign(null);
           }}
           masterJobCard={selectedMasterForAssign}
+          existingAssignments={painterAssignments.filter(
+            a => a.masterJobCardNo === selectedMasterForAssign.jobCardNo || a.masterJobCardId === selectedMasterForAssign.jobCardNo
+          )}
           painters={filteredPainters}
           booths={filteredBooths}
           onAssign={(assignmentData) => {
-            createPainterAssignment(assignmentData);
-            setToastMessage(`✓ Target assigned to ${assignmentData.painterName}!`);
-            setTimeout(() => setToastMessage(null), 3500);
+            const res = createPainterAssignment(assignmentData);
+            if (res?.success) {
+              setToastMessage(`✓ Target assigned to ${assignmentData.painterName}!`);
+              setTimeout(() => setToastMessage(null), 3500);
+            }
+            return res;
           }}
         />
       )}

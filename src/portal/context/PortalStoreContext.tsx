@@ -2621,16 +2621,19 @@ export const PortalProvider: React.FC<{
       return { success: false, error: `Master Job Card ${assignmentData.masterJobCardNo} not found.` };
     }
 
-    // Calculate current completed OK and pending balance
+    // Calculate committed & completed pieces without double-counting active targets and finished OK
     const currentCompletedOk = parentJob.goodQty || 0;
-    const balancePending = Math.max(0, parentJob.targetQty - currentCompletedOk);
-
-    // Sum of all currently Active assignments on this Master Job Card
-    const existingActiveTargetSum = painterAssignments
-      .filter(a => a.masterJobCardNo === assignmentData.masterJobCardNo && a.status === 'Active')
-      .reduce((sum, a) => sum + (a.dailyTargetQty || 0), 0);
-
-    const availableToAssign = Math.max(0, balancePending - existingActiveTargetSum);
+    const jobAssignments = painterAssignments.filter(
+      a => a.masterJobCardNo === assignmentData.masterJobCardNo || a.masterJobCardId === assignmentData.masterJobCardNo
+    );
+    const assignmentCommittedSum = jobAssignments.reduce((sum, a) => {
+      if (a.status === 'Active') {
+        return sum + Math.max(a.dailyTargetQty || 0, a.actualCompletedQty || 0);
+      }
+      return sum + (a.actualCompletedQty || 0) + (a.scrapQty || 0);
+    }, 0);
+    const balancePending = Math.max(0, parentJob.targetQty - Math.max(currentCompletedOk, assignmentCommittedSum));
+    const availableToAssign = balancePending;
 
     if (assignmentData.dailyTargetQty > availableToAssign) {
       return {

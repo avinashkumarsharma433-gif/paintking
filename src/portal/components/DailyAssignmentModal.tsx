@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Calendar, User, Clock, Layers, Target, AlertCircle, Plus } from 'lucide-react';
-import { JobCard, PainterProfile, PaintingBooth, AssignmentProcessStage, AssignmentShiftType } from '../types/portalTypes';
+import { JobCard, PainterProfile, PaintingBooth, AssignmentProcessStage, AssignmentShiftType, PainterAssignment } from '../types/portalTypes';
 
 interface DailyAssignmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   masterJobCard: JobCard;
+  existingAssignments?: PainterAssignment[];
   availablePainters?: PainterProfile[];
   painters?: PainterProfile[];
   availableBooths?: PaintingBooth[];
@@ -28,6 +29,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
   isOpen,
   onClose,
   masterJobCard,
+  existingAssignments,
   availablePainters,
   painters,
   availableBooths,
@@ -37,23 +39,40 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
   const safePainters = availablePainters || painters || [];
   const safeBooths = availableBooths || booths || [];
 
+  const matchingAssignments = (existingAssignments || []).filter(
+    a => a.masterJobCardNo === masterJobCard?.jobCardNo || a.masterJobCardId === masterJobCard?.jobCardNo
+  );
+  const assignedCompletedOk = matchingAssignments.reduce((s, a) => s + (a.actualCompletedQty || 0), 0);
+  const currentCompleted = Math.max(masterJobCard?.goodQty || 0, assignedCompletedOk);
+  const assignmentCommitted = matchingAssignments.reduce((sum, a) => {
+    if (a.status === 'Active') {
+      return sum + Math.max(a.dailyTargetQty || 0, a.actualCompletedQty || 0);
+    }
+    return sum + (a.actualCompletedQty || 0) + (a.scrapQty || 0);
+  }, 0);
+  const totalCommitted = Math.max(currentCompleted, assignmentCommitted);
+  const balancePending = Math.max(0, (masterJobCard?.targetQty || 0) - totalCommitted);
+
   const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [shift, setShift] = useState<AssignmentShiftType>('General Day Shift (08:30 - 18:30)');
   const [selectedPainterId, setSelectedPainterId] = useState<string>(safePainters[0]?.id || '');
   const [selectedBoothName, setSelectedBoothName] = useState<string>(safeBooths[0]?.name || 'Booth #1');
   const [processStage, setProcessStage] = useState<AssignmentProcessStage>('Basecoat');
   const [colorShade, setColorShade] = useState<string>(masterJobCard?.color && masterJobCard.color !== 'Multi-Colour / Painter-Wise' ? masterJobCard.color : '');
-  const [targetQty, setTargetQty] = useState<number>(() => {
-    const pending = Math.max(0, (masterJobCard?.targetQty || 0) - (masterJobCard?.goodQty || 0));
-    return Math.min(pending, 2000);
-  });
+  const [targetQty, setTargetQty] = useState<number>(() => Math.min(balancePending, 2000));
   const [remarks, setRemarks] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen) {
+      setTargetQty(prev => {
+        if (prev <= 0 && balancePending > 0) return Math.min(balancePending, 2000);
+        return Math.min(balancePending, prev);
+      });
+    }
+  }, [isOpen, balancePending]);
 
-  const currentCompleted = masterJobCard?.goodQty || 0;
-  const balancePending = Math.max(0, (masterJobCard?.targetQty || 0) - currentCompleted);
+  if (!isOpen) return null;
 
   const selectedPainter = safePainters.find(p => p.id === selectedPainterId) || safePainters[0] || { id: 'unknown', name: 'Floor Technician', boothNo: 'Booth #1' };
 
@@ -259,10 +278,18 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
               <input
                 type="number"
                 required
-                min={1}
+                min={balancePending > 0 ? 1 : 0}
                 max={balancePending}
-                value={targetQty}
-                onChange={e => setTargetQty(Number(e.target.value))}
+                value={targetQty === 0 && balancePending > 0 ? '' : targetQty}
+                onChange={e => {
+                  const raw = e.target.value;
+                  if (raw === '') {
+                    setTargetQty(0);
+                    return;
+                  }
+                  const parsed = Math.max(0, Math.floor(Number(raw) || 0));
+                  setTargetQty(Math.min(balancePending, parsed));
+                }}
                 className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
               />
             </div>
@@ -309,7 +336,8 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1.5 active:scale-95"
+              disabled={balancePending <= 0 || targetQty <= 0 || targetQty > balancePending}
+              className="px-5 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] disabled:opacity-50 text-white text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1.5 active:scale-95"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Create Shift Assignment</span>

@@ -560,7 +560,14 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   }, [ipqcRecords, jobCardNo, wNo]);
 
   const currentJcForModals: JobCard = useMemo(() => {
-    return initialData || (jobCards.find(j => j.jobCardNo === jobCardNo) || {
+    const liveJc = jobCards.find(j => j.jobCardNo === jobCardNo);
+    if (liveJc) {
+      return {
+        ...liveJc,
+        goodQty: Math.max(liveJc.goodQty || 0, currentGoodQty || 0)
+      };
+    }
+    return initialData || ({
       id: jobCardNo,
       jobCardNo,
       docNo,
@@ -6208,6 +6215,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
           isOpen={showDailyAssignModal}
           onClose={() => setShowDailyAssignModal(false)}
           masterJobCard={currentJcForModals}
+          existingAssignments={currentJcAssignments}
           painters={painters.filter(p => matchesPlant(p.plant, activePlant))}
           booths={paintingBooths.filter(b => matchesPlant(b.plant, activePlant))}
           onAssign={(assignmentData) => {

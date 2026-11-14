@@ -1,5 +1,13 @@
 # WORKING SET
 
+- 2026-11-14: Enforced Remaining Order Balance & Input Clamping in Assign Daily Target Modal
+  - Files touched:
+    - `src/portal/components/DailyAssignmentModal.tsx`: Added optional `existingAssignments` prop to compute true `COMPLETED OK` (`max(masterJobCard.goodQty, assignedCompletedOk)`) and `BALANCE PENDING` (`targetQty - max(completed, committed)` -> e.g. 8,000 when 2,000 are done/assigned), clamped `6. Daily Target Qty (Pcs)` `onChange` so users cannot type beyond `balancePending`, synced initial `targetQty` via `useEffect`, and disabled submit when `balancePending <= 0`.
+    - `src/portal/components/JobCardModal.tsx`: Updated `currentJcForModals` to read live `jobCards` record over stale `initialData` and passed `existingAssignments={currentJcAssignments}` to `DailyAssignmentModal`.
+    - `src/portal/views/JobCardsView.tsx`: Passed `existingAssignments` and returned `createPainterAssignment` result in `DailyAssignmentModal`.
+    - `src/portal/context/PortalStoreContext.tsx`: Updated `createPainterAssignment` quota calculation so active targets and completed OK are never double-counted.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors).
+
 - 2026-11-14: Enforced Sequential 3-Stage Piece Limits Per Painter Assignment
   - Files touched:
     - `src/portal/components/JobCardModal.tsx`: Added `getAssignmentStageMaxAllowed` so Stage 2 (`stage_2_basecoat`) is capped at `Stage 1 OK - s2.good - s2.scrap` (excluding Stage 1 dead scrap) and Stage 3 (`stage_3_topcoat`) is capped at `Stage 2 OK - s3.good - s3.scrap`; guarded `handleSaveOutputBatch` against `logPiecesSprayed > currentStageMaxAllowed`.
