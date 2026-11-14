@@ -54,7 +54,11 @@ import {
   BalanceReturnCondition,
   RequisitionLineItem,
   PlantShiftConfig,
-  JobCardDailyTargetRecord
+  JobCardDailyTargetRecord,
+  PainterAssignment,
+  AssignmentMaterialLog,
+  AssignmentStatus,
+  MasterJobCard
 } from '../types/portalTypes';
 import {
   applyIssueToBatches,
@@ -131,7 +135,54 @@ interface PortalContextType {
   deletePainter: (id: string) => void;
   togglePainterStatus: (id: string) => void;
 
-  // Plant Head Production Scheduling & Priority Desk
+  // 3-Tier Spray Painting Job Card Architecture (PK-OS 2026)
+  painterAssignments: PainterAssignment[];
+  assignmentMaterialLogs: AssignmentMaterialLog[];
+  createPainterAssignment: (assignmentData: Omit<PainterAssignment, 'id' | 'status' | 'actualCompletedQty' | 'rejectReworkQty' | 'scrapQty' | 'stageOkQty' | 'stageReworkQty' | 'stageScrapQty'>) => { success: boolean; error?: string; assignment?: PainterAssignment };
+  closePainterAssignment: (
+    assignmentId: string,
+    completionData: {
+      actualCompletedQty: number;
+      rejectReworkQty: number;
+      scrapQty?: number;
+      stageOkQty: number;
+      stageReworkQty: number;
+      stageScrapQty: number;
+      defectCategory?: DefectCategory | string;
+      remarks?: string;
+    },
+    materialReconciliations?: Array<{
+      materialName: string;
+      materialType: 'Base Paint' | 'Topcoat' | 'Hardener' | 'Thinner' | 'Cleaning Solvent';
+      batchNumber?: string;
+      issuedQty: number;
+      goodReturnedQty: number;
+      floorWastageExpiredQty: number;
+      uom: 'Litres' | 'Kg' | 'Pcs';
+      standardNormPerPiece?: number;
+    }>
+  ) => { success: boolean; error?: string };
+  issueAssignmentMaterials: (
+    assignmentId: string,
+    materials: Array<{
+      materialName: string;
+      materialType: 'Base Paint' | 'Topcoat' | 'Hardener' | 'Thinner' | 'Cleaning Solvent';
+      batchNumber?: string;
+      issuedQty: number;
+      uom: 'Litres' | 'Kg' | 'Pcs';
+      standardNormPerPiece?: number;
+    }>
+  ) => void;
+  getPainterConsumablesLedger: (painterIdOrName?: string) => {
+    totalIssuedLitres: number;
+    totalReturnedGoodLitres: number;
+    totalFloorWastageLitres: number;
+    netConsumedLitres: number;
+    totalPiecesPainted: number;
+    avgLitrePerPiece: number;
+    highWastageLogsCount: number;
+    logs: AssignmentMaterialLog[];
+  };
   plantHeadPriorities: PlantHeadPriorityAssignment[];
   assignProductionPriority: (assignment: Omit<PlantHeadPriorityAssignment, 'id' | 'assignedAt' | 'status'>) => void;
   updatePriorityStatus: (priorityId: string, status: PlantHeadPriorityAssignment['status'], linkedJobCardNo?: string) => void;
@@ -385,8 +436,10 @@ interface PortalContextType {
   reopenPlant: () => void;
 }
 
-const PK_STORAGE_VERSION = '3.1.0-clean-fleet';
+const PK_STORAGE_VERSION = '3.2.0-3tier-jobcards';
 const TRANSACTIONAL_STORAGE_KEYS = [
+  'pk_painter_assignments',
+  'pk_assignment_material_logs',
   'pk_painters',
   'pk_painting_booths',
   'pk_plant_head_priorities',
@@ -609,6 +662,8 @@ export const PortalProvider: React.FC<{
           if (Array.isArray(remote.pk_material_requisitions)) setMaterialRequisitions(remote.pk_material_requisitions as MaterialRequisitionNote[]);
           if (Array.isArray(remote.pk_iqc_data)) setIqcRecords(remote.pk_iqc_data as IQCInspectionRecord[]);
           if (Array.isArray(remote.pk_jobcards_data)) setJobCards(remote.pk_jobcards_data as JobCard[]);
+          if (Array.isArray(remote.pk_painter_assignments)) setPainterAssignments(remote.pk_painter_assignments as PainterAssignment[]);
+          if (Array.isArray(remote.pk_assignment_material_logs)) setAssignmentMaterialLogs(remote.pk_assignment_material_logs as AssignmentMaterialLog[]);
           if (Array.isArray(remote.pk_painters)) setPainters((remote.pk_painters as PainterProfile[]).map(p => ({ ...p, plant: (p.plant as PlantLocation) || 'Haridwar' })));
           if (Array.isArray(remote.pk_painting_booths)) setPaintingBooths((remote.pk_painting_booths as PaintingBooth[]).map(b => ({ ...b, plant: (b.plant as PlantLocation) || 'Haridwar' })));
           if (Array.isArray(remote.pk_pir_data)) setPreProductionReports(remote.pk_pir_data as PreProductionInspectionRecord[]);
@@ -1124,6 +1179,32 @@ export const PortalProvider: React.FC<{
   const [jobCards, setJobCards] = useState<JobCard[]>(() => {
     return mergeByUniqueKey(localStorage.getItem('pk_jobcards_data'), INITIAL_JOB_CARDS, 'jobCardNo');
   });
+
+  const [painterAssignments, setPainterAssignments] = useState<PainterAssignment[]>(() => {
+    try {
+      const s = localStorage.getItem('pk_painter_assignments');
+      return s ? JSON.parse(s) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [assignmentMaterialLogs, setAssignmentMaterialLogs] = useState<AssignmentMaterialLog[]>(() => {
+    try {
+      const s = localStorage.getItem('pk_assignment_material_logs');
+      return s ? JSON.parse(s) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    syncState('pk_painter_assignments', painterAssignments);
+  }, [painterAssignments]);
+
+  useEffect(() => {
+    syncState('pk_assignment_material_logs', assignmentMaterialLogs);
+  }, [assignmentMaterialLogs]);
 
   const [painters, setPainters] = useState<PainterProfile[]>(() => {
     const raw = mergeByUniqueKey(localStorage.getItem('pk_painters'), INITIAL_PAINTERS, 'id');
@@ -2479,6 +2560,296 @@ export const PortalProvider: React.FC<{
     setPackingSlips(prev => [slip, ...prev]);
   };
 
+  // ======================================================================
+  // 3-TIER SPRAY PAINTING JOB CARD & CONSUMABLES ENGINE (PK-OS 2026)
+  // ======================================================================
+
+  const createPainterAssignment = (
+    assignmentData: Omit<PainterAssignment, 'id' | 'status' | 'actualCompletedQty' | 'rejectReworkQty' | 'scrapQty' | 'stageOkQty' | 'stageReworkQty' | 'stageScrapQty'>
+  ): { success: boolean; error?: string; assignment?: PainterAssignment } => {
+    const parentJob = jobCards.find(j => j.jobCardNo === assignmentData.masterJobCardNo);
+    if (!parentJob) {
+      return { success: false, error: `Master Job Card ${assignmentData.masterJobCardNo} not found.` };
+    }
+
+    // Calculate current completed OK and pending balance
+    const currentCompletedOk = parentJob.goodQty || 0;
+    const balancePending = Math.max(0, parentJob.targetQty - currentCompletedOk);
+
+    // Sum of all currently Active assignments on this Master Job Card
+    const existingActiveTargetSum = painterAssignments
+      .filter(a => a.masterJobCardNo === assignmentData.masterJobCardNo && a.status === 'Active')
+      .reduce((sum, a) => sum + (a.dailyTargetQty || 0), 0);
+
+    const availableToAssign = Math.max(0, balancePending - existingActiveTargetSum);
+
+    if (assignmentData.dailyTargetQty > availableToAssign) {
+      return {
+        success: false,
+        error: `Daily Target Qty (${assignmentData.dailyTargetQty} pcs) exceeds remaining unallocated balance (${availableToAssign} pcs). Master Pending: ${balancePending} pcs.`
+      };
+    }
+
+    const nextId = `ASG-${new Date().getFullYear()}-${String(painterAssignments.length + 1).padStart(4, '0')}`;
+    const newAssignment: PainterAssignment = {
+      ...assignmentData,
+      id: nextId,
+      status: 'Active',
+      actualCompletedQty: 0,
+      rejectReworkQty: 0,
+      scrapQty: 0,
+      stageOkQty: 0,
+      stageReworkQty: 0,
+      stageScrapQty: 0,
+      startedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setPainterAssignments(prev => [newAssignment, ...prev]);
+
+    // Update Master Job Card status to 'In Process' if it was 'Open' or 'Pending'
+    setJobCards(prev => prev.map(jc => {
+      if (jc.jobCardNo !== assignmentData.masterJobCardNo) return jc;
+      const currentList = jc.assignments || [];
+      return {
+        ...jc,
+        status: jc.status === 'Open' ? 'In Process' : jc.status,
+        assignments: [newAssignment, ...currentList]
+      };
+    }));
+
+    return { success: true, assignment: newAssignment };
+  };
+
+  const issueAssignmentMaterials = (
+    assignmentId: string,
+    materials: Array<{
+      materialName: string;
+      materialType: 'Base Paint' | 'Topcoat' | 'Hardener' | 'Thinner' | 'Cleaning Solvent';
+      batchNumber?: string;
+      issuedQty: number;
+      uom: 'Litres' | 'Kg' | 'Pcs';
+      standardNormPerPiece?: number;
+    }>
+  ) => {
+    const targetAssignment = painterAssignments.find(a => a.id === assignmentId);
+    if (!targetAssignment) return;
+
+    const newLogs: AssignmentMaterialLog[] = materials.map((m, idx) => ({
+      id: `MAT-LOG-${Date.now()}-${idx}`,
+      assignmentId,
+      masterJobCardNo: targetAssignment.masterJobCardNo,
+      painterId: targetAssignment.painterId,
+      painterName: targetAssignment.painterName,
+      date: targetAssignment.assignmentDate,
+      shift: targetAssignment.shift,
+      materialName: m.materialName,
+      materialType: m.materialType,
+      batchNumber: m.batchNumber || `LOT-${targetAssignment.masterJobCardNo.slice(-4)}`,
+      issuedQty: m.issuedQty,
+      goodReturnedQty: 0,
+      floorWastageExpiredQty: 0,
+      netConsumedQty: m.issuedQty,
+      uom: m.uom,
+      standardNormPerPiece: m.standardNormPerPiece || 0.040,
+      loggedAt: new Date().toISOString()
+    }));
+
+    setAssignmentMaterialLogs(prev => [...newLogs, ...prev]);
+
+    // Attach to assignment's materialLogs
+    setPainterAssignments(prev => prev.map(a => {
+      if (a.id !== assignmentId) return a;
+      return {
+        ...a,
+        materialLogs: [...(a.materialLogs || []), ...newLogs]
+      };
+    }));
+  };
+
+  const closePainterAssignment = (
+    assignmentId: string,
+    completionData: {
+      actualCompletedQty: number;
+      rejectReworkQty: number;
+      scrapQty?: number;
+      stageOkQty: number;
+      stageReworkQty: number;
+      stageScrapQty: number;
+      defectCategory?: DefectCategory | string;
+      remarks?: string;
+    },
+    materialReconciliations?: Array<{
+      materialName: string;
+      materialType: 'Base Paint' | 'Topcoat' | 'Hardener' | 'Thinner' | 'Cleaning Solvent';
+      batchNumber?: string;
+      issuedQty: number;
+      goodReturnedQty: number;
+      floorWastageExpiredQty: number;
+      uom: 'Litres' | 'Kg' | 'Pcs';
+      standardNormPerPiece?: number;
+    }>
+  ): { success: boolean; error?: string } => {
+    const targetAssignment = painterAssignments.find(a => a.id === assignmentId);
+    if (!targetAssignment) {
+      return { success: false, error: `Assignment ${assignmentId} not found.` };
+    }
+
+    const efficiency = targetAssignment.dailyTargetQty > 0
+      ? Math.round((completionData.actualCompletedQty / targetAssignment.dailyTargetQty) * 100)
+      : 100;
+
+    const newStatus: AssignmentStatus = completionData.actualCompletedQty >= targetAssignment.dailyTargetQty
+      ? 'Closed - Target Met'
+      : 'Closed - Partial/Incomplete';
+
+    const closedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // Reconcile Material Logs
+    if (materialReconciliations && materialReconciliations.length > 0) {
+      materialReconciliations.forEach(rec => {
+        const netConsumed = Math.max(0, rec.issuedQty - rec.goodReturnedQty);
+        const perPiece = completionData.actualCompletedQty > 0
+          ? Number((netConsumed / completionData.actualCompletedQty).toFixed(4))
+          : 0;
+        const norm = rec.standardNormPerPiece || 0.040;
+        const isHighWastage = perPiece > norm * 1.25; // >25% above standard norm
+
+        const existingLogIndex = assignmentMaterialLogs.findIndex(
+          l => l.assignmentId === assignmentId && l.materialName === rec.materialName
+        );
+
+        if (existingLogIndex >= 0) {
+          setAssignmentMaterialLogs(prev => prev.map((l, i) => {
+            if (i !== existingLogIndex) return l;
+            return {
+              ...l,
+              goodReturnedQty: rec.goodReturnedQty,
+              floorWastageExpiredQty: rec.floorWastageExpiredQty,
+              netConsumedQty: netConsumed,
+              perPieceConsumption: perPiece,
+              highWastageFlag: isHighWastage
+            };
+          }));
+        } else {
+          const newLog: AssignmentMaterialLog = {
+            id: `MAT-LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            assignmentId,
+            masterJobCardNo: targetAssignment.masterJobCardNo,
+            painterId: targetAssignment.painterId,
+            painterName: targetAssignment.painterName,
+            date: targetAssignment.assignmentDate,
+            shift: targetAssignment.shift,
+            materialName: rec.materialName,
+            materialType: rec.materialType,
+            batchNumber: rec.batchNumber,
+            issuedQty: rec.issuedQty,
+            goodReturnedQty: rec.goodReturnedQty,
+            floorWastageExpiredQty: rec.floorWastageExpiredQty,
+            netConsumedQty: netConsumed,
+            perPieceConsumption: perPiece,
+            uom: rec.uom,
+            highWastageFlag: isHighWastage,
+            standardNormPerPiece: norm,
+            loggedAt: new Date().toISOString()
+          };
+          setAssignmentMaterialLogs(prev => [newLog, ...prev]);
+        }
+      });
+    }
+
+    // Update assignment record
+    setPainterAssignments(prev => prev.map(a => {
+      if (a.id !== assignmentId) return a;
+      return {
+        ...a,
+        actualCompletedQty: completionData.actualCompletedQty,
+        rejectReworkQty: completionData.rejectReworkQty,
+        scrapQty: completionData.scrapQty || 0,
+        stageOkQty: completionData.stageOkQty,
+        stageReworkQty: completionData.stageReworkQty,
+        stageScrapQty: completionData.stageScrapQty,
+        defectCategory: completionData.defectCategory,
+        status: newStatus,
+        closedAt: closedTime,
+        closedBy: currentUser?.name || 'Supervisor',
+        efficiencyPercent: efficiency,
+        remarks: completionData.remarks || a.remarks
+      };
+    }));
+
+    // Recalculate Master Job Card Totals
+    setJobCards(prev => prev.map(jc => {
+      if (jc.jobCardNo !== targetAssignment.masterJobCardNo) return jc;
+
+      // Sum all closed assignments including this one
+      const otherAssignments = painterAssignments.filter(
+        a => a.masterJobCardNo === jc.jobCardNo && a.id !== assignmentId
+      );
+      const totalOkFromAssignments = otherAssignments.reduce((sum, a) => sum + (a.stageOkQty || a.actualCompletedQty || 0), 0) + completionData.stageOkQty;
+      const totalRejectFromAssignments = otherAssignments.reduce((sum, a) => sum + (a.stageReworkQty || a.rejectReworkQty || 0), 0) + completionData.stageReworkQty;
+
+      const newBalance = Math.max(0, jc.targetQty - totalOkFromAssignments);
+      const isOrderComplete = newBalance <= 0;
+
+      // Check if deadline passed
+      const isOverdue = jc.deadlineDate && new Date(jc.deadlineDate) < new Date() && !isOrderComplete;
+      const newStatus = isOrderComplete
+        ? 'Completed'
+        : isOverdue
+        ? 'Over-Run Flagged'
+        : 'In Process';
+
+      return {
+        ...jc,
+        goodQty: totalOkFromAssignments,
+        sprayedQty: totalOkFromAssignments + totalRejectFromAssignments,
+        rejectQty: totalRejectFromAssignments,
+        status: newStatus
+      };
+    }));
+
+    return { success: true };
+  };
+
+  const getPainterConsumablesLedger = (painterIdOrName?: string) => {
+    let logs = assignmentMaterialLogs;
+    if (painterIdOrName && painterIdOrName.trim() !== '') {
+      const q = painterIdOrName.trim().toLowerCase();
+      logs = logs.filter(l => 
+        (l.painterId && l.painterId.toLowerCase() === q) ||
+        (l.painterName && l.painterName.toLowerCase().includes(q))
+      );
+    }
+
+    const totalIssuedLitres = logs.reduce((sum, l) => sum + (l.issuedQty || 0), 0);
+    const totalReturnedGoodLitres = logs.reduce((sum, l) => sum + (l.goodReturnedQty || 0), 0);
+    const totalFloorWastageLitres = logs.reduce((sum, l) => sum + (l.floorWastageExpiredQty || 0), 0);
+    const netConsumedLitres = logs.reduce((sum, l) => sum + (l.netConsumedQty || 0), 0);
+
+    // Sum pieces painted across matched assignments
+    const matchedAssignmentIds = new Set(logs.map(l => l.assignmentId));
+    const totalPiecesPainted = painterAssignments
+      .filter(a => matchedAssignmentIds.has(a.id))
+      .reduce((sum, a) => sum + (a.actualCompletedQty || 0), 0);
+
+    const avgLitrePerPiece = totalPiecesPainted > 0
+      ? Number((netConsumedLitres / totalPiecesPainted).toFixed(4))
+      : 0;
+
+    const highWastageLogsCount = logs.filter(l => l.highWastageFlag).length;
+
+    return {
+      totalIssuedLitres,
+      totalReturnedGoodLitres,
+      totalFloorWastageLitres,
+      netConsumedLitres,
+      totalPiecesPainted,
+      avgLitrePerPiece,
+      highWastageLogsCount,
+      logs
+    };
+  };
+
   // Painter Workload & Max-2 Active Jobs Guardrail Helpers
   const getPainterActiveJobCount = (painterNameOrId: string): number => {
     if (!painterNameOrId) return 0;
@@ -3347,6 +3718,14 @@ export const PortalProvider: React.FC<{
         updatePriorityStatus,
         activeSubTab,
         setActiveSubTab,
+
+        // 3-Tier Spray Painting Job Card Architecture (PK-OS 2026)
+        painterAssignments,
+        assignmentMaterialLogs,
+        createPainterAssignment,
+        closePainterAssignment,
+        issueAssignmentMaterials,
+        getPainterConsumablesLedger,
 
         // Store Role Upgrade: Batch-Wise Stock, FIFO/FEFO & Balance Returns (PK-OS Upgrade)
         stockBatches,

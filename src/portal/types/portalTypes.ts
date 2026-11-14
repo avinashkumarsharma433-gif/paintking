@@ -632,6 +632,89 @@ export interface JobCardDailyTargetRecord {
   materialsConsumed?: DailyMaterialConsumptionSnapshot[];
 }
 
+// ======================================================================
+// 3-TIER SPRAY PAINTING PRODUCTION ARCHITECTURE (PK-OS 2026)
+// Tier 1: MasterJobCard (Order/Batch level - Never split)
+// Tier 2: PainterAssignment (Daily/Shift allocation per painter & booth)
+// Tier 3: AssignmentMaterialLog (Chemical & consumable traceability)
+// ======================================================================
+
+export type AssignmentShiftType = 'General Day Shift (08:30 - 18:30)' | 'Day 12H' | 'Night 12H' | 'Rotational Shift';
+export type AssignmentProcessStage = 'Primer' | 'Basecoat' | 'Topcoat / Clear Coat' | 'Full Coating System';
+export type AssignmentStatus = 'Active' | 'Closed - Target Met' | 'Closed - Partial/Incomplete';
+
+export interface AssignmentMaterialLog {
+  id: string;                          // e.g. "MAT-LOG-001"
+  assignmentId: string;                // FK -> PainterAssignment.id
+  masterJobCardNo: string;             // Reference to Master Job Card
+  painterId: string;                   // Permanent Painter ID
+  painterName: string;                 // Painter Name
+  date: string;                        // YYYY-MM-DD
+  shift: string;                       // Shift string
+  materialItemId?: string;             // Store item part code / ID
+  materialName: string;                // e.g. "PU Metallic Silver Basecoat"
+  materialType: 'Base Paint' | 'Topcoat' | 'Hardener' | 'Thinner' | 'Cleaning Solvent';
+  batchNumber?: string;                // Store lot/batch number
+  issuedQty: number;                   // Deducted from store (Litres / Kg)
+  goodReturnedQty: number;             // Unmixed/fresh returned to store (Litres / Kg)
+  floorWastageExpiredQty: number;      // Mixed/pot-life expired loss (Litres / Kg)
+  netConsumedQty: number;              // Auto-calculated: issuedQty - goodReturnedQty
+  perPieceConsumption?: number;        // Auto-calculated: netConsumedQty / actualCompletedQty
+  uom: 'Litres' | 'Kg' | 'Pcs';
+  highWastageFlag?: boolean;           // True if exceeding standard norm
+  standardNormPerPiece?: number;       // BOM standard norm
+  remarks?: string;
+  loggedAt?: string;
+}
+
+export interface PainterAssignment {
+  id: string;                          // e.g. "ASG-2026-001"
+  masterJobCardNo: string;             // FK -> MasterJobCard.jobCardNo
+  assignmentDate: string;              // Single Date YYYY-MM-DD
+  shift: AssignmentShiftType | string;
+  painterId: string;
+  painterName: string;
+  boothNumber: string;                 // e.g. "Booth #1 (Continuous Conveyor Line)"
+  processStage: AssignmentProcessStage;
+  dailyTargetQty: number;              // Cannot exceed MasterJobCard.balancePendingQty
+  actualCompletedQty: number;          // Entered at shift close
+  rejectReworkQty: number;             // Re-spray / Rework items
+  scrapQty: number;                    // Permanent loss
+  stageOkQty: number;                  // Stage-specific good yield
+  stageReworkQty: number;              // Stage-specific rework flagged
+  stageScrapQty: number;               // Stage-specific unrecoverable scrap
+  defectCategory?: DefectCategory | string; // e.g. "D01-Run", "D02-Dust"
+  status: AssignmentStatus;
+  startedAt?: string;                  // Time HH:MM
+  closedAt?: string;                   // Time HH:MM
+  closedBy?: string;                   // Supervisor name
+  efficiencyPercent?: number;          // (actualCompletedQty / dailyTargetQty) * 100
+  remarks?: string;                    // e.g. "Painter absent next day", "Cleanroom filter replaced"
+  materialLogs?: AssignmentMaterialLog[];
+}
+
+export interface MasterJobCard {
+  jobCardNo: string;                   // Auto-generated e.g. "JC-2026-001"
+  inwardId?: string;                   // Link to Material Inward / GRN
+  woNo: string;                        // Work Order No
+  customer: string;                    // Party Name
+  partCode: string;
+  partDescription: string;
+  color: string;                       // Color / Shade code
+  totalOrderQty: number;               // Total Party Order e.g. 10,000 pcs
+  completedOkQty: number;              // Auto-sum of OK pieces from all assignments
+  reworkRejectQty: number;             // Auto-sum of reject/rework pieces
+  balancePendingQty: number;           // totalOrderQty - completedOkQty
+  finalDeadline: string;               // ISO Date or "YYYY-MM-DD"
+  finalDeadlineTime?: string;
+  status: 'Pending' | 'In-Progress' | 'Overdue' | 'Completed';
+  plant: PlantLocation;
+  createdAt: string;
+  createdBy?: string;
+  notes?: string;
+  assignments?: PainterAssignment[];
+}
+
 export interface JobCard {
   jobCardNature?: JobCardNature;
   samplingRecipe?: SamplingRecipeSheet;
@@ -750,6 +833,10 @@ export interface JobCard {
   stageProcessThird?: ProcessStageCount;  // Process Third (Final Laquar)
   stageRemark?: string;
   preparedBy?: string;
+
+  // 3-Tier Relational Architecture Integration
+  assignments?: PainterAssignment[];
+  assignmentMaterialLogs?: AssignmentMaterialLog[];
   checkedBy?: string;
   stageApprovedBy?: string;
 

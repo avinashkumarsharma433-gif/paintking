@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { FPAModal } from '../components/FPAModal';
 import { IPQCModal } from '../components/IPQCModal';
+import { ShiftCloseModal } from '../components/ShiftCloseModal';
 import { downloadStandardFPAPdf, downloadStandardIPQCPdf } from '../utils/pdfStandardHeader';
 import { matchesPlant } from '../utils/portalAuth';
 
@@ -48,7 +49,9 @@ export const PainterWorkspaceView: React.FC = () => {
     getPainterPerformanceStats,
     pendingVerificationJobsCount,
     fpaRecords,
-    ipqcRecords
+    ipqcRecords,
+    painterAssignments,
+    closePainterAssignment
   } = usePortalStore();
 
   const isManager = currentUser.role !== 'OPERATOR';
@@ -63,6 +66,10 @@ export const PainterWorkspaceView: React.FC = () => {
   const [selectedJcForFpa, setSelectedJcForFpa] = useState<JobCard | null>(null);
   const [showIpqcModal, setShowIpqcModal] = useState<boolean>(false);
   const [selectedJcForIpqc, setSelectedJcForIpqc] = useState<JobCard | null>(null);
+
+  // 3-Tier Shift Close Modal State
+  const [showShiftCloseModal, setShowShiftCloseModal] = useState<boolean>(false);
+  const [selectedAssignmentForClose, setSelectedAssignmentForClose] = useState<any | null>(null);
 
   // For individual painter login (OPERATOR role)
   const loggedInPainter = filteredPainters.find(p => 
@@ -134,6 +141,14 @@ export const PainterWorkspaceView: React.FC = () => {
     const targetName = (activeTargetPainter?.name || '').trim().toLowerCase();
     const isMatching = assigned.includes(targetName) || targetName.includes(assigned);
     return isMatching && (jc.status === 'Completed' || jc.painterJobStatus === 'Verified & Accepted');
+  });
+
+  // Active Daily Painter Assignments for the target painter
+  const activeDailyAssignments = painterAssignments.filter(asg => {
+    const assigned = (asg.painterName || '').trim().toLowerCase();
+    const targetName = (activeTargetPainter?.name || '').trim().toLowerCase();
+    const isMatching = assigned.includes(targetName) || targetName.includes(assigned);
+    return isMatching && asg.status === 'Active';
   });
 
   const checkIsFpaApproved = (jc: JobCard): boolean => {
@@ -499,6 +514,56 @@ export const PainterWorkspaceView: React.FC = () => {
       {/* ====================================================================== */}
       {activeTab === 'PENDING' ? (
         <div className="space-y-4">
+          {/* Active Shift Allocations Alert Strip */}
+          {activeDailyAssignments.length > 0 && (
+            <div className="p-4 rounded-[20px] bg-[#faf7ed] border border-[#f4e5be] space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-[#c09748]" />
+                  <span className="font-bold text-xs text-[#8a6521] uppercase tracking-wider">
+                    Today's Active Shift Assignments ({activeDailyAssignments.length})
+                  </span>
+                </div>
+                <span className="text-[11px] text-[#777b86]">
+                  Shift complete hone par "End Shift & Close Target" karein
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {activeDailyAssignments.map(asg => (
+                  <div
+                    key={asg.id}
+                    className="p-3 bg-white rounded-[16px] border border-[#ececec] flex items-center justify-between gap-3 text-xs shadow-2xs"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 font-mono">
+                        <span className="font-bold text-[#c09748]">{asg.assignmentId}</span>
+                        <span className="text-gray-400">•</span>
+                        <span className="text-[#17191c] font-bold">{asg.masterJobCardId}</span>
+                        <span className="text-[10px] bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{asg.shift} Shift</span>
+                      </div>
+                      <div className="text-[11px] text-[#777b86]">
+                        Target: <strong className="text-[#17191c] font-mono">{asg.dailyTargetQty} pcs</strong> • Booth: <strong>{asg.boothNumber}</strong>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedAssignmentForClose(asg);
+                        setShowShiftCloseModal(true);
+                      }}
+                      className="px-3.5 py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 shrink-0"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>End Shift & Reconcile</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between pb-1">
             <h2 className="text-base font-serif font-semibold text-[#17191c]">
               Pending Job Cards Assigned to {activeTargetPainter.name} ({activeTargetPainter.boothNo})
@@ -1148,6 +1213,24 @@ export const PainterWorkspaceView: React.FC = () => {
         }}
         jobCard={selectedJcForIpqc}
       />
+
+      {/* ====================================================================== */}
+      {/* MODAL: 3-TIER SHIFT CLOSE & RECONCILIATION MODAL                       */}
+      {/* ====================================================================== */}
+      {showShiftCloseModal && selectedAssignmentForClose && (
+        <ShiftCloseModal
+          isOpen={showShiftCloseModal}
+          onClose={() => {
+            setShowShiftCloseModal(false);
+            setSelectedAssignmentForClose(null);
+          }}
+          assignment={selectedAssignmentForClose}
+          onCloseShift={(data) => {
+            closePainterAssignment(data);
+            showToast(`✓ Shift closed for ${selectedAssignmentForClose.painterName}. Production logged & store stock updated!`);
+          }}
+        />
+      )}
     </div>
   );
 };

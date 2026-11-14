@@ -53,6 +53,8 @@ import { FPAModal } from '../components/FPAModal';
 import { IPQCModal } from '../components/IPQCModal';
 import { BoothConfigModal } from '../components/BoothConfigModal';
 import { PainterConfigModal } from '../components/PainterConfigModal';
+import { DailyAssignmentModal } from '../components/DailyAssignmentModal';
+import { ShiftCloseModal } from '../components/ShiftCloseModal';
 import { PainterDetailProfileView } from './PainterDetailProfileView';
 import { downloadStandardPreProductionPdf, downloadStandardFPAPdf, downloadStandardIPQCPdf, downloadStandardJobCardPdf, downloadStandardProductionOfferingPdf } from '../utils/pdfStandardHeader';
 import { BalanceReturnModal } from '../components/BalanceReturnModal';
@@ -264,8 +266,24 @@ export const JobCardsView: React.FC = () => {
     rejectAndRequestRework,
     getPainterPerformanceStats,
     pendingVerificationJobsCount,
-    requestNextDayTarget
+    requestNextDayTarget,
+    painterAssignments,
+    assignmentMaterialLogs,
+    createPainterAssignment,
+    closePainterAssignment,
+    getPainterConsumablesLedger
   } = usePortalStore();
+
+  // 3-Tier Job Card Modals State
+  const [showDailyAssignModal, setShowDailyAssignModal] = useState<boolean>(false);
+  const [selectedMasterForAssign, setSelectedMasterForAssign] = useState<JobCard | null>(null);
+
+  const [showShiftCloseModal, setShowShiftCloseModal] = useState<boolean>(false);
+  const [selectedAssignmentForClose, setSelectedAssignmentForClose] = useState<any | null>(null);
+
+  // Drawer / Drilldown State for Master Job Card Details
+  const [selectedMasterDrilldown, setSelectedMasterDrilldown] = useState<JobCard | null>(null);
+  const [drilldownTab, setDrilldownTab] = useState<'ASSIGNMENTS' | 'CONSUMABLES'>('ASSIGNMENTS');
 
   // Plant-filtered painters and booths
   const filteredPainters = useMemo(() => {
@@ -281,8 +299,8 @@ export const JobCardsView: React.FC = () => {
   const [selectedJcForQuota, setSelectedJcForQuota] = useState<JobCard | null>(null);
   const [nextQuotaInput, setNextQuotaInput] = useState<number>(2000);
 
-  // Active filter tab: PRIORITY_QUEUE, ALL, REQUISITIONS, BOOTH_FLEET
-  const [activeTab, setActiveTab] = useState<'PRIORITY_QUEUE' | 'ALL' | 'REQUISITIONS' | 'BOOTH_FLEET'>('ALL');
+  // Active filter tab: PRIORITY_QUEUE, ALL, REQUISITIONS, BOOTH_FLEET, CONSUMABLES_LEDGER
+  const [activeTab, setActiveTab] = useState<'PRIORITY_QUEUE' | 'ALL' | 'REQUISITIONS' | 'BOOTH_FLEET' | 'CONSUMABLES_LEDGER'>('ALL');
 
   // Quality Gates: 1. PIR (Pre-Production Substrate), 2. FPA (Golden Gate), 3. IPQC Line Modal States
   const [showPirModal, setShowPirModal] = useState<boolean>(false);
@@ -1710,6 +1728,17 @@ export const JobCardsView: React.FC = () => {
           <Settings className="w-3.5 h-3.5 text-[#c09748]" />
           <span>Painting Lines & Spray Booth Fleet ({filteredBooths.length})</span>
         </button>
+        <button
+          onClick={() => handleSelectTab('CONSUMABLES_LEDGER' as any)}
+          className={`px-4 py-2 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+            activeTab === ('CONSUMABLES_LEDGER' as any)
+              ? 'bg-[#17191c] text-[#c09748] shadow-xs'
+              : 'bg-white hover:bg-[#fafafb] text-[#777b86] border border-[#ececec]'
+          }`}
+        >
+          <FlaskConical className="w-3.5 h-3.5 text-[#c09748]" />
+          <span>Painter Consumables Ledger ({assignmentMaterialLogs.length})</span>
+        </button>
       </div>
 
       {/* PENDING FLOOR VERIFICATION REVIEW DESK (MANAGER ACCEPTANCE GATEWAY) */}
@@ -3063,16 +3092,44 @@ export const JobCardsView: React.FC = () => {
 
                   {/* Right: Actions (3 cols) */}
                   <div className="md:col-span-3 flex md:flex-col items-center md:items-end justify-end gap-2 shrink-0">
+                    {/* Primary Button: Daily Painter Target Allocation */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedMasterForAssign(jc);
+                        setShowDailyAssignModal(true);
+                      }}
+                      className="w-full sm:w-auto md:w-full px-4 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Assign Painter (Target)</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => handleViewJobCard(jc)}
-                      className="w-full sm:w-auto md:w-full px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
+                      className="w-full sm:w-auto md:w-full px-4 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
                     >
                       <Eye className="w-3.5 h-3.5 text-[#c09748]" />
                       <span>View Job Card</span>
                     </button>
 
                     <div className="flex items-center gap-1.5 w-full sm:w-auto md:w-full justify-end flex-wrap">
+                      {/* Drilldown Trigger: Shift Tasks & Chemical Traceability */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMasterDrilldown(selectedMasterDrilldown?.jobCardNo === jc.jobCardNo ? null : jc)}
+                        className={`px-2.5 py-1.5 rounded-full text-[11px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 ${
+                          selectedMasterDrilldown?.jobCardNo === jc.jobCardNo
+                            ? 'bg-[#17191c] text-[#c09748] border border-[#17191c]'
+                            : 'bg-white hover:bg-[#fafafb] text-[#17191c] border border-[#dcdfe4]'
+                        }`}
+                        title="View Daily Painter Assignments & Material Logs"
+                      >
+                        <Layers className="w-3 h-3 text-[#c09748]" />
+                        <span>Daily Shifts & Logs</span>
+                      </button>
+
                       {(jc.goodQty || 0) > 0 && (
                         <button
                           type="button"
@@ -3109,6 +3166,174 @@ export const JobCardsView: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* 3-Tier Drilldown: Painter Assignments & Material Traceability */}
+                {selectedMasterDrilldown?.jobCardNo === jc.jobCardNo && (
+                  <div className="bg-[#fafafb] border-t border-[#ececec] p-3.5 rounded-[16px] space-y-3 mt-3 animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDrilldownTab('ASSIGNMENTS')}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                            drilldownTab === 'ASSIGNMENTS'
+                              ? 'bg-[#17191c] text-[#c09748]'
+                              : 'bg-white text-[#777b86] border border-[#ececec] hover:bg-gray-50'
+                          }`}
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          <span>Painter Daily Assignments</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDrilldownTab('CONSUMABLES')}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                            drilldownTab === 'CONSUMABLES'
+                              ? 'bg-[#17191c] text-[#c09748]'
+                              : 'bg-white text-[#777b86] border border-[#ececec] hover:bg-gray-50'
+                          }`}
+                        >
+                          <FlaskConical className="w-3.5 h-3.5" />
+                          <span>Chemical Material Logs</span>
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMasterForAssign(jc);
+                          setShowDailyAssignModal(true);
+                        }}
+                        className="px-3 py-1 rounded-full bg-[#faf7ed] hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>+ New Shift Target</span>
+                      </button>
+                    </div>
+
+                    {drilldownTab === 'ASSIGNMENTS' && (
+                      <div className="space-y-2">
+                        {(() => {
+                          const jcAssignments = painterAssignments.filter(a => a.masterJobCardId === jc.jobCardNo);
+                          if (jcAssignments.length === 0) {
+                            return (
+                              <div className="p-4 text-center text-xs text-[#777b86] bg-white rounded-[12px] border border-dashed border-[#ececec]">
+                                No daily painter assignments created yet for this Master Job Card. Click <strong>"+ New Shift Target"</strong> to assign today's quota to a painter.
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="space-y-2">
+                              {jcAssignments.map(asg => {
+                                const isClosed = asg.status.startsWith('Closed');
+                                return (
+                                  <div
+                                    key={asg.id}
+                                    className="p-3 bg-white rounded-[14px] border border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs"
+                                  >
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-mono font-bold text-[#c09748]">{asg.assignmentId}</span>
+                                        <span className="px-2 py-0.5 rounded-full bg-gray-100 font-mono text-[10px] text-[#17191c]">
+                                          {asg.assignmentDate} • {asg.shift} Shift
+                                        </span>
+                                        <span className="font-semibold text-[#17191c]">
+                                          {asg.painterName} ({asg.boothNumber})
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-3 text-[11px] text-[#777b86]">
+                                        <span>Target: <strong className="text-[#17191c] font-mono">{asg.dailyTargetQty} pcs</strong></span>
+                                        <span>OK: <strong className="text-emerald-700 font-mono">{asg.actualCompletedQty || 0} pcs</strong></span>
+                                        {(asg.rejectReworkQty || 0) > 0 && (
+                                          <span className="text-rose-700 font-mono">Reject/RW: {asg.rejectReworkQty} pcs</span>
+                                        )}
+                                        {asg.efficiency !== undefined && (
+                                          <span className="text-amber-800 font-mono font-bold">Eff: {asg.efficiency}%</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                                      <span className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold ${
+                                        asg.status === 'Closed - Target Met'
+                                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                          : asg.status === 'Closed - Partial/Incomplete'
+                                            ? 'bg-amber-50 text-amber-900 border border-amber-200'
+                                            : 'bg-blue-50 text-blue-800 border border-blue-200'
+                                      }`}>
+                                        {asg.status}
+                                      </span>
+                                      {!isClosed && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedAssignmentForClose(asg);
+                                            setShowShiftCloseModal(true);
+                                          }}
+                                          className="px-3 py-1 rounded-full bg-[#17191c] hover:bg-[#2e3238] text-[#c09748] font-bold text-[11px] transition cursor-pointer flex items-center gap-1 active:scale-95"
+                                        >
+                                          <CheckCircle2 className="w-3 h-3 text-[#c09748]" />
+                                          <span>Close Shift</span>
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {drilldownTab === 'CONSUMABLES' && (
+                      <div className="space-y-2">
+                        {(() => {
+                          const jcLogs = assignmentMaterialLogs.filter(l => l.masterJobCardId === jc.jobCardNo);
+                          if (jcLogs.length === 0) {
+                            return (
+                              <div className="p-4 text-center text-xs text-[#777b86] bg-white rounded-[12px] border border-dashed border-[#ececec]">
+                                No chemical material logs recorded yet. Chemical consumption is tracked automatically when painters close their shifts.
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left text-xs bg-white rounded-[14px] border border-[#ececec] overflow-hidden">
+                                <thead className="bg-[#f2f2f3] text-[#17191c] text-[11px] font-bold border-b border-[#ececec]">
+                                  <tr>
+                                    <th className="p-2.5">Date / Shift</th>
+                                    <th className="p-2.5">Painter</th>
+                                    <th className="p-2.5">Material</th>
+                                    <th className="p-2.5 text-right">Issued</th>
+                                    <th className="p-2.5 text-right">Good Return</th>
+                                    <th className="p-2.5 text-right">Floor Waste</th>
+                                    <th className="p-2.5 text-right">Net Consumed</th>
+                                    <th className="p-2.5 text-right">Rate (L/pc)</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[#ececec]">
+                                  {jcLogs.map(l => (
+                                    <tr key={l.id} className="hover:bg-gray-50/50">
+                                      <td className="p-2.5 font-mono text-[11px] text-[#777b86]">{l.logDate}</td>
+                                      <td className="p-2.5 font-semibold text-[#17191c]">{l.painterName}</td>
+                                      <td className="p-2.5 font-mono text-[11px]">{l.materialName} ({l.materialType})</td>
+                                      <td className="p-2.5 text-right font-mono">{l.issuedQty} {l.uom}</td>
+                                      <td className="p-2.5 text-right font-mono text-emerald-700">{l.goodReturnedQty} {l.uom}</td>
+                                      <td className="p-2.5 text-right font-mono text-rose-700">{l.floorWastageExpiredQty} {l.uom}</td>
+                                      <td className="p-2.5 text-right font-mono font-bold text-[#17191c]">{l.netConsumedQty} {l.uom}</td>
+                                      <td className="p-2.5 text-right font-mono text-[#8a6521]">
+                                        {l.perPieceConsumption ? `${l.perPieceConsumption} ${l.uom}/pc` : '-'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Sub-Card Tree Expansion for Master Card */}
                 {isMaster && hasChildren && isExpanded && (
@@ -3147,6 +3372,117 @@ export const JobCardsView: React.FC = () => {
           })
         )}
       </div>
+      )}
+
+      {/* ====================================================================== */}
+      {/* VIEW: PAINTER CONSUMABLES LEDGER & MATERIAL TRACEABILITY MATRIX        */}
+      {/* ====================================================================== */}
+      {activeTab === ('CONSUMABLES_LEDGER' as any) && (
+        <div className="space-y-4">
+          <div className="p-4 rounded-[20px] bg-white border border-[#ececec] space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+                  TIER 3 CONSUMABLES LEDGER • ISO 9001 CHEMICAL AUDIT
+                </span>
+                <h3 className="text-base sm:text-lg font-serif font-normal text-[#17191c] mt-0.5">
+                  Painter-Wise Material Consumption & Wastage Ledger
+                </h3>
+                <p className="text-xs text-[#777b86]">
+                  Every drop of paint, hardener, thinner, and solvent issued to floor painters, good returns credited back to store stock, and high-wastage alerts.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[#777b86] font-semibold">Total Logs:</span>
+                <span className="px-3 py-1 rounded-full bg-[#f2f2f3] font-mono text-xs font-bold text-[#17191c]">
+                  {assignmentMaterialLogs.length} Records
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {assignmentMaterialLogs.length === 0 ? (
+            <div className="p-10 text-center bg-white rounded-[20px] border border-[#ececec] space-y-2">
+              <FlaskConical className="w-8 h-8 text-[#979799] mx-auto" />
+              <div className="font-serif text-base text-[#17191c]">No Material Logs Yet</div>
+              <p className="text-xs text-[#777b86] max-w-md mx-auto">
+                Daily Painter Assignments me shift close hone par chemicals ka consumption automatically is ledger me record hoga.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-[20px] border border-[#ececec] overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#f2f2f3] text-[#17191c] text-[11px] font-bold border-b border-[#ececec]">
+                    <tr>
+                      <th className="p-3">Log Date</th>
+                      <th className="p-3">Painter / Tech</th>
+                      <th className="p-3">Master JC / Assignment</th>
+                      <th className="p-3">Material & Batch</th>
+                      <th className="p-3 text-right">Issued</th>
+                      <th className="p-3 text-right">Good Return</th>
+                      <th className="p-3 text-right">Floor Waste</th>
+                      <th className="p-3 text-right">Net Consumed</th>
+                      <th className="p-3 text-right">Rate (L/pc)</th>
+                      <th className="p-3 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#ececec]">
+                    {assignmentMaterialLogs.map(log => (
+                      <tr key={log.id} className="hover:bg-gray-50/60 transition">
+                        <td className="p-3 font-mono text-[11px] text-[#777b86] whitespace-nowrap">
+                          {log.logDate}
+                        </td>
+                        <td className="p-3 whitespace-nowrap">
+                          <strong className="text-[#17191c]">{log.painterName}</strong>
+                        </td>
+                        <td className="p-3 font-mono text-[11px] whitespace-nowrap">
+                          <span className="text-[#c09748] font-bold block">{log.masterJobCardId}</span>
+                          <span className="text-[#777b86] text-[10px]">{log.assignmentId}</span>
+                        </td>
+                        <td className="p-3">
+                          <div className="font-semibold text-[#17191c]">{log.materialName}</div>
+                          <div className="text-[10px] font-mono text-[#777b86]">
+                            Type: {log.materialType} • Batch: {log.batchNumber || 'N/A'}
+                          </div>
+                        </td>
+                        <td className="p-3 text-right font-mono font-medium text-[#17191c] whitespace-nowrap">
+                          {log.issuedQty} {log.uom}
+                        </td>
+                        <td className="p-3 text-right font-mono font-medium text-emerald-700 whitespace-nowrap">
+                          {log.goodReturnedQty} {log.uom}
+                        </td>
+                        <td className="p-3 text-right font-mono font-medium text-rose-700 whitespace-nowrap">
+                          {log.floorWastageExpiredQty} {log.uom}
+                        </td>
+                        <td className="p-3 text-right font-mono font-bold text-[#17191c] whitespace-nowrap">
+                          {log.netConsumedQty} {log.uom}
+                        </td>
+                        <td className="p-3 text-right font-mono text-[#8a6521] whitespace-nowrap">
+                          {log.perPieceConsumption ? `${log.perPieceConsumption} ${log.uom}/pc` : '-'}
+                        </td>
+                        <td className="p-3 text-center whitespace-nowrap">
+                          {log.highWastageAlert ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 font-bold text-[10px]">
+                              <AlertTriangle className="w-3 h-3 text-rose-600" />
+                              <span>High Wastage</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-[10px]">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Norm OK</span>
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Modal 1: Log Shift Progress */}
@@ -4842,6 +5178,42 @@ export const JobCardsView: React.FC = () => {
           <CheckCircle2 className="w-4 h-4 text-[#c09748]" />
           <span>{toastMessage}</span>
         </div>
+      )}
+
+      {/* 3-Tier Daily Painter Assignment Modal */}
+      {showDailyAssignModal && selectedMasterForAssign && (
+        <DailyAssignmentModal
+          isOpen={showDailyAssignModal}
+          onClose={() => {
+            setShowDailyAssignModal(false);
+            setSelectedMasterForAssign(null);
+          }}
+          masterJobCard={selectedMasterForAssign}
+          painters={filteredPainters}
+          booths={filteredBooths}
+          onAssign={(assignmentData) => {
+            createPainterAssignment(assignmentData);
+            setToastMessage(`✓ Target assigned to ${assignmentData.painterName}!`);
+            setTimeout(() => setToastMessage(null), 3500);
+          }}
+        />
+      )}
+
+      {/* 3-Tier Shift Close & Reconciliation Modal */}
+      {showShiftCloseModal && selectedAssignmentForClose && (
+        <ShiftCloseModal
+          isOpen={showShiftCloseModal}
+          onClose={() => {
+            setShowShiftCloseModal(false);
+            setSelectedAssignmentForClose(null);
+          }}
+          assignment={selectedAssignmentForClose}
+          onCloseShift={(data) => {
+            closePainterAssignment(data);
+            setToastMessage(`✓ Shift closed for ${selectedAssignmentForClose.painterName}. Master JC updated!`);
+            setTimeout(() => setToastMessage(null), 3500);
+          }}
+        />
       )}
     </div>
   );

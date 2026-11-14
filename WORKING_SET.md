@@ -1,5 +1,15 @@
 # WORKING SET
 
+- 2026-11-14: Implemented 3-Tier Job Card, Shift Allocations & Consumables Ledger
+  - Files touched:
+    - `src/portal/types/portalTypes.ts`: Added types `PainterAssignment`, `AssignmentMaterialLog`, `MasterJobCard`, `AssignmentShiftType`, `AssignmentProcessStage`.
+    - `src/portal/context/PortalStoreContext.tsx`: Added store state, sync keys, `createPainterAssignment`, `issueAssignmentMaterials`, `closePainterAssignment`, and `getPainterConsumablesLedger`.
+    - `src/portal/components/DailyAssignmentModal.tsx`: New modal for shift target allocation with pending balance validation.
+    - `src/portal/components/ShiftCloseModal.tsx`: New modal for shift close yield, stage breakdown, and chemical reconciliation.
+    - `src/portal/views/JobCardsView.tsx`: Added "+ Assign Painter (Target)", drill-down drawer (Shifts & Chemical Logs), and Painter Consumables Ledger view tab.
+    - `src/portal/views/PainterWorkspaceView.tsx`: Integrated active shift assignments banner with instant shift close and reconciliation modal.
+  - Status: Verified with `npx tsc --noEmit` and `npm run build` (built in 8.51s with 0 errors).
+
 - 2026-11-13: Fixed Painter & Booth Fleet Strict Plant Data Isolation (Floor Desk & Fleet Management)
   - Files touched:
     - `src/portal/types/portalTypes.ts`: Added `plant: PlantLocation` to `PainterProfile`.
