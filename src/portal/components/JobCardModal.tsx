@@ -348,6 +348,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     painterName: string;
     boothNumber: string;
     processStage: AssignmentProcessStage;
+    colorShade?: string;
     dailyTargetQty: number;
   }>>(() => [
     {
@@ -356,6 +357,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       painterName: initialData?.assignedPainterName || initialData?.painterName || painters[0]?.name || 'Ramesh Kumar (P1)',
       boothNumber: initialData?.dept || paintingBooths[0]?.name || 'Booth #1 (Continuous Conveyor Line)',
       processStage: 'Full Coating System',
+      colorShade: initialData?.color && initialData.color !== 'Multi-Colour / Painter-Wise' ? initialData.color : '',
       dailyTargetQty: initialData?.dailyTargetQty || (initialData?.targetQty ? Math.min(2000, initialData.targetQty) : 100)
     }
   ]);
@@ -374,6 +376,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
         painterName: fallbackPainter.name,
         boothNumber: fallbackBooth.name,
         processStage: 'Full Coating System',
+        colorShade: batchColor || '',
         dailyTargetQty: remaining > 0 ? Math.min(remaining, 1000) : 500
       }
     ]);
@@ -893,7 +896,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       customer,
       partCode,
       partDescription,
-      color: batchColor,
+      color: batchColor.trim() || 'Multi-Colour / Painter-Wise',
       targetQty,
       dailyTargetQty,
       dailyIssuedQty: dailyTargetQty,
@@ -1566,10 +1569,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
         alert(`Allocated quantity (${targetQty}) cannot exceed available Store Inward balance (${availableStoreBalance} Pcs).`);
         return false;
       }
-      if (!batchColor.trim()) {
-        alert('Please specify the target colour / finish shade.');
-        return false;
-      }
       return true;
     }
     if (step === 3) {
@@ -1695,7 +1694,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       customer,
       partCode,
       partDescription,
-      color: batchColor,
+      color: batchColor.trim() || 'Multi-Colour / Painter-Wise',
       targetQty,
       dailyTargetQty: totalAllocatedShift > 0 ? totalAllocatedShift : dailyTargetQty,
       dailyIssuedQty: totalAllocatedShift > 0 ? totalAllocatedShift : dailyTargetQty,
@@ -1750,6 +1749,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
             painterName: alloc.painterName,
             boothNumber: alloc.boothNumber,
             processStage: alloc.processStage,
+            colorShade: alloc.colorShade?.trim() || batchColor.trim() || undefined,
             dailyTargetQty: alloc.dailyTargetQty,
             remarks: 'Shift allocation at Job Card launch'
           });
@@ -3107,9 +3107,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     </span>
                   </div>
                   <div className="flex justify-between items-center h-6">
-                    <span className="text-[#777b86]">Target Colour:</span>
-                    <span className="font-bold text-[11px] text-[#8a6521] bg-[#faf3e0] px-2.5 py-0.5 rounded-full border border-[#f4e5be] truncate max-w-[170px]">
-                      {batchColor}
+                    <span className="text-[#777b86]">Colour Assignment:</span>
+                    <span className="text-[11px] font-semibold text-[#777b86]">
+                      Per Painter Shift
                     </span>
                   </div>
                   <div className="flex justify-between items-center h-6">
@@ -3143,9 +3143,15 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           <div className="min-w-0">
                             <div className="text-xs font-bold text-[#17191c] truncate">{asg.painterName}</div>
                             <div className="text-[10px] text-[#777b86] font-mono flex items-center gap-1.5 truncate">
-                              <span>{asg.boothNo}</span>
+                              <span>{asg.boothNumber || (asg as any).boothNo || 'Booth #1'}</span>
                               <span>•</span>
                               <span>{asg.processStage || 'Full System'}</span>
+                              {asg.colorShade && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-[#8a6521] font-semibold">{asg.colorShade}</span>
+                                </>
+                              )}
                             </div>
                           </div>
                           <div className="text-right shrink-0">
@@ -3330,71 +3336,111 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     </div>
                   )}
 
-                  {/* Read-Only Order Reconciliation Rule */}
-                  {(() => {
-                    const jcReturnSlips = balanceReturnSlips.filter(r => r.jobCardNo === jobCardNo);
-                    const totalReturnedPieces = jcReturnSlips
-                      .flatMap(r => r.lines)
-                      .filter(l => (l.category === 'PARTY_MATERIAL' || l.uom === 'Pcs') && l.condition !== 'Damaged / Scrapped')
-                      .reduce((sum, line) => sum + Number(line.storeCountedQty || line.returnedQtyClaimed || 0), 0);
-                    const goodPieces = currentGoodQty || initialData?.goodQty || 0;
-                    const rejectPieces = currentRejectQty || initialData?.rejectQty || 0;
-                    const totalAccounted = goodPieces + rejectPieces + totalReturnedPieces;
-                    const variance = targetQty - totalAccounted;
-
-                    return (
-                      <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec] space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <RotateCcw className="w-3.5 h-3.5 text-[#c09748]" />
-                            <span className="font-mono text-xs font-bold text-[#17191c] uppercase tracking-wide">
-                              Master Order Piece Reconciliation
-                            </span>
-                          </div>
-                          <span className="text-[10px] font-mono text-[#777b86]">
-                            {jcReturnSlips.length === 0 ? 'No Return Slip Yet' : `${jcReturnSlips.length} Return Slip(s) Logged`}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-                          <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
-                            <span className="text-[10px] text-[#777b86] uppercase font-mono block">Total Order Qty</span>
-                            <span className="font-mono font-bold text-sm text-[#17191c]">{targetQty} Pcs</span>
-                          </div>
-                          <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
-                            <span className="text-[10px] text-emerald-700 uppercase font-mono block">Completed Good</span>
-                            <span className="font-mono font-bold text-sm text-emerald-800">{goodPieces} Pcs</span>
-                          </div>
-                          <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
-                            <span className="text-[10px] text-rose-700 uppercase font-mono block">Rejection Scrap</span>
-                            <span className="font-mono font-bold text-sm text-rose-800">{rejectPieces} Pcs</span>
-                          </div>
-                          <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
-                            <span className="text-[10px] text-[#8a6521] uppercase font-mono block">Returned to Store</span>
-                            <span className="font-mono font-bold text-sm text-[#8a6521]">{totalReturnedPieces} Pcs</span>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] pt-1 border-t border-[#ececec]">
-                          <span className="text-[#777b86]">
-                            Reconciliation: <strong className="font-mono">Order ({targetQty}) = Good ({goodPieces}) + Scrap ({rejectPieces}) + Returned ({totalReturnedPieces}) + Remaining ({variance})</strong>
-                          </span>
-                          {variance === 0 ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
-                              ✓ 100% Balanced (0 Remaining)
-                            </span>
-                          ) : (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200 self-start sm:self-auto">
-                              Balance Remaining: {variance > 0 ? `${variance} Pcs` : `${variance} Pcs Over`}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
                 </div>
               );
             })()}
+
+            {/* 2B. Working Dates & Painter Shift Ledger (Read-Only Date-Wise History) */}
+            <div className="bg-white p-6 sm:p-7 rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#ececec]">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-[#c09748]" />
+                    <h3 className="font-serif font-normal text-lg sm:text-xl text-[#17191c]">
+                      Working Dates &amp; Painter Shift Ledger for {jobCardNo}
+                    </h3>
+                  </div>
+                  <p className="text-xs text-[#777b86] mt-0.5">
+                    Date-wise list of every painter shift, spray booth, daily target quota, good output, scrap, and achievement %.
+                  </p>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] self-start sm:self-auto">
+                  {currentJcAssignments.length} {currentJcAssignments.length === 1 ? 'Shift Entry' : 'Shift Entries'}
+                </span>
+              </div>
+
+              {currentJcAssignments.length === 0 ? (
+                <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
+                  No working dates recorded yet. Assign a painter in Tab 2 (Painter Shift Assignments) to start tracking daily shifts.
+                </div>
+              ) : (
+                <div className="border border-[#ececec] rounded-[18px] overflow-hidden bg-white shadow-2xs">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-[#f2f2f3] text-[#17191c] font-mono border-b border-[#ececec]">
+                          <th className="py-2.5 px-4 font-bold whitespace-nowrap">Date</th>
+                          <th className="py-2.5 px-4 font-bold min-w-[160px]">Painter</th>
+                          <th className="py-2.5 px-4 font-bold whitespace-nowrap">Booth</th>
+                          <th className="py-2.5 px-3 font-bold text-right whitespace-nowrap">Daily Quota</th>
+                          <th className="py-2.5 px-3 font-bold text-right text-emerald-800 whitespace-nowrap">Good</th>
+                          <th className="py-2.5 px-3 font-bold text-right text-rose-800 whitespace-nowrap">Scrap</th>
+                          <th className="py-2.5 px-4 font-bold text-center whitespace-nowrap">Achieved</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#ececec]">
+                        {[...currentJcAssignments]
+                          .sort((a, b) => (b.assignmentDate || '').localeCompare(a.assignmentDate || ''))
+                          .map((asg, idx) => {
+                            const todayIso = new Date().toISOString().split('T')[0];
+                            const quota = Number(asg.dailyTargetQty || 0);
+                            const good = Number(asg.actualCompletedQty || 0);
+                            const scrap = Number(asg.scrapQty || 0);
+                            const achievedPct = quota > 0 ? Math.round((good / quota) * 100) : 0;
+
+                            return (
+                              <tr key={asg.id || idx} className={idx % 2 === 1 ? 'bg-[#fafafb]' : 'bg-white'}>
+                                <td className="py-3 px-4 font-mono font-bold text-[#17191c] whitespace-nowrap">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`w-2 h-2 rounded-full ${asg.assignmentDate === todayIso ? 'bg-emerald-500' : 'bg-[#c09748]'}`} />
+                                    <span>{asg.assignmentDate}</span>
+                                    {asg.assignmentDate === todayIso && (
+                                      <span className="px-2 py-0.5 rounded-full text-[9.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        Today
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="font-semibold text-[#17191c]">{asg.painterName}</div>
+                                  {asg.colorShade && (
+                                    <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[9.5px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                                      {asg.colorShade}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 font-mono text-[#777b86] whitespace-nowrap">
+                                  {(asg.boothNumber || (asg as any).boothNo || '-').split('(')[0].trim()}
+                                </td>
+                                <td className="py-3 px-3 text-right font-mono font-bold text-[#17191c] whitespace-nowrap">
+                                  {quota.toLocaleString('en-IN')} Pcs
+                                </td>
+                                <td className="py-3 px-3 text-right font-mono font-bold text-emerald-700 whitespace-nowrap">
+                                  {good.toLocaleString('en-IN')} Pcs
+                                </td>
+                                <td className="py-3 px-3 text-right font-mono font-bold text-rose-700 whitespace-nowrap">
+                                  {scrap.toLocaleString('en-IN')} Pcs
+                                </td>
+                                <td className="py-3 px-4 text-center whitespace-nowrap">
+                                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold border ${
+                                    achievedPct >= 100
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                      : achievedPct > 0
+                                      ? 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be]'
+                                      : 'bg-[#f2f2f3] text-[#777b86] border-[#ececec]'
+                                  }`}>
+                                    {achievedPct}%
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* 3. MASTER ORDER TOTAL PIECES & COMPLETION STATUS (Read-Only) */}
             <div className="bg-white p-6 sm:p-7 rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
@@ -4286,7 +4332,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       <div className="space-y-2 relative">
                         <div className="flex items-center justify-between">
                           <label className="block text-[11px] font-bold text-[#17191c] uppercase font-mono">
-                            Target Finish Colour / Approved Shade *
+                            Reference / Default Shade (Optional — Colours set per Painter)
                           </label>
                           <span className="text-[10px] text-[#777b86] font-mono">
                             Direct Typing + Suggestions
@@ -4296,7 +4342,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         <div className="relative">
                           <input
                             type="text"
-                            required
                             value={batchColor}
                             onChange={e => {
                               setBatchColor(e.target.value);
@@ -4602,6 +4647,20 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                               placeholder="Quota Pcs"
                             />
                           </div>
+                        </div>
+
+                        {/* Painter-Specific Colour / Shade */}
+                        <div>
+                          <label className="block text-[10.5px] font-bold text-[#17191c] uppercase font-mono mb-1">
+                            Assigned Colour / Shade for this Painter
+                          </label>
+                          <input
+                            type="text"
+                            value={alloc.colorShade || ''}
+                            onChange={(e) => handleUpdatePainterAlloc(alloc.id, { colorShade: e.target.value })}
+                            placeholder="e.g. Monza Red Gloss, Piano Black, Pearl White"
+                            className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-white font-semibold text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                          />
                         </div>
                       </div>
                     ))}
@@ -5446,9 +5505,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
           painters={painters.filter(p => matchesPlant(p.plant, activePlant))}
           booths={paintingBooths.filter(b => matchesPlant(b.plant, activePlant))}
           onAssign={(assignmentData) => {
-            createPainterAssignment(assignmentData);
-            setToastMessage(`✓ Daily target assigned to ${assignmentData.painterName}!`);
-            setTimeout(() => setToastMessage(null), 3500);
+            const res = createPainterAssignment(assignmentData);
+            if (res?.success) {
+              setToastMessage(`✓ Daily target assigned to ${assignmentData.painterName}!`);
+              setTimeout(() => setToastMessage(null), 3500);
+            }
+            return res;
           }}
         />
       )}

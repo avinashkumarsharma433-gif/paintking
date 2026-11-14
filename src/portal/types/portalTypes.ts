@@ -680,6 +680,7 @@ export interface PainterAssignment {
   painterName: string;
   boothNumber: string;                 // e.g. "Booth #1 (Continuous Conveyor Line)"
   processStage: AssignmentProcessStage;
+  colorShade?: string;                 // Specific colour/shade assigned to this painter's shift
   dailyTargetQty: number;              // Cannot exceed MasterJobCard.balancePendingQty
   actualCompletedQty: number;          // Entered at shift close
   rejectReworkQty: number;             // Re-spray / Rework items

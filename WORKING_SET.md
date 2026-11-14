@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-14: Moved Colour Assignment to Painter Shifts & Added Date-Wise Shift Ledger to Tab 1
+  - Files touched:
+    - `src/portal/types/portalTypes.ts`: Added `colorShade?: string` on `PainterAssignment`.
+    - `src/portal/components/DailyAssignmentModal.tsx`: Added required `Assigned Colour / Shade` field to Tier-2 painter shift creation.
+    - `src/portal/components/JobCardModal.tsx`: Removed global `Target Colour` from Tab 1 (`Component & Order Specifications`) and made `batchColor` optional on Master Job Card creation; added `Assigned Colour / Shade` per painter in Step 3 & Card 3; removed `Master Order Piece Reconciliation` from Tab 1 and added `Working Dates & Painter Shift Ledger` (`Date`, `Painter`, `Booth`, `Daily Quota`, `Good`, `Scrap`, `Achieved`).
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors).
+
 - 2026-11-14: Made Tab 1 (Master Order Overview) 100% Read-Only & Enforced 1 GRN = 1 Master Job Card
   - Files touched:
     - `src/portal/components/JobCardModal.tsx`: Set default `existingCardTab` to `'EXECUTION'` (`1. Master Order Overview`), removed all inline edit/add/update triggers (`isEditingDailyQuota`, `showAddMaterialDrawer`, `Update Usage`, `showOutputLogger`, 3-stage update flow, and Activity Logs) from Tab 1, and converted Tab 1 into a pure read-only summary of Master Job Card details, active painters (`currentJcAssignments`), aggregated Tier-3 materials (`assignmentMaterialLogs`), and total pieces completed/remaining.

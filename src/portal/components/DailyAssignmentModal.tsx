@@ -18,6 +18,7 @@ interface DailyAssignmentModalProps {
     painterName: string;
     boothNumber: string;
     processStage: AssignmentProcessStage;
+    colorShade?: string;
     dailyTargetQty: number;
     remarks?: string;
   }) => { success: boolean; error?: string } | void;
@@ -41,6 +42,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
   const [selectedPainterId, setSelectedPainterId] = useState<string>(safePainters[0]?.id || '');
   const [selectedBoothName, setSelectedBoothName] = useState<string>(safeBooths[0]?.name || 'Booth #1');
   const [processStage, setProcessStage] = useState<AssignmentProcessStage>('Basecoat');
+  const [colorShade, setColorShade] = useState<string>(masterJobCard?.color && masterJobCard.color !== 'Multi-Colour / Painter-Wise' ? masterJobCard.color : '');
   const [targetQty, setTargetQty] = useState<number>(() => {
     const pending = Math.max(0, (masterJobCard?.targetQty || 0) - (masterJobCard?.goodQty || 0));
     return Math.min(pending, 2000);
@@ -74,6 +76,11 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
       return;
     }
 
+    if (!colorShade.trim()) {
+      setErrorMsg('Please specify the colour / shade for this painter assignment.');
+      return;
+    }
+
     const res = onAssign({
       masterJobCardNo: masterJobCard.jobCardNo,
       assignmentDate: date,
@@ -82,6 +89,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
       painterName: selectedPainter.name,
       boothNumber: selectedBoothName,
       processStage,
+      colorShade: colorShade.trim(),
       dailyTargetQty: Number(targetQty),
       remarks: remarks.trim() || undefined
     });
@@ -260,18 +268,34 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
             </div>
           </div>
 
-          {/* Remarks */}
-          <div className="space-y-1">
-            <label className="text-[11px] font-bold text-[#17191c] font-mono">
-              7. Remarks / Floor Instructions (Optional)
-            </label>
-            <input
-              type="text"
-              value={remarks}
-              onChange={e => setRemarks(e.target.value)}
-              placeholder="e.g. Day 1 target, maintain 25 microns DFT, flash-off 10 mins"
-              className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
-            />
+          {/* Row 4: Colour / Shade & Remarks */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-[#17191c] font-mono">
+                7. Assigned Colour / Shade *
+              </label>
+              <input
+                type="text"
+                required
+                value={colorShade}
+                onChange={e => setColorShade(e.target.value)}
+                placeholder="e.g. Monza Red Gloss, Piano Black, Pearl White"
+                className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-[#17191c] font-mono">
+                8. Remarks / Floor Instructions (Optional)
+              </label>
+              <input
+                type="text"
+                value={remarks}
+                onChange={e => setRemarks(e.target.value)}
+                placeholder="e.g. Day 1 target, maintain 25 microns DFT"
+                className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
+              />
+            </div>
           </div>
 
           {/* Action Buttons */}
