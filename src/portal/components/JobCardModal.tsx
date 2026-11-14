@@ -66,7 +66,6 @@ import { PreProductionInspectionModal } from './PreProductionInspectionModal';
 import { FPAModal } from './FPAModal';
 import { IPQCModal } from './IPQCModal';
 import { DailyAssignmentModal } from './DailyAssignmentModal';
-import { ShiftCloseModal } from './ShiftCloseModal';
 
 interface JobCardModalProps {
   isOpen: boolean;
@@ -259,7 +258,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     assignmentMaterialLogs,
     deleteJobCard,
     createPainterAssignment,
-    closePainterAssignment,
     issueAssignmentMaterials,
     updateAssignmentMaterialLog,
     recordAssignmentStageOutput
@@ -534,10 +532,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [editFloorWasteQty, setEditFloorWasteQty] = useState<number>(0);
   const [editMatBatch, setEditMatBatch] = useState<string>('');
 
-  // 3-Tier Daily Assignment & Shift Close Modals inside JobCardModal
+  // 3-Tier Daily Assignment Modal inside JobCardModal
   const [showDailyAssignModal, setShowDailyAssignModal] = useState<boolean>(false);
-  const [showShiftCloseModal, setShowShiftCloseModal] = useState<boolean>(false);
-  const [selectedAssignmentForClose, setSelectedAssignmentForClose] = useState<any | null>(null);
 
   // Quality Gates Modals State
   const [showPirModal, setShowPirModal] = useState<boolean>(false);
@@ -985,7 +981,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       if (initialData.reworkQty !== undefined) setCurrentReworkQty(initialData.reworkQty);
       else if (initialData.reworkRecoveredQty !== undefined) setCurrentReworkQty(initialData.reworkRecoveredQty);
       if (initialData.rejectQty !== undefined) setCurrentRejectQty(initialData.rejectQty);
-      if (initialData.progressLogs) setLiveProgressLogs(initialData.progressLogs);
+      const storeJc = jobCards.find(j => j.jobCardNo === initialData.jobCardNo);
+      if (storeJc?.progressLogs) setLiveProgressLogs(storeJc.progressLogs);
+      else if (initialData.progressLogs) setLiveProgressLogs(initialData.progressLogs);
       if (initialData.issuedMaterials && initialData.issuedMaterials.length > 0) {
         const sanitized = sanitizeCompanyMaterials(initialData.issuedMaterials, initialData.partDescription);
         if (sanitized.length > 0) {
@@ -1063,7 +1061,10 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
         l.processStage === stageKey &&
         (l.assignmentId === asg.id ||
           l.assignmentId === asg.assignmentId ||
-          (!l.assignmentId && l.painterName && l.painterName.trim().toLowerCase() === asg.painterName.trim().toLowerCase()))
+          (!l.assignmentId &&
+            currentJcAssignments[0]?.id === asg.id &&
+            l.painterName &&
+            l.painterName.trim().toLowerCase() === asg.painterName.trim().toLowerCase()))
     );
     return {
       good: matchingLogs.reduce((s, l) => s + (l.goodPieces || l.piecesCompleted || 0), 0),
@@ -3810,20 +3811,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       </p>
                     </div>
                   </div>
-
-                  {!activeTab2Assignment.status.startsWith('Closed') && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedAssignmentForClose(activeTab2Assignment);
-                        setShowShiftCloseModal(true);
-                      }}
-                      className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-2xs shrink-0 self-start sm:self-center"
-                    >
-                      <CheckCircle2 className="w-4 h-4 text-[#8a6521]" />
-                      <span>Close Shift &amp; Reconcile</span>
-                    </button>
-                  )}
                 </div>
 
                 {/* 5 Dedicated KPI Cards (Target, Completed OK All Stages, Rework, Dead Scrap, Pending Balance) */}
@@ -4521,7 +4508,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
 
                 <div className="space-y-3">
                   {currentJcAssignments.map(asg => {
-                    const isClosed = asg.status.startsWith('Closed');
                     const metrics = getAssignmentLiveMetrics(asg);
                     return (
                       <div
@@ -4576,20 +4562,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           }`}>
                             {asg.status}
                           </span>
-
-                          {!isClosed && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedAssignmentForClose(asg);
-                                setShowShiftCloseModal(true);
-                              }}
-                              className="px-3.5 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] font-semibold text-xs transition cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5 text-[#8a6521]" />
-                              <span>Close Shift</span>
-                            </button>
-                          )}
                         </div>
                       </div>
                     );
@@ -6265,23 +6237,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               setTimeout(() => setToastMessage(null), 3500);
             }
             return res;
-          }}
-        />
-      )}
-
-      {/* 3-Tier Shift Close & Reconciliation Modal */}
-      {showShiftCloseModal && selectedAssignmentForClose && (
-        <ShiftCloseModal
-          isOpen={showShiftCloseModal}
-          onClose={() => {
-            setShowShiftCloseModal(false);
-            setSelectedAssignmentForClose(null);
-          }}
-          assignment={selectedAssignmentForClose}
-          onCloseShift={(data) => {
-            closePainterAssignment(data);
-            setToastMessage(`✓ Shift closed for ${selectedAssignmentForClose.painterName}. Production logged & stock updated!`);
-            setTimeout(() => setToastMessage(null), 3500);
           }}
         />
       )}

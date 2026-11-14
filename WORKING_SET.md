@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-14: Removed `Close Shift & Reconcile` Button & Popup from Job Card Modal
+  - Files touched:
+    - `src/portal/components/JobCardModal.tsx`: Removed `Close Shift & Reconcile` / `Close Shift` buttons, `ShiftCloseModal` import, `showShiftCloseModal` / `selectedAssignmentForClose` states, `closePainterAssignment` destructure, and `<ShiftCloseModal />` dialog; synced `liveProgressLogs` with live store `jobCards` and scoped legacy untagged logs to the first assignment in `getAssignmentStageSums` to prevent cross-shift count bleed.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors).
+
 - 2026-11-14: Fixed All-Stages Completed OK Calculation & Split Dedicated Rework / Dead Scrap KPI Cards
   - Files touched:
     - `src/portal/context/PortalStoreContext.tsx`: Updated `recordAssignmentStageOutput` so only Stage 3 (`stage_3_topcoat`) increments `actualCompletedQty` (eliminating Stage 2 + Stage 3 double-counting such as `440 + 440 = 880`).
