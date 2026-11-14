@@ -6,8 +6,10 @@ interface DailyAssignmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   masterJobCard: JobCard;
-  availablePainters: PainterProfile[];
-  availableBooths: PaintingBooth[];
+  availablePainters?: PainterProfile[];
+  painters?: PainterProfile[];
+  availableBooths?: PaintingBooth[];
+  booths?: PaintingBooth[];
   onAssign: (data: {
     masterJobCardNo: string;
     assignmentDate: string;
@@ -18,7 +20,7 @@ interface DailyAssignmentModalProps {
     processStage: AssignmentProcessStage;
     dailyTargetQty: number;
     remarks?: string;
-  }) => { success: boolean; error?: string };
+  }) => { success: boolean; error?: string } | void;
 }
 
 export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
@@ -26,16 +28,21 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
   onClose,
   masterJobCard,
   availablePainters,
+  painters,
   availableBooths,
+  booths,
   onAssign
 }) => {
+  const safePainters = availablePainters || painters || [];
+  const safeBooths = availableBooths || booths || [];
+
   const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [shift, setShift] = useState<AssignmentShiftType>('General Day Shift (08:30 - 18:30)');
-  const [selectedPainterId, setSelectedPainterId] = useState<string>(availablePainters[0]?.id || '');
-  const [selectedBoothName, setSelectedBoothName] = useState<string>(availableBooths[0]?.name || 'Booth #1');
+  const [selectedPainterId, setSelectedPainterId] = useState<string>(safePainters[0]?.id || '');
+  const [selectedBoothName, setSelectedBoothName] = useState<string>(safeBooths[0]?.name || 'Booth #1');
   const [processStage, setProcessStage] = useState<AssignmentProcessStage>('Basecoat');
   const [targetQty, setTargetQty] = useState<number>(() => {
-    const pending = Math.max(0, masterJobCard.targetQty - (masterJobCard.goodQty || 0));
+    const pending = Math.max(0, (masterJobCard?.targetQty || 0) - (masterJobCard?.goodQty || 0));
     return Math.min(pending, 2000);
   });
   const [remarks, setRemarks] = useState<string>('');
@@ -43,10 +50,10 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
 
   if (!isOpen) return null;
 
-  const currentCompleted = masterJobCard.goodQty || 0;
-  const balancePending = Math.max(0, masterJobCard.targetQty - currentCompleted);
+  const currentCompleted = masterJobCard?.goodQty || 0;
+  const balancePending = Math.max(0, (masterJobCard?.targetQty || 0) - currentCompleted);
 
-  const selectedPainter = availablePainters.find(p => p.id === selectedPainterId) || availablePainters[0];
+  const selectedPainter = safePainters.find(p => p.id === selectedPainterId) || safePainters[0] || { id: 'unknown', name: 'Floor Technician', boothNo: 'Booth #1' };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +86,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
       remarks: remarks.trim() || undefined
     });
 
-    if (res.success) {
+    if (!res || res.success) {
       onClose();
     } else {
       setErrorMsg(res.error || 'Failed to create daily assignment.');
@@ -185,7 +192,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                 onChange={e => setSelectedPainterId(e.target.value)}
                 className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
               >
-                {availablePainters.map(p => (
+                {safePainters.map(p => (
                   <option key={p.id} value={p.id}>
                     {p.name} ({p.code || 'PTR'}) • {p.boothNo?.split('(')[0] || 'Line'}
                   </option>
@@ -203,12 +210,12 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                 onChange={e => setSelectedBoothName(e.target.value)}
                 className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
               >
-                {availableBooths.map(b => (
+                {safeBooths.map(b => (
                   <option key={b.id} value={b.name}>
                     {b.name} ({b.type})
                   </option>
                 ))}
-                {availableBooths.length === 0 && (
+                {safeBooths.length === 0 && (
                   <option value="Booth #1 (Continuous Conveyor Line)">Booth #1 (Continuous Conveyor Line)</option>
                 )}
               </select>

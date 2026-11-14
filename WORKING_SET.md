@@ -1,6 +1,12 @@
 # WORKING SET
 
-- 2026-11-14: Refactored Job Card Floor Execution & Daily Ledger with Multi-Painter Quotas and Painter Filter
+- 2026-11-14: Added Painter Assignment Dedicated View with Today's Target, 3-Stage Yield & Chemical Ledger
+  - Files touched:
+    - `src/portal/components/DailyAssignmentModal.tsx`: Fixed undefined crash by adding defensive fallbacks for `painters`/`availablePainters` and `booths`/`availableBooths`.
+    - `src/portal/components/JobCardModal.tsx`:
+      - Set default tab to "Painter Shift Assignments" on inspection.
+      - Added "View Details" button on each painter assignment opening a full dedicated painter page with Today's Target Quota, 3-Stage Coating Yield (OK, Rework, Scrap), and chemical consumption tracking (Issued, Good Return, Wastage, Net Consumed per piece).
+  - Status: Verified with `npx tsc --noEmit` (0 errors) and `npm run build` (built in 7.72s).
   - Files touched:
     - `src/portal/components/JobCardModal.tsx`:
       - Replaced single-painter display on Card 3 of "Floor Execution & Materials" with Multi-Painter Quotas summary showing all assigned painters, booths, shifts, and targets with quick "+ Assign Painter" trigger.

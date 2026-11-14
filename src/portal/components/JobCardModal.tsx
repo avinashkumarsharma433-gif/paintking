@@ -10,7 +10,8 @@ import {
   JobCardDailyTargetRecord,
   PreProductionInspectionRecord,
   FPARecord,
-  IPQCRecord
+  IPQCRecord,
+  PainterAssignment
 } from '../types/portalTypes';
 import { 
   Plus, 
@@ -43,7 +44,8 @@ import {
   RotateCcw,
   ShieldCheck,
   AlertTriangle,
-  Users
+  Users,
+  User
 } from 'lucide-react';
 import { PaintkingDatePicker } from './PaintkingDatePicker';
 import { PaintkingDateTimePicker } from './PaintkingDateTimePicker';
@@ -445,7 +447,10 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [showAuditLogsModal, setShowAuditLogsModal] = useState<boolean>(false);
 
   // Dedicated Tab state for Existing Job Card ('EXECUTION' | 'QUALITY' | 'DAILY_LOG' | 'PAINTER_ASSIGNMENTS')
-  const [existingCardTab, setExistingCardTab] = useState<'EXECUTION' | 'QUALITY' | 'DAILY_LOG' | 'PAINTER_ASSIGNMENTS'>('EXECUTION');
+  const [existingCardTab, setExistingCardTab] = useState<'EXECUTION' | 'QUALITY' | 'DAILY_LOG' | 'PAINTER_ASSIGNMENTS'>('PAINTER_ASSIGNMENTS');
+
+  // Dedicated Detail View for a selected Painter Assignment
+  const [viewingAssignmentDetails, setViewingAssignmentDetails] = useState<PainterAssignment | null>(null);
 
   // 3-Tier Daily Assignment & Shift Close Modals inside JobCardModal
   const [showDailyAssignModal, setShowDailyAssignModal] = useState<boolean>(false);
@@ -4049,161 +4054,372 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       ) : (
         /* PAINTER_ASSIGNMENTS TAB: 3-TIER SHIFT ALLOCATIONS & CONSUMABLES LEDGER */
         <div className="space-y-6">
-          <div className="p-5 bg-white rounded-[22px] border border-[#ececec] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
-                <span className="text-[11px] font-mono font-bold text-[#8a6521] uppercase tracking-wider">
-                  Tier 2 Painter Shift Allocations & Tier 3 Chemical Reconciliation
-                </span>
-              </div>
-              <h3 className="font-serif font-normal text-lg sm:text-xl text-[#17191c] mt-0.5">
-                Active Painter Shift Tasks for {jobCardNo}
-              </h3>
-              <p className="text-xs text-[#777b86] mt-0.5">
-                Master Job Card stays intact; daily targets are assigned across painters and closed with yield & chemical return.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowDailyAssignModal(true)}
-              className="px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-95 shrink-0"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Assign Painter (Today's Target)</span>
-            </button>
-          </div>
-
-          {/* Painter Assignments List */}
-          <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="font-serif font-normal text-base text-[#17191c]">
-                Shift Assignments List
-              </h4>
-              <span className="text-xs text-[#777b86] font-mono">
-                {painterAssignments.filter(a => a.masterJobCardId === jobCardNo).length} Assignments Logged
-              </span>
-            </div>
-
-            {painterAssignments.filter(a => a.masterJobCardId === jobCardNo).length === 0 ? (
-              <div className="p-8 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[18px] border border-dashed border-[#ececec] space-y-2">
-                <Users className="w-8 h-8 text-[#979799] mx-auto" />
-                <p className="font-semibold text-[#17191c]">No daily shift assignments created yet.</p>
-                <p>Click <strong>"+ Assign Painter (Today's Target)"</strong> above to assign a target quota to a floor painter.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {painterAssignments.filter(a => a.masterJobCardId === jobCardNo).map(asg => {
-                  const isClosed = asg.status.startsWith('Closed');
-                  return (
-                    <div
-                      key={asg.id}
-                      className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs"
-                    >
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2 flex-wrap font-mono">
-                          <span className="font-bold text-[#c09748]">{asg.assignmentId}</span>
-                          <span className="text-gray-300">•</span>
-                          <span className="px-2 py-0.5 rounded-full bg-white border border-[#ececec] text-[#17191c] font-bold">
-                            {asg.assignmentDate} ({asg.shift})
-                          </span>
-                          <span className="font-semibold text-[#17191c] font-sans">
-                            Painter: <strong>{asg.painterName}</strong> ({asg.boothNumber})
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 text-[11px] text-[#777b86] flex-wrap">
-                          <span>Target: <strong className="text-[#17191c] font-mono">{asg.dailyTargetQty} pcs</strong></span>
-                          <span>Completed OK: <strong className="text-emerald-700 font-mono font-bold">{asg.actualCompletedQty || 0} pcs</strong></span>
-                          {(asg.rejectReworkQty || 0) > 0 && (
-                            <span className="text-rose-700 font-mono">Defects: {asg.rejectReworkQty} pcs</span>
-                          )}
-                          {asg.efficiency !== undefined && (
-                            <span className="text-amber-800 font-mono font-bold">Efficiency: {asg.efficiency}%</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-                        <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${
-                          asg.status === 'Closed - Target Met'
-                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                            : asg.status === 'Closed - Partial/Incomplete'
-                              ? 'bg-amber-50 text-amber-900 border border-amber-200'
-                              : 'bg-blue-50 text-blue-800 border border-blue-200'
-                        }`}>
-                          {asg.status}
-                        </span>
-
-                        {!isClosed && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedAssignmentForClose(asg);
-                              setShowShiftCloseModal(true);
-                            }}
-                            className="px-3.5 py-1.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs transition cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5 text-[#c09748]" />
-                            <span>Close Shift</span>
-                          </button>
-                        )}
-                      </div>
+          {/* Detailed Full View for a Selected Painter Assignment */}
+          {viewingAssignmentDetails ? (
+            <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-6 animate-in fade-in duration-150">
+              {/* Top Header of Detail Card */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#ececec]">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-center text-[#8a6521] shrink-0">
+                    <User className="w-5 h-5 text-[#8a6521]" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xs font-bold text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
+                        {viewingAssignmentDetails.assignmentId}
+                      </span>
+                      <span className="text-[10px] text-[#777b86] font-mono">
+                        {viewingAssignmentDetails.assignmentDate} • {viewingAssignmentDetails.shift}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        viewingAssignmentDetails.status.startsWith('Closed') ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-blue-50 text-blue-800 border border-blue-200'
+                      }`}>
+                        {viewingAssignmentDetails.status}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                    <h3 className="font-serif font-normal text-xl text-[#17191c] mt-0.5">
+                      Painter: {viewingAssignmentDetails.painterName} ({viewingAssignmentDetails.boothNumber})
+                    </h3>
+                  </div>
+                </div>
 
-          {/* Chemical Material Traceability Ledger */}
-          <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
-            <h4 className="font-serif font-normal text-base text-[#17191c]">
-              Chemicals Issued & Consumed by Shift Painters
-            </h4>
+                <div className="flex items-center gap-2">
+                  {!viewingAssignmentDetails.status.startsWith('Closed') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedAssignmentForClose(viewingAssignmentDetails);
+                        setShowShiftCloseModal(true);
+                      }}
+                      className="px-4 py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-2xs"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-[#c09748]" />
+                      <span>Close Shift & Reconcile</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setViewingAssignmentDetails(null)}
+                    className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] font-semibold text-xs transition cursor-pointer"
+                  >
+                    ← Back to All Assignments
+                  </button>
+                </div>
+              </div>
 
-            {assignmentMaterialLogs.filter(l => l.masterJobCardId === jobCardNo).length === 0 ? (
-              <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
-                No shift chemical logs recorded yet for this job card.
+              {/* 4 Quantitative Output Milestone Cards for this Painter */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-[#fafafb] p-4 rounded-[20px] border border-[#ececec] text-center space-y-1">
+                  <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">Assigned Today Target</span>
+                  <span className="font-mono font-bold text-xl text-[#17191c] block">
+                    {viewingAssignmentDetails.dailyTargetQty.toLocaleString()} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
+                  </span>
+                  <span className="text-[10.5px] text-[#777b86] block font-mono">Shift Quota</span>
+                </div>
+
+                <div className="bg-emerald-50/80 p-4 rounded-[20px] border border-emerald-200 text-center space-y-1">
+                  <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">Completed Good Output</span>
+                  <span className="font-mono font-bold text-xl text-emerald-700 block">
+                    {(viewingAssignmentDetails.actualCompletedQty || 0).toLocaleString()} <span className="text-xs font-normal text-emerald-800">Pcs</span>
+                  </span>
+                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    {viewingAssignmentDetails.efficiency || (viewingAssignmentDetails.dailyTargetQty > 0 ? Math.min(100, Math.round(((viewingAssignmentDetails.actualCompletedQty || 0) / viewingAssignmentDetails.dailyTargetQty) * 100)) : 0)}% Efficiency
+                  </span>
+                </div>
+
+                <div className="bg-rose-50/80 p-4 rounded-[20px] border border-rose-200 text-center space-y-1">
+                  <span className="text-[10px] text-rose-800 uppercase font-mono font-bold block">Rejection / Scrap</span>
+                  <span className="font-mono font-bold text-xl text-rose-700 block">
+                    {(viewingAssignmentDetails.rejectReworkQty || 0).toLocaleString()} <span className="text-xs font-normal text-rose-800">Pcs</span>
+                  </span>
+                  <span className="text-[10.5px] text-rose-800 block font-mono">Defect Pieces</span>
+                </div>
+
+                <div className="bg-amber-50/80 p-4 rounded-[20px] border border-amber-200 text-center space-y-1">
+                  <span className="text-[10px] text-amber-800 uppercase font-mono font-bold block">Pending Shift Balance</span>
+                  <span className="font-mono font-bold text-xl text-amber-900 block">
+                    {Math.max(0, viewingAssignmentDetails.dailyTargetQty - (viewingAssignmentDetails.actualCompletedQty || 0) - (viewingAssignmentDetails.rejectReworkQty || 0)).toLocaleString()} <span className="text-xs font-normal text-amber-800">Pcs</span>
+                  </span>
+                  <span className="text-[10.5px] text-amber-800 block font-mono">To Be Finished</span>
+                </div>
               </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs bg-white rounded-[16px] border border-[#ececec] overflow-hidden">
-                  <thead className="bg-[#f2f2f3] text-[#17191c] text-[11px] font-bold border-b border-[#ececec]">
-                    <tr>
-                      <th className="p-3">Date</th>
-                      <th className="p-3">Painter</th>
-                      <th className="p-3">Material & Type</th>
-                      <th className="p-3 text-right">Issued</th>
-                      <th className="p-3 text-right">Good Return</th>
-                      <th className="p-3 text-right">Floor Wastage</th>
-                      <th className="p-3 text-right">Net Consumed</th>
-                      <th className="p-3 text-right">Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#ececec]">
-                    {assignmentMaterialLogs.filter(l => l.masterJobCardId === jobCardNo).map(log => (
-                      <tr key={log.id} className="hover:bg-gray-50/60 transition">
-                        <td className="p-3 font-mono text-[11px] text-[#777b86]">{log.logDate}</td>
-                        <td className="p-3 font-semibold text-[#17191c]">{log.painterName}</td>
-                        <td className="p-3 font-mono text-[11px]">
-                          <div>{log.materialName}</div>
-                          <span className="text-[10px] text-[#777b86]">{log.materialType} • Batch: {log.batchNumber || 'N/A'}</span>
-                        </td>
-                        <td className="p-3 text-right font-mono">{log.issuedQty} {log.uom}</td>
-                        <td className="p-3 text-right font-mono text-emerald-700 font-medium">{log.goodReturnedQty} {log.uom}</td>
-                        <td className="p-3 text-right font-mono text-rose-700 font-medium">{log.floorWastageExpiredQty} {log.uom}</td>
-                        <td className="p-3 text-right font-mono font-bold text-[#17191c]">{log.netConsumedQty} {log.uom}</td>
-                        <td className="p-3 text-right font-mono text-[#8a6521]">
-                          {log.perPieceConsumption ? `${log.perPieceConsumption} ${log.uom}/pc` : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+
+              {/* 3-Stage Process Yield for this Painter */}
+              <div className="bg-[#fafafb] p-5 rounded-[22px] border border-[#ececec] space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
+                    <span className="font-mono text-xs font-bold text-[#17191c] uppercase tracking-wider">
+                      3-Stage Process Yield Tracked by {viewingAssignmentDetails.painterName}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-mono text-[#777b86]">
+                    Coating System: {viewingAssignmentDetails.processStage}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {processStages.map((st) => {
+                    const painterLogs = liveProgressLogs.filter(l => 
+                      l.processStage === st.key && 
+                      l.painterName && 
+                      l.painterName.trim().toLowerCase() === viewingAssignmentDetails.painterName.trim().toLowerCase()
+                    );
+                    const goodSum = painterLogs.reduce((s, l) => s + (l.goodPieces || l.piecesCompleted || 0), 0);
+                    const rejSum = painterLogs.reduce((s, l) => s + (l.scrapPieces || 0), 0);
+                    const rwSum = painterLogs.reduce((s, l) => s + (l.reworkPieces || 0), 0);
+
+                    return (
+                      <div key={st.key} className="p-3.5 rounded-[16px] bg-white border border-[#ececec] space-y-2 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-[#17191c]">{st.label}</span>
+                          <span className="text-[10px] font-mono text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
+                            {st.stageNum}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5 text-center text-xs">
+                          <div className="p-2 rounded-[10px] bg-emerald-50/70 border border-emerald-200">
+                            <span className="text-[9px] text-emerald-800 uppercase font-mono block">OK</span>
+                            <strong className="text-emerald-700 font-mono text-sm">{goodSum}</strong>
+                          </div>
+                          <div className="p-2 rounded-[10px] bg-amber-50/70 border border-amber-200">
+                            <span className="text-[9px] text-amber-800 uppercase font-mono block">Rework</span>
+                            <strong className="text-amber-800 font-mono text-sm">{rwSum}</strong>
+                          </div>
+                          <div className="p-2 rounded-[10px] bg-rose-50/70 border border-rose-200">
+                            <span className="text-[9px] text-rose-800 uppercase font-mono block">Scrap</span>
+                            <strong className="text-rose-700 font-mono text-sm">{rejSum}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            )}
-          </div>
+
+              {/* Chemicals Issued, Consumed & Floor Balance for this Painter */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
+                    <span className="font-mono text-xs font-bold text-[#17191c] uppercase tracking-wider">
+                      Company Chemicals Issued & Consumed by {viewingAssignmentDetails.painterName}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-mono text-[#8a6521]">
+                    Assignment ID: {viewingAssignmentDetails.assignmentId}
+                  </span>
+                </div>
+
+                {assignmentMaterialLogs.filter(l => l.assignmentId === viewingAssignmentDetails.assignmentId || (l.masterJobCardId === jobCardNo && l.painterName === viewingAssignmentDetails.painterName)).length === 0 ? (
+                  <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
+                    No chemical logs recorded yet for this shift assignment. Materials will be logged upon shift close.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs bg-white rounded-[16px] border border-[#ececec] overflow-hidden">
+                      <thead className="bg-[#f2f2f3] text-[#17191c] text-[11px] font-bold border-b border-[#ececec]">
+                        <tr>
+                          <th className="p-3">Material & Type</th>
+                          <th className="p-3 text-right">Issued Qty</th>
+                          <th className="p-3 text-right">Good Returned</th>
+                          <th className="p-3 text-right">Floor Wastage</th>
+                          <th className="p-3 text-right text-[#8a6521]">Net Consumed</th>
+                          <th className="p-3 text-right">Consumption / Pc</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#ececec]">
+                        {assignmentMaterialLogs
+                          .filter(l => l.assignmentId === viewingAssignmentDetails.assignmentId || (l.masterJobCardId === jobCardNo && l.painterName === viewingAssignmentDetails.painterName))
+                          .map(log => (
+                            <tr key={log.id} className="hover:bg-gray-50/60 transition">
+                              <td className="p-3 font-mono text-[11px]">
+                                <div className="font-bold text-[#17191c]">{log.materialName}</div>
+                                <span className="text-[10px] text-[#777b86]">{log.materialType} • Batch: {log.batchNumber || 'N/A'}</span>
+                              </td>
+                              <td className="p-3 text-right font-mono font-semibold">{log.issuedQty} {log.uom}</td>
+                              <td className="p-3 text-right font-mono text-emerald-700 font-medium">{log.goodReturnedQty} {log.uom}</td>
+                              <td className="p-3 text-right font-mono text-rose-700 font-medium">{log.floorWastageExpiredQty} {log.uom}</td>
+                              <td className="p-3 text-right font-mono font-bold text-[#8a6521]">{log.netConsumedQty} {log.uom}</td>
+                              <td className="p-3 text-right font-mono text-[#8a6521]">
+                                {log.perPieceConsumption ? `${log.perPieceConsumption} ${log.uom}/pc` : '-'}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="p-5 bg-white rounded-[22px] border border-[#ececec] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
+                    <span className="text-[11px] font-mono font-bold text-[#8a6521] uppercase tracking-wider">
+                      Tier 2 Painter Shift Allocations & Tier 3 Chemical Reconciliation
+                    </span>
+                  </div>
+                  <h3 className="font-serif font-normal text-lg sm:text-xl text-[#17191c] mt-0.5">
+                    Active Painter Shift Tasks for {jobCardNo}
+                  </h3>
+                  <p className="text-xs text-[#777b86] mt-0.5">
+                    Master Job Card stays intact; daily targets are assigned across painters and closed with yield & chemical return.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowDailyAssignModal(true)}
+                  className="px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-95 shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>+ Assign Painter (Today's Target)</span>
+                </button>
+              </div>
+
+              {/* Painter Assignments List */}
+              <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-serif font-normal text-base text-[#17191c]">
+                    Shift Assignments List
+                  </h4>
+                  <span className="text-xs text-[#777b86] font-mono">
+                    {painterAssignments.filter(a => a.masterJobCardId === jobCardNo).length} Assignments Logged
+                  </span>
+                </div>
+
+                {painterAssignments.filter(a => a.masterJobCardId === jobCardNo).length === 0 ? (
+                  <div className="p-8 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[18px] border border-dashed border-[#ececec] space-y-2">
+                    <Users className="w-8 h-8 text-[#979799] mx-auto" />
+                    <p className="font-semibold text-[#17191c]">No daily shift assignments created yet.</p>
+                    <p>Click <strong>"+ Assign Painter (Today's Target)"</strong> above to assign a target quota to a floor painter.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {painterAssignments.filter(a => a.masterJobCardId === jobCardNo).map(asg => {
+                      const isClosed = asg.status.startsWith('Closed');
+                      return (
+                        <div
+                          key={asg.id}
+                          className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs"
+                        >
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2 flex-wrap font-mono">
+                              <span className="font-bold text-[#c09748]">{asg.assignmentId}</span>
+                              <span className="text-gray-300">•</span>
+                              <span className="px-2 py-0.5 rounded-full bg-white border border-[#ececec] text-[#17191c] font-bold">
+                                {asg.assignmentDate} ({asg.shift})
+                              </span>
+                              <span className="font-semibold text-[#17191c] font-sans">
+                                Painter: <strong>{asg.painterName}</strong> ({asg.boothNumber})
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[11px] text-[#777b86] flex-wrap">
+                              <span>Target: <strong className="text-[#17191c] font-mono">{asg.dailyTargetQty} pcs</strong></span>
+                              <span>Completed OK: <strong className="text-emerald-700 font-mono font-bold">{asg.actualCompletedQty || 0} pcs</strong></span>
+                              {(asg.rejectReworkQty || 0) > 0 && (
+                                <span className="text-rose-700 font-mono">Defects: {asg.rejectReworkQty} pcs</span>
+                              )}
+                              {asg.efficiency !== undefined && (
+                                <span className="text-amber-800 font-mono font-bold">Efficiency: {asg.efficiency}%</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                            <button
+                              type="button"
+                              onClick={() => setViewingAssignmentDetails(asg)}
+                              className="px-3.5 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs transition cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-[#8a6521]" />
+                              <span>View Details</span>
+                            </button>
+
+                            <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${
+                              asg.status === 'Closed - Target Met'
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                : asg.status === 'Closed - Partial/Incomplete'
+                                  ? 'bg-amber-50 text-amber-900 border border-amber-200'
+                                  : 'bg-blue-50 text-blue-800 border border-blue-200'
+                            }`}>
+                              {asg.status}
+                            </span>
+
+                            {!isClosed && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedAssignmentForClose(asg);
+                                  setShowShiftCloseModal(true);
+                                }}
+                                className="px-3.5 py-1.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs transition cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5 text-[#c09748]" />
+                                <span>Close Shift</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Chemical Material Traceability Ledger */}
+              <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
+                <h4 className="font-serif font-normal text-base text-[#17191c]">
+                  Chemicals Issued & Consumed by Shift Painters
+                </h4>
+
+                {assignmentMaterialLogs.filter(l => l.masterJobCardId === jobCardNo).length === 0 ? (
+                  <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
+                    No shift chemical logs recorded yet for this job card.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs bg-white rounded-[16px] border border-[#ececec] overflow-hidden">
+                      <thead className="bg-[#f2f2f3] text-[#17191c] text-[11px] font-bold border-b border-[#ececec]">
+                        <tr>
+                          <th className="p-3">Date</th>
+                          <th className="p-3">Painter</th>
+                          <th className="p-3">Material & Type</th>
+                          <th className="p-3 text-right">Issued</th>
+                          <th className="p-3 text-right">Good Return</th>
+                          <th className="p-3 text-right">Floor Wastage</th>
+                          <th className="p-3 text-right">Net Consumed</th>
+                          <th className="p-3 text-right">Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#ececec]">
+                        {assignmentMaterialLogs.filter(l => l.masterJobCardId === jobCardNo).map(log => (
+                          <tr key={log.id} className="hover:bg-gray-50/60 transition">
+                            <td className="p-3 font-mono text-[11px] text-[#777b86]">{log.logDate}</td>
+                            <td className="p-3 font-semibold text-[#17191c]">{log.painterName}</td>
+                            <td className="p-3 font-mono text-[11px]">
+                              <div>{log.materialName}</div>
+                              <span className="text-[10px] text-[#777b86]">{log.materialType} • Batch: {log.batchNumber || 'N/A'}</span>
+                            </td>
+                            <td className="p-3 text-right font-mono">{log.issuedQty} {log.uom}</td>
+                            <td className="p-3 text-right font-mono text-emerald-700 font-medium">{log.goodReturnedQty} {log.uom}</td>
+                            <td className="p-3 text-right font-mono text-rose-700 font-medium">{log.floorWastageExpiredQty} {log.uom}</td>
+                            <td className="p-3 text-right font-mono font-bold text-[#17191c]">{log.netConsumedQty} {log.uom}</td>
+                            <td className="p-3 text-right font-mono text-[#8a6521]">
+                              {log.perPieceConsumption ? `${log.perPieceConsumption} ${log.uom}/pc` : '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 
