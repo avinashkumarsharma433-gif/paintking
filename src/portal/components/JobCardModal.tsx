@@ -995,6 +995,48 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     }
   }, [initialData, isOpen, grnList]);
 
+  // Helper to get stage totals for the currently selected Tab 2 painter assignment
+  const getAssignmentStageSums = (asg: PainterAssignment, stageKey: CoatingProcessStage) => {
+    const matchingLogs = liveProgressLogs.filter(
+      l =>
+        l.processStage === stageKey &&
+        (l.assignmentId === asg.id ||
+          l.assignmentId === asg.assignmentId ||
+          (!l.assignmentId &&
+            currentJcAssignments[0]?.id === asg.id &&
+            l.painterName &&
+            l.painterName.trim().toLowerCase() === asg.painterName.trim().toLowerCase()))
+    );
+    return {
+      good: matchingLogs.reduce((s, l) => s + (l.goodPieces || l.piecesCompleted || 0), 0),
+      rework: matchingLogs.reduce((s, l) => s + (l.reworkPieces || 0), 0),
+      scrap: matchingLogs.reduce((s, l) => s + (l.scrapPieces || 0), 0)
+    };
+  };
+
+  // Live metrics for a painter assignment:
+  // Completed Good = ONLY Stage 3 (Clear Topcoat) OK pieces (passed all 3 stages)
+  // Rework & Dead Scrap = summed cleanly across all 3 stages so neither is conflated
+  const getAssignmentLiveMetrics = (asg: PainterAssignment) => {
+    const s1 = getAssignmentStageSums(asg, 'stage_1_primer');
+    const s2 = getAssignmentStageSums(asg, 'stage_2_basecoat');
+    const s3 = getAssignmentStageSums(asg, 'stage_3_topcoat');
+    const hasStageLogs =
+      s1.good + s1.rework + s1.scrap +
+      s2.good + s2.rework + s2.scrap +
+      s3.good + s3.rework + s3.scrap > 0;
+
+    const completedGood = hasStageLogs ? s3.good : (asg.actualCompletedQty || 0);
+    const rework = hasStageLogs ? (s1.rework + s2.rework + s3.rework) : (asg.rejectReworkQty || 0);
+    const scrap = hasStageLogs ? (s1.scrap + s2.scrap + s3.scrap) : (asg.scrapQty || 0);
+    const pending = Math.max(0, (asg.dailyTargetQty || 0) - completedGood - scrap);
+    const efficiency = (asg.dailyTargetQty || 0) > 0
+      ? Math.min(100, Math.round((completedGood / asg.dailyTargetQty) * 100))
+      : 0;
+
+    return { completedGood, rework, scrap, pending, efficiency };
+  };
+
   // Live Master Order totals aggregated directly from all painter shift assignments
   const liveStoreJc = useMemo(() => jobCards.find(j => j.jobCardNo === jobCardNo), [jobCards, jobCardNo]);
   const masterMetrics = useMemo(() => {
@@ -1097,48 +1139,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       stage3: { completed: s3Sprayed, good: s3Good, rework: s3ActiveRework, totalRework: s3ReworkLogged, scrap: s3Scrap, rejects: s3Rejects, pending: s3Pending }
     };
   }, [liveProgressLogs, initialData, targetQty, currentGoodQty, currentRejectQty, currentReworkQty]);
-
-  // Helper to get stage totals for the currently selected Tab 2 painter assignment
-  const getAssignmentStageSums = (asg: PainterAssignment, stageKey: CoatingProcessStage) => {
-    const matchingLogs = liveProgressLogs.filter(
-      l =>
-        l.processStage === stageKey &&
-        (l.assignmentId === asg.id ||
-          l.assignmentId === asg.assignmentId ||
-          (!l.assignmentId &&
-            currentJcAssignments[0]?.id === asg.id &&
-            l.painterName &&
-            l.painterName.trim().toLowerCase() === asg.painterName.trim().toLowerCase()))
-    );
-    return {
-      good: matchingLogs.reduce((s, l) => s + (l.goodPieces || l.piecesCompleted || 0), 0),
-      rework: matchingLogs.reduce((s, l) => s + (l.reworkPieces || 0), 0),
-      scrap: matchingLogs.reduce((s, l) => s + (l.scrapPieces || 0), 0)
-    };
-  };
-
-  // Live metrics for a painter assignment:
-  // Completed Good = ONLY Stage 3 (Clear Topcoat) OK pieces (passed all 3 stages)
-  // Rework & Dead Scrap = summed cleanly across all 3 stages so neither is conflated
-  const getAssignmentLiveMetrics = (asg: PainterAssignment) => {
-    const s1 = getAssignmentStageSums(asg, 'stage_1_primer');
-    const s2 = getAssignmentStageSums(asg, 'stage_2_basecoat');
-    const s3 = getAssignmentStageSums(asg, 'stage_3_topcoat');
-    const hasStageLogs =
-      s1.good + s1.rework + s1.scrap +
-      s2.good + s2.rework + s2.scrap +
-      s3.good + s3.rework + s3.scrap > 0;
-
-    const completedGood = hasStageLogs ? s3.good : (asg.actualCompletedQty || 0);
-    const rework = hasStageLogs ? (s1.rework + s2.rework + s3.rework) : (asg.rejectReworkQty || 0);
-    const scrap = hasStageLogs ? (s1.scrap + s2.scrap + s3.scrap) : (asg.scrapQty || 0);
-    const pending = Math.max(0, (asg.dailyTargetQty || 0) - completedGood - scrap);
-    const efficiency = (asg.dailyTargetQty || 0) > 0
-      ? Math.min(100, Math.round((completedGood / asg.dailyTargetQty) * 100))
-      : 0;
-
-    return { completedGood, rework, scrap, pending, efficiency };
-  };
 
   // Strict sequential stage cap for an assignment:
   // - Stage 1 receives raw quota (dailyTargetQty - s1Good - s1Scrap)

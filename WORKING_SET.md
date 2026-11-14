@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-14: Fixed Temporal Dead Zone Runtime Crash (`Cannot access before initialization`) in `JobCardModal`
+  - Files touched:
+    - `src/portal/components/JobCardModal.tsx`: Declared `getAssignmentStageSums` and `getAssignmentLiveMetrics` above `masterMetrics` so `masterMetrics` `useMemo` never invokes them before initialization in production builds.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`, built in 8.88s, 0 errors).
+
 - 2026-11-14: Synced Master Order Completion Summary (`Total Pieces Completed & Remaining Status`) with Painter Shift Outputs
   - Files touched:
     - `src/portal/components/JobCardModal.tsx`: Added `masterMetrics` aggregating `completedGood`, `rework`, and `scrap` across all `currentJcAssignments` via `getAssignmentLiveMetrics` (with `liveStoreJc` fallback), and wired `Total Pieces Completed & Remaining Status` cards and progress bar to `masterMetrics`.
