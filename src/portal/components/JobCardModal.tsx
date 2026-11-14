@@ -512,7 +512,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [showAuditLogsModal, setShowAuditLogsModal] = useState<boolean>(false);
 
   // Dedicated Tab state for Existing Job Card ('EXECUTION' | 'QUALITY' | 'DAILY_LOG' | 'PAINTER_ASSIGNMENTS')
-  const [existingCardTab, setExistingCardTab] = useState<'EXECUTION' | 'QUALITY' | 'DAILY_LOG' | 'PAINTER_ASSIGNMENTS'>('PAINTER_ASSIGNMENTS');
+  const [existingCardTab, setExistingCardTab] = useState<'EXECUTION' | 'QUALITY' | 'DAILY_LOG' | 'PAINTER_ASSIGNMENTS'>('EXECUTION');
 
   // Dedicated Detail View for a selected Painter Assignment
   const [viewingAssignmentDetails, setViewingAssignmentDetails] = useState<PainterAssignment | null>(null);
@@ -3002,107 +3002,48 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
             {existingCardTab === 'EXECUTION' ? (
               <div className="space-y-6">
 
-            {/* Quality Gates Shop Floor Action Banner */}
-            {!isPirPassed ? (
-              <div className="p-4 rounded-[20px] bg-amber-50/90 border border-amber-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-full bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0 mt-0.5">
-                    <AlertTriangle className="w-5 h-5 text-amber-700" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-bold text-amber-900 uppercase tracking-wide font-mono">
-                        Gate 1 Action Required: Pre-Production QC (PIR) Pending
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200/70 text-amber-900 font-mono">
-                        Substrate Verification Due
-                      </span>
-                    </div>
-                    <p className="text-xs text-amber-800 mt-1 leading-relaxed">
-                      Raw substrates received from Store must be inspected (burrs, flash, oil/grease, IPA cleaning, static de-dusting, 8 checkpoints) before conveyor loading.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowPirModal(true)}
-                  className="px-4 py-2 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Perform Gate 1 Check (PIR)</span>
-                </button>
-              </div>
-            ) : !isFpaApproved ? (
-              <div className="p-4 rounded-[20px] bg-blue-50/90 border border-blue-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-full bg-blue-100 border border-blue-300 flex items-center justify-center shrink-0 mt-0.5">
-                    <Sparkles className="w-5 h-5 text-blue-700" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-bold text-blue-900 uppercase tracking-wide font-mono">
-                        Gate 2 Action Required: First Part Approval (FPA Golden Sample) Pending
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 font-mono">
-                        PIR Cleared ({activePirRecord?.reportNo})
-                      </span>
-                    </div>
-                    <p className="text-xs text-blue-800 mt-1 leading-relaxed">
-                      Spray 1–5 trial pieces. Test spectrophotometer colour (&Delta;E &lt; 1.0), DFT microns, and ASTM 5B cross-hatch adhesion tape test before mass spraying.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowFpaModal(true)}
-                  className="px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Perform FPA Golden Test</span>
-                </button>
-              </div>
-            ) : (
-              <div className="p-4 rounded-[20px] bg-emerald-50/90 border border-emerald-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-700" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-bold text-emerald-900 uppercase tracking-wide font-mono">
-                        Quality Released for Mass Production: FPA Golden Sample Approved
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-200/70 text-emerald-900 font-mono">
-                        {activeFpaRecord?.reportNo}
-                      </span>
-                    </div>
-                    <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
-                      Gate 1 Substrates Cleared &bull; Gate 2 Golden Sample Approved (&Delta;E: {activeFpaRecord?.deltaE ?? '0.42'}, Adhesion: {activeFpaRecord?.crossHatchAdhesion ?? '5B'}). Conveyor line is cleared for mass production.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setShowIpqcModal(true)}
-                    className="px-3.5 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
-                  >
-                    <Clock className="w-3.5 h-3.5 text-[#c09748]" />
-                    <span>Record Line Audit (IPQC)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExistingCardTab('QUALITY')}
-                    className="px-3.5 py-1.5 rounded-full bg-white hover:bg-emerald-100/50 text-emerald-800 border border-emerald-300 text-xs font-semibold shadow-2xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>View Quality Gates</span>
-                  </button>
+            {/* Read-Only Quality Gate Status Strip */}
+            <div className={`p-3.5 rounded-[20px] border shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+              isFpaApproved
+                ? 'bg-emerald-50/70 border-emerald-200'
+                : isPirPassed
+                ? 'bg-blue-50/70 border-blue-200'
+                : 'bg-amber-50/70 border-amber-200'
+            }`}>
+              <div className="flex items-center gap-2.5">
+                {isFpaApproved ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                ) : isPirPassed ? (
+                  <Sparkles className="w-4 h-4 text-blue-700 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+                )}
+                <div className="text-xs">
+                  <span className="font-bold text-[#17191c]">
+                    {isFpaApproved
+                      ? `Quality Cleared (${activeFpaRecord?.reportNo || 'FPA Approved'})`
+                      : isPirPassed
+                      ? `Gate 1 PIR Cleared (${activePirRecord?.reportNo}) • Gate 2 FPA Pending`
+                      : 'Gate 1 Pre-Production Inspection (PIR) Pending'}
+                  </span>
+                  <span className="text-[#777b86] ml-2 hidden sm:inline">
+                    {isFpaApproved
+                      ? `ΔE: ${activeFpaRecord?.deltaE ?? '0.42'} • Adhesion: ${activeFpaRecord?.crossHatchAdhesion ?? '5B'}`
+                      : 'Complete quality gates in Tab 4 before mass line release.'}
+                  </span>
                 </div>
               </div>
-            )}
+              <button
+                type="button"
+                onClick={() => setExistingCardTab('QUALITY')}
+                className="px-3.5 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shrink-0 active:scale-95"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>Open Quality Gates</span>
+              </button>
+            </div>
 
-            {/* 1. Core Handover Summary (3 Structured Read-Only Cards - Non-Editable) */}
+            {/* 1. Master Job Card Full Details & Active Painters (100% Read-Only) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Card 1: Customer & Order Reference */}
               <div className="bg-white p-5 rounded-[24px] border border-[#ececec] shadow-xs flex flex-col justify-between space-y-3">
@@ -3117,7 +3058,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       {customer}
                     </div>
                     <div className="text-xs text-[#777b86] truncate mt-0.5">
-                      Challan / WO Ref: <strong className="font-mono text-[#17191c] font-medium">{wNo}</strong>
+                      Challan / WO Ref: <strong className="font-mono text-[#17191c] font-medium">{wNo || '-'}</strong>
                     </div>
                   </div>
                 </div>
@@ -3133,15 +3074,19 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       {selectedGrnNo || 'PK-GRN-VERIFIED'}
                     </span>
                   </div>
+                  <div className="flex justify-between items-center h-6">
+                    <span className="text-[#777b86]">Issued Date:</span>
+                    <span className="font-mono text-[11px] font-semibold text-[#17191c]">{issueDate}</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Card 2: Component & Target Specifications */}
+              {/* Card 2: Component & Order Specifications */}
               <div className="bg-white p-5 rounded-[24px] border border-[#ececec] shadow-xs flex flex-col justify-between space-y-3">
                 <div>
                   <span className="text-[10.5px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
                     <Layers className="w-3.5 h-3.5 text-[#c09748]" />
-                    <span>Component & Target Specifications</span>
+                    <span>Component & Order Specifications</span>
                   </span>
                   <div className="mt-2.5">
                     <div className="text-[11px] font-medium text-[#777b86]">Part Specification</div>
@@ -3154,104 +3099,57 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </div>
                 </div>
 
-                <div className="pt-2.5 border-t border-[#f2f2f3] space-y-1.5 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[#777b86]">Total PO Target:</span>
+                <div className="pt-2.5 border-t border-[#f2f2f3] space-y-2 text-xs">
+                  <div className="flex justify-between items-center h-6">
+                    <span className="text-[#777b86]">Total Order Qty:</span>
                     <span className="font-mono font-bold text-xs text-[#17191c]">
                       {targetQty.toLocaleString('en-IN')} Pieces
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[#8a6521] font-semibold flex items-center gap-1">
-                      <span>Daily Production Target:</span>
-                    </span>
-                    {isEditingDailyQuota ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          min="1"
-                          max={targetQty}
-                          value={editDailyQuotaInput}
-                          onChange={e => setEditDailyQuotaInput(Number(e.target.value))}
-                          className="w-20 h-7 px-1.5 rounded-lg border border-[#c09748] bg-white font-mono font-bold text-xs text-[#17191c] focus:outline-none"
-                          autoFocus
-                        />
-                        <button
-                          type="button"
-                          onClick={handleSaveDailyQuota}
-                          className="px-2 py-1 rounded-full bg-emerald-700 text-white font-bold text-[10px] hover:bg-emerald-800 transition cursor-pointer"
-                        >
-                          Save
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setIsEditingDailyQuota(false)}
-                          className="px-2 py-1 rounded-full bg-[#f2f2f3] text-[#777b86] font-bold text-[10px] hover:bg-[#e5e7eb] transition cursor-pointer"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-bold text-xs text-[#8a6521] bg-[#faf3e0] px-2.5 py-0.5 rounded-full border border-[#f4e5be]">
-                          {(dailyTargetQty || (targetQty <= 1000 ? targetQty : 1000)).toLocaleString('en-IN')} Pcs/Day
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditDailyQuotaInput(dailyTargetQty || (targetQty <= 1000 ? targetQty : 1000));
-                            setIsEditingDailyQuota(true);
-                          }}
-                          className="px-2 py-0.5 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#8a6521] border border-[#ececec] text-[10px] font-bold flex items-center gap-1 cursor-pointer transition shadow-2xs"
-                          title="Change daily production pieces target"
-                        >
-                          <Edit3 className="w-3 h-3 text-[#c09748]" />
-                          <span>Change</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center h-6">
                     <span className="text-[#777b86]">Target Colour:</span>
                     <span className="font-bold text-[11px] text-[#8a6521] bg-[#faf3e0] px-2.5 py-0.5 rounded-full border border-[#f4e5be] truncate max-w-[170px]">
                       {batchColor}
                     </span>
                   </div>
+                  <div className="flex justify-between items-center h-6">
+                    <span className="text-[#777b86]">Finish Deadline:</span>
+                    <span className="font-mono font-bold text-[11px] text-[#17191c]">{deadlineDate} • {deadlineTime}</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Card 3: Floor Handover & Multi-Painter Quotas */}
+              {/* Card 3: Active Painters on This Master Job Card (Read-Only) */}
               <div className="bg-white p-5 rounded-[24px] border border-[#ececec] shadow-xs flex flex-col justify-between space-y-3">
                 <div>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[10.5px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
                       <Users className="w-3.5 h-3.5 text-[#c09748]" />
-                      <span>Floor Painters & Daily Quota</span>
+                      <span>Active Painters ({currentJcAssignments.length})</span>
                     </span>
                     <button
                       type="button"
-                      onClick={() => setShowDailyAssignModal(true)}
-                      className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-[10px] font-bold flex items-center gap-1 cursor-pointer transition shadow-2xs active:scale-95"
+                      onClick={() => setExistingCardTab('PAINTER_ASSIGNMENTS')}
+                      className="text-[10px] font-bold text-[#8a6521] hover:underline cursor-pointer"
                     >
-                      <Plus className="w-3 h-3 text-[#8a6521]" />
-                      <span>+ Assign Painter</span>
+                      Manage in Tab 2 →
                     </button>
                   </div>
 
-                  <div className="mt-2.5 space-y-2">
+                  <div className="mt-2.5 space-y-2 max-h-[148px] overflow-y-auto pr-0.5">
                     {currentJcAssignments.length > 0 ? (
                       currentJcAssignments.map((asg) => (
-                        <div key={asg.id} className="p-2 rounded-[14px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between gap-2">
+                        <div key={asg.id} className="p-2.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between gap-2">
                           <div className="min-w-0">
                             <div className="text-xs font-bold text-[#17191c] truncate">{asg.painterName}</div>
-                            <div className="text-[10px] text-[#777b86] font-mono flex items-center gap-1.5">
+                            <div className="text-[10px] text-[#777b86] font-mono flex items-center gap-1.5 truncate">
                               <span>{asg.boothNo}</span>
                               <span>•</span>
-                              <span className="capitalize">{asg.shift} Shift</span>
+                              <span>{asg.processStage || 'Full System'}</span>
                             </div>
                           </div>
                           <div className="text-right shrink-0">
-                            <span className="font-mono font-bold text-xs text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
+                            <span className="font-mono font-bold text-[11px] text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
                               {asg.actualCompletedQty || 0} / {asg.dailyTargetQty} Pcs
                             </span>
                             <span className={`block text-[9px] font-mono mt-0.5 ${asg.status.includes('Met') ? 'text-emerald-700 font-bold' : asg.status.includes('Active') ? 'text-blue-700' : 'text-[#777b86]'}`}>
@@ -3261,887 +3159,360 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         </div>
                       ))
                     ) : (
-                      <div className="p-2 rounded-[14px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-[#17191c] truncate">{painterName}</div>
-                          <div className="text-[10px] text-[#777b86] font-mono">{dept}</div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <span className="font-mono font-bold text-xs text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
-                            {dailyTargetQty} Pcs/Day
-                          </span>
-                          <span className="block text-[9px] font-mono text-emerald-700 font-bold mt-0.5">
-                            Primary Assigned
-                          </span>
+                      <div className="p-3.5 rounded-[14px] bg-[#fafafb] border border-dashed border-[#ececec] text-center space-y-1">
+                        <div className="text-xs font-semibold text-[#17191c]">No painters assigned yet</div>
+                        <div className="text-[11px] text-[#777b86]">
+                          Open Tab 2 (Painter Shift Assignments) to assign painters, daily targets, colours &amp; chemicals.
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="pt-2.5 border-t border-[#f2f2f3] space-y-2 text-xs">
-                  <div className="flex justify-between items-center h-6">
-                    <span className="text-[#777b86]">Finish Deadline:</span>
-                    <span className="font-mono font-bold text-xs text-[#17191c]">{deadlineDate} • {deadlineTime}</span>
-                  </div>
-                  <div className="flex justify-between items-center h-6">
-                    <span className="text-[#777b86]">Deadline Status:</span>
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${deadlineStatus.badgeColor}`}>
-                      {deadlineStatus.label}
-                    </span>
-                  </div>
+                <div className="pt-2.5 border-t border-[#f2f2f3] flex justify-between items-center text-xs h-6">
+                  <span className="text-[#777b86]">Deadline Status:</span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${deadlineStatus.badgeColor}`}>
+                    {deadlineStatus.label}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* 2. Company Issued Materials Table (with Daily Target & Usage Tracking) */}
+            {/* 2. Total Materials & Chemicals Summary (Read-Only Roll-Up across all Painters) */}
+            {(() => {
+              const jcLogs = assignmentMaterialLogs.filter(
+                l => l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo
+              );
+              const aggregatedMap = new Map<string, {
+                materialName: string;
+                materialType: string;
+                uom: string;
+                issued: number;
+                returned: number;
+                wastage: number;
+                netConsumed: number;
+                painters: Set<string>;
+                batches: Set<string>;
+              }>();
+
+              jcLogs.forEach(log => {
+                const key = `${log.materialName}__${log.materialType}__${log.uom}`;
+                const existing = aggregatedMap.get(key) || {
+                  materialName: log.materialName,
+                  materialType: log.materialType,
+                  uom: log.uom,
+                  issued: 0,
+                  returned: 0,
+                  wastage: 0,
+                  netConsumed: 0,
+                  painters: new Set<string>(),
+                  batches: new Set<string>()
+                };
+                existing.issued += Number(log.issuedQty || 0);
+                existing.returned += Number(log.goodReturnedQty || 0);
+                existing.wastage += Number(log.floorWastageExpiredQty || 0);
+                existing.netConsumed += Number(log.netConsumedQty || 0);
+                if (log.painterName) existing.painters.add(log.painterName);
+                if (log.batchNumber) existing.batches.add(log.batchNumber);
+                aggregatedMap.set(key, existing);
+              });
+
+              const aggregatedMaterials = Array.from(aggregatedMap.values());
+              const hasTier3Logs = aggregatedMaterials.length > 0;
+
+              return (
+                <div className="bg-white p-6 sm:p-7 rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-[#c09748]" />
+                        <h3 className="font-serif font-normal text-lg sm:text-xl text-[#17191c]">
+                          Total Materials &amp; Chemicals Used
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                          Read-Only Job Summary
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#777b86] mt-0.5">
+                        Total paints, hardeners &amp; thinners issued and consumed across all painter shifts on this job card.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setExistingCardTab('DAILY_LOG')}
+                      className="text-xs font-bold text-[#8a6521] hover:underline cursor-pointer self-start sm:self-auto"
+                    >
+                      View Full Chemical Ledger in Tab 3 →
+                    </button>
+                  </div>
+
+                  {hasTier3Logs ? (
+                    <div className="border border-[#ececec] rounded-[18px] overflow-hidden bg-white shadow-2xs">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-[#f2f2f3] text-[#17191c] font-mono border-b border-[#ececec]">
+                              <th className="py-2.5 px-3 font-bold w-10 text-center">#</th>
+                              <th className="py-2.5 px-4 font-bold min-w-[200px]">Material Description</th>
+                              <th className="py-2.5 px-3 font-bold text-right whitespace-nowrap">Total Issued</th>
+                              <th className="py-2.5 px-3 font-bold text-right text-emerald-800 whitespace-nowrap">Good Returned</th>
+                              <th className="py-2.5 px-3 font-bold text-right text-rose-800 whitespace-nowrap">Floor Wastage</th>
+                              <th className="py-2.5 px-3 font-bold text-right text-[#8a6521] whitespace-nowrap">Net Consumed</th>
+                              <th className="py-2.5 px-3 font-bold text-center">UOM</th>
+                              <th className="py-2.5 px-4 font-bold whitespace-nowrap">Batches / Painters</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#ececec]">
+                            {aggregatedMaterials.map((mat, idx) => (
+                              <tr key={`${mat.materialName}-${idx}`} className={idx % 2 === 1 ? 'bg-[#fafafb]' : 'bg-white'}>
+                                <td className="py-3 px-3 text-center font-mono text-[#777b86] font-semibold">{idx + 1}</td>
+                                <td className="py-3 px-4">
+                                  <div className="font-semibold text-[#17191c]">{mat.materialName}</div>
+                                  <span className="text-[10px] text-[#777b86] uppercase font-mono">{mat.materialType}</span>
+                                </td>
+                                <td className="py-3 px-3 text-right font-mono font-bold text-[#17191c]">{mat.issued.toFixed(2)}</td>
+                                <td className="py-3 px-3 text-right font-mono font-semibold text-emerald-700">{mat.returned.toFixed(2)}</td>
+                                <td className="py-3 px-3 text-right font-mono font-semibold text-rose-700">{mat.wastage.toFixed(2)}</td>
+                                <td className="py-3 px-3 text-right font-mono font-bold text-[#8a6521]">{mat.netConsumed.toFixed(2)}</td>
+                                <td className="py-3 px-3 text-center font-mono text-[#777b86]">{mat.uom}</td>
+                                <td className="py-3 px-4 text-xs text-[#777b86]">
+                                  <div className="font-mono text-[11px] text-[#17191c]">
+                                    {Array.from(mat.batches).join(', ') || '-'}
+                                  </div>
+                                  <div className="text-[10px] text-[#777b86]">
+                                    Painters: {Array.from(mat.painters).join(', ') || '-'}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : companyMaterials.length > 0 ? (
+                    <div className="border border-[#ececec] rounded-[18px] overflow-hidden bg-white shadow-2xs">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-[#f2f2f3] text-[#17191c] font-mono border-b border-[#ececec]">
+                              <th className="py-2.5 px-3 font-bold w-10 text-center">#</th>
+                              <th className="py-2.5 px-4 font-bold min-w-[200px]">Material Description</th>
+                              <th className="py-2.5 px-3 font-bold text-center whitespace-nowrap">Store Issued</th>
+                              <th className="py-2.5 px-3 font-bold text-center text-[#8a6521] whitespace-nowrap">Actual Consumed</th>
+                              <th className="py-2.5 px-3 font-bold text-center text-emerald-800 whitespace-nowrap">Floor Balance</th>
+                              <th className="py-2.5 px-2 font-bold text-center">UOM</th>
+                              <th className="py-2.5 px-3 font-bold whitespace-nowrap">Shade / Batch</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#ececec]">
+                            {companyMaterials.map((item, idx) => {
+                              const consumed = item.consumedQty !== undefined ? item.consumedQty : 0;
+                              const balance = item.floorBalanceQty !== undefined ? item.floorBalanceQty : Math.max(0, Number((item.qty - consumed).toFixed(2)));
+                              return (
+                                <tr key={item.id || idx} className={idx % 2 === 1 ? 'bg-[#fafafb]' : 'bg-white'}>
+                                  <td className="py-3 px-3 text-center font-mono text-[#777b86] font-semibold">{idx + 1}</td>
+                                  <td className="py-3 px-4 font-semibold text-[#17191c]">{item.itemDescription}</td>
+                                  <td className="py-3 px-3 text-center font-mono font-bold text-[#17191c]">{item.qty}</td>
+                                  <td className="py-3 px-3 text-center font-mono font-bold text-[#8a6521]">{consumed}</td>
+                                  <td className="py-3 px-3 text-center font-mono font-bold text-emerald-800">{balance}</td>
+                                  <td className="py-3 px-2 text-center font-mono text-[#777b86]">{item.uom}</td>
+                                  <td className="py-3 px-3 font-mono text-xs text-[#777b86]">{item.colour || item.batchNo || '-'}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
+                      No paints, thinners, or hardeners have been issued yet. Assign a painter &amp; issue materials in Tab 2 (Painter Shift Assignments).
+                    </div>
+                  )}
+
+                  {/* Read-Only Order Reconciliation Rule */}
+                  {(() => {
+                    const jcReturnSlips = balanceReturnSlips.filter(r => r.jobCardNo === jobCardNo);
+                    const totalReturnedPieces = jcReturnSlips
+                      .flatMap(r => r.lines)
+                      .filter(l => (l.category === 'PARTY_MATERIAL' || l.uom === 'Pcs') && l.condition !== 'Damaged / Scrapped')
+                      .reduce((sum, line) => sum + Number(line.storeCountedQty || line.returnedQtyClaimed || 0), 0);
+                    const goodPieces = currentGoodQty || initialData?.goodQty || 0;
+                    const rejectPieces = currentRejectQty || initialData?.rejectQty || 0;
+                    const totalAccounted = goodPieces + rejectPieces + totalReturnedPieces;
+                    const variance = targetQty - totalAccounted;
+
+                    return (
+                      <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec] space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <RotateCcw className="w-3.5 h-3.5 text-[#c09748]" />
+                            <span className="font-mono text-xs font-bold text-[#17191c] uppercase tracking-wide">
+                              Master Order Piece Reconciliation
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-mono text-[#777b86]">
+                            {jcReturnSlips.length === 0 ? 'No Return Slip Yet' : `${jcReturnSlips.length} Return Slip(s) Logged`}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                          <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
+                            <span className="text-[10px] text-[#777b86] uppercase font-mono block">Total Order Qty</span>
+                            <span className="font-mono font-bold text-sm text-[#17191c]">{targetQty} Pcs</span>
+                          </div>
+                          <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
+                            <span className="text-[10px] text-emerald-700 uppercase font-mono block">Completed Good</span>
+                            <span className="font-mono font-bold text-sm text-emerald-800">{goodPieces} Pcs</span>
+                          </div>
+                          <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
+                            <span className="text-[10px] text-rose-700 uppercase font-mono block">Rejection Scrap</span>
+                            <span className="font-mono font-bold text-sm text-rose-800">{rejectPieces} Pcs</span>
+                          </div>
+                          <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
+                            <span className="text-[10px] text-[#8a6521] uppercase font-mono block">Returned to Store</span>
+                            <span className="font-mono font-bold text-sm text-[#8a6521]">{totalReturnedPieces} Pcs</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] pt-1 border-t border-[#ececec]">
+                          <span className="text-[#777b86]">
+                            Reconciliation: <strong className="font-mono">Order ({targetQty}) = Good ({goodPieces}) + Scrap ({rejectPieces}) + Returned ({totalReturnedPieces}) + Remaining ({variance})</strong>
+                          </span>
+                          {variance === 0 ? (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
+                              ✓ 100% Balanced (0 Remaining)
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200 self-start sm:self-auto">
+                              Balance Remaining: {variance > 0 ? `${variance} Pcs` : `${variance} Pcs Over`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            })()}
+
+            {/* 3. MASTER ORDER TOTAL PIECES & COMPLETION STATUS (Read-Only) */}
             <div className="bg-white p-6 sm:p-7 rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#c09748]" />
-                    <h3 className="font-serif font-normal text-lg sm:text-xl text-[#17191c]">
-                      Company Issued Paints & Consumables
-                    </h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
-                      Daily Shift Tracking
+                    <Clock className="w-4 h-4 text-[#c09748]" />
+                    <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono">
+                      Master Order Completion Summary
                     </span>
                   </div>
-                  <p className="text-xs text-[#777b86] mt-0.5">
-                    Materials handed over to painter. Track daily store issues, actual floor usage & returnable floor balances.
-                  </p>
+                  <h2 className="font-serif font-normal text-xl text-[#17191c] mt-0.5">
+                    Total Pieces Completed &amp; Remaining Status
+                  </h2>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
-                  <span className="px-3 py-1 rounded-full bg-[#fafafb] text-[#777b86] border border-[#ececec] text-[11px] font-mono font-semibold">
-                    Read-Only Summary
-                  </span>
-                </div>
-              </div>
-
-              {/* Add Additional Material Drawer */}
-              {showAddMaterialDrawer && (
-                <div className="p-4 sm:p-5 bg-[#faf7ed] rounded-[20px] border border-[#f4e5be] space-y-3.5 animate-in fade-in duration-150">
-                  <div className="font-mono text-xs font-bold text-[#8a6521] uppercase tracking-wide flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5 text-[#8a6521]" />
-                    <span>Issue Additional Paint, Thinner, Hardener or Consumable to Painter:</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-                    <div className="sm:col-span-2">
-                      <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                        Material Description *
-                      </label>
-                      <input
-                        type="text"
-                        value={newMatDesc}
-                        onChange={e => setNewMatDesc(e.target.value)}
-                        placeholder="e.g. PU Thinner 400 Solvent (Viscosity Boost)"
-                        className="w-full h-9.5 px-3 rounded-[12px] border border-[#dcdfe4] bg-white font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                        Quantity *
-                      </label>
-                      <input
-                        type="number"
-                        min="0.5"
-                        step="0.5"
-                        value={newMatQty}
-                        onChange={e => setNewMatQty(Number(e.target.value))}
-                        className="w-full h-9.5 px-3 rounded-[12px] border border-[#dcdfe4] bg-white font-mono font-bold text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                        Unit of Measure (UOM)
-                      </label>
-                      <select
-                        value={newMatUom}
-                        onChange={e => setNewMatUom(e.target.value)}
-                        className="w-full h-9.5 px-2.5 rounded-[12px] border border-[#dcdfe4] bg-white font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
-                      >
-                        <option value="Litres">Litres</option>
-                        <option value="Kgs">Kgs</option>
-                        <option value="Cans">Cans</option>
-                        <option value="Rolls">Rolls</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
-                    <input
-                      type="text"
-                      value={newMatRemark}
-                      onChange={e => setNewMatRemark(e.target.value)}
-                      placeholder="Floor remark (e.g. Issued to Ramesh Kumar for viscosity adjustment)"
-                      className="w-full sm:flex-1 h-9.5 px-3 rounded-[12px] border border-[#dcdfe4] bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                    />
-                    <div className="flex items-center gap-2 self-end sm:self-auto">
-                      <button
-                        type="button"
-                        onClick={() => setShowAddMaterialDrawer(false)}
-                        className="px-3.5 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleAddAdditionalMaterial}
-                        className="px-4 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-                      >
-                        <Plus className="w-3.5 h-3.5 text-[#8a6521]" />
-                        <span>Save to Job Card</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Upgraded Materials Table (Tracks Issued vs Actual Consumed vs Floor Balance + Update Usage Button) */}
-              <div className="border border-[#ececec] rounded-[18px] overflow-hidden bg-white shadow-2xs">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-[#f2f2f3] text-[#17191c] font-mono border-b border-[#ececec]">
-                        <th className="py-2.5 px-3 font-bold w-10 text-center">#</th>
-                        <th className="py-2.5 px-4 font-bold min-w-[200px]">Material Description</th>
-                        <th className="py-2.5 px-3 font-bold text-center whitespace-nowrap">Store Issued</th>
-                        <th className="py-2.5 px-3 font-bold text-center text-[#8a6521] whitespace-nowrap">Actual Consumed</th>
-                        <th className="py-2.5 px-3 font-bold text-center text-emerald-800 whitespace-nowrap">Floor Balance</th>
-                        <th className="py-2.5 px-2 font-bold text-center">UOM</th>
-                        <th className="py-2.5 px-3 font-bold whitespace-nowrap">Shade / Batch</th>
-                        <th className="py-2.5 px-3 font-bold min-w-[150px]">Floor Remarks</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#ececec]">
-                      {companyMaterials.map((item, idx) => {
-                        const consumed = item.consumedQty !== undefined ? item.consumedQty : 0;
-                        const balance = item.floorBalanceQty !== undefined ? item.floorBalanceQty : Math.max(0, Number((item.qty - consumed).toFixed(2)));
-                        const usagePct = item.qty > 0 ? Math.min(100, Math.round((consumed / item.qty) * 100)) : 0;
-
-                        return (
-                          <tr key={item.id || idx} className={idx % 2 === 1 ? 'bg-[#fafafb]' : 'bg-white'}>
-                            <td className="py-3 px-3 text-center font-mono text-[#777b86] font-semibold">{idx + 1}</td>
-                            <td className="py-3 px-4">
-                              <div className="font-semibold text-[#17191c]">{item.itemDescription}</div>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="px-2 py-0.2 rounded-full text-[9px] font-mono font-bold bg-blue-50 text-blue-900 border border-blue-200">
-                                  Company Consumable
-                                </span>
-                                {item.materialType && (
-                                  <span className="text-[10px] text-[#777b86] uppercase font-mono">
-                                    • {item.materialType}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-3 px-3 text-center font-mono font-bold text-[#17191c]">
-                              {item.qty}
-                            </td>
-                            <td className="py-3 px-3 text-center">
-                              <div className="font-mono font-bold text-sm text-[#8a6521]">
-                                {consumed}
-                              </div>
-                              <div className="w-16 bg-[#f2f2f3] rounded-full h-1 mx-auto mt-1 overflow-hidden">
-                                <div
-                                  className="h-full rounded-full bg-[#c09748]"
-                                  style={{ width: `${usagePct}%` }}
-                                />
-                              </div>
-                              <span className="text-[9px] text-[#777b86] font-mono block mt-0.5">{usagePct}% Used</span>
-                            </td>
-                            <td className="py-3 px-3 text-center font-mono font-bold text-emerald-800 bg-emerald-50/20">
-                              {balance}
-                            </td>
-                            <td className="py-3 px-2 text-center font-mono text-[#777b86]">{item.uom}</td>
-                            <td className="py-3 px-3 font-mono text-xs text-[#777b86]">
-                              <div>{item.colour || '-'}</div>
-                              {item.batchNo && (
-                                <div className="text-[10px] text-[#8a6521] font-semibold">Lot: {item.batchNo}</div>
-                              )}
-                            </td>
-                            <td className="py-3 px-3 text-[#777b86] text-xs max-w-[180px] truncate" title={item.remark}>
-                              {item.remark || '-'}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Reconciliation Card: Issued = Good + Reject + Returned + Variance */}
-              {(() => {
-                const jcReturnSlips = balanceReturnSlips.filter(r => r.jobCardNo === jobCardNo);
-                const totalReturnedPieces = jcReturnSlips
-                  .flatMap(r => r.lines)
-                  .filter(l => (l.category === 'PARTY_MATERIAL' || l.uom === 'Pcs') && l.condition !== 'Damaged / Scrapped')
-                  .reduce((sum, line) => sum + Number(line.storeCountedQty || line.returnedQtyClaimed || 0), 0);
-                const goodPieces = currentGoodQty || initialData?.goodQty || 0;
-                const rejectPieces = currentRejectQty || initialData?.rejectQty || 0;
-                const totalAccounted = goodPieces + rejectPieces + totalReturnedPieces;
-                const variance = targetQty - totalAccounted;
-
-                return (
-                  <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec] space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <RotateCcw className="w-3.5 h-3.5 text-[#c09748]" />
-                        <span className="font-mono text-xs font-bold text-[#17191c] uppercase tracking-wide">
-                          Material &amp; Output Reconciliation Rule
-                        </span>
-                      </div>
-                      <span className="text-[10px] font-mono text-[#777b86]">
-                        {jcReturnSlips.length === 0 ? 'No Return Slip Yet (Pending Job Completion)' : `${jcReturnSlips.length} Return Slip(s) Logged`}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-                      <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
-                        <span className="text-[10px] text-[#777b86] uppercase font-mono block">Target Demand</span>
-                        <span className="font-mono font-bold text-sm text-[#17191c]">{targetQty} Pcs</span>
-                      </div>
-                      <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
-                        <span className="text-[10px] text-emerald-700 uppercase font-mono block">Good Output</span>
-                        <span className="font-mono font-bold text-sm text-emerald-800">{goodPieces} Pcs</span>
-                      </div>
-                      <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
-                        <span className="text-[10px] text-rose-700 uppercase font-mono block">Rejection Scrap</span>
-                        <span className="font-mono font-bold text-sm text-rose-800">{rejectPieces} Pcs</span>
-                      </div>
-                      <div className="bg-white p-2.5 rounded-[12px] border border-[#ececec]">
-                        <span className="text-[10px] text-[#8a6521] uppercase font-mono block">Returned to Store</span>
-                        <span className="font-mono font-bold text-sm text-[#8a6521]">{totalReturnedPieces} Pcs</span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] pt-1 border-t border-[#ececec]">
-                      <span className="text-[#777b86]">
-                        Reconciliation: <strong className="font-mono">Target ({targetQty}) = Good ({goodPieces}) + Scrap ({rejectPieces}) + Returned ({totalReturnedPieces}) + Variance ({variance})</strong>
-                      </span>
-                      {variance === 0 ? (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 self-start sm:self-auto">
-                          ✓ 100% Balanced (0 Variance)
-                        </span>
-                      ) : (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200 self-start sm:self-auto">
-                          Balance to Reconcile: {variance > 0 ? `${variance} Pcs Remaining` : `${variance} Pcs Over`}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-
-                        {/* ================================================================= */}
-            {/* 3. LIVE SHOP FLOOR PROCESS OUTPUT TRACKER & PIECE LOGGING        */}
-            {/* Placed at the bottom of the Job Card per floor manager workflow  */}
-            {/* ================================================================= */}
-            <div className="bg-white p-5 rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-[#c09748]" />
-                  <span className="text-[10px] font-bold text-[#c09748] uppercase tracking-wider font-mono">
-                    Live Shop Floor Process Output Tracker
-                  </span>
-                </div>
-                <h2 className="font-serif font-normal text-xl text-[#17191c] mt-0.5">
-                  Production Pieces & Rejection Status
-                </h2>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <div className={`px-3 py-1 rounded-full border text-[11px] font-mono font-bold flex items-center gap-1.5 shadow-2xs ${deadlineStatus.badgeColor}`}>
-                  <span>🎯 Deadline: {deadlineDate} • {deadlineTime}</span>
+                <div className={`px-3 py-1 rounded-full border text-[11px] font-mono font-bold flex items-center gap-1.5 shadow-2xs self-start sm:self-auto ${deadlineStatus.badgeColor}`}>
+                  <span>Deadline: {deadlineDate} • {deadlineTime}</span>
                   <span className="opacity-80">({deadlineStatus.label})</span>
                 </div>
-
-                {remainingQty === 0 && targetQty > 0 && (
-                  <div className="px-4 py-1.5 rounded-full bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be] text-xs font-bold flex items-center gap-1.5 shadow-2xs select-none cursor-default">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#8a6521]" />
-                    <span>Target Completed (100% Finished)</span>
-                  </div>
-                )}
               </div>
-            </div>
 
-            {/* 3-Stage Coating Milestone Progression Ribbon */}
-            <div className="bg-[#fafafb] p-4.5 rounded-[22px] border border-[#ececec] space-y-3.5 shadow-xs">
-              <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-[#ececec]">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
-                  <span className="text-[11px] font-mono font-bold text-[#17191c] uppercase tracking-wider">
-                    3-Stage Coating Flow & Defect Control
+              {/* 5 Metric Cards Grid (Total Job Card Status) */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                <div className="bg-[#fafafb] p-3.5 rounded-[16px] border border-[#ececec] space-y-1">
+                  <span className="text-[10px] font-mono uppercase text-[#777b86] font-bold block flex items-center gap-1">
+                    <Layers className="w-3 h-3 text-[#c09748]" />
+                    Total Order Qty
                   </span>
-                  <span className="text-[10px] font-sans text-[#777b86]">
-                    (Stage 1 Primer ➔ Stage 2 Basecoat ➔ Stage 3 Clear Topcoat)
+                  <div className="font-mono text-xl font-bold text-[#17191c]">
+                    {targetQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
+                  </div>
+                  <div className="text-[10px] text-[#777b86] font-mono truncate">
+                    {currentJcAssignments.length} Shift Assignment(s)
+                  </div>
+                </div>
+
+                <div className="bg-[#faf7ed] p-3.5 rounded-[16px] border border-[#f4e5be] space-y-1">
+                  <span className="text-[10px] font-mono uppercase text-[#8a6521] font-bold block flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-[#c09748]" />
+                    Completed OK
                   </span>
+                  <div className="font-mono text-xl font-bold text-[#8a6521]">
+                    {currentGoodQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
+                  </div>
+                  <div className="text-[10px] text-[#8a6521] font-semibold font-mono">
+                    {progressPercent}% First-Pass Yield
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[10.5px] font-mono font-bold text-[#8a6521] bg-[#faf3e0] px-2.5 py-0.5 rounded-full border border-[#f4e5be]">
-                    Target: {targetQty.toLocaleString('en-IN')} Pcs
+
+                <div className="bg-amber-50/70 p-3.5 rounded-[16px] border border-amber-200 space-y-1">
+                  <span className="text-[10px] font-mono uppercase text-amber-800 font-bold block flex items-center gap-1">
+                    <RotateCcw className="w-3 h-3 text-amber-600" />
+                    Rework (Salvage)
                   </span>
-                  <span className={`text-[10.5px] font-mono font-bold px-2.5 py-0.5 rounded-full border ${
-                    totalRejectionsAllStages > 0 ? 'bg-rose-50 text-rose-800 border-rose-200' : 'bg-[#faf7ed] text-[#8a6521] border-[#f4e5be]'
-                  }`}>
-                    Total Defects: {totalRejectionsAllStages} Pcs ({overallJobRejRate}%)
+                  <div className="font-mono text-xl font-bold text-amber-900">
+                    {currentReworkQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-amber-700">Pcs</span>
+                  </div>
+                  <div className="text-[10px] text-amber-800 font-mono">
+                    {reworkPercent}% Reworked
+                  </div>
+                </div>
+
+                <div className="bg-rose-50/70 p-3.5 rounded-[16px] border border-rose-200 space-y-1">
+                  <span className="text-[10px] font-mono uppercase text-rose-800 font-bold block flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 text-rose-600" />
+                    Dead Scrap (Rej)
                   </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                {processStages.map((st) => {
-                  const counts = st.key === 'stage_1_primer' 
-                    ? stageCounts.stage1 
-                    : st.key === 'stage_2_basecoat' 
-                    ? stageCounts.stage2 
-                    : stageCounts.stage3;
-                  
-                  const inputCap = st.key === 'stage_1_primer'
-                    ? targetQty
-                    : st.key === 'stage_2_basecoat'
-                    ? stageCounts.stage1.good
-                    : stageCounts.stage2.good;
-
-                  const rejRate = st.key === 'stage_1_primer'
-                    ? stage1RejRate
-                    : st.key === 'stage_2_basecoat'
-                    ? stage2RejRate
-                    : stage3RejRate;
-
-                  const isComplete = inputCap > 0 && (counts.good + counts.scrap) >= inputCap;
-                  const isStarted = counts.completed > 0;
-                  const isLocked = st.key !== 'stage_1_primer' && inputCap === 0;
-                  const pct = inputCap > 0 ? Math.min(100, Math.round((counts.good / inputCap) * 100)) : 0;
-
-                  return (
-                    <div 
-                      key={st.key}
-                      className={`p-4 rounded-[18px] border transition flex flex-col justify-between space-y-3 ${
-                        isLocked
-                          ? 'bg-gray-50/70 border-gray-200 opacity-60'
-                          : isComplete
-                          ? 'bg-[#faf7ed] border-[#f4e5be] shadow-xs'
-                          : isStarted
-                          ? 'bg-white border-[#c09748]/50 shadow-xs'
-                          : 'bg-white border-[#ececec]'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-1 mb-1.5">
-                          <span className="text-[10.5px] font-mono font-bold uppercase tracking-wider text-[#17191c] flex items-center gap-1.5">
-                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                              isComplete ? 'bg-[#8a6521] text-white' : 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]'
-                            }`}>
-                              {isComplete ? '✓' : st.num}
-                            </span>
-                            <span>{st.shortLabel}</span>
-                          </span>
-                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
-                            isLocked
-                              ? 'bg-gray-100 text-[#777b86] border-gray-200'
-                              : isComplete 
-                              ? 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be]' 
-                              : counts.rework > 0 
-                              ? 'bg-amber-50 text-amber-800 border-amber-300'
-                              : isStarted 
-                              ? 'bg-amber-50/70 text-amber-800 border-amber-200' 
-                              : 'bg-gray-100 text-[#777b86] border-gray-200'
-                          }`}>
-                            {isLocked ? 'Waiting for Prev Stage' : isComplete ? 'Stage Complete' : counts.rework > 0 ? `${counts.good}/${inputCap} OK • ${counts.rework} In RW` : isStarted ? `${counts.good}/${inputCap} OK` : 'Pending'}
-                          </span>
-                        </div>
-
-                        <div className="text-xs font-semibold text-[#17191c] truncate">
-                          {st.label.replace(/^Stage \d:\s*/, '')}
-                        </div>
-                      </div>
-
-                      {/* Clean 4-Metric Grid */}
-                      <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                        <div className="p-2 rounded-[10px] bg-[#fafafb] border border-[#ececec]">
-                          <div className="text-[9.5px] uppercase text-[#777b86]">Inward Input</div>
-                          <div className="font-bold text-[#17191c] mt-0.5">{inputCap} Pcs</div>
-                        </div>
-
-                        <div className="p-2 rounded-[10px] bg-[#faf7ed] border border-[#f4e5be]">
-                          <div className="text-[9.5px] uppercase text-[#8a6521]">Passed OK</div>
-                          <div className="font-bold text-[#8a6521] mt-0.5">+{counts.good} Pcs</div>
-                        </div>
-
-                        <div className={`p-2 rounded-[10px] border ${counts.rework > 0 ? 'bg-amber-50 border-amber-200' : 'bg-[#fafafb] border-[#ececec]'}`}>
-                          <div className={`text-[9.5px] uppercase ${counts.rework > 0 ? 'text-amber-800' : 'text-[#777b86]'}`}>Rework (RW)</div>
-                          <div className={`font-bold mt-0.5 ${counts.rework > 0 ? 'text-amber-800' : 'text-[#777b86]'}`}>+{counts.rework} Pcs</div>
-                        </div>
-
-                        <div className={`p-2 rounded-[10px] border ${counts.scrap > 0 ? 'bg-rose-50 border-rose-200' : 'bg-[#fafafb] border-[#ececec]'}`}>
-                          <div className={`text-[9.5px] uppercase ${counts.scrap > 0 ? 'text-rose-800' : 'text-[#777b86]'}`}>Dead Scrap</div>
-                          <div className={`font-bold mt-0.5 ${counts.scrap > 0 ? 'text-rose-700' : 'text-[#777b86]'}`}>{counts.scrap} Pcs</div>
-                        </div>
-                      </div>
-
-                      {/* Micro Progress Bar */}
-                      <div className="space-y-1">
-                        <div className="h-2 w-full bg-[#f2f2f3] rounded-full overflow-hidden flex border border-[#ececec]">
-                          <div 
-                            className="bg-[#c09748] h-full transition-all duration-300"
-                            style={{ width: `${inputCap > 0 ? Math.min(100, (counts.good / inputCap) * 100) : 0}%` }}
-                            title={`Good: ${counts.good}`}
-                          />
-                          {counts.rework > 0 && (
-                            <div 
-                              className="bg-amber-400 h-full transition-all duration-300"
-                              style={{ width: `${inputCap > 0 ? Math.min(100, (counts.rework / inputCap) * 100) : 0}%` }}
-                              title={`Rework: ${counts.rework}`}
-                            />
-                          )}
-                          {counts.scrap > 0 && (
-                            <div 
-                              className="bg-rose-500 h-full transition-all duration-300"
-                              style={{ width: `${inputCap > 0 ? Math.min(100, (counts.scrap / inputCap) * 100) : 0}%` }}
-                              title={`Scrap: ${counts.scrap}`}
-                            />
-                          )}
-                        </div>
-                        <div className="flex justify-between text-[10px] font-mono text-[#777b86]">
-                          <span>{inputCap > 0 ? Math.round((counts.good / inputCap) * 100) : 0}% Good Yield</span>
-                          <div className="flex items-center gap-2">
-                            {counts.rework > 0 && <span className="text-amber-800 font-semibold">{counts.rework} Pcs Rework</span>}
-                            {counts.scrap > 0 && <span className="text-rose-700 font-semibold">{counts.scrap} Pcs Scrap</span>}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 5 Metric Cards Grid (ISO 8.7 Quality Disposition Tracking) */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-              <div className="bg-[#fafafb] p-3 rounded-[16px] border border-[#ececec] space-y-1">
-                <span className="text-[10px] font-mono uppercase text-[#777b86] font-bold block flex items-center gap-1">
-                  <Layers className="w-3 h-3 text-[#c09748]" />
-                  Total Given
-                </span>
-                <div className="font-mono text-xl font-bold text-[#17191c]">
-                  {targetQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
-                </div>
-                <div className="text-[10px] text-[#777b86] font-mono truncate">
-                  Painter: {painterName.split(' ')[0]}
-                </div>
-              </div>
-
-              <div className="bg-[#faf7ed] p-3 rounded-[16px] border border-[#f4e5be] space-y-1">
-                <span className="text-[10px] font-mono uppercase text-[#8a6521] font-bold block flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-[#c09748]" />
-                  Good OK (Pass)
-                </span>
-                <div className="font-mono text-xl font-bold text-[#8a6521]">
-                  {currentGoodQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
-                </div>
-                <div className="text-[10px] text-[#8a6521] font-semibold font-mono">
-                  {progressPercent}% First-Pass Yield
-                </div>
-              </div>
-
-              <div className="bg-amber-50/70 p-3 rounded-[16px] border border-amber-200 space-y-1">
-                <span className="text-[10px] font-mono uppercase text-amber-800 font-bold block flex items-center gap-1">
-                  <RotateCcw className="w-3 h-3 text-amber-600" />
-                  Rework (Salvage)
-                </span>
-                <div className="font-mono text-xl font-bold text-amber-900">
-                  {currentReworkQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-amber-700">Pcs</span>
-                </div>
-                <div className="text-[10px] text-amber-800 font-mono">
-                  {reworkPercent}% Reworked
-                </div>
-              </div>
-
-              <div className="bg-rose-50/70 p-3 rounded-[16px] border border-rose-200 space-y-1">
-                <span className="text-[10px] font-mono uppercase text-rose-800 font-bold block flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3 text-rose-600" />
-                  Dead Scrap (Rej)
-                </span>
-                <div className="font-mono text-xl font-bold text-rose-900">
-                  {currentRejectQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-rose-700">Pcs</span>
-                </div>
-                <div className="text-[10px] text-rose-800 font-mono">
-                  {scrapPercent}% Scrap Rate
-                </div>
-              </div>
-
-              <div className="bg-[#fafafb] p-3 rounded-[16px] border border-[#ececec] space-y-1 col-span-2 sm:col-span-1">
-                <span className="text-[10px] font-mono uppercase text-[#777b86] font-bold block flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-[#979799]" />
-                  Remaining
-                </span>
-                <div className="font-mono text-xl font-bold text-[#17191c]">
-                  {remainingQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
-                </div>
-                <div className="text-[10px] text-[#777b86] font-mono">
-                  {remainingQty === 0 ? '🎉 100% Target Met' : 'Floor WIP'}
-                </div>
-              </div>
-            </div>
-
-            {/* Visual Progress Bar */}
-            <div className="space-y-1 pt-1">
-              <div className="flex justify-between text-[11px] font-mono">
-                <span className="text-[#777b86]">
-                  Execution Balance: <strong className="text-[#8a6521]">{currentGoodQty} Good</strong> + <strong className="text-amber-800">{currentReworkQty} Rework</strong> + <strong className="text-rose-700">{currentRejectQty} Scrap</strong> of {targetQty} Pcs
-                </span>
-                <span className="font-bold text-[#17191c]">{totalAchievedPercent}% Net Passed</span>
-              </div>
-              <div className="h-2.5 w-full bg-[#f2f2f3] rounded-full overflow-hidden flex border border-[#ececec]">
-                <div 
-                  className="bg-[#c09748] h-full transition-all duration-300"
-                  style={{ width: `${Math.min(100, targetQty > 0 ? (currentGoodQty / targetQty) * 100 : 0)}%` }}
-                  title={`Good Pieces: ${currentGoodQty}`}
-                />
-                <div 
-                  className="bg-amber-400 h-full transition-all duration-300"
-                  style={{ width: `${Math.min(100, targetQty > 0 ? (currentReworkQty / targetQty) * 100 : 0)}%` }}
-                  title={`Rework Recovered: ${currentReworkQty}`}
-                />
-                <div 
-                  className="bg-rose-500 h-full transition-all duration-300"
-                  style={{ width: `${Math.min(100, targetQty > 0 ? (currentRejectQty / targetQty) * 100 : 0)}%` }}
-                  title={`Dead Scrap: ${currentRejectQty}`}
-                />
-              </div>
-            </div>
-
-            {/* Interactive Batch Output Drawer */}
-            {showOutputLogger && (
-              <div className="bg-[#faf7ed] p-4.5 rounded-[20px] border border-[#f4e5be] space-y-3.5 animate-in fade-in duration-150">
-                <div className="flex items-center justify-between pb-2 border-b border-[#f4e5be]">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-[#8a6521]" />
-                    <span className="font-mono font-bold text-xs text-[#8a6521] uppercase tracking-wide">
-                      Record Floor Batch Output (e.g. 500 Pcs Trolley Finished)
-                    </span>
+                  <div className="font-mono text-xl font-bold text-rose-900">
+                    {currentRejectQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-rose-700">Pcs</span>
                   </div>
-                  <span className="text-[10.5px] text-[#777b86] font-mono">
-                    Operator: {currentUser.name} • Booth: {dept.split('(')[0]}
+                  <div className="text-[10px] text-rose-800 font-mono">
+                    {scrapPercent}% Scrap Rate
+                  </div>
+                </div>
+
+                <div className="bg-[#fafafb] p-3.5 rounded-[16px] border border-[#ececec] space-y-1 col-span-2 sm:col-span-1">
+                  <span className="text-[10px] font-mono uppercase text-[#777b86] font-bold block flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-[#979799]" />
+                    Remaining
                   </span>
-                </div>
-
-                {/* Coating Stage Selector Buttons */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-[10px] font-bold text-[#8a6521] uppercase font-mono">
-                      Select Coating / Processing Stage *
-                    </label>
-                    <span className="text-[10px] font-mono text-[#777b86]">
-                      Max Inward Allowed for this Coat: <strong className="text-[#8a6521]">{currentStageMaxAllowed} Pcs</strong>
-                    </span>
+                  <div className="font-mono text-xl font-bold text-[#17191c]">
+                    {remainingQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {processStages.map((st) => {
-                      const isSelected = selectedStage === st.key;
-                      const inputCap = st.key === 'stage_1_primer'
-                        ? targetQty
-                        : st.key === 'stage_2_basecoat'
-                        ? stageCounts.stage1.good
-                        : stageCounts.stage2.good;
-                      const stageInfo = st.key === 'stage_1_primer' 
-                        ? stageCounts.stage1 
-                        : st.key === 'stage_2_basecoat' 
-                        ? stageCounts.stage2 
-                        : stageCounts.stage3;
-                      const isLocked = st.key !== 'stage_1_primer' && inputCap === 0;
-
-                      return (
-                        <button
-                          key={st.key}
-                          type="button"
-                          onClick={() => handleSelectStage(st.key)}
-                          className={`p-3 rounded-[14px] border text-left transition cursor-pointer flex flex-col justify-between ${
-                            isSelected
-                              ? 'bg-white border-[#c09748] ring-2 ring-[#c09748]/30 shadow-2xs'
-                              : isLocked
-                              ? 'bg-gray-100/80 border-gray-200 opacity-60'
-                              : 'bg-white/80 border-[#dcdfe4] hover:bg-white'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className={`text-xs font-bold font-mono ${isSelected ? 'text-[#8a6521]' : 'text-[#17191c]'}`}>
-                              {st.label}
-                            </span>
-                            {isSelected && <Check className="w-3.5 h-3.5 text-[#8a6521]" />}
-                          </div>
-                          <div className="flex items-center justify-between mt-1 text-[10px] font-mono text-[#777b86]">
-                            <span>Input: {inputCap} Pcs</span>
-                            <span>Done: <strong className="text-[#8a6521]">{stageInfo.good}</strong>{stageInfo.rework > 0 && <span className="text-amber-700 ml-1">({stageInfo.rework} RW)</span>} Pcs</span>
-                          </div>
-                        </button>
-                      );
-                    })}
+                  <div className="text-[10px] text-[#777b86] font-mono">
+                    {remainingQty === 0 ? '100% Target Met' : 'Pending Balance'}
                   </div>
-                </div>
-
-                {/* If selected stage has 0 allowed input, show clear industrial guidance */}
-                {currentStageMaxAllowed === 0 && (
-                  <div className="p-3 rounded-[14px] bg-amber-50 border border-amber-200 text-xs text-amber-900 font-mono flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-                    <span>
-                      {selectedStage === 'stage_1_primer'
-                        ? `Stage 1 ka target (${targetQty} Pcs) complete ho chuka hai (${stageCounts.stage1.good} Passed OK, ${stageCounts.stage1.scrap} Scrapped).`
-                        : selectedStage === 'stage_2_basecoat'
-                        ? `Stage 1 se sirf ${stageCounts.stage1.good} pieces pass hue the aur sabhi Stage 2 me complete ho chuke hain.`
-                        : `Stage 2 se sirf ${stageCounts.stage2.good} pieces pass hue the aur sabhi Stage 3 me complete ho chuke hain.`}
-                    </span>
-                  </div>
-                )}
-
-                {/* Row 1: Production Counts (Sprayed = Good + Rework + Scrap) */}
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-[10px] font-bold text-[#17191c] uppercase font-mono">
-                        Pieces Sprayed Now ({activeStageConfig.shortLabel}) *
-                      </label>
-                      <span className="text-[10px] text-[#8a6521] font-mono font-bold">
-                        (Max: {currentStageMaxAllowed})
-                      </span>
-                    </div>
-                    <input
-                      type="number"
-                      min="1"
-                      max={currentStageMaxAllowed}
-                      value={logPiecesSprayed || ''}
-                      onChange={e => handleSprayedPiecesChange(Number(e.target.value))}
-                      className="w-full h-9.5 px-3 rounded-[12px] border border-[#dcdfe4] bg-white font-mono font-bold text-sm text-[#17191c]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#8a6521] uppercase mb-1 font-mono">
-                      Good Passed (OK) *
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max={logPiecesSprayed}
-                      value={logGoodPieces}
-                      onChange={e => handleGoodPiecesChange(Number(e.target.value))}
-                      className="w-full h-9.5 px-3 rounded-[12px] border border-[#f4e5be] bg-white font-mono font-bold text-sm text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-amber-800 uppercase mb-1 font-mono flex items-center justify-between">
-                      <span>Rework Needed (RW)</span>
-                      <span className="text-[9px] font-normal text-amber-700">Touch-up / Re-spray</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max={logPiecesSprayed}
-                      value={logReworkPieces}
-                      onChange={e => handleReworkPiecesChange(Number(e.target.value))}
-                      className="w-full h-9.5 px-3 rounded-[12px] border border-amber-300 bg-white font-mono font-bold text-sm text-amber-800 focus:border-amber-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-rose-800 uppercase mb-1 font-mono flex items-center justify-between">
-                      <span>Dead Scrap (Reject)</span>
-                      <span className="text-[9px] font-normal text-rose-700">Challan deduction</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max={logPiecesSprayed}
-                      value={logRejectPieces}
-                      onChange={e => handleRejectPiecesChange(Number(e.target.value))}
-                      className="w-full h-9.5 px-3 rounded-[12px] border border-rose-300 bg-white font-mono font-bold text-sm text-rose-700 focus:border-rose-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Row 2: ISO 9001 Cl 8.7 Non-Conformance Disposition & Traceability */}
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs pt-1">
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                      Defect Reason / Type
-                    </label>
-                    <TypeableDropdown
-                      disabled={logReworkPieces === 0 && logRejectPieces === 0}
-                      value={logDefectReason}
-                      onChange={setLogDefectReason}
-                      options={DEFECT_PRESET_OPTIONS}
-                      placeholder="Type or select defect..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                      ISO 8.7 Corrective Action Taken
-                    </label>
-                    <TypeableDropdown
-                      disabled={logReworkPieces === 0}
-                      value={logReworkAction}
-                      onChange={setLogReworkAction}
-                      options={ISO_REWORK_ACTIONS}
-                      placeholder="Type or select corrective action..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                      Time Logged *
-                    </label>
-                    <input
-                      type="text"
-                      value={logTimeInput}
-                      onChange={e => setLogTimeInput(e.target.value)}
-                      className="w-full h-9.5 px-3 rounded-[12px] border border-[#dcdfe4] bg-white font-mono text-[#17191c]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                      Supervisor / QA Remarks
-                    </label>
-                    <input
-                      type="text"
-                      value={logRemarksInput}
-                      onChange={e => setLogRemarksInput(e.target.value)}
-                      className="w-full h-9.5 px-3 rounded-[12px] border border-[#dcdfe4] bg-white text-[#17191c]"
-                      placeholder="e.g. Trolley #1 de-nibbed, adhesion OK"
-                    />
-                  </div>
-                </div>
-
-                <div className="p-2.5 rounded-[12px] bg-white border border-[#f4e5be] text-[11px] text-[#8a6521]">
-                  ⚡ <strong>Stage Impact ({activeStageConfig.shortLabel}):</strong> Logging: <strong>+{logGoodPieces} Good OK</strong>, <strong>+{logReworkPieces} Rework</strong>, <strong>+{logRejectPieces} Dead Scrap</strong>.
-                  {selectedStage === 'stage_3_topcoat' ? (
-                    <> Final good completion will increase to <strong>{currentGoodQty + logGoodPieces} Pcs</strong> (Remaining: <strong>{Math.max(0, remainingQty - logPiecesSprayed)} Pcs</strong>).</>
-                  ) : (
-                    <> Intermediate WIP pieces will now advance to {selectedStage === 'stage_1_primer' ? 'Stage 2 (Basecoat Colour)' : 'Stage 3 (Clear Topcoat & Final QC)'}.</>
-                  )}
-                </div>
-
-                <div className="flex justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowOutputLogger(false)}
-                    className="px-4 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveOutputBatch}
-                    disabled={logPiecesSprayed <= 0 || logPiecesSprayed > currentStageMaxAllowed}
-                    className="px-5 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#8a6521]" />
-                    <span>Record {logPiecesSprayed} Pcs for {activeStageConfig.shortLabel}</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Activity & Audit Trail Strip with "View Logs" Trigger */}
-            <div className="pt-3 border-t border-[#ececec] space-y-2.5">
-              <div className="p-3.5 rounded-[18px] bg-[#fafafb] border border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-center shrink-0">
-                    <History className="w-4 h-4 text-[#8a6521]" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-bold text-[#17191c]">Activity & Production Audit Trail</span>
-                      <span className="text-[10.5px] font-mono font-bold text-[#8a6521] bg-[#faf3e0] px-2.5 py-0.5 rounded-full border border-[#f4e5be]">
-                        {liveProgressLogs.length} Events Logged
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-[#777b86] mt-0.5">
-                      {liveProgressLogs.length > 0
-                        ? `Latest: ${liveProgressLogs[0].actionTitle || 'Batch Processed'} (${liveProgressLogs[0].dateLabel || 'Today'} • ${liveProgressLogs[0].timeLabel})`
-                        : 'No events logged yet. Batch outputs and material additions will be recorded here.'}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setShowAuditLogsModal(true)}
-                    className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-[#8a6521]" />
-                    <span>View All Logs ({liveProgressLogs.length})</span>
-                  </button>
                 </div>
               </div>
 
-              {/* Latest Log Disposition Preview Card (Instant Scannability on Job Card Screen) */}
-              {liveProgressLogs.length > 0 && liveProgressLogs[0].actionType === 'BATCH_OUTPUT' && (
-                <div className="p-3.5 rounded-[16px] bg-white border border-[#ececec] space-y-2 text-xs shadow-2xs">
-                  <div className="flex items-center justify-between flex-wrap gap-2 text-[10.5px] font-mono">
-                    <span className="font-bold text-[#17191c] flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-[#c09748]" />
-                      <span>Latest Batch: {liveProgressLogs[0].stageName || 'Coating Stage'} ({liveProgressLogs[0].timeLabel})</span>
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
-                        +{liveProgressLogs[0].goodPieces ?? 0} Passed OK
-                      </span>
-                      {(liveProgressLogs[0].reworkPieces || 0) > 0 && (
-                        <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-bold">
-                          +{liveProgressLogs[0].reworkPieces} Rework
-                        </span>
-                      )}
-                      {(liveProgressLogs[0].scrapPieces || 0) > 0 && (
-                        <span className="px-2 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200 font-bold">
-                          +{liveProgressLogs[0].scrapPieces} Scrap
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Defect Reason & Corrective Action Strip */}
-                  {((liveProgressLogs[0].reworkPieces || 0) > 0 || (liveProgressLogs[0].scrapPieces || 0) > 0 || liveProgressLogs[0].defectReason || liveProgressLogs[0].reworkAction) && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-[#f2f2f3]">
-                      <div className="p-2 rounded-[10px] bg-[#fafafb] border border-[#ececec]">
-                        <span className="text-[9.5px] uppercase font-mono font-bold text-[#777b86] block">
-                          Defect Reason / Type:
-                        </span>
-                        <span className="font-semibold text-[#17191c] text-xs block mt-0.5 break-words">
-                          {liveProgressLogs[0].defectReason || (liveProgressLogs[0].defectCategory && liveProgressLogs[0].defectCategory !== 'none' ? DEFECT_LABELS[liveProgressLogs[0].defectCategory] : 'Shop Floor Defect Recorded')}
-                        </span>
-                      </div>
-
-                      <div className="p-2 rounded-[10px] bg-amber-50/70 border border-amber-200">
-                        <span className="text-[9.5px] uppercase font-mono font-bold text-amber-800 block">
-                          ISO 8.7 Corrective Action Taken:
-                        </span>
-                        <span className="font-semibold text-amber-900 text-xs block mt-0.5 break-words">
-                          {liveProgressLogs[0].reworkAction || 'Touch-up Wet Sanding & Re-spray'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {liveProgressLogs[0].remarks && (
-                    <div className="text-[11px] font-mono text-[#777b86] pt-1 border-t border-[#f2f2f3]">
-                      Supervisor Remarks: <strong className="text-[#17191c] font-sans">{liveProgressLogs[0].remarks}</strong>
-                    </div>
-                  )}
+              {/* Visual Progress Bar */}
+              <div className="space-y-1 pt-1">
+                <div className="flex justify-between text-[11px] font-mono">
+                  <span className="text-[#777b86]">
+                    Order Completion: <strong className="text-[#8a6521]">{currentGoodQty} Good</strong> + <strong className="text-amber-800">{currentReworkQty} Rework</strong> + <strong className="text-rose-700">{currentRejectQty} Scrap</strong> of {targetQty} Pcs
+                  </span>
+                  <span className="font-bold text-[#17191c]">{totalAchievedPercent}% Net Passed</span>
                 </div>
-              )}
+                <div className="h-2.5 w-full bg-[#f2f2f3] rounded-full overflow-hidden flex border border-[#ececec]">
+                  <div
+                    className="bg-[#c09748] h-full transition-all duration-300"
+                    style={{ width: `${Math.min(100, targetQty > 0 ? (currentGoodQty / targetQty) * 100 : 0)}%` }}
+                    title={`Good Pieces: ${currentGoodQty}`}
+                  />
+                  <div
+                    className="bg-amber-400 h-full transition-all duration-300"
+                    style={{ width: `${Math.min(100, targetQty > 0 ? (currentReworkQty / targetQty) * 100 : 0)}%` }}
+                    title={`Rework Recovered: ${currentReworkQty}`}
+                  />
+                  <div
+                    className="bg-rose-500 h-full transition-all duration-300"
+                    style={{ width: `${Math.min(100, targetQty > 0 ? (currentRejectQty / targetQty) * 100 : 0)}%` }}
+                    title={`Dead Scrap: ${currentRejectQty}`}
+                  />
+                </div>
+              </div>
             </div>
           </div>
-        </div>
       ) : existingCardTab === 'QUALITY' ? (
         renderQualityTabContent()
       ) : existingCardTab === 'DAILY_LOG' ? (

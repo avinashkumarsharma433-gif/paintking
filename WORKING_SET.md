@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-14: Made Tab 1 (Master Order Overview) 100% Read-Only & Enforced 1 GRN = 1 Master Job Card
+  - Files touched:
+    - `src/portal/components/JobCardModal.tsx`: Set default `existingCardTab` to `'EXECUTION'` (`1. Master Order Overview`), removed all inline edit/add/update triggers (`isEditingDailyQuota`, `showAddMaterialDrawer`, `Update Usage`, `showOutputLogger`, 3-stage update flow, and Activity Logs) from Tab 1, and converted Tab 1 into a pure read-only summary of Master Job Card details, active painters (`currentJcAssignments`), aggregated Tier-3 materials (`assignmentMaterialLogs`), and total pieces completed/remaining.
+    - `src/portal/views/JobCardsView.tsx`: Replaced `Create Next Job Card` with `Open Master Job Card` when a Master Job Card already exists for a GRN lot (`1 GRN = 1 Master Job Card`).
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors).
+
 - 2026-11-14: Revamped Job Card Creation Wizard & Management View as per 3-Tier Plan
   - Files touched:
     - `src/portal/components/JobCardModal.tsx`:
