@@ -511,6 +511,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   // DAILY PRODUCTION TRACKING & CONSUMABLES USAGE STATE
   // =========================================================================
   const [selectedProductionDate, setSelectedProductionDate] = useState<string>('ALL');
+  const [selectedPainterFilter, setSelectedPainterFilter] = useState<string>('ALL');
   const [selectedMatForUsage, setSelectedMatForUsage] = useState<IssuedMaterialItem | null>(null);
   const [usageConsumedInput, setUsageConsumedInput] = useState<number>(0);
   const [usageRemarkInput, setUsageRemarkInput] = useState<string>('');
@@ -518,6 +519,19 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [isEditingDailyQuota, setIsEditingDailyQuota] = useState<boolean>(false);
   const [editDailyQuotaInput, setEditDailyQuotaInput] = useState<number>(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Distinct Painter list associated with this Job Card
+  const currentJcAssignments = useMemo(() => {
+    return painterAssignments.filter(a => a.masterJobCardId === jobCardNo);
+  }, [painterAssignments, jobCardNo]);
+
+  const jcPainters = useMemo(() => {
+    const set = new Set<string>();
+    if (painterName && painterName.trim()) set.add(painterName.trim());
+    currentJcAssignments.forEach(a => { if (a.painterName) set.add(a.painterName.trim()); });
+    liveProgressLogs.forEach(l => { if (l.painterName) set.add(l.painterName.trim()); });
+    return Array.from(set).filter(Boolean);
+  }, [painterName, currentJcAssignments, liveProgressLogs]);
 
   // Previously used shades from system history + standard factory tones
   const historicalColors = useMemo(() => {
@@ -1646,7 +1660,39 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const renderDailyLedgerContent = () => {
     const todayStr = new Date().toISOString().split('T')[0];
     const activeDateStr = selectedProductionDate === 'ALL' ? null : normalizeToIsoDate(selectedProductionDate);
-    const dateLogs = liveProgressLogs.filter(l => doesLogMatchDate(l, selectedProductionDate));
+    const dateLogs = liveProgressLogs
+      .filter(l => doesLogMatchDate(l, selectedProductionDate))
+      .filter(l => selectedPainterFilter === 'ALL' || (l.painterName && l.painterName.trim().toLowerCase() === selectedPainterFilter.trim().toLowerCase()));
+
+    // Filtered painter assignments & logs for selected painter
+    const activePainterAssignment = currentJcAssignments.find(a => 
+      selectedPainterFilter !== 'ALL' && a.painterName.trim().toLowerCase() === selectedPainterFilter.trim().toLowerCase()
+    );
+
+    // Dynamic metrics based on selected painter & date
+    const painterTargetPcs = selectedPainterFilter !== 'ALL' 
+      ? (activePainterAssignment?.dailyTargetQty || dailyTargetQty)
+      : (selectedDateSummary ? selectedDateSummary.target : targetQty);
+
+    const painterGoodPcs = selectedPainterFilter !== 'ALL'
+      ? dateLogs.reduce((s, l) => s + (l.goodPieces || l.piecesCompleted || 0), 0)
+      : (selectedDateSummary ? selectedDateSummary.completed : currentGoodQty);
+
+    const painterRejectPcs = selectedPainterFilter !== 'ALL'
+      ? dateLogs.reduce((s, l) => s + (l.reworkPieces || 0) + (l.scrapPieces || 0), 0)
+      : (selectedDateSummary ? selectedDateSummary.rejects : currentRejectQty);
+
+    const painterScrapPcs = selectedPainterFilter !== 'ALL'
+      ? dateLogs.reduce((s, l) => s + (l.scrapPieces || 0), 0)
+      : currentRejectQty;
+
+    const painterReworkPcs = selectedPainterFilter !== 'ALL'
+      ? dateLogs.reduce((s, l) => s + (l.reworkPieces || 0), 0)
+      : currentReworkQty;
+
+    const painterRemainingPcs = Math.max(0, painterTargetPcs - painterGoodPcs - painterScrapPcs);
+    const painterAchievedPct = painterTargetPcs > 0 ? Math.min(100, Math.round((painterGoodPcs / painterTargetPcs) * 100)) : 0;
+    const painterScrapPct = painterTargetPcs > 0 ? ((painterScrapPcs / painterTargetPcs) * 100).toFixed(1) : '0.0';
 
     return (
       <div className="space-y-5">
@@ -1664,6 +1710,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 <span className="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
                   {productionDates.length} Working {productionDates.length === 1 ? 'Date' : 'Dates'} Recorded
                 </span>
+                {selectedPainterFilter !== 'ALL' && (
+                  <span className="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                    Filtered by Painter: {selectedPainterFilter}
+                  </span>
+                )}
               </div>
               <h3 className="font-serif font-normal text-base sm:text-lg text-[#17191c] mt-0.5">
                 {activeDateStr ? `Working Date Log: ${activeDateStr}` : 'Cumulative Production & Chemical Consumption Overview'}
@@ -1672,45 +1723,41 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
           </div>
         </div>
 
-        {/* Date Selector Navigation Bar */}
-        <div className="p-4 bg-white rounded-[22px] border border-[#ececec] flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center gap-2">
+        {/* Filters Bar: Date Selector & Painter Selector */}
+        <div className="p-4 bg-white rounded-[22px] border border-[#ececec] flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
+          {/* Left: Date Picker & Quick Date Pills */}
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10.5px] font-mono font-bold uppercase tracking-wider text-[#777b86]">
-              Select Working Date:
+              Working Date:
             </span>
-            <div className="w-48">
+            <div className="w-44">
               <PaintkingDatePicker
                 value={selectedProductionDate === 'ALL' ? '' : selectedProductionDate}
                 onChange={(dateVal) => setSelectedProductionDate(dateVal || 'ALL')}
-                placeholder="Pick Working Date 📅"
+                placeholder="Pick Date 📅"
                 highlightedDates={productionDates}
                 className="bg-[#fafafb] border-[#dcdfe4] shadow-2xs text-xs"
               />
             </div>
-          </div>
-
-          <div className="flex items-center gap-1.5 flex-wrap">
             <button
               type="button"
               onClick={() => setSelectedProductionDate('ALL')}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+              className={`px-3 py-1 rounded-full text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs ${
                 selectedProductionDate === 'ALL'
                   ? 'bg-[#17191c] text-white'
                   : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
               }`}
             >
-              <span>All Dates (Cumulative)</span>
+              All Dates
             </button>
-
-            {productionDates.map(date => {
-              const isToday = date === todayStr;
+            {productionDates.slice(0, 3).map(date => {
               const isSelected = activeDateStr === date;
               return (
                 <button
                   key={date}
                   type="button"
                   onClick={() => setSelectedProductionDate(date)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-mono font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs ${
                     isSelected
                       ? 'bg-[#8a6521] text-white'
                       : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
@@ -1718,93 +1765,93 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 >
                   <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-emerald-500'}`} />
                   <span>{date}</span>
-                  {isToday && (
-                    <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-sans font-semibold ${
-                      isSelected ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
-                    }`}>
-                      Today
-                    </span>
-                  )}
                 </button>
               );
             })}
           </div>
+
+          {/* Right: Painter Filter Selector */}
+          <div className="flex items-center gap-2 flex-wrap pt-2 md:pt-0 border-t md:border-t-0 border-[#ececec]">
+            <span className="text-[10.5px] font-mono font-bold uppercase tracking-wider text-[#8a6521] flex items-center gap-1">
+              <Users className="w-3.5 h-3.5 text-[#c09748]" />
+              <span>Filter Painter:</span>
+            </span>
+            <div className="flex items-center gap-1 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setSelectedPainterFilter('ALL')}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs ${
+                  selectedPainterFilter === 'ALL'
+                    ? 'bg-[#8a6521] text-white'
+                    : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                }`}
+              >
+                All Painters ({jcPainters.length})
+              </button>
+              {jcPainters.map(p => {
+                const isSelected = selectedPainterFilter === p;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setSelectedPainterFilter(p)}
+                    className={`px-3 py-1 rounded-full text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs ${
+                      isSelected
+                        ? 'bg-[#17191c] text-white shadow-xs'
+                        : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                    }`}
+                  >
+                    <span>{p.split(' ')[0]}</span>
+                    {activePainterAssignment && activePainterAssignment.painterName === p && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
-        {/* 4 Quantitative Output Milestone Cards */}
-        {selectedDateSummary ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-xs text-center space-y-1">
-              <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">Assigned Quota Target</span>
-              <span className="font-mono font-bold text-xl text-[#17191c] block">
-                {selectedDateSummary.target.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
-              </span>
-              <span className="text-[10.5px] text-[#777b86] block font-mono">Shift Quota</span>
-            </div>
-
-            <div className="bg-emerald-50/80 p-4 rounded-[20px] border border-emerald-200 shadow-xs text-center space-y-1">
-              <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">Finished Good Output</span>
-              <span className="font-mono font-bold text-xl text-emerald-700 block">
-                {selectedDateSummary.completed.toLocaleString('en-IN')} <span className="text-xs font-normal text-emerald-800">Pcs</span>
-              </span>
-              <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                {selectedDateSummary.achievement}% Achieved
-              </span>
-            </div>
-
-            <div className="bg-rose-50/80 p-4 rounded-[20px] border border-rose-200 shadow-xs text-center space-y-1">
-              <span className="text-[10px] text-rose-800 uppercase font-mono font-bold block">Defects & Rejection</span>
-              <span className="font-mono font-bold text-xl text-rose-700 block">
-                {selectedDateSummary.rejects.toLocaleString('en-IN')} <span className="text-xs font-normal text-rose-800">Pcs</span>
-              </span>
-              <span className="text-[10.5px] text-rose-800 block font-mono">Scrap / Defect Pieces</span>
-            </div>
-
-            <div className="bg-amber-50/80 p-4 rounded-[20px] border border-amber-200 shadow-xs text-center space-y-1">
-              <span className="text-[10px] text-amber-800 uppercase font-mono font-bold block">Unconsumed / Returnable</span>
-              <span className="font-mono font-bold text-xl text-amber-900 block">
-                {(selectedDateSummary.returned || Math.max(0, selectedDateSummary.target - selectedDateSummary.completed)).toLocaleString('en-IN')} <span className="text-xs font-normal text-amber-800">Pcs</span>
-              </span>
-              <span className="text-[10.5px] text-amber-800 block font-mono">Floor Balance Pcs</span>
-            </div>
+        {/* 4 Quantitative Output Milestone Cards (Filtered by Date and Painter) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-xs text-center space-y-1">
+            <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">
+              {selectedPainterFilter !== 'ALL' ? `${selectedPainterFilter.split(' ')[0]}'s Target` : 'Allocated Target'}
+            </span>
+            <span className="font-mono font-bold text-xl text-[#17191c] block">
+              {painterTargetPcs.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
+            </span>
+            <span className="text-[10.5px] text-[#777b86] block font-mono">
+              {selectedPainterFilter !== 'ALL' ? 'Painter Target Quota' : (selectedDateSummary ? 'Shift Quota' : 'Total Base Target')}
+            </span>
           </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-xs text-center space-y-1">
-              <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">Total Job Order Target</span>
-              <span className="font-mono font-bold text-xl text-[#17191c] block">
-                {targetQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
-              </span>
-              <span className="text-[10.5px] text-[#777b86] block font-mono">100% Target Base</span>
-            </div>
 
-            <div className="bg-emerald-50/80 p-4 rounded-[20px] border border-emerald-200 shadow-xs text-center space-y-1">
-              <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">Cumulative Good Finished</span>
-              <span className="font-mono font-bold text-xl text-emerald-700 block">
-                {currentGoodQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-emerald-800">Pcs</span>
-              </span>
-              <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                {progressPercent}% Complete
-              </span>
-            </div>
-
-            <div className="bg-rose-50/80 p-4 rounded-[20px] border border-rose-200 shadow-xs text-center space-y-1">
-              <span className="text-[10px] text-rose-800 uppercase font-mono font-bold block">Total Dead Scrap</span>
-              <span className="font-mono font-bold text-xl text-rose-700 block">
-                {currentRejectQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-rose-800">Pcs</span>
-              </span>
-              <span className="text-[10.5px] text-rose-800 block font-mono">{scrapPercent}% Rejection Rate</span>
-            </div>
-
-            <div className="bg-amber-50/80 p-4 rounded-[20px] border border-amber-200 shadow-xs text-center space-y-1">
-              <span className="text-[10px] text-amber-800 uppercase font-mono font-bold block">Remaining WIP Pieces</span>
-              <span className="font-mono font-bold text-xl text-amber-900 block">
-                {remainingQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-amber-800">Pcs</span>
-              </span>
-              <span className="text-[10.5px] text-amber-800 block font-mono">To Be Finished</span>
-            </div>
+          <div className="bg-emerald-50/80 p-4 rounded-[20px] border border-emerald-200 shadow-xs text-center space-y-1">
+            <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">Finished Good Output</span>
+            <span className="font-mono font-bold text-xl text-emerald-700 block">
+              {painterGoodPcs.toLocaleString('en-IN')} <span className="text-xs font-normal text-emerald-800">Pcs</span>
+            </span>
+            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+              {painterAchievedPct}% Achieved
+            </span>
           </div>
-        )}
+
+          <div className="bg-rose-50/80 p-4 rounded-[20px] border border-rose-200 shadow-xs text-center space-y-1">
+            <span className="text-[10px] text-rose-800 uppercase font-mono font-bold block">Defects & Rejection</span>
+            <span className="font-mono font-bold text-xl text-rose-700 block">
+              {painterRejectPcs.toLocaleString('en-IN')} <span className="text-xs font-normal text-rose-800">Pcs</span>
+            </span>
+            <span className="text-[10.5px] text-rose-800 block font-mono">{painterScrapPct}% Defect Rate</span>
+          </div>
+
+          <div className="bg-amber-50/80 p-4 rounded-[20px] border border-amber-200 shadow-xs text-center space-y-1">
+            <span className="text-[10px] text-amber-800 uppercase font-mono font-bold block">Remaining Floor WIP</span>
+            <span className="font-mono font-bold text-xl text-amber-900 block">
+              {painterRemainingPcs.toLocaleString('en-IN')} <span className="text-xs font-normal text-amber-800">Pcs</span>
+            </span>
+            <span className="text-[10.5px] text-amber-800 block font-mono">To Be Finished</span>
+          </div>
+        </div>
 
         {/* Company Materials / Chemicals Consumed Section */}
         <div className="bg-white p-5 sm:p-6 rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
@@ -1820,7 +1867,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 </span>
               </div>
               <p className="text-xs text-[#777b86] mt-0.5">
-                Exact paints, thinners, and hardeners consumed by painter {painterName || 'Vikram Patel'} on the floor.
+                Exact paints, thinners, and hardeners consumed by painter {selectedPainterFilter !== 'ALL' ? selectedPainterFilter : (painterName || 'Vikram Patel')} on the floor.
               </p>
             </div>
           </div>
@@ -3035,21 +3082,62 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 </div>
               </div>
 
-              {/* Card 3: Floor Handover & Deadline */}
+              {/* Card 3: Floor Handover & Multi-Painter Quotas */}
               <div className="bg-white p-5 rounded-[24px] border border-[#ececec] shadow-xs flex flex-col justify-between space-y-3">
                 <div>
-                  <span className="text-[10.5px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-[#c09748]" />
-                    <span>Floor Handover & Deadline</span>
-                  </span>
-                  <div className="mt-2.5">
-                    <div className="text-[11px] font-medium text-[#777b86]">Assigned Line Painter</div>
-                    <div className="text-sm font-bold text-[#17191c] font-sans truncate mt-0.5" title={painterName}>
-                      {painterName}
-                    </div>
-                    <div className="text-xs text-[#777b86] truncate mt-0.5" title={dept}>
-                      {dept}
-                    </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10.5px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-[#c09748]" />
+                      <span>Floor Painters & Daily Quota</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowDailyAssignModal(true)}
+                      className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-[10px] font-bold flex items-center gap-1 cursor-pointer transition shadow-2xs active:scale-95"
+                    >
+                      <Plus className="w-3 h-3 text-[#8a6521]" />
+                      <span>+ Assign Painter</span>
+                    </button>
+                  </div>
+
+                  <div className="mt-2.5 space-y-2">
+                    {currentJcAssignments.length > 0 ? (
+                      currentJcAssignments.map((asg) => (
+                        <div key={asg.id} className="p-2 rounded-[14px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-[#17191c] truncate">{asg.painterName}</div>
+                            <div className="text-[10px] text-[#777b86] font-mono flex items-center gap-1.5">
+                              <span>{asg.boothNo}</span>
+                              <span>•</span>
+                              <span className="capitalize">{asg.shift} Shift</span>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="font-mono font-bold text-xs text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
+                              {asg.actualCompletedQty || 0} / {asg.dailyTargetQty} Pcs
+                            </span>
+                            <span className={`block text-[9px] font-mono mt-0.5 ${asg.status.includes('Met') ? 'text-emerald-700 font-bold' : asg.status.includes('Active') ? 'text-blue-700' : 'text-[#777b86]'}`}>
+                              {asg.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-2 rounded-[14px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-[#17191c] truncate">{painterName}</div>
+                          <div className="text-[10px] text-[#777b86] font-mono">{dept}</div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="font-mono font-bold text-xs text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
+                            {dailyTargetQty} Pcs/Day
+                          </span>
+                          <span className="block text-[9px] font-mono text-emerald-700 font-bold mt-0.5">
+                            Primary Assigned
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

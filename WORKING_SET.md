@@ -1,5 +1,13 @@
 # WORKING SET
 
+- 2026-11-14: Refactored Job Card Floor Execution & Daily Ledger with Multi-Painter Quotas and Painter Filter
+  - Files touched:
+    - `src/portal/components/JobCardModal.tsx`:
+      - Replaced single-painter display on Card 3 of "Floor Execution & Materials" with Multi-Painter Quotas summary showing all assigned painters, booths, shifts, and targets with quick "+ Assign Painter" trigger.
+      - Added painter filter pill bar (`All Painters` | individual painters) to "Daily Shift Production & Chemicals Ledger".
+      - Dynamically filtered quantitative milestone cards, company chemical usage descriptions, and batch outputs by the selected painter and working date.
+  - Status: Verified with `npx tsc --noEmit` (0 errors) and `npm run build` (built in 8.21s).
+
 - 2026-11-14: Fixed Job Card Creation Store GRN Auto-Linking & Embedded Shift Allocations
   - Files touched:
     - `src/portal/components/JobCardModal.tsx`:
