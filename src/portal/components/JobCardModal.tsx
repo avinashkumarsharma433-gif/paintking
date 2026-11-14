@@ -3313,14 +3313,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddMaterialDrawer(!showAddMaterialDrawer)}
-                    className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-[#8a6521]" />
-                    <span>{showAddMaterialDrawer ? 'Cancel Additional Issue' : 'Issue Additional Material'}</span>
-                  </button>
+                  <span className="px-3 py-1 rounded-full bg-[#fafafb] text-[#777b86] border border-[#ececec] text-[11px] font-mono font-semibold">
+                    Read-Only Summary
+                  </span>
                 </div>
               </div>
 
@@ -3418,7 +3413,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         <th className="py-2.5 px-2 font-bold text-center">UOM</th>
                         <th className="py-2.5 px-3 font-bold whitespace-nowrap">Shade / Batch</th>
                         <th className="py-2.5 px-3 font-bold min-w-[150px]">Floor Remarks</th>
-                        <th className="py-2.5 px-4 font-bold text-right whitespace-nowrap">Floor Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#ececec]">
@@ -3470,16 +3464,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                             </td>
                             <td className="py-3 px-3 text-[#777b86] text-xs max-w-[180px] truncate" title={item.remark}>
                               {item.remark || '-'}
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenUpdateUsage(item)}
-                                className="px-3.5 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition inline-flex items-center gap-1.5 cursor-pointer shadow-2xs whitespace-nowrap active:scale-95"
-                              >
-                                <Edit3 className="w-3.5 h-3.5 text-[#8a6521]" />
-                                <span>Update Usage</span>
-                              </button>
                             </td>
                           </tr>
                         );
@@ -3577,33 +3561,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   <span className="opacity-80">({deadlineStatus.label})</span>
                 </div>
 
-                {remainingQty === 0 && targetQty > 0 ? (
+                {remainingQty === 0 && targetQty > 0 && (
                   <div className="px-4 py-1.5 rounded-full bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be] text-xs font-bold flex items-center gap-1.5 shadow-2xs select-none cursor-default">
                     <CheckCircle2 className="w-3.5 h-3.5 text-[#8a6521]" />
                     <span>Target Completed (100% Finished)</span>
                   </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!showOutputLogger) {
-                        let initialStage: CoatingProcessStage = 'stage_1_primer';
-                        const s1Done = (stageCounts.stage1.good + stageCounts.stage1.scrap) >= targetQty && targetQty > 0;
-                        const s2Done = (stageCounts.stage2.good + stageCounts.stage2.scrap) >= stageCounts.stage1.good && stageCounts.stage1.good > 0;
-                        if (s1Done && !s2Done) {
-                          initialStage = 'stage_2_basecoat';
-                        } else if (s1Done && s2Done) {
-                          initialStage = 'stage_3_topcoat';
-                        }
-                        handleSelectStage(initialStage);
-                      }
-                      setShowOutputLogger(!showOutputLogger);
-                    }}
-                    className="px-4 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-[#8a6521]" />
-                    <span>{showOutputLogger ? 'Hide Output Drawer' : 'Log Output Pieces'}</span>
-                  </button>
                 )}
               </div>
             </div>
