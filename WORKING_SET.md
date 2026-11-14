@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-14: Synced Master Order Completion Summary (`Total Pieces Completed & Remaining Status`) with Painter Shift Outputs
+  - Files touched:
+    - `src/portal/components/JobCardModal.tsx`: Added `masterMetrics` aggregating `completedGood`, `rework`, and `scrap` across all `currentJcAssignments` via `getAssignmentLiveMetrics` (with `liveStoreJc` fallback), and wired `Total Pieces Completed & Remaining Status` cards and progress bar to `masterMetrics`.
+    - `src/portal/context/PortalStoreContext.tsx`: Separated `reworkQty` and `rejectQty` (scrap only) inside `addJobCardProgressLog` so Master Job Card totals stay consistent.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors).
+
 - 2026-11-14: Removed `Close Shift & Reconcile` Button & Popup from Job Card Modal
   - Files touched:
     - `src/portal/components/JobCardModal.tsx`: Removed `Close Shift & Reconcile` / `Close Shift` buttons, `ShiftCloseModal` import, `showShiftCloseModal` / `selectedAssignmentForClose` states, `closePainterAssignment` destructure, and `<ShiftCloseModal />` dialog; synced `liveProgressLogs` with live store `jobCards` and scoped legacy untagged logs to the first assignment in `getAssignmentStageSums` to prevent cross-shift count bleed.

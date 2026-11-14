@@ -995,14 +995,58 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     }
   }, [initialData, isOpen, grnList]);
 
-  // Remaining pieces calculation
-  const remainingQty = Math.max(0, targetQty - currentGoodQty - currentReworkQty - currentRejectQty);
-  const totalSprayedSoFar = currentGoodQty + currentReworkQty + currentRejectQty;
-  const progressPercent = targetQty > 0 ? Math.min(100, Math.round((currentGoodQty / targetQty) * 100)) : 0;
-  const totalAchievedPercent = targetQty > 0 ? Math.min(100, Math.round(((currentGoodQty + currentReworkQty) / targetQty) * 100)) : 0;
-  const reworkPercent = totalSprayedSoFar > 0 ? ((currentReworkQty / totalSprayedSoFar) * 100).toFixed(1) : '0.0';
-  const scrapPercent = totalSprayedSoFar > 0 ? ((currentRejectQty / totalSprayedSoFar) * 100).toFixed(1) : '0.0';
-  const defectPercent = totalSprayedSoFar > 0 ? (((currentReworkQty + currentRejectQty) / totalSprayedSoFar) * 100).toFixed(1) : '0.0';
+  // Live Master Order totals aggregated directly from all painter shift assignments
+  const liveStoreJc = useMemo(() => jobCards.find(j => j.jobCardNo === jobCardNo), [jobCards, jobCardNo]);
+  const masterMetrics = useMemo(() => {
+    if (currentJcAssignments.length > 0) {
+      const agg = currentJcAssignments.reduce(
+        (acc, asg) => {
+          const m = getAssignmentLiveMetrics(asg);
+          return {
+            good: acc.good + m.completedGood,
+            rework: acc.rework + m.rework,
+            scrap: acc.scrap + m.scrap
+          };
+        },
+        { good: 0, rework: 0, scrap: 0 }
+      );
+      const remaining = Math.max(0, targetQty - agg.good - agg.scrap);
+      const totalProcessed = agg.good + agg.rework + agg.scrap;
+      return {
+        good: agg.good,
+        rework: agg.rework,
+        scrap: agg.scrap,
+        remaining,
+        progressPct: targetQty > 0 ? Math.min(100, Math.round((agg.good / targetQty) * 100)) : 0,
+        reworkPct: totalProcessed > 0 ? ((agg.rework / totalProcessed) * 100).toFixed(1) : '0.0',
+        scrapPct: totalProcessed > 0 ? ((agg.scrap / totalProcessed) * 100).toFixed(1) : '0.0'
+      };
+    }
+    const good = Math.max(currentGoodQty, liveStoreJc?.goodQty || 0);
+    const rework = Math.max(currentReworkQty, liveStoreJc?.reworkQty || 0);
+    const scrap = Math.max(currentRejectQty, liveStoreJc?.rejectQty || 0);
+    const remaining = Math.max(0, targetQty - good - scrap);
+    const totalProcessed = good + rework + scrap;
+    return {
+      good,
+      rework,
+      scrap,
+      remaining,
+      progressPct: targetQty > 0 ? Math.min(100, Math.round((good / targetQty) * 100)) : 0,
+      reworkPct: totalProcessed > 0 ? ((rework / totalProcessed) * 100).toFixed(1) : '0.0',
+      scrapPct: totalProcessed > 0 ? ((scrap / totalProcessed) * 100).toFixed(1) : '0.0'
+    };
+  }, [currentJcAssignments, liveProgressLogs, targetQty, currentGoodQty, currentReworkQty, currentRejectQty, liveStoreJc]);
+
+  // Remaining pieces calculation (used for legacy/PDF views too)
+  const remainingQty = masterMetrics.remaining;
+  const progressPercent = masterMetrics.progressPct;
+  const totalAchievedPercent = masterMetrics.progressPct;
+  const reworkPercent = masterMetrics.reworkPct;
+  const scrapPercent = masterMetrics.scrapPct;
+  const defectPercent = (masterMetrics.good + masterMetrics.rework + masterMetrics.scrap) > 0
+    ? (((masterMetrics.rework + masterMetrics.scrap) / (masterMetrics.good + masterMetrics.rework + masterMetrics.scrap)) * 100).toFixed(1)
+    : '0.0';
 
   // Multi-Stage Coating Process Configuration & Dynamic Counters
   const processStages = useMemo(() => getStagesForProcess(processType), [processType]);
@@ -3597,7 +3641,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     Completed OK
                   </span>
                   <div className="font-mono text-xl font-bold text-[#8a6521]">
-                    {currentGoodQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
+                    {masterMetrics.good.toLocaleString('en-IN')} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
                   </div>
                   <div className="text-[10px] text-[#8a6521] font-semibold font-mono">
                     {progressPercent}% First-Pass Yield
@@ -3610,7 +3654,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     Rework (Salvage)
                   </span>
                   <div className="font-mono text-xl font-bold text-amber-900">
-                    {currentReworkQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-amber-700">Pcs</span>
+                    {masterMetrics.rework.toLocaleString('en-IN')} <span className="text-xs font-normal text-amber-700">Pcs</span>
                   </div>
                   <div className="text-[10px] text-amber-800 font-mono">
                     {reworkPercent}% Reworked
@@ -3623,7 +3667,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     Dead Scrap (Rej)
                   </span>
                   <div className="font-mono text-xl font-bold text-rose-900">
-                    {currentRejectQty.toLocaleString('en-IN')} <span className="text-xs font-normal text-rose-700">Pcs</span>
+                    {masterMetrics.scrap.toLocaleString('en-IN')} <span className="text-xs font-normal text-rose-700">Pcs</span>
                   </div>
                   <div className="text-[10px] text-rose-800 font-mono">
                     {scrapPercent}% Scrap Rate
@@ -3648,25 +3692,25 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               <div className="space-y-1 pt-1">
                 <div className="flex justify-between text-[11px] font-mono">
                   <span className="text-[#777b86]">
-                    Order Completion: <strong className="text-[#8a6521]">{currentGoodQty} Good</strong> + <strong className="text-amber-800">{currentReworkQty} Rework</strong> + <strong className="text-rose-700">{currentRejectQty} Scrap</strong> of {targetQty} Pcs
+                    Order Completion: <strong className="text-[#8a6521]">{masterMetrics.good} Good</strong> + <strong className="text-amber-800">{masterMetrics.rework} Rework</strong> + <strong className="text-rose-700">{masterMetrics.scrap} Scrap</strong> of {targetQty} Pcs
                   </span>
                   <span className="font-bold text-[#17191c]">{totalAchievedPercent}% Net Passed</span>
                 </div>
                 <div className="h-2.5 w-full bg-[#f2f2f3] rounded-full overflow-hidden flex border border-[#ececec]">
                   <div
                     className="bg-[#c09748] h-full transition-all duration-300"
-                    style={{ width: `${Math.min(100, targetQty > 0 ? (currentGoodQty / targetQty) * 100 : 0)}%` }}
-                    title={`Good Pieces: ${currentGoodQty}`}
+                    style={{ width: `${Math.min(100, targetQty > 0 ? (masterMetrics.good / targetQty) * 100 : 0)}%` }}
+                    title={`Good Pieces: ${masterMetrics.good}`}
                   />
                   <div
                     className="bg-amber-400 h-full transition-all duration-300"
-                    style={{ width: `${Math.min(100, targetQty > 0 ? (currentReworkQty / targetQty) * 100 : 0)}%` }}
-                    title={`Rework Recovered: ${currentReworkQty}`}
+                    style={{ width: `${Math.min(100, targetQty > 0 ? (masterMetrics.rework / targetQty) * 100 : 0)}%` }}
+                    title={`Rework Recovered: ${masterMetrics.rework}`}
                   />
                   <div
                     className="bg-rose-500 h-full transition-all duration-300"
-                    style={{ width: `${Math.min(100, targetQty > 0 ? (currentRejectQty / targetQty) * 100 : 0)}%` }}
-                    title={`Dead Scrap: ${currentRejectQty}`}
+                    style={{ width: `${Math.min(100, targetQty > 0 ? (masterMetrics.scrap / targetQty) * 100 : 0)}%` }}
+                    title={`Dead Scrap: ${masterMetrics.scrap}`}
                   />
                 </div>
               </div>

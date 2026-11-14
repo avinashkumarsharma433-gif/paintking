@@ -2016,8 +2016,9 @@ export const PortalProvider: React.FC<{
       const newSprayed = (jc.sprayedQty || 0) + (isStage3 ? log.piecesCompleted : 0);
       const netGood = log.goodPieces !== undefined ? log.goodPieces : (log.piecesCompleted - (log.reworkPieces || 0) - (log.scrapPieces || 0));
       const newGood = isStage3 ? Math.max(0, (jc.goodQty || 0) + Math.max(0, netGood)) : (jc.goodQty || 0);
-      const newReject = (jc.rejectQty || 0) + (log.reworkPieces || 0) + (log.scrapPieces || 0);
-      const remaining = Math.max(0, (jc.targetQty || 0) - newGood);
+      const newRework = (jc.reworkQty || 0) + (log.reworkPieces || 0);
+      const newReject = (jc.rejectQty || 0) + (log.scrapPieces || 0);
+      const remaining = Math.max(0, (jc.targetQty || 0) - newGood - newReject);
       
       let nextStatus = jc.status;
       if (newGood >= jc.targetQty) {
@@ -2030,6 +2031,7 @@ export const PortalProvider: React.FC<{
         ...jc,
         sprayedQty: newSprayed,
         goodQty: newGood,
+        reworkQty: newRework,
         rejectQty: newReject,
         remainingQty: remaining,
         primerCompletedQty: primerCompleted,
