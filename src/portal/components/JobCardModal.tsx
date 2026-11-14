@@ -42,7 +42,8 @@ import {
   Eye,
   RotateCcw,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  Users
 } from 'lucide-react';
 import { PaintkingDatePicker } from './PaintkingDatePicker';
 import { PaintkingDateTimePicker } from './PaintkingDateTimePicker';
@@ -60,6 +61,8 @@ import { BalanceReturnModal } from './BalanceReturnModal';
 import { PreProductionInspectionModal } from './PreProductionInspectionModal';
 import { FPAModal } from './FPAModal';
 import { IPQCModal } from './IPQCModal';
+import { DailyAssignmentModal } from './DailyAssignmentModal';
+import { ShiftCloseModal } from './ShiftCloseModal';
 
 interface JobCardModalProps {
   isOpen: boolean;
@@ -247,7 +250,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     balanceReturnSlips,
     preProductionReports,
     fpaRecords,
-    ipqcRecords
+    ipqcRecords,
+    painterAssignments,
+    assignmentMaterialLogs,
+    createPainterAssignment,
+    closePainterAssignment
   } = usePortalStore();
 
   const [viewMode, setViewMode] = useState<'PORTAL' | 'PRINT'>('PORTAL');
@@ -267,8 +274,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   // =========================================================================
   const [jobCardNo, setJobCardNo] = useState<string>(initialData?.jobCardNo || `JC-2026-${String(jobCards.length + 1).padStart(3, '0')}`);
   const [selectedGrnNo, setSelectedGrnNo] = useState<string>(initialData?.sourceGrnNo || (initialData as any)?.grnNo || '');
-  const [customer, setCustomer] = useState<string>(initialData?.customer || 'ROOP POLYMERS LTD');
-  const [wNo, setWNo] = useState<string>(initialData?.wNo || initialData?.woNo || 'WO-1042');
+  const [customer, setCustomer] = useState<string>(initialData?.customer || '');
+  const [wNo, setWNo] = useState<string>(initialData?.wNo || initialData?.woNo || '');
   const [processType, setProcessType] = useState<string>(
     initialData?.processType || 'Liquid PU Spray Painting'
   );
@@ -281,17 +288,17 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   // =========================================================================
   // POINT 2: Substrate, Pieces & Colour
   // =========================================================================
-  const [partCode, setPartCode] = useState<string>(initialData?.partCode || 'RP-8841');
+  const [partCode, setPartCode] = useState<string>(initialData?.partCode || '');
   const [partDescription, setPartDescription] = useState<string>(
-    initialData?.partDescription || 'Auto AC Center Vent Bezel Substrate (ABS)'
+    initialData?.partDescription || ''
   );
-  const [targetQty, setTargetQty] = useState<number>(initialData?.targetQty || 250);
+  const [targetQty, setTargetQty] = useState<number>(initialData?.targetQty || 100);
   const [dailyTargetQty, setDailyTargetQty] = useState<number>(() => {
     if (initialData?.dailyTargetQty) return initialData.dailyTargetQty;
-    const t = initialData?.targetQty || 250;
+    const t = initialData?.targetQty || 100;
     return t > 1000 ? Math.min(2000, t) : t;
   });
-  const [batchColor, setBatchColor] = useState<string>(initialData?.color || 'Monza Red Gloss');
+  const [batchColor, setBatchColor] = useState<string>(initialData?.color || '');
 
   // =========================================================================
   // POINT 3: Painter, Booth & Strict Deadline
@@ -437,8 +444,13 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   // Dedicated Audit Trail Popup Modal state
   const [showAuditLogsModal, setShowAuditLogsModal] = useState<boolean>(false);
 
-  // Dedicated Tab state for Existing Job Card ('EXECUTION' | 'QUALITY' | 'DAILY_LOG')
-  const [existingCardTab, setExistingCardTab] = useState<'EXECUTION' | 'QUALITY' | 'DAILY_LOG'>('EXECUTION');
+  // Dedicated Tab state for Existing Job Card ('EXECUTION' | 'QUALITY' | 'DAILY_LOG' | 'PAINTER_ASSIGNMENTS')
+  const [existingCardTab, setExistingCardTab] = useState<'EXECUTION' | 'QUALITY' | 'DAILY_LOG' | 'PAINTER_ASSIGNMENTS'>('EXECUTION');
+
+  // 3-Tier Daily Assignment & Shift Close Modals inside JobCardModal
+  const [showDailyAssignModal, setShowDailyAssignModal] = useState<boolean>(false);
+  const [showShiftCloseModal, setShowShiftCloseModal] = useState<boolean>(false);
+  const [selectedAssignmentForClose, setSelectedAssignmentForClose] = useState<any | null>(null);
 
   // Quality Gates Modals State
   const [showPirModal, setShowPirModal] = useState<boolean>(false);
@@ -656,8 +668,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       const match = availableGrnLots.find(g => g.supplierCustomer?.trim().toLowerCase() === targetCustomer);
       if (match) return match;
     }
-    // 7. Fallback to first available store lot
-    return availableGrnLots[0] || grnList[0];
+    // 7. Strict check: only return first lot if availableGrnLots is NOT empty
+    return availableGrnLots[0] || null;
   }, [selectedGrnNo, initialData, grnList, availableGrnLots, wNo, customer, partCode]);
 
   // Sync selectedGrnNo state when selectedGrn is resolved
@@ -666,13 +678,15 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       if (!initialData?.jobCardNo) {
         setSelectedGrnNo(selectedGrn.grnNo);
       }
+    } else if (!selectedGrn && !initialData?.sourceGrnNo) {
+      setSelectedGrnNo('');
     }
   }, [selectedGrn, selectedGrnNo, initialData]);
 
   // Available balance in selected GRN lot
   const availableStoreBalance = useMemo(() => {
     if (!selectedGrn) {
-      return initialData?.targetQty || 300;
+      return initialData?.targetQty || 0;
     }
     const totalInward = Number(selectedGrn.actualReceivedQty) || Number(selectedGrn.invoicedQty) || Number(selectedGrn.totalQty) || 0;
     
@@ -1450,11 +1464,22 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
         alert('Please specify the Challan / Work Order Ref.');
         return false;
       }
+      // Strict check: if no GRN exists in store inventory, alert the user
+      if (availableGrnLots.length === 0 && !selectedGrn && !isExistingCard) {
+        const proceedStandalone = window.confirm(
+          '⚠️ Notice: Store Inward (GRN) me koi physical inward recorded nahi hai. Kya aap bina Store GRN ke Direct Job Card create karna chahte hain?'
+        );
+        if (!proceedStandalone) return false;
+      }
       return true;
     }
     if (step === 2) {
       if (targetQty <= 0) {
         alert('Please allocate at least 1 piece for this job card.');
+        return false;
+      }
+      if (availableStoreBalance > 0 && targetQty > availableStoreBalance) {
+        alert(`Allocated quantity (${targetQty}) cannot exceed available Store Inward balance (${availableStoreBalance} Pcs).`);
         return false;
       }
       if (!batchColor.trim()) {
@@ -2773,6 +2798,20 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   {productionDates.length} {productionDates.length === 1 ? 'Date' : 'Dates'}
                 </span>
               </button>
+
+              {/* 3-Tier Shift Allocations & Consumables Ledger Tab */}
+              <button
+                type="button"
+                onClick={() => setExistingCardTab('PAINTER_ASSIGNMENTS')}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  existingCardTab === 'PAINTER_ASSIGNMENTS'
+                    ? 'bg-[#17191c] text-[#c09748] shadow-2xs ring-1 ring-[#c09748]/20'
+                    : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>Painter Shift Assignments ({painterAssignments.filter(a => a.masterJobCardId === jobCardNo).length})</span>
+              </button>
             </div>
 
             {existingCardTab === 'EXECUTION' ? (
@@ -3917,8 +3956,167 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
         </div>
       ) : existingCardTab === 'QUALITY' ? (
         renderQualityTabContent()
-      ) : (
+      ) : existingCardTab === 'DAILY_LOG' ? (
         renderDailyLedgerContent()
+      ) : (
+        /* PAINTER_ASSIGNMENTS TAB: 3-TIER SHIFT ALLOCATIONS & CONSUMABLES LEDGER */
+        <div className="space-y-6">
+          <div className="p-5 bg-white rounded-[22px] border border-[#ececec] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
+                <span className="text-[11px] font-mono font-bold text-[#8a6521] uppercase tracking-wider">
+                  Tier 2 Painter Shift Allocations & Tier 3 Chemical Reconciliation
+                </span>
+              </div>
+              <h3 className="font-serif font-normal text-lg sm:text-xl text-[#17191c] mt-0.5">
+                Active Painter Shift Tasks for {jobCardNo}
+              </h3>
+              <p className="text-xs text-[#777b86] mt-0.5">
+                Master Job Card stays intact; daily targets are assigned across painters and closed with yield & chemical return.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowDailyAssignModal(true)}
+              className="px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-95 shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Assign Painter (Today's Target)</span>
+            </button>
+          </div>
+
+          {/* Painter Assignments List */}
+          <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-serif font-normal text-base text-[#17191c]">
+                Shift Assignments List
+              </h4>
+              <span className="text-xs text-[#777b86] font-mono">
+                {painterAssignments.filter(a => a.masterJobCardId === jobCardNo).length} Assignments Logged
+              </span>
+            </div>
+
+            {painterAssignments.filter(a => a.masterJobCardId === jobCardNo).length === 0 ? (
+              <div className="p-8 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[18px] border border-dashed border-[#ececec] space-y-2">
+                <Users className="w-8 h-8 text-[#979799] mx-auto" />
+                <p className="font-semibold text-[#17191c]">No daily shift assignments created yet.</p>
+                <p>Click <strong>"+ Assign Painter (Today's Target)"</strong> above to assign a target quota to a floor painter.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {painterAssignments.filter(a => a.masterJobCardId === jobCardNo).map(asg => {
+                  const isClosed = asg.status.startsWith('Closed');
+                  return (
+                    <div
+                      key={asg.id}
+                      className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2 flex-wrap font-mono">
+                          <span className="font-bold text-[#c09748]">{asg.assignmentId}</span>
+                          <span className="text-gray-300">•</span>
+                          <span className="px-2 py-0.5 rounded-full bg-white border border-[#ececec] text-[#17191c] font-bold">
+                            {asg.assignmentDate} ({asg.shift})
+                          </span>
+                          <span className="font-semibold text-[#17191c] font-sans">
+                            Painter: <strong>{asg.painterName}</strong> ({asg.boothNumber})
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px] text-[#777b86] flex-wrap">
+                          <span>Target: <strong className="text-[#17191c] font-mono">{asg.dailyTargetQty} pcs</strong></span>
+                          <span>Completed OK: <strong className="text-emerald-700 font-mono font-bold">{asg.actualCompletedQty || 0} pcs</strong></span>
+                          {(asg.rejectReworkQty || 0) > 0 && (
+                            <span className="text-rose-700 font-mono">Defects: {asg.rejectReworkQty} pcs</span>
+                          )}
+                          {asg.efficiency !== undefined && (
+                            <span className="text-amber-800 font-mono font-bold">Efficiency: {asg.efficiency}%</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                        <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${
+                          asg.status === 'Closed - Target Met'
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : asg.status === 'Closed - Partial/Incomplete'
+                              ? 'bg-amber-50 text-amber-900 border border-amber-200'
+                              : 'bg-blue-50 text-blue-800 border border-blue-200'
+                        }`}>
+                          {asg.status}
+                        </span>
+
+                        {!isClosed && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAssignmentForClose(asg);
+                              setShowShiftCloseModal(true);
+                            }}
+                            className="px-3.5 py-1.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs transition cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-[#c09748]" />
+                            <span>Close Shift</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Chemical Material Traceability Ledger */}
+          <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
+            <h4 className="font-serif font-normal text-base text-[#17191c]">
+              Chemicals Issued & Consumed by Shift Painters
+            </h4>
+
+            {assignmentMaterialLogs.filter(l => l.masterJobCardId === jobCardNo).length === 0 ? (
+              <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
+                No shift chemical logs recorded yet for this job card.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs bg-white rounded-[16px] border border-[#ececec] overflow-hidden">
+                  <thead className="bg-[#f2f2f3] text-[#17191c] text-[11px] font-bold border-b border-[#ececec]">
+                    <tr>
+                      <th className="p-3">Date</th>
+                      <th className="p-3">Painter</th>
+                      <th className="p-3">Material & Type</th>
+                      <th className="p-3 text-right">Issued</th>
+                      <th className="p-3 text-right">Good Return</th>
+                      <th className="p-3 text-right">Floor Wastage</th>
+                      <th className="p-3 text-right">Net Consumed</th>
+                      <th className="p-3 text-right">Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#ececec]">
+                    {assignmentMaterialLogs.filter(l => l.masterJobCardId === jobCardNo).map(log => (
+                      <tr key={log.id} className="hover:bg-gray-50/60 transition">
+                        <td className="p-3 font-mono text-[11px] text-[#777b86]">{log.logDate}</td>
+                        <td className="p-3 font-semibold text-[#17191c]">{log.painterName}</td>
+                        <td className="p-3 font-mono text-[11px]">
+                          <div>{log.materialName}</div>
+                          <span className="text-[10px] text-[#777b86]">{log.materialType} • Batch: {log.batchNumber || 'N/A'}</span>
+                        </td>
+                        <td className="p-3 text-right font-mono">{log.issuedQty} {log.uom}</td>
+                        <td className="p-3 text-right font-mono text-emerald-700 font-medium">{log.goodReturnedQty} {log.uom}</td>
+                        <td className="p-3 text-right font-mono text-rose-700 font-medium">{log.floorWastageExpiredQty} {log.uom}</td>
+                        <td className="p-3 text-right font-mono font-bold text-[#17191c]">{log.netConsumedQty} {log.uom}</td>
+                        <td className="p-3 text-right font-mono text-[#8a6521]">
+                          {log.perPieceConsumption ? `${log.perPieceConsumption} ${log.uom}/pc` : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
             {/* 4. Action Footer for Existing Card */}
@@ -4016,35 +4214,52 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 </div>
 
                 {/* Linked Store Inward Intake Lot Verification Strip */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2.5 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be]">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-7 h-7 rounded-full bg-[#f4e5be]/70 flex items-center justify-center shrink-0">
-                      <PackageCheck className="w-3.5 h-3.5 text-[#8a6521]" />
+                {selectedGrn ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2.5 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be]">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-[#f4e5be]/70 flex items-center justify-center shrink-0">
+                        <PackageCheck className="w-3.5 h-3.5 text-[#8a6521]" />
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap text-xs">
+                        <span className="text-[10px] font-mono uppercase font-bold text-[#8a6521] tracking-wide">
+                          Linked Store Inward GRN:
+                        </span>
+                        <span className="font-mono font-bold text-[#17191c] bg-white px-2.5 py-0.5 rounded-full border border-[#f4e5be] shadow-2xs">
+                          {selectedGrn.grnNo}
+                        </span>
+                        <span className="text-[#a3a6af] font-normal">•</span>
+                        <span className="text-[#555863] font-sans font-semibold">
+                          {selectedGrn.supplierCustomer || customer}
+                        </span>
+                        <span className="text-[#8a6521] font-mono text-[11px] font-normal">
+                          ({(selectedGrn.actualReceivedQty || selectedGrn.totalQty || 0).toLocaleString('en-IN')} Pcs Inward)
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap text-xs">
-                      <span className="text-[10px] font-mono uppercase font-bold text-[#8a6521] tracking-wide">
-                        Linked Store Inward GRN:
-                      </span>
-                      <span className="font-mono font-bold text-[#17191c] bg-white px-2.5 py-0.5 rounded-full border border-[#f4e5be] shadow-2xs">
-                        {selectedGrn?.grnNo || selectedGrnNo || 'PK-GRN-2026-1250'}
-                      </span>
-                      <span className="text-[#a3a6af] font-normal">•</span>
-                      <span className="text-[#555863] font-sans font-semibold">
-                        {selectedGrn?.supplierCustomer || customer}
-                      </span>
-                      <span className="text-[#8a6521] font-mono text-[11px] font-normal">
-                        ({(selectedGrn?.actualReceivedQty || selectedGrn?.totalQty || 300).toLocaleString('en-IN')} Pcs Inward)
+
+                    <div className="shrink-0 self-start sm:self-auto">
+                      <span className="text-[9.5px] font-sans font-semibold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[#c09748]" />
+                        <span>Verified Auto-Linked</span>
                       </span>
                     </div>
                   </div>
-
-                  <div className="shrink-0 self-start sm:self-auto">
-                    <span className="text-[9.5px] font-sans font-semibold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[#c09748]" />
-                      <span>Verified Auto-Linked</span>
+                ) : (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2.5 rounded-[16px] bg-amber-50 border border-amber-200 text-amber-900">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+                      <div className="text-xs">
+                        <strong className="font-bold">No Verified Store Inward (GRN) Found:</strong>
+                        <span className="ml-1 text-amber-800">
+                          Store Inward me is party ya substrate ka koi GRN inward nahi hai. Direct manual Job Card create ho sakta hai ya pehle GRN create karein.
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold uppercase bg-white px-2.5 py-1 rounded-full border border-amber-200 text-amber-800 shrink-0">
+                      Direct / Standalone
                     </span>
                   </div>
-                </div>
+                )}
 
                 {/* 3 Form Fields in Premium Layout */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -5344,6 +5559,39 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
           onClose={() => setShowIpqcModal(false)}
           jobCard={currentJcForModals}
           onSuccess={() => setShowIpqcModal(false)}
+        />
+      )}
+
+      {/* 3-Tier Daily Painter Assignment Modal */}
+      {showDailyAssignModal && (
+        <DailyAssignmentModal
+          isOpen={showDailyAssignModal}
+          onClose={() => setShowDailyAssignModal(false)}
+          masterJobCard={currentJcForModals}
+          painters={painters.filter(p => matchesPlant(p.plant, activePlant))}
+          booths={paintingBooths.filter(b => matchesPlant(b.plant, activePlant))}
+          onAssign={(assignmentData) => {
+            createPainterAssignment(assignmentData);
+            setToastMessage(`✓ Daily target assigned to ${assignmentData.painterName}!`);
+            setTimeout(() => setToastMessage(null), 3500);
+          }}
+        />
+      )}
+
+      {/* 3-Tier Shift Close & Reconciliation Modal */}
+      {showShiftCloseModal && selectedAssignmentForClose && (
+        <ShiftCloseModal
+          isOpen={showShiftCloseModal}
+          onClose={() => {
+            setShowShiftCloseModal(false);
+            setSelectedAssignmentForClose(null);
+          }}
+          assignment={selectedAssignmentForClose}
+          onCloseShift={(data) => {
+            closePainterAssignment(data);
+            setToastMessage(`✓ Shift closed for ${selectedAssignmentForClose.painterName}. Production logged & stock updated!`);
+            setTimeout(() => setToastMessage(null), 3500);
+          }}
         />
       )}
     </div>

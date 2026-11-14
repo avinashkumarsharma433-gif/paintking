@@ -1,5 +1,13 @@
 # WORKING SET
 
+- 2026-11-14: Fixed Job Card Creation Store GRN Auto-Linking & Embedded Shift Allocations
+  - Files touched:
+    - `src/portal/components/JobCardModal.tsx`:
+      - Removed hardcoded fallback `'PK-GRN-2026-1250'` and dummy `'ROOP POLYMERS LTD'`.
+      - Added strict warning banner when no Store Inward (GRN) exists with validation preventing bypass unless explicitly authorized.
+      - Embedded dedicated "Painter Shift Assignments" tab directly inside the Job Card modal with `DailyAssignmentModal` and `ShiftCloseModal` triggers.
+  - Status: Verified with `npx tsc --noEmit` and `npm run build` (built in 7.38s with 0 errors).
+
 - 2026-11-14: Implemented 3-Tier Job Card, Shift Allocations & Consumables Ledger
   - Files touched:
     - `src/portal/types/portalTypes.ts`: Added types `PainterAssignment`, `AssignmentMaterialLog`, `MasterJobCard`, `AssignmentShiftType`, `AssignmentProcessStage`.
