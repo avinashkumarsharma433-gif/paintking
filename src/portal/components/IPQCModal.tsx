@@ -119,23 +119,23 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
   const [revNo, setRevNo] = useState<string>('00');
   const [revDate, setRevDate] = useState<string>('00');
 
-  const [partDescription, setPartDescription] = useState<string>('Car AC Vent Bezel Substrate (ABS)');
-  const [partCode, setPartCode] = useState<string>('RP-8841');
-  const [customer, setCustomer] = useState<string>('ROOP POLYMERS LTD');
-  const [woNo, setWoNo] = useState<string>('WO-1042');
-  const [color, setColor] = useState<string>('Monza Red Gloss');
+  const [partDescription, setPartDescription] = useState<string>('');
+  const [partCode, setPartCode] = useState<string>('');
+  const [customer, setCustomer] = useState<string>('');
+  const [woNo, setWoNo] = useState<string>('');
+  const [color, setColor] = useState<string>('');
 
   // Paint Mix Details
-  const [paintDescription, setPaintDescription] = useState<string>('Monza Red 2K PU Basecoat Paint (PPG)');
+  const [paintDescription, setPaintDescription] = useState<string>('');
   const [paintBatchNumber, setPaintBatchNumber] = useState<string>('');
   const [thinnerBatchNumber, setThinnerBatchNumber] = useState<string>('');
   const [paintViscosity, setPaintViscosity] = useState<string | number>(15);
-  const [paintingBooth, setPaintingBooth] = useState<string>('Booth #1 (Enclosed Conveyor Line)');
-  const [painter, setPainter] = useState<string>('Ramesh Kumar (P1)');
+  const [paintingBooth, setPaintingBooth] = useState<string>('');
+  const [painter, setPainter] = useState<string>('');
 
   // Supervisors
-  const [supervisorShiftA, setSupervisorShiftA] = useState<string>('Vikram Patel (Shift A Lead)');
-  const [supervisorShiftB, setSupervisorShiftB] = useState<string>('Dinesh Sharma (Shift B Lead)');
+  const [supervisorShiftA, setSupervisorShiftA] = useState<string>(currentUser?.name || '');
+  const [supervisorShiftB, setSupervisorShiftB] = useState<string>('');
 
   // Active Time Slot Tab (Auto-selected according to current live plant time)
   const [activeSlotKey, setActiveSlotKey] = useState<IPQCTimeSlotKey>(() => getDefaultActiveSlotKey());

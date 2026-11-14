@@ -43,39 +43,25 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
   // 1. Inward & Party Metadata (Pre-filled from Gate & IQC)
   const [grnNo, setGrnNo] = useState<string>(`PK-GRN-2026-${Math.floor(1000 + Math.random() * 9000)}`);
   const [receivedDate, setReceivedDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [vehicleNo, setVehicleNo] = useState<string>('UK-08-AL-4412');
-  const [supplierCustomer, setSupplierCustomer] = useState<string>('ROOP POLYMERS LTD');
-  const [invoiceChallanNo, setInvoiceChallanNo] = useState<string>('RP/CH/99824');
+  const [vehicleNo, setVehicleNo] = useState<string>('');
+  const [supplierCustomer, setSupplierCustomer] = useState<string>('');
+  const [invoiceChallanNo, setInvoiceChallanNo] = useState<string>('');
   const [invoiceDate, setInvoiceDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [transportName, setTransportName] = useState<string>('VRL LOGISTICS');
-  const [iqcReportNo, setIqcReportNo] = useState<string>('IQC-2026-001');
+  const [transportName, setTransportName] = useState<string>('');
+  const [iqcReportNo, setIqcReportNo] = useState<string>('');
 
   // 2. Official Signatures & Storage Location
-  const [storeIncharge, setStoreIncharge] = useState<string>(currentUser?.name || 'Manoj Tiwari (Stores)');
-  const [qualityApprovedBy, setQualityApprovedBy] = useState<string>('Amit Verma (QA Lead)');
-  const [approvedBy, setApprovedBy] = useState<string>('Satish Sharma (Plant Head)');
+  const [storeIncharge, setStoreIncharge] = useState<string>(currentUser?.name || '');
+  const [qualityApprovedBy, setQualityApprovedBy] = useState<string>('');
+  const [approvedBy, setApprovedBy] = useState<string>('');
   const [storeBayLocation, setStoreBayLocation] = useState<string>('Bay A-1 (Substrates Rack)');
-  const [remarks, setRemarks] = useState<string>('Physical box count & IQC quality clearance verified.');
+  const [remarks, setRemarks] = useState<string>('');
 
   // Customer Color Splits for Job Cards
-  const [colorSplits, setColorSplits] = useState<OrderColorSplit[]>([
-    { colorName: 'Standard OEM Basecoat', colorCode: 'OEM-01', orderedQty: 1000, unitRate: 25 }
-  ]);
+  const [colorSplits, setColorSplits] = useState<OrderColorSplit[]>([]);
 
   // Line Items with editable Actual Received Qty
-  const [items, setItems] = useState<GRNLineItem[]>([
-    {
-      id: '1',
-      partCode: 'RP-8841',
-      partDescription: 'Auto AC Center Vent Bezel Substrate (ABS)',
-      invoicedQty: 1000,
-      actualReceivedQty: 1000,
-      shortExcessQty: 0,
-      okByIqcQty: 1000,
-      rejectionQty: 0,
-      remark: 'IQC Cleared'
-    }
-  ]);
+  const [items, setItems] = useState<GRNLineItem[]>([]);
 
   // Auto populate all fields from the pending IQC lot when opened
   useEffect(() => {
@@ -87,15 +73,15 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
       setReceivedDate(new Date().toISOString().split('T')[0]);
 
       if (pendingJob) {
-        setSupplierCustomer(pendingJob.vendorCustomer || pendingJob.partyName || 'ROOP POLYMERS LTD');
-        setInvoiceChallanNo(pendingJob.invoiceChallanNo || pendingJob.challanNo || 'CH-001');
-        setVehicleNo(pendingJob.vehicleNo || 'UK-08-AL-4412');
-        setTransportName(pendingJob.transporter || 'VRL LOGISTICS');
+        setSupplierCustomer(pendingJob.vendorCustomer || pendingJob.partyName || '');
+        setInvoiceChallanNo(pendingJob.invoiceChallanNo || pendingJob.challanNo || '');
+        setVehicleNo(pendingJob.vehicleNo || '');
+        setTransportName(pendingJob.transporter || '');
         setInvoiceDate(pendingJob.invoiceChallanDate || pendingJob.challanDate || new Date().toISOString().split('T')[0]);
-        setIqcReportNo(pendingJob.reportNo || pendingJob.iqcReportNo || 'IQC-OK');
-        setRemarks(`IQC Cleared (Report: ${pendingJob.reportNo || pendingJob.iqcReportNo || 'IQC-OK'}). Received into store stock.`);
-        setQualityApprovedBy(pendingJob.preparedBy || pendingJob.iqcRecord?.inspector || 'Amit Verma (QA Lead)');
-        setApprovedBy(pendingJob.verifiedBy || pendingJob.iqcRecord?.verifiedBy || 'Satish Sharma (Plant Head)');
+        setIqcReportNo(pendingJob.reportNo || pendingJob.iqcReportNo || '');
+        setRemarks(`IQC Cleared (Report: ${pendingJob.reportNo || pendingJob.iqcReportNo || ''}). Received into store stock.`);
+        setQualityApprovedBy(pendingJob.preparedBy || pendingJob.iqcRecord?.inspector || '');
+        setApprovedBy(pendingJob.verifiedBy || pendingJob.iqcRecord?.verifiedBy || '');
 
         if (pendingJob.items && pendingJob.items.length > 0) {
           const mappedItems: GRNLineItem[] = pendingJob.items.map((it: any, i: number) => {
@@ -157,9 +143,9 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
           ]);
         }
       } else {
-        setSupplierCustomer(latestGateInward?.partyName || 'ROOP POLYMERS LTD');
-        setInvoiceChallanNo(latestGateInward?.challanNo || 'RP/CH/99824');
-        setVehicleNo(latestGateInward?.vehicleNo || 'UK-08-AL-4412');
+        setSupplierCustomer(latestGateInward?.partyName || '');
+        setInvoiceChallanNo(latestGateInward?.challanNo || '');
+        setVehicleNo(latestGateInward?.vehicleNo || '');
       }
     }
   }, [isOpen, pendingJob, latestGateInward, currentUser]);

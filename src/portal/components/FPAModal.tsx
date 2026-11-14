@@ -64,20 +64,20 @@ export const FPAModal: React.FC<FPAModalProps> = ({
 
   // Form State
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [woNo, setWoNo] = useState<string>('WO-1042');
-  const [jobCardNo, setJobCardNo] = useState<string>('JC-1042-RED');
-  const [customer, setCustomer] = useState<string>('ROOP POLYMERS LTD');
-  const [partCode, setPartCode] = useState<string>('RP-8841');
-  const [partDescription, setPartDescription] = useState<string>('Switch Housing Front Bezel');
-  const [family, setFamily] = useState<string>('Switch Bezel Family (Mould-04)');
-  const [color, setColor] = useState<string>('Monza Red Gloss');
-  const [paintDescription, setPaintDescription] = useState<string>('PPG 2K PU Monza Red Gloss Topcoat');
+  const [woNo, setWoNo] = useState<string>('');
+  const [jobCardNo, setJobCardNo] = useState<string>('');
+  const [customer, setCustomer] = useState<string>('');
+  const [partCode, setPartCode] = useState<string>('');
+  const [partDescription, setPartDescription] = useState<string>('');
+  const [family, setFamily] = useState<string>('');
+  const [color, setColor] = useState<string>('');
+  const [paintDescription, setPaintDescription] = useState<string>('');
   const [paintBatch, setPaintBatch] = useState<string>('');
   const [thinnerBatch, setThinnerBatch] = useState<string>('');
   const [hardenerBatch, setHardenerBatch] = useState<string>('');
   const [chemicalBatches, setChemicalBatches] = useState<Array<{ name: string; type: string; batchNo: string }>>([]);
-  const [painter, setPainter] = useState<string>('Ramesh Kumar (P1)');
-  const [booth, setBooth] = useState<string>('Booth #1 (Enclosed)');
+  const [painter, setPainter] = useState<string>('');
+  const [booth, setBooth] = useState<string>('');
   const [startupTime, setStartupTime] = useState<string>('08:30 AM');
   const [approvalTime, setApprovalTime] = useState<string>('09:15 AM');
   const [viscositySec, setViscositySec] = useState<number>(15);
@@ -134,12 +134,12 @@ export const FPAModal: React.FC<FPAModalProps> = ({
   useEffect(() => {
     if (jobCard) {
       setJobCardNo(jobCard.jobCardNo);
-      setWoNo(jobCard.woNo || jobCard.wNo || 'WO-1042');
-      setCustomer(jobCard.customer || 'ROOP POLYMERS LTD');
-      setPartCode(jobCard.partCode || 'RP-8841');
-      setPartDescription(jobCard.partDescription || jobCard.partName || `${jobCard.partCode || 'RP-8841'} Molded Component`);
-      setFamily(jobCard.family || `${jobCard.partDescription || jobCard.partCode || 'Auto'} Family (Mould-01)`);
-      setColor(jobCard.color || 'Monza Red Gloss');
+      setWoNo(jobCard.woNo || jobCard.wNo || '');
+      setCustomer(jobCard.customer || '');
+      setPartCode(jobCard.partCode || '');
+      setPartDescription(jobCard.partDescription || jobCard.partName || '');
+      setFamily(jobCard.family || `${jobCard.partDescription || jobCard.partCode || 'Part'} Family`);
+      setColor(jobCard.color || '');
       setPaintDescription(jobCard.paintDescription || `${jobCard.color || '2K PU'} Industrial Basecoat`);
 
       // Find actual materials issued in this specific Job Card

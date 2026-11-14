@@ -48,18 +48,18 @@ export const PreProductionInspectionModal: React.FC<PreProductionInspectionModal
   const [revDate] = useState<string>('00');
 
   const [selectedJobCardNo, setSelectedJobCardNo] = useState<string>('');
-  const [customer, setCustomer] = useState<string>('ROOP POLYMERS LTD');
-  const [workOrderNo, setWorkOrderNo] = useState<string>('WO-1042');
-  const [partCode, setPartCode] = useState<string>('RP-8841');
-  const [partDescription, setPartDescription] = useState<string>('Car AC Vent Bezel Substrate (ABS)');
-  const [family, setFamily] = useState<string>('Auto Vent Bezel Family (Mould-01)');
-  const [substrateMaterial, setSubstrateMaterial] = useState<string>('ABS (Acrylonitrile Butadiene Styrene)');
-  const [color, setColor] = useState<string>('Monza Red Gloss');
+  const [customer, setCustomer] = useState<string>('');
+  const [workOrderNo, setWorkOrderNo] = useState<string>('');
+  const [partCode, setPartCode] = useState<string>('');
+  const [partDescription, setPartDescription] = useState<string>('');
+  const [family, setFamily] = useState<string>('');
+  const [substrateMaterial, setSubstrateMaterial] = useState<string>('');
+  const [color, setColor] = useState<string>('');
 
   // Quantities
-  const [issuedQty, setIssuedQty] = useState<number>(250);
-  const [inspectedQty, setInspectedQty] = useState<number>(250);
-  const [acceptedQty, setAcceptedQty] = useState<number>(250);
+  const [issuedQty, setIssuedQty] = useState<number>(0);
+  const [inspectedQty, setInspectedQty] = useState<number>(0);
+  const [acceptedQty, setAcceptedQty] = useState<number>(0);
   const [rejectedQty, setRejectedQty] = useState<number>(0);
   const [rejectionReason, setRejectionReason] = useState<string>('');
 
@@ -93,13 +93,13 @@ export const PreProductionInspectionModal: React.FC<PreProductionInspectionModal
   useEffect(() => {
     if (jobCard) {
       setSelectedJobCardNo(jobCard.jobCardNo);
-      setCustomer(jobCard.customer || 'ROOP POLYMERS LTD');
-      setWorkOrderNo(jobCard.woNo || jobCard.wNo || 'WO-1042');
-      setPartCode(jobCard.partCode || 'RP-8841');
-      setPartDescription(jobCard.partDescription || `${jobCard.partCode} Component`);
-      setFamily(jobCard.family || `${jobCard.partCode} Family`);
-      setColor(jobCard.color || 'Monza Red Gloss');
-      const qty = jobCard.targetQty || 250;
+      setCustomer(jobCard.customer || '');
+      setWorkOrderNo(jobCard.woNo || jobCard.wNo || '');
+      setPartCode(jobCard.partCode || '');
+      setPartDescription(jobCard.partDescription || (jobCard.partCode ? `${jobCard.partCode} Component` : ''));
+      setFamily(jobCard.family || (jobCard.partCode ? `${jobCard.partCode} Family` : ''));
+      setColor(jobCard.color || '');
+      const qty = jobCard.targetQty || 0;
       setIssuedQty(qty);
       setInspectedQty(qty);
       setAcceptedQty(qty);
@@ -108,13 +108,13 @@ export const PreProductionInspectionModal: React.FC<PreProductionInspectionModal
     } else if (jobCards && jobCards.length > 0) {
       const first = jobCards[0];
       setSelectedJobCardNo(first.jobCardNo);
-      setCustomer(first.customer || 'ROOP POLYMERS LTD');
-      setWorkOrderNo(first.woNo || first.wNo || 'WO-1042');
-      setPartCode(first.partCode || 'RP-8841');
-      setPartDescription(first.partDescription || `${first.partCode} Component`);
-      setFamily(first.family || `${first.partCode} Family`);
-      setColor(first.color || 'Monza Red Gloss');
-      const qty = first.targetQty || 250;
+      setCustomer(first.customer || '');
+      setWorkOrderNo(first.woNo || first.wNo || '');
+      setPartCode(first.partCode || '');
+      setPartDescription(first.partDescription || (first.partCode ? `${first.partCode} Component` : ''));
+      setFamily(first.family || (first.partCode ? `${first.partCode} Family` : ''));
+      setColor(first.color || '');
+      const qty = first.targetQty || 0;
       setIssuedQty(qty);
       setInspectedQty(qty);
       setAcceptedQty(qty);
@@ -128,13 +128,13 @@ export const PreProductionInspectionModal: React.FC<PreProductionInspectionModal
     setSelectedJobCardNo(jcNo);
     const found = jobCards.find(j => j.jobCardNo === jcNo);
     if (found) {
-      setCustomer(found.customer || 'ROOP POLYMERS LTD');
-      setWorkOrderNo(found.woNo || found.wNo || 'WO-1042');
-      setPartCode(found.partCode || 'RP-8841');
-      setPartDescription(found.partDescription || `${found.partCode} Component`);
-      setFamily(found.family || `${found.partCode} Family`);
-      setColor(found.color || 'Monza Red Gloss');
-      const qty = found.targetQty || 250;
+      setCustomer(found.customer || '');
+      setWorkOrderNo(found.woNo || found.wNo || '');
+      setPartCode(found.partCode || '');
+      setPartDescription(found.partDescription || (found.partCode ? `${found.partCode} Component` : ''));
+      setFamily(found.family || (found.partCode ? `${found.partCode} Family` : ''));
+      setColor(found.color || '');
+      const qty = found.targetQty || 0;
       setIssuedQty(qty);
       setInspectedQty(qty);
       setAcceptedQty(qty);

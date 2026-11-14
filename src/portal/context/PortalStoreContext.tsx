@@ -436,7 +436,7 @@ interface PortalContextType {
   reopenPlant: () => void;
 }
 
-const PK_STORAGE_VERSION = '3.2.0-3tier-jobcards';
+const PK_STORAGE_VERSION = '3.3.0-clean-production-no-demo';
 const TRANSACTIONAL_STORAGE_KEYS = [
   'pk_painter_assignments',
   'pk_assignment_material_logs',
