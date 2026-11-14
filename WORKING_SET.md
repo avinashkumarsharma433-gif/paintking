@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-14: Merged Tab 2 & Tab 3 into Unified `2. Painter Operations & Material Ledger`
+  - Files touched:
+    - `src/portal/types/portalTypes.ts`: Added `assignmentId?: string` on `JobCardProductionProgressLog`.
+    - `src/portal/context/PortalStoreContext.tsx`: Added & exposed `updateAssignmentMaterialLog` (good returned, floor wastage, batch, net consumed, per-piece calculation) and `recordAssignmentStageOutput` (per-assignment Stage 1/2/3 OK, Rework & Dead Scrap counters + efficiency).
+    - `src/portal/components/JobCardModal.tsx`: Merged Tab 2 (`PAINTER_ASSIGNMENTS`) & Tab 3 (`DAILY_LOG`) into `2. Painter Operations & Material Ledger` (3 tabs total), added top Painter Filter pills (`All Painters` + per-assignment pills), per-painter assigned shift KPIs & colour shade, interactive 3-stage output logger (`Stage 1/2/3`), inline chemical issue (`+ Issue Paint / Thinner`) & row usage updater (`Update Usage`), and timestamped painter activity logs.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`, built in 13.41s, 0 errors).
+
 - 2026-11-14: Moved Colour Assignment to Painter Shifts & Added Date-Wise Shift Ledger to Tab 1
   - Files touched:
     - `src/portal/types/portalTypes.ts`: Added `colorShade?: string` on `PainterAssignment`.

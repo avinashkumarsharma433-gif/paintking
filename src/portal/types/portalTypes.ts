@@ -602,6 +602,7 @@ export interface JobCardProductionProgressLog {
   qaVerifiedBy?: string;
   processStage?: CoatingProcessStage;
   stageName?: string;
+  assignmentId?: string;
   painterName: string;
   boothNo?: string;
   recordedBy: string;

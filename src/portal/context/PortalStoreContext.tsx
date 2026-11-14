@@ -41,6 +41,7 @@ import {
   SamplingRecipeSheet,
   SamplingPartyApproval,
   JobCardProductionProgressLog,
+  CoatingProcessStage,
   PaintingBooth,
   ProcessStageCount,
   StockCategory,
@@ -172,6 +173,17 @@ interface PortalContextType {
       uom: 'Litres' | 'Kg' | 'Pcs';
       standardNormPerPiece?: number;
     }>
+  ) => void;
+  updateAssignmentMaterialLog: (
+    logId: string,
+    updates: { goodReturnedQty: number; floorWastageExpiredQty: number; batchNumber?: string }
+  ) => void;
+  recordAssignmentStageOutput: (
+    assignmentId: string,
+    stage: CoatingProcessStage,
+    goodDelta: number,
+    reworkDelta: number,
+    scrapDelta: number
   ) => void;
   getPainterConsumablesLedger: (painterIdOrName?: string) => {
     totalIssuedLitres: number;
@@ -2856,6 +2868,80 @@ export const PortalProvider: React.FC<{
     return { success: true };
   };
 
+  const updateAssignmentMaterialLog = (
+    logId: string,
+    updates: { goodReturnedQty: number; floorWastageExpiredQty: number; batchNumber?: string }
+  ) => {
+    const targetLog = assignmentMaterialLogs.find(l => l.id === logId);
+    if (!targetLog) return;
+
+    const parentAssignment = painterAssignments.find(
+      a => a.id === targetLog.assignmentId || a.assignmentId === targetLog.assignmentId
+    );
+    const completedQty = parentAssignment?.actualCompletedQty || 0;
+    const goodReturned = Math.max(0, Math.min(targetLog.issuedQty, updates.goodReturnedQty));
+    const floorWastage = Math.max(0, updates.floorWastageExpiredQty);
+    const netConsumed = Math.max(0, Number((targetLog.issuedQty - goodReturned).toFixed(3)));
+    const perPiece = completedQty > 0 ? Number((netConsumed / completedQty).toFixed(4)) : 0;
+    const norm = targetLog.standardNormPerPiece || 0.040;
+    const isHighWastage = perPiece > 0 && perPiece > norm * 1.25;
+
+    const updatedLog: AssignmentMaterialLog = {
+      ...targetLog,
+      goodReturnedQty: goodReturned,
+      floorWastageExpiredQty: floorWastage,
+      netConsumedQty: netConsumed,
+      batchNumber: updates.batchNumber !== undefined ? updates.batchNumber : targetLog.batchNumber,
+      perPieceConsumption: perPiece,
+      highWastageFlag: isHighWastage,
+      loggedAt: new Date().toISOString()
+    };
+
+    setAssignmentMaterialLogs(prev => prev.map(l => (l.id === logId ? updatedLog : l)));
+    setPainterAssignments(prev => prev.map(a => {
+      if (a.id !== targetLog.assignmentId && a.assignmentId !== targetLog.assignmentId) return a;
+      const existingLogs = a.materialLogs || [];
+      return {
+        ...a,
+        materialLogs: existingLogs.map(ml => (ml.id === logId ? updatedLog : ml))
+      };
+    }));
+  };
+
+  const recordAssignmentStageOutput = (
+    assignmentId: string,
+    stage: CoatingProcessStage,
+    goodDelta: number,
+    reworkDelta: number,
+    scrapDelta: number
+  ) => {
+    setPainterAssignments(prev => prev.map(a => {
+      if (a.id !== assignmentId && a.assignmentId !== assignmentId) return a;
+
+      const stageMatchesAssignment =
+        stage === 'stage_3_topcoat' ||
+        (stage === 'stage_1_primer' && String(a.processStage).toLowerCase().includes('primer')) ||
+        (stage === 'stage_2_basecoat' && String(a.processStage).toLowerCase().includes('basecoat'));
+
+      const newActualCompleted = (a.actualCompletedQty || 0) + (stageMatchesAssignment ? goodDelta : 0);
+      const newRework = (a.rejectReworkQty || 0) + reworkDelta;
+      const newScrap = (a.scrapQty || 0) + scrapDelta;
+      const eff = a.dailyTargetQty > 0 ? Math.round((newActualCompleted / a.dailyTargetQty) * 100) : 0;
+
+      return {
+        ...a,
+        actualCompletedQty: newActualCompleted,
+        rejectReworkQty: newRework,
+        scrapQty: newScrap,
+        stageOkQty: (a.stageOkQty || 0) + goodDelta,
+        stageReworkQty: (a.stageReworkQty || 0) + reworkDelta,
+        stageScrapQty: (a.stageScrapQty || 0) + scrapDelta,
+        efficiencyPercent: eff,
+        efficiency: eff
+      };
+    }));
+  };
+
   const getPainterConsumablesLedger = (painterIdOrName?: string) => {
     let logs = assignmentMaterialLogs;
     if (painterIdOrName && painterIdOrName.trim() !== '') {
@@ -3771,6 +3857,8 @@ export const PortalProvider: React.FC<{
         createPainterAssignment,
         closePainterAssignment,
         issueAssignmentMaterials,
+        updateAssignmentMaterialLog,
+        recordAssignmentStageOutput,
         getPainterConsumablesLedger,
 
         // Store Role Upgrade: Batch-Wise Stock, FIFO/FEFO & Balance Returns (PK-OS Upgrade)

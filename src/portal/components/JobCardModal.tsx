@@ -260,7 +260,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     deleteJobCard,
     createPainterAssignment,
     closePainterAssignment,
-    issueAssignmentMaterials
+    issueAssignmentMaterials,
+    updateAssignmentMaterialLog,
+    recordAssignmentStageOutput
   } = usePortalStore();
 
   const [viewMode, setViewMode] = useState<'PORTAL' | 'PRINT'>('PORTAL');
@@ -514,11 +516,23 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   // Dedicated Audit Trail Popup Modal state
   const [showAuditLogsModal, setShowAuditLogsModal] = useState<boolean>(false);
 
-  // Dedicated Tab state for Existing Job Card ('EXECUTION' | 'QUALITY' | 'DAILY_LOG' | 'PAINTER_ASSIGNMENTS')
-  const [existingCardTab, setExistingCardTab] = useState<'EXECUTION' | 'QUALITY' | 'DAILY_LOG' | 'PAINTER_ASSIGNMENTS'>('EXECUTION');
+  // Dedicated Tab state for Existing Job Card ('EXECUTION' | 'PAINTER_ASSIGNMENTS' | 'QUALITY')
+  const [existingCardTab, setExistingCardTab] = useState<'EXECUTION' | 'PAINTER_ASSIGNMENTS' | 'QUALITY'>('EXECUTION');
 
-  // Dedicated Detail View for a selected Painter Assignment
-  const [viewingAssignmentDetails, setViewingAssignmentDetails] = useState<PainterAssignment | null>(null);
+  // Selected Painter Filter inside Merged Tab 2 ('' before init -> auto-selects first painter; 'ALL' -> All Painters)
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('');
+
+  // Inline Chemical Issue & Usage Update states inside Merged Tab 2
+  const [showIssueChemDrawer, setShowIssueChemDrawer] = useState<boolean>(false);
+  const [chemName, setChemName] = useState<string>('Basecoat 2K PU Paint');
+  const [chemType, setChemType] = useState<'Base Paint' | 'Topcoat' | 'Hardener' | 'Thinner' | 'Cleaning Solvent'>('Base Paint');
+  const [chemBatch, setChemBatch] = useState<string>('');
+  const [chemQty, setChemQty] = useState<number>(10);
+  const [chemUom, setChemUom] = useState<'Litres' | 'Kg' | 'Pcs'>('Litres');
+  const [editingMatLogId, setEditingMatLogId] = useState<string | null>(null);
+  const [editGoodReturnQty, setEditGoodReturnQty] = useState<number>(0);
+  const [editFloorWasteQty, setEditFloorWasteQty] = useState<number>(0);
+  const [editMatBatch, setEditMatBatch] = useState<string>('');
 
   // 3-Tier Daily Assignment & Shift Close Modals inside JobCardModal
   const [showDailyAssignModal, setShowDailyAssignModal] = useState<boolean>(false);
@@ -597,6 +611,17 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const currentJcAssignments = useMemo(() => {
     return painterAssignments.filter(a => a.masterJobCardNo === jobCardNo || (a as any).masterJobCardId === jobCardNo);
   }, [painterAssignments, jobCardNo]);
+
+  useEffect(() => {
+    if (currentJcAssignments.length > 0 && !selectedAssignmentId) {
+      setSelectedAssignmentId(currentJcAssignments[0].id);
+    }
+  }, [currentJcAssignments, selectedAssignmentId]);
+
+  const activeTab2Assignment = useMemo(() => {
+    if (selectedAssignmentId === 'ALL' || !selectedAssignmentId) return null;
+    return currentJcAssignments.find(a => a.id === selectedAssignmentId || a.assignmentId === selectedAssignmentId) || null;
+  }, [currentJcAssignments, selectedAssignmentId]);
 
   const jcPainters = useMemo(() => {
     const set = new Set<string>();
@@ -1024,11 +1049,31 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     };
   }, [liveProgressLogs, initialData, targetQty, currentGoodQty, currentRejectQty, currentReworkQty]);
 
-  // Strict Sequential Stage Handshake Logic:
-  // - Stage 1 Input: Raw substrate parts from Stores (targetQty). Remaining to process / rework = targetQty - s1Good - s1Scrap
-  // - Stage 2 Input: ONLY the Good Pieces passed by Stage 1 (stageCounts.stage1.good). Remaining = s1Good - s2Good - s2Scrap
-  // - Stage 3 Input: ONLY the Good Pieces passed by Stage 2 (stageCounts.stage2.good). Remaining = s2Good - s3Good - s3Scrap
+  // Helper to get stage totals for the currently selected Tab 2 painter assignment
+  const getAssignmentStageSums = (asg: PainterAssignment, stageKey: CoatingProcessStage) => {
+    const matchingLogs = liveProgressLogs.filter(
+      l =>
+        l.processStage === stageKey &&
+        (l.assignmentId === asg.id ||
+          l.assignmentId === asg.assignmentId ||
+          (!l.assignmentId && l.painterName && l.painterName.trim().toLowerCase() === asg.painterName.trim().toLowerCase()))
+    );
+    return {
+      good: matchingLogs.reduce((s, l) => s + (l.goodPieces || l.piecesCompleted || 0), 0),
+      rework: matchingLogs.reduce((s, l) => s + (l.reworkPieces || 0), 0),
+      scrap: matchingLogs.reduce((s, l) => s + (l.scrapPieces || 0), 0)
+    };
+  };
+
+  // Strict Sequential Stage Handshake Logic (assignment-scoped when logging for a selected painter):
+  // - Stage 1 Input: Raw substrate parts from Stores (targetQty). Remaining = targetQty - s1Good - s1Scrap
+  // - Stage 2 Input: Good Pieces passed by Stage 1 (stageCounts.stage1.good)
+  // - Stage 3 Input: Good Pieces passed by Stage 2 (stageCounts.stage2.good)
   const currentStageMaxAllowed = useMemo(() => {
+    if (activeTab2Assignment) {
+      const sums = getAssignmentStageSums(activeTab2Assignment, selectedStage);
+      return Math.max(0, activeTab2Assignment.dailyTargetQty - sums.good - sums.scrap);
+    }
     if (selectedStage === 'stage_1_primer') {
       return Math.max(0, targetQty - stageCounts.stage1.good - stageCounts.stage1.scrap);
     }
@@ -1036,7 +1081,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       return Math.max(0, stageCounts.stage1.good - stageCounts.stage2.good - stageCounts.stage2.scrap);
     }
     return Math.max(0, stageCounts.stage2.good - stageCounts.stage3.good - stageCounts.stage3.scrap);
-  }, [selectedStage, targetQty, stageCounts]);
+  }, [selectedStage, targetQty, stageCounts, activeTab2Assignment, liveProgressLogs]);
 
   // Stage-by-Stage Rejection Rates & Overall Job Rejection Rate
   const stage1RejRate = stageCounts.stage1.completed > 0 
@@ -1061,7 +1106,10 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const handleSelectStage = (stageKey: CoatingProcessStage) => {
     setSelectedStage(stageKey);
     let maxForStage = 0;
-    if (stageKey === 'stage_1_primer') {
+    if (activeTab2Assignment) {
+      const sums = getAssignmentStageSums(activeTab2Assignment, stageKey);
+      maxForStage = Math.max(0, activeTab2Assignment.dailyTargetQty - sums.good - sums.scrap);
+    } else if (stageKey === 'stage_1_primer') {
       maxForStage = Math.max(0, targetQty - stageCounts.stage1.good - stageCounts.stage1.scrap);
     } else if (stageKey === 'stage_2_basecoat') {
       maxForStage = Math.max(0, stageCounts.stage1.good - stageCounts.stage2.good - stageCounts.stage2.scrap);
@@ -1470,6 +1518,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       : logDefectReason.toLowerCase().includes('pinhole') ? 'pinhole'
       : 'dust_nibs');
 
+    const targetAssignment = activeTab2Assignment;
+    const resolvedPainterName = targetAssignment ? targetAssignment.painterName : painterName;
+    const resolvedBoothNo = targetAssignment
+      ? (targetAssignment.boothNumber || (targetAssignment as any).boothNo || 'Booth #1')
+      : (dept.split('(')[0]?.trim() || 'Booth #1');
+
     const newLogEntry: JobCardProductionProgressLog = {
       id: `LOG-${Date.now()}`,
       timestamp: now.toISOString(),
@@ -1489,8 +1543,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       qaVerifiedBy: currentUser.name || 'Quality Inspector',
       processStage: selectedStage,
       stageName: activeStageConfig.label,
-      painterName: painterName,
-      boothNo: dept.split('(')[0]?.trim() || 'Booth #1',
+      assignmentId: targetAssignment?.id,
+      painterName: resolvedPainterName,
+      boothNo: resolvedBoothNo,
       recordedBy: currentUser.name || 'Vikram Patel',
       remarks: logRemarksInput.trim() || undefined
     };
@@ -1521,6 +1576,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
         qaVerifiedBy: newLogEntry.qaVerifiedBy,
         processStage: selectedStage,
         stageName: activeStageConfig.label,
+        assignmentId: targetAssignment?.id,
         painterName: newLogEntry.painterName,
         boothNo: newLogEntry.boothNo,
         recordedBy: newLogEntry.recordedBy,
@@ -1528,11 +1584,23 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       });
     }
 
+    if (targetAssignment) {
+      recordAssignmentStageOutput(
+        targetAssignment.id,
+        selectedStage,
+        logGoodPieces,
+        logReworkPieces,
+        logRejectPieces
+      );
+    }
+
     setShowOutputLogger(false);
     setLogRemarksInput('');
-    const nextMax = isFinalStage
-      ? Math.max(0, targetQty - newGoodTotal - newRejectTotal)
-      : Math.max(0, currentStageMaxAllowed - logGoodPieces);
+    const nextMax = targetAssignment
+      ? Math.max(0, currentStageMaxAllowed - logGoodPieces - logRejectPieces)
+      : isFinalStage
+        ? Math.max(0, targetQty - newGoodTotal - newRejectTotal)
+        : Math.max(0, currentStageMaxAllowed - logGoodPieces);
     const defaultNext = Math.min(100, Math.max(1, nextMax));
     setLogPiecesSprayed(defaultNext);
     setLogGoodPieces(defaultNext);
@@ -2940,7 +3008,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 <span>1. Master Order Overview</span>
               </button>
 
-              {/* Tier 2: Painter Shift Assignments */}
+              {/* Merged Tier 2 + 3: Painter Operations & Material Ledger */}
               <button
                 type="button"
                 onClick={() => setExistingCardTab('PAINTER_ASSIGNMENTS')}
@@ -2951,24 +3019,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 }`}
               >
                 <Users className="w-3.5 h-3.5 text-[#c09748]" />
-                <span>2. Painter Shift Assignments ({currentJcAssignments.length})</span>
-              </button>
-
-              {/* Tier 3: Material & Chemical Ledger */}
-              <button
-                type="button"
-                onClick={() => setExistingCardTab('DAILY_LOG')}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                  existingCardTab === 'DAILY_LOG'
-                    ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] shadow-2xs ring-1 ring-[#c09748]/20'
-                    : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5 text-[#8a6521]" />
-                <span>3. Material & Chemical Ledger</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#8a6521] text-white">
-                  {productionDates.length} {productionDates.length === 1 ? 'Date' : 'Dates'}
-                </span>
+                <span>2. Painter Operations &amp; Material Ledger ({currentJcAssignments.length})</span>
               </button>
 
               {/* QA Gates */}
@@ -2982,7 +3033,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 }`}
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-[#c09748]" />
-                <span>4. Quality Control Gates (PIR • FPA • IPQC)</span>
+                <span>3. Quality Control Gates (PIR • FPA • IPQC)</span>
                 {isFpaApproved ? (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                     ✓ FPA Approved
@@ -3245,10 +3296,10 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     </div>
                     <button
                       type="button"
-                      onClick={() => setExistingCardTab('DAILY_LOG')}
+                      onClick={() => setExistingCardTab('PAINTER_ASSIGNMENTS')}
                       className="text-xs font-bold text-[#8a6521] hover:underline cursor-pointer self-start sm:self-auto"
                     >
-                      View Full Chemical Ledger in Tab 3 →
+                      Manage Painters &amp; Chemicals in Tab 2 →
                     </button>
                   </div>
 
@@ -3561,147 +3612,910 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
           </div>
       ) : existingCardTab === 'QUALITY' ? (
         renderQualityTabContent()
-      ) : existingCardTab === 'DAILY_LOG' ? (
-        renderDailyLedgerContent()
       ) : (
-        /* PAINTER_ASSIGNMENTS TAB: 3-TIER SHIFT ALLOCATIONS & CONSUMABLES LEDGER */
-        <div className="space-y-6">
-          {/* Detailed Full View for a Selected Painter Assignment */}
-          {viewingAssignmentDetails ? (
-            <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-6 animate-in fade-in duration-150">
-              {/* Top Header of Detail Card */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#ececec]">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-center text-[#8a6521] shrink-0">
-                    <User className="w-5 h-5 text-[#8a6521]" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs font-bold text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
-                        {viewingAssignmentDetails.assignmentId}
-                      </span>
-                      <span className="text-[10px] text-[#777b86] font-mono">
-                        {viewingAssignmentDetails.assignmentDate} • {viewingAssignmentDetails.shift}
-                      </span>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        viewingAssignmentDetails.status.startsWith('Closed') ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-blue-50 text-blue-800 border border-blue-200'
-                      }`}>
-                        {viewingAssignmentDetails.status}
-                      </span>
-                    </div>
-                    <h3 className="font-serif font-normal text-xl text-[#17191c] mt-0.5">
-                      Painter: {viewingAssignmentDetails.painterName} ({viewingAssignmentDetails.boothNumber})
-                    </h3>
-                  </div>
-                </div>
-
+        /* MERGED TAB 2: PAINTER OPERATIONS, 3-STAGE OUTPUT & COMPANY CONSUMABLES */
+        <div className="space-y-5">
+          {/* Top Control Bar + Painter Filter Pills */}
+          <div className="p-5 bg-white rounded-[24px] border border-[#ececec] shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
                 <div className="flex items-center gap-2">
-                  {!viewingAssignmentDetails.status.startsWith('Closed') && (
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
+                  <span className="text-[11px] font-mono font-bold text-[#8a6521] uppercase tracking-wider">
+                    Painter Operations • 3-Stage Output &amp; Company Consumables
+                  </span>
+                </div>
+                <h3 className="font-serif font-normal text-lg sm:text-xl text-[#17191c] mt-0.5">
+                  Daily Painter Shifts, Stage Production &amp; Chemical Usage ({jobCardNo})
+                </h3>
+                <p className="text-xs text-[#777b86] mt-0.5">
+                  Select any painter below to inspect shift quota, update company paint usage, log Stage 1/2/3 output, and review timestamped activity.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowDailyAssignModal(true)}
+                className="px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-95 shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Assign Painter (Today's Target)</span>
+              </button>
+            </div>
+
+            {currentJcAssignments.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap pt-3 border-t border-[#ececec]">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-[#777b86] font-bold mr-1">
+                  Painter Filter:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedAssignmentId('ALL');
+                    setShowOutputLogger(false);
+                    setShowIssueChemDrawer(false);
+                    setEditingMatLogId(null);
+                  }}
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                    selectedAssignmentId === 'ALL'
+                      ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] ring-1 ring-[#c09748]/30 shadow-2xs'
+                      : 'bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4]'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5 text-[#8a6521]" />
+                  <span>All Painters ({currentJcAssignments.length})</span>
+                </button>
+
+                {currentJcAssignments.map(asg => {
+                  const isSelected = activeTab2Assignment?.id === asg.id;
+                  const isClosed = asg.status.startsWith('Closed');
+                  return (
+                    <button
+                      key={asg.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedAssignmentId(asg.id);
+                        setShowOutputLogger(false);
+                        setShowIssueChemDrawer(false);
+                        setEditingMatLogId(null);
+                      }}
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-2 ${
+                        isSelected
+                          ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] ring-1 ring-[#c09748]/30 font-bold shadow-2xs'
+                          : 'bg-white hover:bg-[#fafafb] text-[#17191c] border border-[#ececec]'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${isClosed ? 'bg-emerald-500' : 'bg-[#c09748]'}`} />
+                      <span>{asg.painterName.split('(')[0].trim()}</span>
+                      <span className="text-[10px] font-mono text-[#777b86]">• {asg.assignmentDate}</span>
+                      {asg.colorShade && (
+                        <span className="px-2 py-0.2 rounded-full text-[10px] font-mono bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be]">
+                          {asg.colorShade}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {currentJcAssignments.length === 0 ? (
+            <div className="p-10 text-center text-xs text-[#777b86] bg-white rounded-[24px] border border-dashed border-[#ececec] space-y-3">
+              <Users className="w-10 h-10 text-[#979799] mx-auto" />
+              <div className="space-y-1">
+                <p className="font-serif text-base text-[#17191c]">No painters assigned to {jobCardNo} yet</p>
+                <p>Click <strong>"+ Assign Painter (Today's Target)"</strong> above to assign a painter, colour shade, daily piece quota, and company paints/thinners.</p>
+              </div>
+            </div>
+          ) : activeTab2Assignment ? (
+            /* SELECTED PAINTER COMPLETE WORKSPACE */
+            <div className="space-y-5 animate-in fade-in duration-150">
+              {/* 1. Shift Identity & 4 Quantitative KPIs */}
+              <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#ececec]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-full bg-[#faf3e0] border border-[#f4e5be] flex items-center justify-center text-[#8a6521] shrink-0">
+                      <User className="w-5 h-5 text-[#8a6521]" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs font-bold text-[#8a6521] bg-[#faf3e0] px-2.5 py-0.5 rounded-full border border-[#f4e5be]">
+                          {activeTab2Assignment.assignmentId}
+                        </span>
+                        <span className="text-[11px] text-[#777b86] font-mono">
+                          {activeTab2Assignment.assignmentDate} • {activeTab2Assignment.shift}
+                        </span>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          activeTab2Assignment.status.startsWith('Closed')
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : 'bg-blue-50 text-blue-800 border border-blue-200'
+                        }`}>
+                          {activeTab2Assignment.status}
+                        </span>
+                        {activeTab2Assignment.colorShade && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be] flex items-center gap-1">
+                            <Paintbrush className="w-3 h-3 text-[#c09748]" />
+                            {activeTab2Assignment.colorShade}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="font-serif font-normal text-xl text-[#17191c] mt-1">
+                        {activeTab2Assignment.painterName} — {activeTab2Assignment.boothNumber || (activeTab2Assignment as any).boothNo || 'Booth #1'}
+                      </h3>
+                      <p className="text-[11px] font-mono text-[#777b86]">
+                        Assigned Process Focus: <strong className="text-[#17191c]">{activeTab2Assignment.processStage}</strong>
+                        {activeTab2Assignment.supervisorNotes ? ` • Note: ${activeTab2Assignment.supervisorNotes}` : ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  {!activeTab2Assignment.status.startsWith('Closed') && (
                     <button
                       type="button"
                       onClick={() => {
-                        setSelectedAssignmentForClose(viewingAssignmentDetails);
+                        setSelectedAssignmentForClose(activeTab2Assignment);
                         setShowShiftCloseModal(true);
                       }}
-                      className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-2xs"
+                      className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-2xs shrink-0 self-start sm:self-center"
                     >
                       <CheckCircle2 className="w-4 h-4 text-[#8a6521]" />
-                      <span>Close Shift & Reconcile</span>
+                      <span>Close Shift &amp; Reconcile</span>
                     </button>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => setViewingAssignmentDetails(null)}
-                    className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] font-semibold text-xs transition cursor-pointer"
-                  >
-                    ← Back to All Assignments
-                  </button>
-                </div>
-              </div>
-
-              {/* 4 Quantitative Output Milestone Cards for this Painter */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-[#fafafb] p-4 rounded-[20px] border border-[#ececec] text-center space-y-1">
-                  <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">Assigned Today Target</span>
-                  <span className="font-mono font-bold text-xl text-[#17191c] block">
-                    {viewingAssignmentDetails.dailyTargetQty.toLocaleString()} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
-                  </span>
-                  <span className="text-[10.5px] text-[#777b86] block font-mono">Shift Quota</span>
                 </div>
 
-                <div className="bg-emerald-50/80 p-4 rounded-[20px] border border-emerald-200 text-center space-y-1">
-                  <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">Completed Good Output</span>
-                  <span className="font-mono font-bold text-xl text-emerald-700 block">
-                    {(viewingAssignmentDetails.actualCompletedQty || 0).toLocaleString()} <span className="text-xs font-normal text-emerald-800">Pcs</span>
-                  </span>
-                  <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                    {viewingAssignmentDetails.efficiency || (viewingAssignmentDetails.dailyTargetQty > 0 ? Math.min(100, Math.round(((viewingAssignmentDetails.actualCompletedQty || 0) / viewingAssignmentDetails.dailyTargetQty) * 100)) : 0)}% Efficiency
-                  </span>
-                </div>
+                {/* 4 KPI Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-[#fafafb] p-4 rounded-[20px] border border-[#ececec] text-center space-y-1">
+                    <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">Assigned Today Target</span>
+                    <span className="font-mono font-bold text-xl text-[#17191c] block">
+                      {activeTab2Assignment.dailyTargetQty.toLocaleString()} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
+                    </span>
+                    <span className="text-[10.5px] text-[#777b86] block font-mono">Shift Quota</span>
+                  </div>
 
-                <div className="bg-rose-50/80 p-4 rounded-[20px] border border-rose-200 text-center space-y-1">
-                  <span className="text-[10px] text-rose-800 uppercase font-mono font-bold block">Rejection / Scrap</span>
-                  <span className="font-mono font-bold text-xl text-rose-700 block">
-                    {(viewingAssignmentDetails.rejectReworkQty || 0).toLocaleString()} <span className="text-xs font-normal text-rose-800">Pcs</span>
-                  </span>
-                  <span className="text-[10.5px] text-rose-800 block font-mono">Defect Pieces</span>
-                </div>
-
-                <div className="bg-amber-50/80 p-4 rounded-[20px] border border-amber-200 text-center space-y-1">
-                  <span className="text-[10px] text-amber-800 uppercase font-mono font-bold block">Pending Shift Balance</span>
-                  <span className="font-mono font-bold text-xl text-amber-900 block">
-                    {Math.max(0, viewingAssignmentDetails.dailyTargetQty - (viewingAssignmentDetails.actualCompletedQty || 0) - (viewingAssignmentDetails.rejectReworkQty || 0)).toLocaleString()} <span className="text-xs font-normal text-amber-800">Pcs</span>
-                  </span>
-                  <span className="text-[10.5px] text-amber-800 block font-mono">To Be Finished</span>
-                </div>
-              </div>
-
-              {/* 3-Stage Process Yield for this Painter */}
-              <div className="bg-[#fafafb] p-5 rounded-[22px] border border-[#ececec] space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
-                    <span className="font-mono text-xs font-bold text-[#17191c] uppercase tracking-wider">
-                      3-Stage Process Yield Tracked by {viewingAssignmentDetails.painterName}
+                  <div className="bg-emerald-50/80 p-4 rounded-[20px] border border-emerald-200 text-center space-y-1">
+                    <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">Completed Good Output</span>
+                    <span className="font-mono font-bold text-xl text-emerald-700 block">
+                      {(activeTab2Assignment.actualCompletedQty || 0).toLocaleString()} <span className="text-xs font-normal text-emerald-800">Pcs</span>
+                    </span>
+                    <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      {activeTab2Assignment.efficiency ?? (activeTab2Assignment.dailyTargetQty > 0 ? Math.min(100, Math.round(((activeTab2Assignment.actualCompletedQty || 0) / activeTab2Assignment.dailyTargetQty) * 100)) : 0)}% Efficiency
                     </span>
                   </div>
-                  <span className="text-[11px] font-mono text-[#777b86]">
-                    Coating System: {viewingAssignmentDetails.processStage}
-                  </span>
+
+                  <div className="bg-rose-50/80 p-4 rounded-[20px] border border-rose-200 text-center space-y-1">
+                    <span className="text-[10px] text-rose-800 uppercase font-mono font-bold block">Rework &amp; Dead Scrap</span>
+                    <span className="font-mono font-bold text-xl text-rose-700 block">
+                      {((activeTab2Assignment.rejectReworkQty || 0) + (activeTab2Assignment.scrapQty || 0)).toLocaleString()} <span className="text-xs font-normal text-rose-800">Pcs</span>
+                    </span>
+                    <span className="text-[10.5px] text-rose-800 block font-mono">
+                      RW: {activeTab2Assignment.rejectReworkQty || 0} • Scrap: {activeTab2Assignment.scrapQty || 0}
+                    </span>
+                  </div>
+
+                  <div className="bg-amber-50/80 p-4 rounded-[20px] border border-amber-200 text-center space-y-1">
+                    <span className="text-[10px] text-amber-800 uppercase font-mono font-bold block">Pending Shift Balance</span>
+                    <span className="font-mono font-bold text-xl text-amber-900 block">
+                      {Math.max(0, activeTab2Assignment.dailyTargetQty - (activeTab2Assignment.actualCompletedQty || 0) - (activeTab2Assignment.scrapQty || 0)).toLocaleString()} <span className="text-xs font-normal text-amber-800">Pcs</span>
+                    </span>
+                    <span className="text-[10.5px] text-amber-800 block font-mono">To Be Finished</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. 3-Stage Process Tracker & Stage Output Batch Logger */}
+              <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
+                      <span className="font-mono text-xs font-bold text-[#17191c] uppercase tracking-wider">
+                        3-Stage Production Output Tracker ({activeTab2Assignment.painterName.split('(')[0].trim()})
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#777b86] mt-0.5">
+                      Log Stage 1 (Primer), Stage 2 (Basecoat), or Stage 3 (Clear Topcoat) pieces OK, Rework &amp; Dead Scrap for this painter.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!showOutputLogger) {
+                        handleSelectStage(selectedStage);
+                        setShowOutputLogger(true);
+                      } else {
+                        setShowOutputLogger(false);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs transition cursor-pointer flex items-center gap-1.5 self-start sm:self-auto active:scale-95 shadow-2xs"
+                  >
+                    {showOutputLogger ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                    <span>{showOutputLogger ? 'Close Logger Form' : '+ Log Stage Output'}</span>
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   {processStages.map((st) => {
-                    const painterLogs = liveProgressLogs.filter(l => 
-                      l.processStage === st.key && 
-                      l.painterName && 
-                      l.painterName.trim().toLowerCase() === viewingAssignmentDetails.painterName.trim().toLowerCase()
-                    );
-                    const goodSum = painterLogs.reduce((s, l) => s + (l.goodPieces || l.piecesCompleted || 0), 0);
-                    const rejSum = painterLogs.reduce((s, l) => s + (l.scrapPieces || 0), 0);
-                    const rwSum = painterLogs.reduce((s, l) => s + (l.reworkPieces || 0), 0);
+                    const sums = getAssignmentStageSums(activeTab2Assignment, st.key);
+                    const isStageActive = selectedStage === st.key;
 
                     return (
-                      <div key={st.key} className="p-3.5 rounded-[16px] bg-white border border-[#ececec] space-y-2 shadow-2xs">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-xs text-[#17191c]">{st.label}</span>
-                          <span className="text-[10px] font-mono text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
-                            {st.stageNum}
+                      <div
+                        key={st.key}
+                        className={`p-4 rounded-[18px] border space-y-3 transition ${
+                          isStageActive
+                            ? 'bg-[#faf7ed] border-[#c09748]/50 shadow-2xs'
+                            : 'bg-[#fafafb] border-[#ececec]'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="text-[10px] font-mono uppercase tracking-wider text-[#8a6521] font-bold block">
+                              Stage {st.num} • {st.badge}
+                            </span>
+                            <span className="font-bold text-xs text-[#17191c] block mt-0.5">{st.shortLabel}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleSelectStage(st.key);
+                              setShowOutputLogger(true);
+                            }}
+                            className="px-2.5 py-1 rounded-full bg-white hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10.5px] font-bold transition cursor-pointer shrink-0 active:scale-95"
+                          >
+                            + Log
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-1.5 text-center text-xs">
+                          <div className="p-2 rounded-[10px] bg-emerald-50/80 border border-emerald-200">
+                            <span className="text-[9px] text-emerald-800 uppercase font-mono block">OK</span>
+                            <strong className="text-emerald-700 font-mono text-sm">{sums.good}</strong>
+                          </div>
+                          <div className="p-2 rounded-[10px] bg-amber-50/80 border border-amber-200">
+                            <span className="text-[9px] text-amber-800 uppercase font-mono block">Rework</span>
+                            <strong className="text-amber-800 font-mono text-sm">{sums.rework}</strong>
+                          </div>
+                          <div className="p-2 rounded-[10px] bg-rose-50/80 border border-rose-200">
+                            <span className="text-[9px] text-rose-800 uppercase font-mono block">Scrap</span>
+                            <strong className="text-rose-700 font-mono text-sm">{sums.scrap}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Inline Interactive Stage Output Form */}
+                {showOutputLogger && (
+                  <form
+                    onSubmit={handleSaveOutputBatch}
+                    className="p-5 rounded-[20px] bg-[#faf7ed] border border-[#f4e5be] space-y-4 animate-in fade-in duration-150"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#f4e5be]">
+                      <div>
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-[#8a6521] font-bold block">
+                          Logging Production Batch for {activeTab2Assignment.painterName}
+                        </span>
+                        <h4 className="font-serif text-base text-[#17191c]">
+                          {activeStageConfig.label} • Remaining Quota on Stage: {currentStageMaxAllowed.toLocaleString()} Pcs
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {processStages.map(st => (
+                          <button
+                            key={st.key}
+                            type="button"
+                            onClick={() => handleSelectStage(st.key)}
+                            className={`px-3 py-1 rounded-full text-[11px] font-bold transition cursor-pointer ${
+                              selectedStage === st.key
+                                ? 'bg-[#c09748] text-white shadow-2xs'
+                                : 'bg-white text-[#8a6521] border border-[#f4e5be]'
+                            }`}
+                          >
+                            Stage {st.num}: {st.shortLabel}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10.5px] font-mono font-bold text-[#17191c] block">
+                          Pieces Processed *
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={Math.max(1, currentStageMaxAllowed)}
+                          value={logPiecesSprayed}
+                          onChange={e => handleSprayedPiecesChange(Number(e.target.value))}
+                          className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] font-mono text-sm font-bold text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10.5px] font-mono font-bold text-emerald-800 block">
+                          Passed OK (Good)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={logPiecesSprayed}
+                          value={logGoodPieces}
+                          onChange={e => handleGoodPiecesChange(Number(e.target.value))}
+                          className="w-full px-3 py-2 rounded-[14px] bg-white border border-emerald-300 font-mono text-sm font-bold text-emerald-800 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10.5px] font-mono font-bold text-amber-800 block">
+                          Rework (Salvage)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={logPiecesSprayed}
+                          value={logReworkPieces}
+                          onChange={e => handleReworkPiecesChange(Number(e.target.value))}
+                          className="w-full px-3 py-2 rounded-[14px] bg-white border border-amber-300 font-mono text-sm font-bold text-amber-900 focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10.5px] font-mono font-bold text-rose-800 block">
+                          Dead Scrap (Rej)
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={logPiecesSprayed}
+                          value={logRejectPieces}
+                          onChange={e => handleRejectPiecesChange(Number(e.target.value))}
+                          className="w-full px-3 py-2 rounded-[14px] bg-white border border-rose-300 font-mono text-sm font-bold text-rose-800 focus:outline-none focus:border-rose-500"
+                        />
+                      </div>
+                    </div>
+
+                    {(logReworkPieces > 0 || logRejectPieces > 0) && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div className="space-y-1">
+                          <label className="text-[10.5px] font-mono font-bold text-rose-900 block">
+                            Defect Reason (ISO QA Code)
+                          </label>
+                          <select
+                            value={logDefectReason}
+                            onChange={e => setLogDefectReason(e.target.value)}
+                            className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] text-xs font-medium text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                          >
+                            {DEFECT_PRESET_OPTIONS.map(opt => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {logReworkPieces > 0 && (
+                          <div className="space-y-1">
+                            <label className="text-[10.5px] font-mono font-bold text-amber-900 block">
+                              ISO 8.7 Corrective / Rework Action
+                            </label>
+                            <select
+                              value={logReworkAction}
+                              onChange={e => setLogReworkAction(e.target.value)}
+                              className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] text-xs font-medium text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                            >
+                              {ISO_REWORK_ACTIONS.map(act => (
+                                <option key={act} value={act}>{act}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                      <div className="space-y-1">
+                        <label className="text-[10.5px] font-mono font-bold text-[#777b86] block">
+                          Batch Log Time
+                        </label>
+                        <input
+                          type="text"
+                          value={logTimeInput}
+                          onChange={e => setLogTimeInput(e.target.value)}
+                          placeholder="e.g. 02:30 PM"
+                          className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] font-mono text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="text-[10.5px] font-mono font-bold text-[#777b86] block">
+                          Supervisor / Floor Remarks (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={logRemarksInput}
+                          onChange={e => setLogRemarksInput(e.target.value)}
+                          placeholder="e.g. Booth #2 pressure stable, flash-off checked..."
+                          className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowOutputLogger(false)}
+                        className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={logPiecesSprayed <= 0 || currentStageMaxAllowed <= 0}
+                        className="px-5 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] disabled:opacity-50 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs active:scale-95"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Save Stage {activeStageConfig.num} Output Batch</span>
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+
+              {/* 3. Company Paints, Thinners & Consumables (Issue + Live Usage Update) */}
+              {(() => {
+                const painterChemLogs = assignmentMaterialLogs.filter(
+                  l =>
+                    l.assignmentId === activeTab2Assignment.assignmentId ||
+                    l.assignmentId === activeTab2Assignment.id ||
+                    ((l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo) &&
+                      l.painterName === activeTab2Assignment.painterName)
+                );
+
+                return (
+                  <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
+                          <span className="font-mono text-xs font-bold text-[#17191c] uppercase tracking-wider">
+                            Company Paints, Thinners &amp; Consumables Issued to {activeTab2Assignment.painterName.split('(')[0].trim()}
                           </span>
                         </div>
-                        <div className="grid grid-cols-3 gap-1.5 text-center text-xs">
-                          <div className="p-2 rounded-[10px] bg-emerald-50/70 border border-emerald-200">
-                            <span className="text-[9px] text-emerald-800 uppercase font-mono block">OK</span>
-                            <strong className="text-emerald-700 font-mono text-sm">{goodSum}</strong>
+                        <p className="text-xs text-[#777b86] mt-0.5">
+                          Issue additional paint/thinner/hardener or click <strong>Update Usage</strong> on any row to record good returned &amp; floor wastage.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowIssueChemDrawer(prev => !prev)}
+                        className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs transition cursor-pointer flex items-center gap-1.5 self-start sm:self-auto active:scale-95 shadow-2xs"
+                      >
+                        {showIssueChemDrawer ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                        <span>{showIssueChemDrawer ? 'Close Issue Form' : '+ Issue Paint / Thinner'}</span>
+                      </button>
+                    </div>
+
+                    {showIssueChemDrawer && (
+                      <div className="p-4 rounded-[18px] bg-[#faf7ed] border border-[#f4e5be] space-y-3 animate-in fade-in duration-150">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <span className="text-[10.5px] font-mono font-bold uppercase tracking-wider text-[#8a6521]">
+                            Issue Company Material to {activeTab2Assignment.assignmentId}
+                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {[
+                              { label: 'Basecoat PU Paint', type: 'Base Paint' as const },
+                              { label: 'PU Thinner 400 Solvent', type: 'Thinner' as const },
+                              { label: '2K PU Hardener', type: 'Hardener' as const },
+                              { label: '2K Clear Lacquer', type: 'Topcoat' as const }
+                            ].map(preset => (
+                              <button
+                                key={preset.label}
+                                type="button"
+                                onClick={() => {
+                                  setChemName(preset.label);
+                                  setChemType(preset.type);
+                                }}
+                                className="px-2.5 py-0.5 rounded-full bg-white hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-semibold cursor-pointer"
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
                           </div>
-                          <div className="p-2 rounded-[10px] bg-amber-50/70 border border-amber-200">
-                            <span className="text-[9px] text-amber-800 uppercase font-mono block">Rework</span>
-                            <strong className="text-amber-800 font-mono text-sm">{rwSum}</strong>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                          <div className="sm:col-span-4 space-y-1">
+                            <label className="text-[10px] font-mono font-bold text-[#17191c] block">Material Name *</label>
+                            <input
+                              type="text"
+                              value={chemName}
+                              onChange={e => setChemName(e.target.value)}
+                              className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] text-xs font-medium text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                              placeholder="e.g. Basecoat 2K PU Paint"
+                            />
                           </div>
-                          <div className="p-2 rounded-[10px] bg-rose-50/70 border border-rose-200">
-                            <span className="text-[9px] text-rose-800 uppercase font-mono block">Scrap</span>
-                            <strong className="text-rose-700 font-mono text-sm">{rejSum}</strong>
+                          <div className="sm:col-span-2 space-y-1">
+                            <label className="text-[10px] font-mono font-bold text-[#17191c] block">Type</label>
+                            <select
+                              value={chemType}
+                              onChange={e => setChemType(e.target.value as any)}
+                              className="w-full px-2.5 py-2 rounded-[14px] bg-white border border-[#dcdfe4] text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                            >
+                              <option value="Base Paint">Base Paint</option>
+                              <option value="Topcoat">Topcoat</option>
+                              <option value="Hardener">Hardener</option>
+                              <option value="Thinner">Thinner</option>
+                              <option value="Cleaning Solvent">Cleaning Solvent</option>
+                            </select>
                           </div>
+                          <div className="sm:col-span-2 space-y-1">
+                            <label className="text-[10px] font-mono font-bold text-[#17191c] block">Batch No.</label>
+                            <input
+                              type="text"
+                              value={chemBatch}
+                              onChange={e => setChemBatch(e.target.value)}
+                              placeholder="B-2026-01"
+                              className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] font-mono text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                            />
+                          </div>
+                          <div className="sm:col-span-2 space-y-1">
+                            <label className="text-[10px] font-mono font-bold text-[#17191c] block">Issued Qty *</label>
+                            <input
+                              type="number"
+                              min={0.1}
+                              step="0.1"
+                              value={chemQty}
+                              onChange={e => setChemQty(Number(e.target.value))}
+                              className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] font-mono text-xs font-bold text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                            />
+                          </div>
+                          <div className="sm:col-span-2 space-y-1">
+                            <label className="text-[10px] font-mono font-bold text-[#17191c] block">UOM</label>
+                            <select
+                              value={chemUom}
+                              onChange={e => setChemUom(e.target.value as any)}
+                              className="w-full px-2.5 py-2 rounded-[14px] bg-white border border-[#dcdfe4] text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                            >
+                              <option value="Litres">Litres</option>
+                              <option value="Kg">Kg</option>
+                              <option value="Pcs">Pcs</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setShowIssueChemDrawer(false)}
+                            className="px-4 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!chemName.trim() || chemQty <= 0) return;
+                              issueAssignmentMaterials(activeTab2Assignment.id, [
+                                {
+                                  materialName: chemName.trim(),
+                                  materialType: chemType,
+                                  batchNumber: chemBatch.trim() || undefined,
+                                  issuedQty: chemQty,
+                                  uom: chemUom
+                                }
+                              ]);
+                              setShowIssueChemDrawer(false);
+                              setChemBatch('');
+                            }}
+                            className="px-4 py-1.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Issue to Painter</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {painterChemLogs.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
+                        No paints, thinners, or hardeners issued yet for this assignment. Click <strong>"+ Issue Paint / Thinner"</strong> above to hand over material from store.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto border border-[#ececec] rounded-[18px]">
+                        <table className="w-full text-left text-xs bg-white border-collapse">
+                          <thead className="bg-[#f2f2f3] text-[#17191c] text-[11px] font-bold border-b border-[#ececec]">
+                            <tr>
+                              <th className="p-3">Material &amp; Batch</th>
+                              <th className="p-3 text-right">Store Issued</th>
+                              <th className="p-3 text-right">Good Returned</th>
+                              <th className="p-3 text-right">Floor Wastage</th>
+                              <th className="p-3 text-right text-[#8a6521]">Net Consumed</th>
+                              <th className="p-3 text-right">Usage Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#ececec]">
+                            {painterChemLogs.map(log => {
+                              const isEditingThis = editingMatLogId === log.id;
+                              const previewNet = Math.max(0, Number((log.issuedQty - editGoodReturnQty).toFixed(3)));
+
+                              return (
+                                <tr key={log.id} className="hover:bg-[#fafafb] transition">
+                                  <td className="p-3 font-mono text-[11px]">
+                                    <div className="font-bold text-[#17191c] font-sans text-xs">{log.materialName}</div>
+                                    {isEditingThis ? (
+                                      <input
+                                        type="text"
+                                        value={editMatBatch}
+                                        onChange={e => setEditMatBatch(e.target.value)}
+                                        placeholder="Batch #"
+                                        className="mt-1 px-2 py-1 rounded-[10px] border border-[#dcdfe4] text-[11px] w-32 font-mono focus:outline-none focus:border-[#c09748]"
+                                      />
+                                    ) : (
+                                      <span className="text-[10px] text-[#777b86]">
+                                        {log.materialType} • Batch: {log.batchNumber || 'N/A'}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-right font-mono font-semibold text-[#17191c]">
+                                    {log.issuedQty} {log.uom}
+                                  </td>
+                                  <td className="p-3 text-right font-mono text-emerald-700 font-medium">
+                                    {isEditingThis ? (
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={log.issuedQty}
+                                        step="0.1"
+                                        value={editGoodReturnQty}
+                                        onChange={e => setEditGoodReturnQty(Number(e.target.value))}
+                                        className="w-20 px-2 py-1 rounded-[10px] border border-emerald-300 text-right font-mono text-xs focus:outline-none focus:border-emerald-500"
+                                      />
+                                    ) : (
+                                      `${log.goodReturnedQty} ${log.uom}`
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-right font-mono text-rose-700 font-medium">
+                                    {isEditingThis ? (
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        step="0.1"
+                                        value={editFloorWasteQty}
+                                        onChange={e => setEditFloorWasteQty(Number(e.target.value))}
+                                        className="w-20 px-2 py-1 rounded-[10px] border border-rose-300 text-right font-mono text-xs focus:outline-none focus:border-rose-500"
+                                      />
+                                    ) : (
+                                      `${log.floorWastageExpiredQty} ${log.uom}`
+                                    )}
+                                  </td>
+                                  <td className="p-3 text-right font-mono font-bold text-[#8a6521]">
+                                    <div>{isEditingThis ? previewNet : log.netConsumedQty} {log.uom}</div>
+                                    {log.perPieceConsumption ? (
+                                      <span className="text-[10px] font-normal text-[#777b86]">
+                                        {log.perPieceConsumption} {log.uom}/pc
+                                      </span>
+                                    ) : null}
+                                  </td>
+                                  <td className="p-3 text-right whitespace-nowrap">
+                                    {isEditingThis ? (
+                                      <div className="inline-flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            updateAssignmentMaterialLog(log.id, {
+                                              goodReturnedQty: editGoodReturnQty,
+                                              floorWastageExpiredQty: editFloorWasteQty,
+                                              batchNumber: editMatBatch.trim() || undefined
+                                            });
+                                            setEditingMatLogId(null);
+                                          }}
+                                          className="px-3 py-1 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-[11px] font-bold transition cursor-pointer"
+                                        >
+                                          Save
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingMatLogId(null)}
+                                          className="px-2.5 py-1 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] text-[11px] font-semibold transition cursor-pointer"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingMatLogId(log.id);
+                                          setEditGoodReturnQty(log.goodReturnedQty || 0);
+                                          setEditFloorWasteQty(log.floorWastageExpiredQty || 0);
+                                          setEditMatBatch(log.batchNumber || '');
+                                        }}
+                                        className="px-3 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                        <span>Update Usage</span>
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* 4. Timestamped Painter Activity & Stage Output Logs */}
+              {(() => {
+                const painterActivityLogs = liveProgressLogs.filter(
+                  l =>
+                    l.assignmentId === activeTab2Assignment.id ||
+                    l.assignmentId === activeTab2Assignment.assignmentId ||
+                    (!l.assignmentId &&
+                      l.painterName &&
+                      l.painterName.trim().toLowerCase() === activeTab2Assignment.painterName.trim().toLowerCase())
+                );
+
+                return (
+                  <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
+                      <div className="flex items-center gap-2">
+                        <History className="w-4 h-4 text-[#c09748]" />
+                        <h4 className="font-serif font-normal text-base text-[#17191c]">
+                          Timestamped Activity &amp; Stage Output Logs — {activeTab2Assignment.painterName.split('(')[0].trim()}
+                        </h4>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                        {painterActivityLogs.length} Entries
+                      </span>
+                    </div>
+
+                    {painterActivityLogs.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
+                        No stage output logs recorded yet for this painter. Use <strong>"+ Log Stage Output"</strong> above to record batch completions by time.
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {painterActivityLogs.map(log => (
+                          <div
+                            key={log.id}
+                            className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-mono text-[11px] font-bold text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
+                                  {log.dateLabel} • {log.timeLabel}
+                                </span>
+                                {log.stageName && (
+                                  <span className="px-2 py-0.5 rounded-full bg-white border border-[#ececec] text-[10.5px] font-semibold text-[#17191c]">
+                                    {log.stageName}
+                                  </span>
+                                )}
+                                <span className="font-semibold text-[#17191c]">{log.actionTitle}</span>
+                              </div>
+                              {(log.defectReason || log.reworkAction || log.remarks) && (
+                                <p className="text-[11px] text-[#777b86]">
+                                  {log.defectReason ? `Defect: ${log.defectReason}` : ''}
+                                  {log.reworkAction ? ` • Action: ${log.reworkAction}` : ''}
+                                  {log.remarks ? ` • ${log.remarks}` : ''}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1.5 font-mono text-[11px] shrink-0">
+                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                                +{log.goodPieces ?? log.piecesCompleted ?? 0} OK
+                              </span>
+                              {(log.reworkPieces || 0) > 0 && (
+                                <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-bold">
+                                  +{log.reworkPieces} RW
+                                </span>
+                              )}
+                              {(log.scrapPieces || 0) > 0 && (
+                                <span className="px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200 font-bold">
+                                  +{log.scrapPieces} Scrap
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          ) : (
+            /* ALL PAINTERS COMBINED SUMMARY VIEW */
+            <div className="space-y-5">
+              {/* All Assignments Summary List */}
+              <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-serif font-normal text-base text-[#17191c]">
+                    All Painter Shift Assignments ({currentJcAssignments.length})
+                  </h4>
+                  <span className="text-xs text-[#777b86]">
+                    Click any painter to update stage output &amp; consumables
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {currentJcAssignments.map(asg => {
+                    const isClosed = asg.status.startsWith('Closed');
+                    return (
+                      <div
+                        key={asg.id}
+                        className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2 flex-wrap font-mono">
+                            <span className="font-bold text-[#c09748]">{asg.assignmentId}</span>
+                            <span className="text-gray-300">•</span>
+                            <span className="px-2 py-0.5 rounded-full bg-white border border-[#ececec] text-[#17191c] font-bold">
+                              {asg.assignmentDate} ({asg.shift})
+                            </span>
+                            {asg.colorShade && (
+                              <span className="px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold">
+                                {asg.colorShade}
+                              </span>
+                            )}
+                            <span className="font-semibold text-[#17191c] font-sans">
+                              Painter: <strong>{asg.painterName}</strong> ({asg.boothNumber || (asg as any).boothNo || 'Booth #1'})
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 text-[11px] text-[#777b86] flex-wrap">
+                            <span>Target: <strong className="text-[#17191c] font-mono">{asg.dailyTargetQty} pcs</strong></span>
+                            <span>Completed OK: <strong className="text-emerald-700 font-mono font-bold">{asg.actualCompletedQty || 0} pcs</strong></span>
+                            {((asg.rejectReworkQty || 0) > 0 || (asg.scrapQty || 0) > 0) && (
+                              <span className="text-rose-700 font-mono">RW: {asg.rejectReworkQty || 0} • Scrap: {asg.scrapQty || 0} pcs</span>
+                            )}
+                            {asg.efficiency !== undefined && (
+                              <span className="text-amber-800 font-mono font-bold">Efficiency: {asg.efficiency}%</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAssignmentId(asg.id)}
+                            className="px-3.5 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs transition cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-[#8a6521]" />
+                            <span>Open Painter Workspace</span>
+                          </button>
+
+                          <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${
+                            asg.status === 'Closed - Target Met'
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                              : asg.status === 'Closed - Partial/Incomplete'
+                                ? 'bg-amber-50 text-amber-900 border border-amber-200'
+                                : 'bg-blue-50 text-blue-800 border border-blue-200'
+                          }`}>
+                            {asg.status}
+                          </span>
+
+                          {!isClosed && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedAssignmentForClose(asg);
+                                setShowShiftCloseModal(true);
+                              }}
+                              className="px-3.5 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] font-semibold text-xs transition cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 text-[#8a6521]" />
+                              <span>Close Shift</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
@@ -3709,220 +4523,43 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 </div>
               </div>
 
-              {/* Chemicals Issued, Consumed & Floor Balance for this Painter */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
-                    <span className="font-mono text-xs font-bold text-[#17191c] uppercase tracking-wider">
-                      Company Chemicals Issued & Consumed by {viewingAssignmentDetails.painterName}
-                    </span>
-                  </div>
-                  <span className="text-[11px] font-mono text-[#8a6521]">
-                    Assignment ID: {viewingAssignmentDetails.assignmentId}
-                  </span>
-                </div>
-
-                {assignmentMaterialLogs.filter(l => (l.assignmentId === viewingAssignmentDetails.assignmentId || l.assignmentId === viewingAssignmentDetails.id) || ((l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo) && l.painterName === viewingAssignmentDetails.painterName)).length === 0 ? (
-                  <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
-                    No chemical logs recorded yet for this shift assignment. Materials will be logged upon shift close.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs bg-white rounded-[16px] border border-[#ececec] overflow-hidden">
-                      <thead className="bg-[#f2f2f3] text-[#17191c] text-[11px] font-bold border-b border-[#ececec]">
-                        <tr>
-                          <th className="p-3">Material & Type</th>
-                          <th className="p-3 text-right">Issued Qty</th>
-                          <th className="p-3 text-right">Good Returned</th>
-                          <th className="p-3 text-right">Floor Wastage</th>
-                          <th className="p-3 text-right text-[#8a6521]">Net Consumed</th>
-                          <th className="p-3 text-right">Consumption / Pc</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#ececec]">
-                        {assignmentMaterialLogs
-                          .filter(l => (l.assignmentId === viewingAssignmentDetails.assignmentId || l.assignmentId === viewingAssignmentDetails.id) || ((l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo) && l.painterName === viewingAssignmentDetails.painterName))
-                          .map(log => (
-                            <tr key={log.id} className="hover:bg-gray-50/60 transition">
-                              <td className="p-3 font-mono text-[11px]">
-                                <div className="font-bold text-[#17191c]">{log.materialName}</div>
-                                <span className="text-[10px] text-[#777b86]">{log.materialType} • Batch: {log.batchNumber || 'N/A'}</span>
-                              </td>
-                              <td className="p-3 text-right font-mono font-semibold">{log.issuedQty} {log.uom}</td>
-                              <td className="p-3 text-right font-mono text-emerald-700 font-medium">{log.goodReturnedQty} {log.uom}</td>
-                              <td className="p-3 text-right font-mono text-rose-700 font-medium">{log.floorWastageExpiredQty} {log.uom}</td>
-                              <td className="p-3 text-right font-mono font-bold text-[#8a6521]">{log.netConsumedQty} {log.uom}</td>
-                              <td className="p-3 text-right font-mono text-[#8a6521]">
-                                {log.perPieceConsumption ? `${log.perPieceConsumption} ${log.uom}/pc` : '-'}
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="p-5 bg-white rounded-[22px] border border-[#ececec] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
-                    <span className="text-[11px] font-mono font-bold text-[#8a6521] uppercase tracking-wider">
-                      Tier 2 Painter Shift Allocations & Tier 3 Chemical Reconciliation
-                    </span>
-                  </div>
-                  <h3 className="font-serif font-normal text-lg sm:text-xl text-[#17191c] mt-0.5">
-                    Active Painter Shift Tasks for {jobCardNo}
-                  </h3>
-                  <p className="text-xs text-[#777b86] mt-0.5">
-                    Master Job Card stays intact; daily targets are assigned across painters and closed with yield & chemical return.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setShowDailyAssignModal(true)}
-                  className="px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-95 shrink-0"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>+ Assign Painter (Today's Target)</span>
-                </button>
-              </div>
-
-              {/* Painter Assignments List */}
-              <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-serif font-normal text-base text-[#17191c]">
-                    Shift Assignments List
-                  </h4>
-                  <span className="text-xs text-[#777b86] font-mono">
-                    {currentJcAssignments.length} Assignments Logged
-                  </span>
-                </div>
-
-                {currentJcAssignments.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[18px] border border-dashed border-[#ececec] space-y-2">
-                    <Users className="w-8 h-8 text-[#979799] mx-auto" />
-                    <p className="font-semibold text-[#17191c]">No daily shift assignments created yet.</p>
-                    <p>Click <strong>"+ Assign Painter (Today's Target)"</strong> above to assign a target quota to a floor painter.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {currentJcAssignments.map(asg => {
-                      const isClosed = asg.status.startsWith('Closed');
-                      return (
-                        <div
-                          key={asg.id}
-                          className="p-4 rounded-[18px] bg-[#fafafb] border border-[#ececec] flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs"
-                        >
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-2 flex-wrap font-mono">
-                              <span className="font-bold text-[#c09748]">{asg.assignmentId}</span>
-                              <span className="text-gray-300">•</span>
-                              <span className="px-2 py-0.5 rounded-full bg-white border border-[#ececec] text-[#17191c] font-bold">
-                                {asg.assignmentDate} ({asg.shift})
-                              </span>
-                              <span className="font-semibold text-[#17191c] font-sans">
-                                Painter: <strong>{asg.painterName}</strong> ({asg.boothNumber})
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3 text-[11px] text-[#777b86] flex-wrap">
-                              <span>Target: <strong className="text-[#17191c] font-mono">{asg.dailyTargetQty} pcs</strong></span>
-                              <span>Completed OK: <strong className="text-emerald-700 font-mono font-bold">{asg.actualCompletedQty || 0} pcs</strong></span>
-                              {(asg.rejectReworkQty || 0) > 0 && (
-                                <span className="text-rose-700 font-mono">Defects: {asg.rejectReworkQty} pcs</span>
-                              )}
-                              {asg.efficiency !== undefined && (
-                                <span className="text-amber-800 font-mono font-bold">Efficiency: {asg.efficiency}%</span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-                            <button
-                              type="button"
-                              onClick={() => setViewingAssignmentDetails(asg)}
-                              className="px-3.5 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs transition cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
-                            >
-                              <Eye className="w-3.5 h-3.5 text-[#8a6521]" />
-                              <span>View Details</span>
-                            </button>
-
-                            <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${
-                              asg.status === 'Closed - Target Met'
-                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                : asg.status === 'Closed - Partial/Incomplete'
-                                  ? 'bg-amber-50 text-amber-900 border border-amber-200'
-                                  : 'bg-blue-50 text-blue-800 border border-blue-200'
-                            }`}>
-                              {asg.status}
-                            </span>
-
-                            {!isClosed && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedAssignmentForClose(asg);
-                                  setShowShiftCloseModal(true);
-                                }}
-                                className="px-3.5 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs transition cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5 text-[#8a6521]" />
-                                <span>Close Shift</span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Chemical Material Traceability Ledger */}
+              {/* Combined Chemical Material Traceability Ledger */}
               <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
                 <h4 className="font-serif font-normal text-base text-[#17191c]">
-                  Chemicals Issued & Consumed by Shift Painters
+                  All Chemicals Issued &amp; Consumed Across Painters
                 </h4>
 
                 {assignmentMaterialLogs.filter(l => l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo).length === 0 ? (
                   <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
-                    No shift chemical logs recorded yet for this job card.
+                    No shift chemical logs recorded yet for this job card. Select a painter above to issue paints or thinners.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs bg-white rounded-[16px] border border-[#ececec] overflow-hidden">
+                  <div className="overflow-x-auto border border-[#ececec] rounded-[18px]">
+                    <table className="w-full text-left text-xs bg-white border-collapse">
                       <thead className="bg-[#f2f2f3] text-[#17191c] text-[11px] font-bold border-b border-[#ececec]">
                         <tr>
                           <th className="p-3">Date</th>
                           <th className="p-3">Painter</th>
-                          <th className="p-3">Material & Type</th>
+                          <th className="p-3">Material &amp; Type</th>
                           <th className="p-3 text-right">Issued</th>
                           <th className="p-3 text-right">Good Return</th>
                           <th className="p-3 text-right">Floor Wastage</th>
                           <th className="p-3 text-right">Net Consumed</th>
-                          <th className="p-3 text-right">Rate</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#ececec]">
                         {assignmentMaterialLogs.filter(l => l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo).map(log => (
-                          <tr key={log.id} className="hover:bg-gray-50/60 transition">
+                          <tr key={log.id} className="hover:bg-[#fafafb] transition">
                             <td className="p-3 font-mono text-[11px] text-[#777b86]">{log.logDate}</td>
                             <td className="p-3 font-semibold text-[#17191c]">{log.painterName}</td>
                             <td className="p-3 font-mono text-[11px]">
-                              <div>{log.materialName}</div>
+                              <div className="font-sans font-semibold text-[#17191c]">{log.materialName}</div>
                               <span className="text-[10px] text-[#777b86]">{log.materialType} • Batch: {log.batchNumber || 'N/A'}</span>
                             </td>
                             <td className="p-3 text-right font-mono">{log.issuedQty} {log.uom}</td>
                             <td className="p-3 text-right font-mono text-emerald-700 font-medium">{log.goodReturnedQty} {log.uom}</td>
                             <td className="p-3 text-right font-mono text-rose-700 font-medium">{log.floorWastageExpiredQty} {log.uom}</td>
-                            <td className="p-3 text-right font-mono font-bold text-[#17191c]">{log.netConsumedQty} {log.uom}</td>
-                            <td className="p-3 text-right font-mono text-[#8a6521]">
-                              {log.perPieceConsumption ? `${log.perPieceConsumption} ${log.uom}/pc` : '-'}
-                            </td>
+                            <td className="p-3 text-right font-mono font-bold text-[#8a6521]">{log.netConsumedQty} {log.uom}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -3930,7 +4567,49 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </div>
                 )}
               </div>
-            </>
+
+              {/* Combined Timestamped Logs */}
+              <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
+                  <div className="flex items-center gap-2">
+                    <History className="w-4 h-4 text-[#c09748]" />
+                    <h4 className="font-serif font-normal text-base text-[#17191c]">
+                      All Painter Activity &amp; Stage Output Logs ({liveProgressLogs.length})
+                    </h4>
+                  </div>
+                </div>
+                {liveProgressLogs.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
+                    No production batch logs recorded yet. Select any painter above to log 3-stage output.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {liveProgressLogs.slice(0, 15).map(log => (
+                      <div key={log.id} className="p-3 rounded-[14px] bg-[#fafafb] border border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-[10.5px] font-bold text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
+                            {log.dateLabel} • {log.timeLabel}
+                          </span>
+                          {log.painterName && <strong className="text-[#17191c]">{log.painterName.split('(')[0].trim()}</strong>}
+                          <span className="text-[#777b86]">{log.actionTitle}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                            +{log.goodPieces ?? log.piecesCompleted ?? 0} OK
+                          </span>
+                          {(log.reworkPieces || 0) > 0 && (
+                            <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-bold">+{log.reworkPieces} RW</span>
+                          )}
+                          {(log.scrapPieces || 0) > 0 && (
+                            <span className="px-2 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200 font-bold">+{log.scrapPieces} Scrap</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
       )}
