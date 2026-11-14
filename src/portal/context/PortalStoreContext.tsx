@@ -480,12 +480,14 @@ function ensureCleanStorageVersion(): void {
     }
     // Targeted scrubber for any lingering demo job card cache
     const rawJc = localStorage.getItem('pk_jobcards_data');
-    if (rawJc && (rawJc.includes('ROOP POLYMERS') || rawJc.includes('JC-2026-001'))) {
+    if (rawJc && (rawJc.includes('ROOP POLYMERS') || rawJc.includes('JC-2026-001') || rawJc.includes('WO-1042'))) {
       const parsed = JSON.parse(rawJc);
       if (Array.isArray(parsed)) {
         const cleaned = parsed.filter((j: any) => 
-          !(j.jobCardNo === 'JC-2026-001' && (j.customer === 'ROOP POLYMERS LTD' || !j.customer || j.customer === 'Demo Party')) &&
-          !(j.customer === 'ROOP POLYMERS LTD' && (j.woNo === 'WO-1042' || j.wNo === 'WO-1042'))
+          j.jobCardNo !== 'JC-2026-001' &&
+          j.customer !== 'ROOP POLYMERS LTD' &&
+          j.customer !== 'Demo Party' &&
+          j.woNo !== 'WO-1042' && j.wNo !== 'WO-1042'
         );
         localStorage.setItem('pk_jobcards_data', JSON.stringify(cleaned));
       }
@@ -676,8 +678,10 @@ export const PortalProvider: React.FC<{
           if (Array.isArray(remote.pk_iqc_data)) setIqcRecords(remote.pk_iqc_data as IQCInspectionRecord[]);
           if (Array.isArray(remote.pk_jobcards_data)) {
             const sanitized = (remote.pk_jobcards_data as JobCard[]).filter(j => 
-              !(j.jobCardNo === 'JC-2026-001' && (j.customer === 'ROOP POLYMERS LTD' || !j.customer || j.customer === 'Demo Party')) &&
-              !(j.customer === 'ROOP POLYMERS LTD' && (j.woNo === 'WO-1042' || j.wNo === 'WO-1042'))
+              j.jobCardNo !== 'JC-2026-001' &&
+              j.customer !== 'ROOP POLYMERS LTD' &&
+              j.customer !== 'Demo Party' &&
+              j.woNo !== 'WO-1042' && j.wNo !== 'WO-1042'
             );
             setJobCards(sanitized);
           }
@@ -1198,8 +1202,10 @@ export const PortalProvider: React.FC<{
   const [jobCards, setJobCards] = useState<JobCard[]>(() => {
     const raw = mergeByUniqueKey(localStorage.getItem('pk_jobcards_data'), INITIAL_JOB_CARDS, 'jobCardNo');
     return raw.filter(j => 
-      !(j.jobCardNo === 'JC-2026-001' && (j.customer === 'ROOP POLYMERS LTD' || !j.customer || j.customer === 'Demo Party')) &&
-      !(j.customer === 'ROOP POLYMERS LTD' && (j.woNo === 'WO-1042' || j.wNo === 'WO-1042'))
+      j.jobCardNo !== 'JC-2026-001' &&
+      j.customer !== 'ROOP POLYMERS LTD' &&
+      j.customer !== 'Demo Party' &&
+      j.woNo !== 'WO-1042' && j.wNo !== 'WO-1042'
     );
   });
 
@@ -2625,6 +2631,9 @@ export const PortalProvider: React.FC<{
     const newAssignment: PainterAssignment = {
       ...assignmentData,
       id: nextId,
+      assignmentId: nextId,
+      masterJobCardNo: assignmentData.masterJobCardNo,
+      masterJobCardId: assignmentData.masterJobCardNo,
       status: 'Active',
       actualCompletedQty: 0,
       rejectReworkQty: 0,
@@ -2632,6 +2641,8 @@ export const PortalProvider: React.FC<{
       stageOkQty: 0,
       stageReworkQty: 0,
       stageScrapQty: 0,
+      efficiencyPercent: 0,
+      efficiency: 0,
       startedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
@@ -2669,9 +2680,11 @@ export const PortalProvider: React.FC<{
       id: `MAT-LOG-${Date.now()}-${idx}`,
       assignmentId,
       masterJobCardNo: targetAssignment.masterJobCardNo,
+      masterJobCardId: targetAssignment.masterJobCardNo,
       painterId: targetAssignment.painterId,
       painterName: targetAssignment.painterName,
       date: targetAssignment.assignmentDate,
+      logDate: targetAssignment.assignmentDate,
       shift: targetAssignment.shift,
       materialName: m.materialName,
       materialType: m.materialType,
@@ -2804,6 +2817,7 @@ export const PortalProvider: React.FC<{
         closedAt: closedTime,
         closedBy: currentUser?.name || 'Supervisor',
         efficiencyPercent: efficiency,
+        efficiency,
         remarks: completionData.remarks || a.remarks
       };
     }));

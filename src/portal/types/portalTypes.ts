@@ -647,9 +647,11 @@ export interface AssignmentMaterialLog {
   id: string;                          // e.g. "MAT-LOG-001"
   assignmentId: string;                // FK -> PainterAssignment.id
   masterJobCardNo: string;             // Reference to Master Job Card
+  masterJobCardId?: string;            // Compatibility alias
   painterId: string;                   // Permanent Painter ID
   painterName: string;                 // Painter Name
   date: string;                        // YYYY-MM-DD
+  logDate?: string;                    // Compatibility alias
   shift: string;                       // Shift string
   materialItemId?: string;             // Store item part code / ID
   materialName: string;                // e.g. "PU Metallic Silver Basecoat"
@@ -669,7 +671,9 @@ export interface AssignmentMaterialLog {
 
 export interface PainterAssignment {
   id: string;                          // e.g. "ASG-2026-001"
+  assignmentId?: string;               // Compatibility alias
   masterJobCardNo: string;             // FK -> MasterJobCard.jobCardNo
+  masterJobCardId?: string;            // Compatibility alias
   assignmentDate: string;              // Single Date YYYY-MM-DD
   shift: AssignmentShiftType | string;
   painterId: string;
@@ -689,6 +693,7 @@ export interface PainterAssignment {
   closedAt?: string;                   // Time HH:MM
   closedBy?: string;                   // Supervisor name
   efficiencyPercent?: number;          // (actualCompletedQty / dailyTargetQty) * 100
+  efficiency?: number;                 // Compatibility alias
   remarks?: string;                    // e.g. "Painter absent next day", "Cleanroom filter replaced"
   materialLogs?: AssignmentMaterialLog[];
 }

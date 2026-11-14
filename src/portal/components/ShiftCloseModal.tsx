@@ -6,7 +6,30 @@ interface ShiftCloseModalProps {
   isOpen: boolean;
   onClose: () => void;
   assignment: PainterAssignment;
-  onConfirmClose: (
+  onConfirmClose?: (
+    assignmentId: string,
+    completionData: {
+      actualCompletedQty: number;
+      rejectReworkQty: number;
+      scrapQty?: number;
+      stageOkQty: number;
+      stageReworkQty: number;
+      stageScrapQty: number;
+      defectCategory?: DefectCategory | string;
+      remarks?: string;
+    },
+    materialReconciliations?: Array<{
+      materialName: string;
+      materialType: 'Base Paint' | 'Topcoat' | 'Hardener' | 'Thinner' | 'Cleaning Solvent';
+      batchNumber?: string;
+      issuedQty: number;
+      goodReturnedQty: number;
+      floorWastageExpiredQty: number;
+      uom: 'Litres' | 'Kg' | 'Pcs';
+      standardNormPerPiece?: number;
+    }>
+  ) => { success: boolean; error?: string };
+  onCloseShift?: (
     assignmentId: string,
     completionData: {
       actualCompletedQty: number;
@@ -35,7 +58,8 @@ export const ShiftCloseModal: React.FC<ShiftCloseModalProps> = ({
   isOpen,
   onClose,
   assignment,
-  onConfirmClose
+  onConfirmClose,
+  onCloseShift
 }) => {
   const [actualCompleted, setActualCompleted] = useState<number>(assignment.dailyTargetQty);
   const [rejectRework, setRejectRework] = useState<number>(0);
@@ -118,7 +142,13 @@ export const ShiftCloseModal: React.FC<ShiftCloseModalProps> = ({
       }
     ];
 
-    const res = onConfirmClose(
+    const closeFn = onConfirmClose || onCloseShift;
+    if (!closeFn) {
+      onClose();
+      return;
+    }
+
+    const res = closeFn(
       assignment.id,
       {
         actualCompletedQty: Number(actualCompleted),

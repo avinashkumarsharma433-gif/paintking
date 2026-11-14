@@ -88,7 +88,8 @@ const PortalFilterSelect: React.FC<{
   const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const selectedOption = options.find(o => o.value === value) || options[0];
+  const safeOptions = options || [];
+  const selectedOption = safeOptions.find(o => o.value === value) || safeOptions[0] || null;
   const isFiltered = value !== 'ALL';
 
   useEffect(() => {
@@ -105,9 +106,10 @@ const PortalFilterSelect: React.FC<{
   }, [isOpen]);
 
   const filteredOptions = useMemo(() => {
-    if (!searchTerm.trim()) return options;
+    const list = options || [];
+    if (!searchTerm.trim()) return list;
     const term = searchTerm.toLowerCase();
-    return options.filter(opt => opt.label.toLowerCase().includes(term));
+    return list.filter(opt => opt && opt.label && opt.label.toLowerCase().includes(term));
   }, [options, searchTerm]);
 
   return (
@@ -604,12 +606,8 @@ export const JobCardsView: React.FC = () => {
   };
 
   const handleCreateNewJobCard = () => {
-    const firstAvailable = storeStockList.find(s => !s.isInternalConsumable && s.balanceAvailable > 0);
-    if (firstAvailable) {
-      handleRequestFromSpecificStock(firstAvailable);
-    } else {
-      alert("No available Store GRN stock found to allocate. Please inward materials via 'Stores & Inward GRN' first.");
-    }
+    setSelectedJobCardForView(null);
+    setShowJobCardModal(true);
   };
 
   const handleViewJobCard = (jc: JobCard) => {
@@ -3040,17 +3038,25 @@ export const JobCardsView: React.FC = () => {
                     <p className="text-xs text-[#777b86] line-clamp-1">
                       {jc.partDescription} • Code: <strong className="text-[#17191c] font-mono">{jc.partCode}</strong>
                     </p>
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#777b86] pt-0.5">
-                      <span>Shade: <strong className="text-[#17191c]">{jc.color}</strong></span>
-                      <span>•</span>
-                      <span>Painter: <strong className="text-[#17191c]">{jc.assignedPainterName || jc.painterName || 'Unassigned'}</strong></span>
-                      {jc.deadlineDate && (
-                        <>
+                    {(() => {
+                      const activeJcAssignments = painterAssignments.filter(a => (a.masterJobCardNo === jc.jobCardNo || (a as any).masterJobCardId === jc.jobCardNo) && a.status === 'Active');
+                      const painterSummary = activeJcAssignments.length > 0
+                        ? activeJcAssignments.map(a => `${a.painterName} (${a.dailyTargetQty} pcs)`).join(', ')
+                        : (jc.assignedPainterName || jc.painterName || 'Unassigned');
+                      return (
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#777b86] pt-0.5">
+                          <span>Shade: <strong className="text-[#17191c]">{jc.color}</strong></span>
                           <span>•</span>
-                          <span className="font-mono text-[#8a6521]">Target SLA: {jc.slaHours || 4}h</span>
-                        </>
-                      )}
-                    </div>
+                          <span>Line Painter(s): <strong className="text-[#17191c]">{painterSummary}</strong></span>
+                          {jc.deadlineDate && (
+                            <>
+                              <span>•</span>
+                              <span className="font-mono text-[#8a6521]">Target SLA: {jc.slaHours || 4}h</span>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Center: Shift & Total Progress (3 cols) */}
@@ -3230,7 +3236,7 @@ export const JobCardsView: React.FC = () => {
                     {drilldownTab === 'ASSIGNMENTS' && (
                       <div className="space-y-2">
                         {(() => {
-                          const jcAssignments = painterAssignments.filter(a => a.masterJobCardId === jc.jobCardNo);
+                          const jcAssignments = painterAssignments.filter(a => a.masterJobCardNo === jc.jobCardNo || (a as any).masterJobCardId === jc.jobCardNo);
                           if (jcAssignments.length === 0) {
                             return (
                               <div className="p-4 text-center text-xs text-[#777b86] bg-white rounded-[12px] border border-dashed border-[#ececec]">
@@ -3304,7 +3310,7 @@ export const JobCardsView: React.FC = () => {
                     {drilldownTab === 'CONSUMABLES' && (
                       <div className="space-y-2">
                         {(() => {
-                          const jcLogs = assignmentMaterialLogs.filter(l => l.masterJobCardId === jc.jobCardNo);
+                          const jcLogs = assignmentMaterialLogs.filter(l => l.masterJobCardNo === jc.jobCardNo || (l as any).masterJobCardId === jc.jobCardNo);
                           if (jcLogs.length === 0) {
                             return (
                               <div className="p-4 text-center text-xs text-[#777b86] bg-white rounded-[12px] border border-dashed border-[#ececec]">
@@ -4261,7 +4267,7 @@ export const JobCardsView: React.FC = () => {
                 <div className="p-2.5 rounded-[12px] bg-[#fafafb] border border-[#ececec]">
                   <span className="text-[9.5px] uppercase text-[#777b86] font-bold block">Demanded Qty</span>
                   <span className="text-base font-bold text-[#17191c]">{selectedReqForView.requestedQty} {selectedReqForView.uom}</span>
-                  <span className="text-[9px] text-[#777b86] block mt-0.5">By {selectedReqForView.requestedBy.split(' ')[0]}</span>
+                  <span className="text-[9px] text-[#777b86] block mt-0.5">By {selectedReqForView.requestedBy ? selectedReqForView.requestedBy.split(' ')[0] : 'User'}</span>
                 </div>
 
                 <div className="p-2.5 rounded-[12px] bg-[#faf7ed] border border-[#f4e5be]">
@@ -4779,7 +4785,7 @@ export const JobCardsView: React.FC = () => {
                   }`}
                 >
                   <Paintbrush className="w-4 h-4" />
-                  <span>Assign to {selectedPainterToAssign.split(' ')[0]}</span>
+                  <span>Assign to {selectedPainterToAssign ? selectedPainterToAssign.split(' ')[0] : 'Painter'}</span>
                 </button>
               </div>
             </form>
@@ -5225,10 +5231,11 @@ export const JobCardsView: React.FC = () => {
             setSelectedAssignmentForClose(null);
           }}
           assignment={selectedAssignmentForClose}
-          onCloseShift={(data) => {
-            closePainterAssignment(data);
+          onConfirmClose={(assignmentId, completionData, materialReconciliations) => {
+            const res = closePainterAssignment(assignmentId, completionData, materialReconciliations);
             setToastMessage(`✓ Shift closed for ${selectedAssignmentForClose.painterName}. Master JC updated!`);
             setTimeout(() => setToastMessage(null), 3500);
+            return res;
           }}
         />
       )}

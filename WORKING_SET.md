@@ -1,5 +1,17 @@
 # WORKING SET
 
+- 2026-11-14: Revamped Job Card Creation Wizard & Management View as per 3-Tier Plan
+  - Files touched:
+    - `src/portal/components/JobCardModal.tsx`:
+      - Revamped 4-stage wizard: Step 1 (Master Order & optional GRN link with dropdown or standalone), Step 2 (Substrate specs, Master PO target qty & Overall SLA deadline), Step 3 (Tier-2 multi-painter shift line allocations across booths with dynamic quotas), Step 4 (Tier-3 company chemicals & 3-tier launch summary).
+      - Auto-registers Master Job Card, `createPainterAssignment` for all allocated painters, and `issueAssignmentMaterials`.
+      - On existing job card: First/default tab is `PAINTER_ASSIGNMENTS` with painter cards, 3-stage yield, chemical ledger, and shift close triggers; `DAILY_LOG` with painter filter; fixed `masterJobCardNo` vs `masterJobCardId` display.
+    - `src/portal/views/JobCardsView.tsx`: Protected `CustomDropdownSelect` against undefined `options[0]` crash, opened blank creation wizard on `+ Create Job Card` instead of forcing demo stocks, guarded all `.split(' ')[0]` calls.
+    - `src/portal/context/PortalStoreContext.tsx`: Thoroughly scrubbed any lingering `ROOP POLYMERS LTD` or `JC-2026-001` records from `localStorage` and cloud hydration.
+    - `src/portal/components/ShiftCloseModal.tsx`: Unified callback dispatch for shift closure.
+  - Status: Verified with `npx tsc --noEmit` (0 errors) and `npm run build` (built in 8.28s with 0 errors).
+
+
 - 2026-11-14: Purged Lingering Demo Data Across Entire ERP & Added Permanent Delete Job Card Action
   - Files touched:
     - `src/portal/context/PortalStoreContext.tsx`: Bumped `PK_STORAGE_VERSION` to `3.4.0-zero-demo-guarantee`, purged `JC-2026-001` (`ROOP POLYMERS LTD`) from storage and state sanitization, implemented `deleteJobCard`.

@@ -11,7 +11,8 @@ import {
   PreProductionInspectionRecord,
   FPARecord,
   IPQCRecord,
-  PainterAssignment
+  PainterAssignment,
+  AssignmentProcessStage
 } from '../types/portalTypes';
 import { 
   Plus, 
@@ -45,7 +46,8 @@ import {
   ShieldCheck,
   AlertTriangle,
   Users,
-  User
+  User,
+  Rocket
 } from 'lucide-react';
 import { PaintkingDatePicker } from './PaintkingDatePicker';
 import { PaintkingDateTimePicker } from './PaintkingDateTimePicker';
@@ -231,10 +233,10 @@ const getStagesForProcess = (processType?: string): StageConfig[] => {
 };
 
 const STEP_TITLES = [
-  '1. Party & Work Order Details',
-  '2. Substrate, Pieces & Colour',
-  '3. Painter, Booth & Deadline',
-  '4. Company Issued Materials & Launch'
+  '1. Master Order Details (Tier 1)',
+  '2. Substrate & Overall SLA (Tier 1)',
+  '3. Painter Shift Quotas (Tier 2)',
+  '4. Company Consumables & Launch (Tier 3)'
 ];
 
 export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, initialData }) => {
@@ -257,7 +259,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     assignmentMaterialLogs,
     deleteJobCard,
     createPainterAssignment,
-    closePainterAssignment
+    closePainterAssignment,
+    issueAssignmentMaterials
   } = usePortalStore();
 
   const [viewMode, setViewMode] = useState<'PORTAL' | 'PRINT'>('PORTAL');
@@ -337,6 +340,67 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [deadlineDate, setDeadlineDate] = useState<string>(defaultDeadlineDate);
   const [deadlineTime, setDeadlineTime] = useState<string>(defaultDeadlineTime);
   const [slaHours, setSlaHours] = useState<number>(initialData?.slaHours || 4);
+
+  // Tier-2 Shift Painter Line Allocations (Multi-Painter Shift Quotas)
+  const [initialPainterAllocs, setInitialPainterAllocs] = useState<Array<{
+    id: string;
+    painterId: string;
+    painterName: string;
+    boothNumber: string;
+    processStage: AssignmentProcessStage;
+    dailyTargetQty: number;
+  }>>(() => [
+    {
+      id: 'alloc-1',
+      painterId: initialData?.assignedPainterId || painters[0]?.id || 'PAINTER-01',
+      painterName: initialData?.assignedPainterName || initialData?.painterName || painters[0]?.name || 'Ramesh Kumar (P1)',
+      boothNumber: initialData?.dept || paintingBooths[0]?.name || 'Booth #1 (Continuous Conveyor Line)',
+      processStage: 'Full Coating System',
+      dailyTargetQty: initialData?.dailyTargetQty || (initialData?.targetQty ? Math.min(2000, initialData.targetQty) : 100)
+    }
+  ]);
+
+  const handleAddPainterAlloc = () => {
+    const nextIdx = initialPainterAllocs.length + 1;
+    const fallbackPainter = painters[nextIdx - 1] || painters[0] || { id: `P-${nextIdx}`, name: `Painter ${nextIdx}` };
+    const fallbackBooth = paintingBooths[nextIdx - 1] || paintingBooths[0] || { name: `Booth #${nextIdx}` };
+    const totalAllocated = initialPainterAllocs.reduce((sum, a) => sum + (Number(a.dailyTargetQty) || 0), 0);
+    const remaining = Math.max(0, targetQty - totalAllocated);
+    setInitialPainterAllocs(prev => [
+      ...prev,
+      {
+        id: `alloc-${Date.now()}-${nextIdx}`,
+        painterId: fallbackPainter.id,
+        painterName: fallbackPainter.name,
+        boothNumber: fallbackBooth.name,
+        processStage: 'Full Coating System',
+        dailyTargetQty: remaining > 0 ? Math.min(remaining, 1000) : 500
+      }
+    ]);
+  };
+
+  const handleRemovePainterAlloc = (id: string) => {
+    if (initialPainterAllocs.length <= 1) return;
+    setInitialPainterAllocs(prev => prev.filter(a => a.id !== id));
+  };
+
+  const handleUpdatePainterAlloc = (id: string, fieldOrUpdates: string | Record<string, any>, value?: any) => {
+    setInitialPainterAllocs(prev => prev.map(a => {
+      if (a.id !== id) return a;
+      if (typeof fieldOrUpdates === 'object') {
+        return { ...a, ...fieldOrUpdates };
+      }
+      if (fieldOrUpdates === 'painterName') {
+        const matched = painters.find(p => p.name === value);
+        return { ...a, painterName: value, painterId: matched?.id || `PAINTER-${Date.now()}` };
+      }
+      return { ...a, [fieldOrUpdates]: value };
+    }));
+  };
+
+  const totalAllocatedShift = useMemo(() => {
+    return initialPainterAllocs.reduce((sum, a) => sum + (Number(a.dailyTargetQty) || 0), 0);
+  }, [initialPainterAllocs]);
 
   // =========================================================================
   // POINT 4: Company Issued Materials Table (Paints & Thinners)
@@ -528,7 +592,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
 
   // Distinct Painter list associated with this Job Card
   const currentJcAssignments = useMemo(() => {
-    return painterAssignments.filter(a => a.masterJobCardId === jobCardNo);
+    return painterAssignments.filter(a => a.masterJobCardNo === jobCardNo || (a as any).masterJobCardId === jobCardNo);
   }, [painterAssignments, jobCardNo]);
 
   const jcPainters = useMemo(() => {
@@ -688,8 +752,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       const match = availableGrnLots.find(g => g.supplierCustomer?.trim().toLowerCase() === targetCustomer);
       if (match) return match;
     }
-    // 7. Strict check: only return first lot if availableGrnLots is NOT empty
-    return availableGrnLots[0] || null;
+    // 7. If no explicit selection or exact match, return null to allow clean manual input
+    return null;
   }, [selectedGrnNo, initialData, grnList, availableGrnLots, wNo, customer, partCode]);
 
   // Sync selectedGrnNo state when selectedGrn is resolved
@@ -1509,13 +1573,19 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       return true;
     }
     if (step === 3) {
-      if (!painterName.trim()) {
-        alert('Please select an assigned painter.');
+      if (initialPainterAllocs.length === 0) {
+        alert('Please allocate at least one painter line assignment.');
         return false;
       }
-      if (!deadlineDate.trim()) {
-        alert('Please pick a finish deadline date.');
-        return false;
+      for (const alloc of initialPainterAllocs) {
+        if (!alloc.painterName.trim()) {
+          alert('Please select a painter name for all allocation rows.');
+          return false;
+        }
+        if (alloc.dailyTargetQty <= 0) {
+          alert('Daily shift target quantity must be greater than zero for all allocated painters.');
+          return false;
+        }
       }
       return true;
     }
@@ -1600,6 +1670,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       }
     }
 
+    const totalAllocatedShift = initialPainterAllocs.reduce((s, a) => s + (Number(a.dailyTargetQty) || 0), 0);
+    const primaryPainter = initialPainterAllocs[0];
+
     const finalCard: JobCard = {
       ...(initialData || {}),
       docNo,
@@ -1614,8 +1687,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       partDescription,
       color: batchColor,
       targetQty,
-      dailyTargetQty,
-      dailyIssuedQty: dailyTargetQty,
+      dailyTargetQty: totalAllocatedShift > 0 ? totalAllocatedShift : dailyTargetQty,
+      dailyIssuedQty: totalAllocatedShift > 0 ? totalAllocatedShift : dailyTargetQty,
       sprayedQty: currentGoodQty + currentReworkQty + currentRejectQty,
       goodQty: currentGoodQty,
       reworkQty: currentReworkQty,
@@ -1623,11 +1696,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       remainingQty: Math.max(0, targetQty - currentGoodQty - currentReworkQty - currentRejectQty),
       status: (currentGoodQty + currentReworkQty >= targetQty && targetQty > 0) ? 'Target Met' : (currentGoodQty > 0 ? 'In Process' : 'Open'),
       
-      painterName,
-      assignedPainterName: painterName,
-      assignedPainterId: assignedPainterId,
-      dept,
-      boothNo: dept.split('(')[0]?.trim(),
+      painterName: primaryPainter?.painterName || painterName,
+      assignedPainterName: primaryPainter?.painterName || painterName,
+      assignedPainterId: primaryPainter?.painterId || assignedPainterId,
+      dept: primaryPainter?.boothNumber || dept,
+      boothNo: (primaryPainter?.boothNumber || dept).split('(')[0]?.trim(),
       
       issueDate,
       issueTime,
@@ -1655,6 +1728,36 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       updateJobCard(finalCard);
     } else {
       addJobCard(finalCard);
+
+      // Automatically register Tier-2 Painter Assignments
+      initialPainterAllocs.forEach(alloc => {
+        if (alloc.dailyTargetQty > 0) {
+          const res = createPainterAssignment({
+            masterJobCardNo: finalCard.jobCardNo,
+            assignmentDate: issueDate,
+            shift: 'General Day Shift (08:30 - 18:30)',
+            painterId: alloc.painterId,
+            painterName: alloc.painterName,
+            boothNumber: alloc.boothNumber,
+            processStage: alloc.processStage,
+            dailyTargetQty: alloc.dailyTargetQty,
+            remarks: 'Shift allocation at Job Card launch'
+          });
+
+          // Automatically register Tier-3 Material Traceability Logs
+          if (res?.success && res.assignment && issuedMaterials.length > 0) {
+            const allocFraction = totalAllocatedShift > 0 ? (alloc.dailyTargetQty / totalAllocatedShift) : 1;
+            issueAssignmentMaterials(res.assignment.id, issuedMaterials.map(m => ({
+              materialName: m.itemDescription,
+              materialType: (m.materialType === 'paint' ? 'Base Paint' : m.materialType === 'hardener' ? 'Hardener' : m.materialType === 'thinner' ? 'Thinner' : m.materialType === 'clear' ? 'Topcoat' : 'Base Paint') as any,
+              batchNumber: m.batchNumber || `LOT-${finalCard.jobCardNo.slice(-4)}`,
+              issuedQty: Math.max(0.2, Number((m.qty * allocFraction).toFixed(2))),
+              uom: m.uom as any,
+              standardNormPerPiece: 0.040
+            })));
+          }
+        }
+      });
     }
 
     onClose();
@@ -2700,9 +2803,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
         <div className="bg-white border-b border-[#ececec] py-2 px-4">
           <div className="flex items-center justify-center gap-2 sm:gap-2.5 overflow-x-auto no-scrollbar">
             {[
-              { num: 1, label: '1. Party & Work Order' },
-              { num: 2, label: '2. Substrate & Colour' },
-              { num: 3, label: '3. Painter & Deadline' },
+              { num: 1, label: '1. Master Order' },
+              { num: 2, label: '2. Substrate & SLA' },
+              { num: 3, label: '3. Painter Quotas' },
               { num: 4, label: '4. Materials & Launch' }
             ].map((st, idx, arr) => {
               const isActive = currentStep === st.num;
@@ -2813,6 +2916,36 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
 
             {/* Dedicated Sub-view Tab Navigation for Existing Job Card */}
             <div className="flex items-center gap-2 border-b border-[#ececec] pb-3 flex-wrap">
+              {/* 3-Tier Shift Allocations & Consumables Ledger Tab */}
+              <button
+                type="button"
+                onClick={() => setExistingCardTab('PAINTER_ASSIGNMENTS')}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  existingCardTab === 'PAINTER_ASSIGNMENTS'
+                    ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] shadow-2xs ring-1 ring-[#c09748]/20'
+                    : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>Painter Shift Assignments ({currentJcAssignments.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setExistingCardTab('DAILY_LOG')}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  existingCardTab === 'DAILY_LOG'
+                    ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] shadow-2xs ring-1 ring-[#c09748]/20'
+                    : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5 text-[#8a6521]" />
+                <span>Consumables & Chemical Ledger</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#8a6521] text-white">
+                  {productionDates.length} {productionDates.length === 1 ? 'Date' : 'Dates'}
+                </span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setExistingCardTab('EXECUTION')}
@@ -2823,7 +2956,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 }`}
               >
                 <Layers className="w-3.5 h-3.5 text-[#c09748]" />
-                <span>Floor Execution & Materials</span>
+                <span>Master Order & Floor Overview</span>
               </button>
 
               <button
@@ -2850,36 +2983,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     Gate 1: PIR Due
                   </span>
                 )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setExistingCardTab('DAILY_LOG')}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                  existingCardTab === 'DAILY_LOG'
-                    ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] shadow-2xs ring-1 ring-[#c09748]/20'
-                    : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5 text-[#8a6521]" />
-                <span>Daily Production & Material Consumption Log</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#8a6521] text-white">
-                  {productionDates.length} {productionDates.length === 1 ? 'Date' : 'Dates'}
-                </span>
-              </button>
-
-              {/* 3-Tier Shift Allocations & Consumables Ledger Tab */}
-              <button
-                type="button"
-                onClick={() => setExistingCardTab('PAINTER_ASSIGNMENTS')}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                  existingCardTab === 'PAINTER_ASSIGNMENTS'
-                    ? 'bg-[#17191c] text-[#c09748] shadow-2xs ring-1 ring-[#c09748]/20'
-                    : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5 text-[#c09748]" />
-                <span>Painter Shift Assignments ({painterAssignments.filter(a => a.masterJobCardId === jobCardNo).length})</span>
               </button>
             </div>
 
@@ -4108,9 +4211,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         setSelectedAssignmentForClose(viewingAssignmentDetails);
                         setShowShiftCloseModal(true);
                       }}
-                      className="px-4 py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-2xs"
+                      className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-2xs"
                     >
-                      <CheckCircle2 className="w-4 h-4 text-[#c09748]" />
+                      <CheckCircle2 className="w-4 h-4 text-[#8a6521]" />
                       <span>Close Shift & Reconcile</span>
                     </button>
                   )}
@@ -4228,7 +4331,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </span>
                 </div>
 
-                {assignmentMaterialLogs.filter(l => l.assignmentId === viewingAssignmentDetails.assignmentId || (l.masterJobCardId === jobCardNo && l.painterName === viewingAssignmentDetails.painterName)).length === 0 ? (
+                {assignmentMaterialLogs.filter(l => (l.assignmentId === viewingAssignmentDetails.assignmentId || l.assignmentId === viewingAssignmentDetails.id) || ((l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo) && l.painterName === viewingAssignmentDetails.painterName)).length === 0 ? (
                   <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
                     No chemical logs recorded yet for this shift assignment. Materials will be logged upon shift close.
                   </div>
@@ -4247,7 +4350,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       </thead>
                       <tbody className="divide-y divide-[#ececec]">
                         {assignmentMaterialLogs
-                          .filter(l => l.assignmentId === viewingAssignmentDetails.assignmentId || (l.masterJobCardId === jobCardNo && l.painterName === viewingAssignmentDetails.painterName))
+                          .filter(l => (l.assignmentId === viewingAssignmentDetails.assignmentId || l.assignmentId === viewingAssignmentDetails.id) || ((l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo) && l.painterName === viewingAssignmentDetails.painterName))
                           .map(log => (
                             <tr key={log.id} className="hover:bg-gray-50/60 transition">
                               <td className="p-3 font-mono text-[11px]">
@@ -4304,11 +4407,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     Shift Assignments List
                   </h4>
                   <span className="text-xs text-[#777b86] font-mono">
-                    {painterAssignments.filter(a => a.masterJobCardId === jobCardNo).length} Assignments Logged
+                    {currentJcAssignments.length} Assignments Logged
                   </span>
                 </div>
 
-                {painterAssignments.filter(a => a.masterJobCardId === jobCardNo).length === 0 ? (
+                {currentJcAssignments.length === 0 ? (
                   <div className="p-8 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[18px] border border-dashed border-[#ececec] space-y-2">
                     <Users className="w-8 h-8 text-[#979799] mx-auto" />
                     <p className="font-semibold text-[#17191c]">No daily shift assignments created yet.</p>
@@ -4316,7 +4419,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {painterAssignments.filter(a => a.masterJobCardId === jobCardNo).map(asg => {
+                    {currentJcAssignments.map(asg => {
                       const isClosed = asg.status.startsWith('Closed');
                       return (
                         <div
@@ -4373,9 +4476,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                                   setSelectedAssignmentForClose(asg);
                                   setShowShiftCloseModal(true);
                                 }}
-                                className="px-3.5 py-1.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs transition cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
+                                className="px-3.5 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs transition cursor-pointer flex items-center gap-1 active:scale-95 shadow-2xs"
                               >
-                                <CheckCircle2 className="w-3.5 h-3.5 text-[#c09748]" />
+                                <CheckCircle2 className="w-3.5 h-3.5 text-[#8a6521]" />
                                 <span>Close Shift</span>
                               </button>
                             )}
@@ -4393,7 +4496,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   Chemicals Issued & Consumed by Shift Painters
                 </h4>
 
-                {assignmentMaterialLogs.filter(l => l.masterJobCardId === jobCardNo).length === 0 ? (
+                {assignmentMaterialLogs.filter(l => l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo).length === 0 ? (
                   <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
                     No shift chemical logs recorded yet for this job card.
                   </div>
@@ -4413,7 +4516,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#ececec]">
-                        {assignmentMaterialLogs.filter(l => l.masterJobCardId === jobCardNo).map(log => (
+                        {assignmentMaterialLogs.filter(l => l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo).map(log => (
                           <tr key={log.id} className="hover:bg-gray-50/60 transition">
                             <td className="p-3 font-mono text-[11px] text-[#777b86]">{log.logDate}</td>
                             <td className="p-3 font-semibold text-[#17191c]">{log.painterName}</td>
@@ -4535,52 +4638,66 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 </div>
 
                 {/* Linked Store Inward Intake Lot Verification Strip */}
-                {selectedGrn ? (
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2.5 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be]">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-7 h-7 rounded-full bg-[#f4e5be]/70 flex items-center justify-center shrink-0">
-                        <PackageCheck className="w-3.5 h-3.5 text-[#8a6521]" />
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap text-xs">
-                        <span className="text-[10px] font-mono uppercase font-bold text-[#8a6521] tracking-wide">
-                          Linked Store Inward GRN:
-                        </span>
-                        <span className="font-mono font-bold text-[#17191c] bg-white px-2.5 py-0.5 rounded-full border border-[#f4e5be] shadow-2xs">
-                          {selectedGrn.grnNo}
-                        </span>
-                        <span className="text-[#a3a6af] font-normal">•</span>
-                        <span className="text-[#555863] font-sans font-semibold">
-                          {selectedGrn.supplierCustomer || customer}
-                        </span>
-                        <span className="text-[#8a6521] font-mono text-[11px] font-normal">
-                          ({(selectedGrn.actualReceivedQty || selectedGrn.totalQty || 0).toLocaleString('en-IN')} Pcs Inward)
-                        </span>
-                      </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2.5 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be]">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className="w-7 h-7 rounded-full bg-[#f4e5be]/70 flex items-center justify-center shrink-0">
+                      <PackageCheck className="w-3.5 h-3.5 text-[#8a6521]" />
                     </div>
-
-                    <div className="shrink-0 self-start sm:self-auto">
-                      <span className="text-[9.5px] font-sans font-semibold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#c09748]" />
-                        <span>Verified Auto-Linked</span>
+                    <div className="flex items-center gap-2 flex-wrap text-xs flex-1">
+                      <span className="text-[10px] font-mono uppercase font-bold text-[#8a6521] tracking-wide shrink-0">
+                        Link Store Inward (GRN):
                       </span>
+                      {availableGrnLots.length > 0 ? (
+                        <select
+                          value={selectedGrnNo}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSelectedGrnNo(val);
+                            if (val) {
+                              const found = availableGrnLots.find(g => g.grnNo === val);
+                              if (found) {
+                                if (found.supplierCustomer) setCustomer(found.supplierCustomer);
+                                if (found.invoiceChallanNo) setWNo(found.invoiceChallanNo);
+                                const pCode = found.items?.[0]?.partCode || found.partCode;
+                                if (pCode) setPartCode(pCode);
+                                const pDesc = found.items?.[0]?.partDescription || found.description;
+                                if (pDesc) setPartDescription(pDesc);
+                                const qty = Number(found.actualReceivedQty) || Number(found.totalQty) || 0;
+                                if (qty > 0) {
+                                  setTargetQty(qty);
+                                  setDailyTargetQty(Math.min(2000, qty));
+                                }
+                              }
+                            }
+                          }}
+                          className="h-8 px-2.5 rounded-full border border-[#f4e5be] bg-white font-mono text-xs font-bold text-[#17191c] cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#c09748]"
+                        >
+                          <option value="">-- Standalone / Manual (No GRN Linked) --</option>
+                          {availableGrnLots.map(g => (
+                            <option key={g.grnNo} value={g.grnNo}>
+                              {g.grnNo} • {g.supplierCustomer} ({(g.actualReceivedQty || g.totalQty || 0).toLocaleString('en-IN')} Pcs)
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-[#777b86] italic">
+                          No Store Inward (GRN) records found. Creating Standalone Master Job Card.
+                        </span>
+                      )}
                     </div>
                   </div>
-                ) : (
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2.5 rounded-[16px] bg-amber-50 border border-amber-200 text-amber-900">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
-                      <div className="text-xs">
-                        <strong className="font-bold">No Verified Store Inward (GRN) Found:</strong>
-                        <span className="ml-1 text-amber-800">
-                          Store Inward me is party ya substrate ka koi GRN inward nahi hai. Direct manual Job Card create ho sakta hai ya pehle GRN create karein.
-                        </span>
-                      </div>
-                    </div>
+
+                  {selectedGrn ? (
+                    <span className="text-[9.5px] font-sans font-semibold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] px-3 py-1 rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1.5 shrink-0">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#c09748]" />
+                      <span>Verified Linked</span>
+                    </span>
+                  ) : (
                     <span className="text-[10px] font-mono font-bold uppercase bg-white px-2.5 py-1 rounded-full border border-amber-200 text-amber-800 shrink-0">
                       Direct / Standalone
                     </span>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* 3 Form Fields in Premium Layout */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -4665,7 +4782,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
             )}
 
             {/* ===================================================================== */}
-            {/* POINT 2: SUBSTRATE COMPONENT, PIECES & COLOUR                         */}
+            {/* TIER 1: STEP 2 - SUBSTRATE SPECS, MASTER TARGET & OVERALL DEADLINE SLA */}
             {/* ===================================================================== */}
             {!isExistingCard && currentStep === 2 && (
               <div className="bg-white p-6 sm:p-7 rounded-[24px] border border-[#ececec] shadow-xs space-y-5">
@@ -4676,14 +4793,14 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         2
                       </span>
                       <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono">
-                        Point 2: Substrate Component, Pieces & Target Colour
+                        Tier 1: Substrate Specs, Total PO Target & Overall Deadline SLA
                       </span>
                     </div>
                     <h3 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal">
-                      Painter ko kaun sa part, kitne pieces aur unpe kya colour karna hai?
+                      Kaun sa part spray karna hai, total master order target kitna hai aur final completion deadline kya hai?
                     </h3>
                     <p className="text-xs text-[#777b86] mt-0.5">
-                      Component code, piece quantity aur customer ka approved shade code specify karein.
+                      Substrate part specifications, approved finish shade, customer PO order quantity aur final delivery SLA deadline set karein.
                     </p>
                   </div>
 
@@ -4700,41 +4817,45 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
 
                 {/* Unified Management Card: Substrate Details, Quantity Allocation & Colour Selection */}
                 <div className="bg-[#fafafb] p-5 sm:p-7 rounded-[24px] border border-[#ececec] shadow-xs space-y-5">
-                  
-                  {/* Card Header Strip: Title, Part Info & Store Stock Badge */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-[#ececec]">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <Layers className="w-4 h-4 text-[#c09748]" />
-                        <span className="font-mono text-xs font-bold text-[#17191c] uppercase tracking-wider">
-                          Production Allocation & Target Finish Shade
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-[#777b86]">
-                        <span>Job Card Tracing No: <strong className="font-mono text-[#8a6521] font-bold bg-[#faf7ed] px-2.5 py-0.5 rounded-full border border-[#f4e5be] shadow-2xs">{jobCardNo}</strong></span>
-                        <span>•</span>
-                        <span>Part Code: <strong className="font-mono text-[#17191c] font-bold">{partCode || '—'}</strong></span>
-                        <span>•</span>
-                        <span>Part Name: <strong className="text-[#17191c] font-semibold">{partDescription || 'Component Description'}</strong></span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-xs font-mono text-[#777b86] self-start sm:self-center">
-                      <span>Store Stock:</span>
-                      <span className="font-bold text-[#8a6521] bg-[#faf3e0] px-3 py-1 rounded-full border border-[#f4e5be]">
-                        {availableStoreBalance.toLocaleString('en-IN')} Pcs Available
-                      </span>
-                    </div>
-                  </div>
-
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Left Column: Pieces to Spray (Quantity Allocation) */}
+                    {/* Left Column: Substrate Specifications & Total PO Target */}
                     <div className="space-y-4">
+                      {/* Substrate Part Inputs */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label className="block text-[11px] font-bold text-[#17191c] uppercase font-mono">
+                            Part Code / Substrate Code *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={partCode}
+                            onChange={e => setPartCode(e.target.value)}
+                            className="w-full h-11 px-3.5 rounded-[14px] border border-[#dcdfe4] font-mono font-bold text-xs bg-white text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                            placeholder="e.g. RP-8841 / SUB-01"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="block text-[11px] font-bold text-[#17191c] uppercase font-mono">
+                            Substrate Description *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={partDescription}
+                            onChange={e => setPartDescription(e.target.value)}
+                            className="w-full h-11 px-3.5 rounded-[14px] border border-[#dcdfe4] text-xs font-semibold bg-white text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                            placeholder="e.g. Center Vent Bezel (ABS)"
+                          />
+                        </div>
+                      </div>
+
                       {/* Overall Order Target */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <label className="block text-[11px] font-bold text-[#17191c] uppercase font-mono">
-                            Total Order Quantity (Target Cap) *
+                            Total Order Quantity (Master PO Target) *
                           </label>
                           <span className="text-[10px] text-[#777b86]">Total Customer Work Order</span>
                         </div>
@@ -4759,205 +4880,172 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                             className="w-36 h-11 px-3.5 rounded-[14px] border border-[#c09748] font-mono font-bold text-base bg-white text-[#17191c] focus:outline-none shadow-2xs"
                           />
 
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTargetQty(availableStoreBalance);
-                              const newDaily = Math.min(dailyTargetQty, availableStoreBalance);
-                              setDailyTargetQty(newDaily);
-                              handleRecalculateMaterials(newDaily);
-                            }}
-                            className="px-3 py-2.5 rounded-[12px] bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition cursor-pointer active:scale-95 shadow-2xs"
-                          >
-                            All ({availableStoreBalance})
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const half = Math.floor(availableStoreBalance / 2);
-                              setTargetQty(half);
-                              const newDaily = Math.min(dailyTargetQty, half);
-                              setDailyTargetQty(newDaily);
-                              handleRecalculateMaterials(newDaily);
-                            }}
-                            className="px-3 py-2.5 rounded-[12px] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
-                          >
-                            50%
-                          </button>
-
-                          {[100, 250, 500, 1000].map(cnt => (
-                            cnt <= availableStoreBalance && (
+                          {availableStoreBalance > 0 && (
+                            <>
                               <button
-                                key={cnt}
                                 type="button"
                                 onClick={() => {
-                                  setTargetQty(cnt);
-                                  const newDaily = Math.min(dailyTargetQty, cnt);
+                                  setTargetQty(availableStoreBalance);
+                                  const newDaily = Math.min(dailyTargetQty, availableStoreBalance);
                                   setDailyTargetQty(newDaily);
                                   handleRecalculateMaterials(newDaily);
                                 }}
-                                className={`px-3 py-2.5 rounded-[12px] text-xs font-mono transition cursor-pointer shadow-2xs ${
-                                  targetQty === cnt
-                                    ? 'bg-[#17191c] text-[#c09748] font-bold'
-                                    : 'bg-white border border-[#ececec] text-[#777b86] hover:bg-gray-50'
-                                }`}
+                                className="px-3 py-2.5 rounded-[12px] bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition cursor-pointer active:scale-95 shadow-2xs"
                               >
-                                {cnt}
+                                All ({availableStoreBalance})
                               </button>
-                            )
-                          ))}
-                        </div>
-                      </div>
 
-                      {/* Today's Shift Quota (Daily Target) */}
-                      <div className="p-3.5 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be] space-y-2 shadow-2xs">
-                        <div className="flex items-center justify-between">
-                          <label className="block text-[11px] font-bold text-[#8a6521] uppercase font-mono flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-[#c09748]" />
-                            <span>Today's Production Target (Shift Quota) *</span>
-                          </label>
-                          <span className="text-[10px] font-bold text-[#8a6521] font-mono bg-white px-2 py-0.5 rounded-full border border-[#f4e5be]">
-                            Floor Issuance Cap
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <input
-                            type="number"
-                            min="1"
-                            max={targetQty}
-                            required
-                            value={dailyTargetQty}
-                            onChange={e => {
-                              const raw = Number(e.target.value);
-                              if (isNaN(raw)) return;
-                              const val = Math.min(targetQty, Math.max(1, raw));
-                              setDailyTargetQty(val);
-                              handleRecalculateMaterials(val);
-                            }}
-                            className="w-32 h-10 px-3 rounded-[12px] border border-[#8a6521] font-mono font-bold text-base bg-white text-[#17191c] focus:outline-none shadow-2xs"
-                          />
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDailyTargetQty(targetQty);
-                              handleRecalculateMaterials(targetQty);
-                            }}
-                            className="px-2.5 py-2 rounded-[10px] bg-white hover:bg-gray-50 text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
-                          >
-                            Full Order ({targetQty})
-                          </button>
-
-                          {[500, 1000, 1500, 2000].map(cnt => (
-                            cnt <= targetQty && (
                               <button
-                                key={cnt}
                                 type="button"
                                 onClick={() => {
-                                  setDailyTargetQty(cnt);
-                                  handleRecalculateMaterials(cnt);
+                                  const half = Math.floor(availableStoreBalance / 2);
+                                  setTargetQty(half);
+                                  const newDaily = Math.min(dailyTargetQty, half);
+                                  setDailyTargetQty(newDaily);
+                                  handleRecalculateMaterials(newDaily);
                                 }}
-                                className={`px-2.5 py-2 rounded-[10px] text-xs font-mono transition cursor-pointer shadow-2xs ${
-                                  dailyTargetQty === cnt
-                                    ? 'bg-[#8a6521] text-white font-bold'
-                                    : 'bg-white border border-[#f4e5be] text-[#8a6521] hover:bg-[#faf3e0]'
-                                }`}
+                                className="px-3 py-2.5 rounded-[12px] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition cursor-pointer active:scale-95 shadow-2xs"
                               >
-                                {cnt}
+                                50%
                               </button>
-                            )
+                            </>
+                          )}
+
+                          {[100, 250, 500, 1000, 2500].map(cnt => (
+                            <button
+                              key={cnt}
+                              type="button"
+                              onClick={() => {
+                                setTargetQty(cnt);
+                                const newDaily = Math.min(dailyTargetQty, cnt);
+                                setDailyTargetQty(newDaily);
+                                handleRecalculateMaterials(newDaily);
+                              }}
+                              className={`px-3 py-2.5 rounded-[12px] text-xs font-mono transition cursor-pointer shadow-2xs ${
+                                targetQty === cnt
+                                  ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold'
+                                  : 'bg-white border border-[#ececec] text-[#777b86] hover:bg-gray-50'
+                              }`}
+                            >
+                              {cnt}
+                            </button>
                           ))}
-                        </div>
-
-                        <p className="text-[10px] text-[#777b86] leading-tight">
-                          Store sirf aaj ke target (<strong className="text-[#17191c]">{dailyTargetQty} Pcs</strong>) ke barabar substrates aur chemicals issue karega. Bacha hua material store me safe rahega.
-                        </p>
-                      </div>
-
-                      {/* Live Allocation Summary Bar */}
-                      <div className="space-y-1.5 pt-1 text-[11px] font-mono text-[#777b86]">
-                        <div className="flex justify-between">
-                          <span>Today's Quota: <strong className="text-[#17191c]">{dailyTargetQty.toLocaleString('en-IN')}</strong> of {targetQty.toLocaleString('en-IN')} Total Pcs</span>
-                          <span className="font-bold text-[#8a6521]">
-                            {targetQty > 0 ? Math.round((dailyTargetQty / targetQty) * 100) : 100}% Day 1
-                          </span>
-                        </div>
-                        <div className="h-2 w-full bg-[#ececec] rounded-full overflow-hidden">
-                          <div 
-                            className="bg-[#c09748] h-full transition-all duration-300"
-                            style={{ width: `${Math.min(100, targetQty > 0 ? (dailyTargetQty / targetQty) * 100 : 100)}%` }}
-                          />
                         </div>
                       </div>
                     </div>
 
-                    {/* Right Column: Target Colour / Finish Shade with Autocomplete Dropdown */}
-                    <div className="space-y-3 relative">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-[11px] font-bold text-[#17191c] uppercase font-mono">
-                          Target Colour / Finish Shade *
-                        </label>
-                        <span className="text-[10px] text-[#777b86] font-mono">
-                          Direct Typing + Dropdown Suggestions
-                        </span>
-                      </div>
+                    {/* Right Column: Approved Finish Shade & Overall SLA Deadline */}
+                    <div className="space-y-4">
+                      {/* Approved Finish Shade */}
+                      <div className="space-y-2 relative">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-[11px] font-bold text-[#17191c] uppercase font-mono">
+                            Target Finish Colour / Approved Shade *
+                          </label>
+                          <span className="text-[10px] text-[#777b86] font-mono">
+                            Direct Typing + Suggestions
+                          </span>
+                        </div>
 
-                      <div className="relative">
-                        <input
-                          type="text"
-                          required
-                          value={batchColor}
-                          onChange={e => {
-                            setBatchColor(e.target.value);
-                            setShowColorDropdown(true);
-                          }}
-                          onFocus={() => setShowColorDropdown(true)}
-                          placeholder="Type or choose colour (e.g. Monza Red Gloss, Piano Black)..."
-                          className="w-full h-11 pl-4 pr-10 rounded-[14px] border border-[#dcdfe4] bg-white font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition shadow-2xs"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowColorDropdown(!showColorDropdown)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[#777b86] hover:text-[#17191c] p-1 cursor-pointer transition"
-                          title="Show previously used shades"
-                        >
-                          <ChevronDown className={`w-4 h-4 transition-transform ${showColorDropdown ? 'rotate-180' : ''}`} />
-                        </button>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            required
+                            value={batchColor}
+                            onChange={e => {
+                              setBatchColor(e.target.value);
+                              setShowColorDropdown(true);
+                            }}
+                            onFocus={() => setShowColorDropdown(true)}
+                            placeholder="Type colour (e.g. Monza Red Gloss, Piano Black, Pearl White)..."
+                            className="w-full h-11 pl-4 pr-10 rounded-[14px] border border-[#dcdfe4] bg-white font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition shadow-2xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowColorDropdown(!showColorDropdown)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#777b86] hover:text-[#17191c] p-1 cursor-pointer transition"
+                            title="Show previously used shades"
+                          >
+                            <ChevronDown className={`w-4 h-4 transition-transform ${showColorDropdown ? 'rotate-180' : ''}`} />
+                          </button>
 
-                        {/* Interactive Dropdown Menu for Previous Shades */}
-                        {showColorDropdown && filteredColors.length > 0 && (
-                          <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-[16px] border border-[#ececec] shadow-xl z-30 py-2 max-h-52 overflow-y-auto no-scrollbar animate-in fade-in duration-100">
-                            <div className="px-3 py-1 text-[10px] font-mono uppercase font-bold text-[#777b86] border-b border-[#ececec] flex items-center justify-between">
-                              <span>Previously Used & Approved Factory Shades</span>
-                              <span>{filteredColors.length} Found</span>
+                          {/* Interactive Dropdown Menu for Previous Shades */}
+                          {showColorDropdown && filteredColors.length > 0 && (
+                            <div className="absolute left-0 right-0 top-full mt-1.5 bg-white rounded-[16px] border border-[#ececec] shadow-xl z-30 py-2 max-h-52 overflow-y-auto no-scrollbar animate-in fade-in duration-100">
+                              <div className="px-3 py-1 text-[10px] font-mono uppercase font-bold text-[#777b86] border-b border-[#ececec] flex items-center justify-between">
+                                <span>Previously Used Factory Shades</span>
+                                <span>{filteredColors.length} Found</span>
+                              </div>
+                              {filteredColors.map((col, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    setBatchColor(col);
+                                    setShowColorDropdown(false);
+                                  }}
+                                  className="w-full text-left px-3.5 py-2 text-xs font-semibold text-[#17191c] hover:bg-[#faf7ed] hover:text-[#8a6521] transition cursor-pointer flex items-center justify-between group"
+                                >
+                                  <span className="flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-[#c09748]/60 group-hover:bg-[#c09748]" />
+                                    <span>{col}</span>
+                                  </span>
+                                  {batchColor === col && <Check className="w-3.5 h-3.5 text-[#8a6521]" />}
+                                </button>
+                              ))}
                             </div>
-                            {filteredColors.map((col, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                onMouseDown={(e) => {
-                                  e.preventDefault();
-                                  setBatchColor(col);
-                                  setShowColorDropdown(false);
-                                }}
-                                className="w-full text-left px-3.5 py-2 text-xs font-semibold text-[#17191c] hover:bg-[#faf7ed] hover:text-[#8a6521] transition cursor-pointer flex items-center justify-between group"
-                              >
-                                <span className="flex items-center gap-2">
-                                  <span className="w-2 h-2 rounded-full bg-[#c09748]/60 group-hover:bg-[#c09748]" />
-                                  <span>{col}</span>
-                                </span>
-                                {batchColor === col && <Check className="w-3.5 h-3.5 text-[#8a6521]" />}
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
 
-                      <div className="p-2.5 rounded-[12px] bg-white border border-[#ececec] text-[11px] text-[#777b86] flex items-center justify-between">
-                        <span>Current Selected Shade: <strong className="text-[#8a6521]">{batchColor || 'Not specified'}</strong></span>
-                        <span className="font-mono text-[10px] text-[#979799]">Direct custom typing enabled</span>
+                      {/* Overall Master SLA Completion Deadline */}
+                      <div className="p-3.5 bg-white rounded-[18px] border border-[#f4e5be] space-y-2.5 shadow-2xs">
+                        <div className="flex items-center justify-between pb-1 border-b border-[#f2f2f3]">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-3.5 h-3.5 text-[#8a6521]" />
+                            <span className="text-xs font-bold text-[#17191c] uppercase font-mono">
+                              Overall Job Completion SLA Deadline *
+                            </span>
+                          </div>
+                          <div className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${deadlineStatus.badgeColor}`}>
+                            {deadlineStatus.label}
+                          </div>
+                        </div>
+
+                        <PaintkingDateTimePicker
+                          dateValue={deadlineDate}
+                          timeValue={deadlineTime}
+                          onChange={(newDate, newTime) => {
+                            setDeadlineDate(newDate);
+                            setDeadlineTime(newTime);
+                          }}
+                        />
+
+                        {/* Presets */}
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          <span className="text-[10px] text-[#777b86] font-mono">SLA Presets:</span>
+                          {[
+                            { hours: 4, label: '4h (Rush)' },
+                            { hours: 8, label: '8h (1 Shift)' },
+                            { hours: 24, label: '24h (1 Day)' },
+                            { hours: 48, label: '48h (2 Days)' },
+                            { hours: 72, label: '72h (3 Days)' }
+                          ].map(preset => (
+                            <button
+                              key={preset.hours}
+                              type="button"
+                              onClick={() => handleApplyPresetDeadline(preset.hours)}
+                              className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-mono transition cursor-pointer ${
+                                slaHours === preset.hours
+                                  ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold shadow-2xs'
+                                  : 'bg-[#fafafb] text-[#777b86] border border-[#ececec] hover:bg-gray-100'
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -4966,119 +5054,221 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
             )}
 
             {/* ===================================================================== */}
-            {/* POINT 3: PAINTER, BOOTH & STRICT DEADLINE                             */}
+            {/* TIER 2: STEP 3 - PAINTER SHIFT LINE ALLOCATIONS                       */}
             {/* ===================================================================== */}
             {!isExistingCard && currentStep === 3 && (
               <div className="bg-white p-6 sm:p-7 rounded-[24px] border border-[#ececec] shadow-xs space-y-6">
-                <div className="pb-3 border-b border-[#ececec]">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="w-6 h-6 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] flex items-center justify-center font-bold font-mono text-xs">
-                      3
-                    </span>
-                    <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono">
-                      Point 3: Painter, Spray Booth & Strict Completion Deadline
-                    </span>
-                  </div>
-                  <h3 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal">
-                    Kaun sa painter spray karega aur kis date/time ke andar kaam finish karna hoga?
-                  </h3>
-                  <p className="text-xs text-[#777b86] mt-0.5">
-                    Painter assignment with live workload status aur exact completion deadline set karein.
-                  </p>
-                </div>
-
-                {/* 2-Column Responsive Form Fields for Booth & Painter */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Department / Spray Booth Line */}
-                  <CustomCombobox
-                    label="Department / Painting Line"
-                    required
-                    options={boothOptions}
-                    value={dept}
-                    onChange={(val) => setDept(val)}
-                    placeholder="Select or enter spray booth line..."
-                    searchPlaceholder="Search booth or type new booth name..."
-                    allowCustom={true}
-                    customTypePrompt="+ Add & Type Custom Spray Booth / Line"
-                  />
-
-                  {/* Assign Painter */}
-                  <CustomCombobox
-                    label="Assign Floor Painter (Max 2 Jobs Limit)"
-                    required
-                    options={painterOptions}
-                    value={painterName}
-                    onChange={(val) => {
-                      setPainterName(val);
-                      const matched = painters.find(p => p.name === val);
-                      if (matched) {
-                        setAssignedPainterId(matched.id);
-                      } else {
-                        setAssignedPainterId(`PAINTER-${Date.now()}`);
-                      }
-                    }}
-                    placeholder="Select or enter painter name..."
-                    searchPlaceholder="Search painter or type new name..."
-                    allowCustom={true}
-                    customTypePrompt="+ Add & Type New Floor Painter Name"
-                  />
-                </div>
-
-                {/* Combined Strict Deadline Box */}
-                <div className="p-4 sm:p-5 bg-[#fafafb] rounded-[22px] border border-[#f4e5be] space-y-3.5 shadow-2xs">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-[#f2f2f3]">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-[#8a6521]" />
-                      <span className="text-xs font-bold text-[#17191c] uppercase font-mono tracking-wide">
-                        Strict Completion Deadline (Date & Time Target) *
+                <div className="pb-3 border-b border-[#ececec] flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="w-6 h-6 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] flex items-center justify-center font-bold font-mono text-xs">
+                        3
+                      </span>
+                      <span className="text-[11px] font-bold text-[#c09748] uppercase tracking-wider font-mono">
+                        Tier 2: Painter Shift Line Allocations & Daily Quotas
                       </span>
                     </div>
-
-                    <div className={`px-3 py-1 rounded-full text-[10.5px] font-mono font-bold border self-start sm:self-auto ${deadlineStatus.badgeColor}`}>
-                      {deadlineStatus.label}
-                    </div>
+                    <h3 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal">
+                      Aaj ke shift mein kaun se painters kaun se booth par kitne pieces spray karenge?
+                    </h3>
+                    <p className="text-xs text-[#777b86] mt-0.5">
+                      Multiple painters can work concurrently across booths. Each shift allocation is closed at shift end.
+                    </p>
                   </div>
 
-                  {/* Unified Date & Time Picker */}
-                  <PaintkingDateTimePicker
-                    dateValue={deadlineDate}
-                    timeValue={deadlineTime}
-                    onChange={(newDate, newTime) => {
-                      setDeadlineDate(newDate);
-                      setDeadlineTime(newTime);
-                    }}
-                  />
-
-                  {/* Quick Preset Buttons */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#ececec]">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[10px] text-[#777b86] font-mono font-medium">Quick Presets:</span>
-                      {[
-                        { hours: 2, label: '2h (Rush)' },
-                        { hours: 4, label: '4h (Standard)' },
-                        { hours: 8, label: '8h (1 Shift)' },
-                        { hours: 24, label: '24h (Next Day)' },
-                        { hours: 48, label: '48h (2 Days)' }
-                      ].map(preset => (
-                        <button
-                          key={preset.hours}
-                          type="button"
-                          onClick={() => handleApplyPresetDeadline(preset.hours)}
-                          className={`px-3 py-1 rounded-full text-[11px] font-mono transition cursor-pointer ${
-                            slaHours === preset.hours
-                              ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold shadow-2xs'
-                              : 'bg-white text-[#777b86] border border-[#ececec] hover:bg-gray-100'
-                          }`}
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
+                  {/* Order Allocation Live Counter */}
+                  <div className="shrink-0 flex items-center gap-2 p-2.5 rounded-[16px] bg-[#fafafb] border border-[#ececec]">
+                    <div className="text-center px-3 border-r border-[#ececec]">
+                      <span className="text-[9.5px] uppercase font-mono text-[#777b86] block">Master PO Target</span>
+                      <strong className="font-mono text-xs text-[#17191c]">{targetQty.toLocaleString('en-IN')} Pcs</strong>
                     </div>
+                    <div className="text-center px-3 border-r border-[#ececec]">
+                      <span className="text-[9.5px] uppercase font-mono text-[#8a6521] block">Today Allocated</span>
+                      <strong className="font-mono text-xs text-[#8a6521] font-bold">{totalAllocatedShift.toLocaleString('en-IN')} Pcs</strong>
+                    </div>
+                    <div className="text-center px-3">
+                      <span className="text-[9.5px] uppercase font-mono text-[#777b86] block">Unallocated Balance</span>
+                      <strong className={`font-mono text-xs ${targetQty - totalAllocatedShift < 0 ? 'text-rose-600 font-bold' : 'text-[#17191c]'}`}>
+                        {Math.max(0, targetQty - totalAllocatedShift).toLocaleString('en-IN')} Pcs
+                      </strong>
+                    </div>
+                  </div>
+                </div>
 
-                    <span className="text-[10.5px] text-[#777b86] font-mono">
-                      Calculated Target: <strong className="text-[#17191c] font-sans">{deadlineDate} • {deadlineTime}</strong>
+                {/* Shift Details Banner */}
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-[#faf7ed] rounded-[18px] border border-[#f4e5be] text-xs">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-[#8a6521]" />
+                    <span className="font-mono font-bold text-[#17191c]">Date: {issueDate}</span>
+                    <span className="text-[#a3a6af]">•</span>
+                    <span className="font-mono text-[#8a6521] font-semibold">General Day Shift (08:30 - 18:30)</span>
+                  </div>
+                  <span className="text-[10.5px] font-mono text-[#777b86]">
+                    Plant: <strong className="text-[#17191c]">{activePlant} Unit</strong>
+                  </span>
+                </div>
+
+                {/* Multi-Painter Allocation Table / Cards */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold uppercase text-[#17191c] tracking-wider">
+                      Shift Painter Line Allocations ({initialPainterAllocs.length})
                     </span>
+                    <button
+                      type="button"
+                      onClick={handleAddPainterAlloc}
+                      className="px-3.5 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-2xs"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-[#c09748]" />
+                      <span>+ Add Another Painter</span>
+                    </button>
                   </div>
+
+                  <div className="space-y-3">
+                    {initialPainterAllocs.map((alloc, idx) => (
+                      <div
+                        key={alloc.id}
+                        className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-3 shadow-2xs"
+                      >
+                        <div className="flex items-center justify-between pb-2 border-b border-[#f2f2f3]">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-[#faf3e0] text-[#8a6521] font-mono font-bold text-[11px] flex items-center justify-center border border-[#f4e5be]">
+                              {idx + 1}
+                            </span>
+                            <span className="text-xs font-bold text-[#17191c]">
+                              Painter Allocation #{idx + 1}
+                            </span>
+                          </div>
+                          {initialPainterAllocs.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePainterAlloc(alloc.id)}
+                              className="w-7 h-7 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center transition cursor-pointer"
+                              title="Remove Allocation"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                          {/* Painter Combobox */}
+                          <div>
+                            <label className="block text-[10.5px] font-bold text-[#17191c] uppercase font-mono mb-1">
+                              Painter *
+                            </label>
+                            <select
+                              value={alloc.painterName}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const matched = painters.find(p => p.name === val);
+                                handleUpdatePainterAlloc(alloc.id, {
+                                  painterName: val,
+                                  painterId: matched?.id || `PAINTER-${Date.now()}`
+                                });
+                              }}
+                              className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-white font-medium text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                            >
+                              {painters.length > 0 ? (
+                                painters.map(p => (
+                                  <option key={p.id} value={p.name}>
+                                    {p.name} ({p.code || 'PTR'})
+                                  </option>
+                                ))
+                              ) : (
+                                <>
+                                  <option value="Ramesh Kumar (P1)">Ramesh Kumar (P1)</option>
+                                  <option value="Suresh Verma (P2)">Suresh Verma (P2)</option>
+                                  <option value="Dinesh Pal (P3)">Dinesh Pal (P3)</option>
+                                </>
+                              )}
+                            </select>
+                          </div>
+
+                          {/* Spray Booth Line */}
+                          <div>
+                            <label className="block text-[10.5px] font-bold text-[#17191c] uppercase font-mono mb-1">
+                              Spray Booth / Line *
+                            </label>
+                            <select
+                              value={alloc.boothNumber}
+                              onChange={(e) => handleUpdatePainterAlloc(alloc.id, { boothNumber: e.target.value })}
+                              className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-white font-medium text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                            >
+                              {paintingBooths.length > 0 ? (
+                                paintingBooths.map(b => (
+                                  <option key={b.id} value={b.name}>
+                                    {b.name}
+                                  </option>
+                                ))
+                              ) : (
+                                <>
+                                  <option value="Booth #1 (Continuous Conveyor Line)">Booth #1 (Continuous Conveyor Line)</option>
+                                  <option value="Booth #2 (Manual Batch Booth)">Booth #2 (Manual Batch Booth)</option>
+                                </>
+                              )}
+                            </select>
+                          </div>
+
+                          {/* Coating Process Stage */}
+                          <div>
+                            <label className="block text-[10.5px] font-bold text-[#17191c] uppercase font-mono mb-1">
+                              Coating Stage *
+                            </label>
+                            <select
+                              value={alloc.processStage}
+                              onChange={(e) => handleUpdatePainterAlloc(alloc.id, { processStage: e.target.value as any })}
+                              className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-white font-medium text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                            >
+                              <option value="Full Coating System">Full Coating System (3-Stage)</option>
+                              <option value="Stage 1: Primer Undercoat">Stage 1: Primer Undercoat</option>
+                              <option value="Stage 2: Basecoat Colour">Stage 2: Basecoat Colour</option>
+                              <option value="Stage 3: Clear Topcoat">Stage 3: Clear Topcoat</option>
+                            </select>
+                          </div>
+
+                          {/* Daily Target Quota */}
+                          <div>
+                            <label className="block text-[10.5px] font-bold text-[#8a6521] uppercase font-mono mb-1 flex items-center justify-between">
+                              <span>Shift Target (Pcs) *</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const otherAllocated = initialPainterAllocs
+                                    .filter(a => a.id !== alloc.id)
+                                    .reduce((sum, a) => sum + (Number(a.dailyTargetQty) || 0), 0);
+                                  const rem = Math.max(0, targetQty - otherAllocated);
+                                  handleUpdatePainterAlloc(alloc.id, { dailyTargetQty: rem });
+                                }}
+                                className="text-[9.5px] text-[#c09748] hover:underline cursor-pointer"
+                              >
+                                Fill Balance
+                              </button>
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              max={targetQty}
+                              required
+                              value={alloc.dailyTargetQty}
+                              onChange={(e) => handleUpdatePainterAlloc(alloc.id, { dailyTargetQty: Math.max(0, Number(e.target.value)) })}
+                              className="w-full h-10 px-3 rounded-[14px] border border-[#8a6521] bg-white font-mono font-bold text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                              placeholder="Quota Pcs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {totalAllocatedShift > targetQty && (
+                    <div className="p-3 rounded-[14px] bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                      <span>
+                        ⚠️ Total shift allocated quota ({totalAllocatedShift.toLocaleString('en-IN')} Pcs) cannot exceed Master PO Target ({targetQty.toLocaleString('en-IN')} Pcs).
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -5237,20 +5427,38 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   ))}
                 </div>
 
-                {/* Final Launch Summary Capsule */}
-                <div className="p-4 rounded-[18px] bg-[#faf7ed] border border-[#f4e5be] space-y-2 text-xs">
+                {/* 3-Tier Final Launch Summary Box */}
+                <div className="p-4 rounded-[18px] bg-[#faf7ed] border border-[#f4e5be] space-y-3 text-xs">
                   <div className="flex items-center gap-2 font-mono font-bold text-[#8a6521] uppercase text-[10.5px]">
                     <Sparkles className="w-3.5 h-3.5 text-[#8a6521]" />
-                    <span>Job Card Launch Summary Review:</span>
+                    <span>3-Tier Architecture Launch Summary Review:</span>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                    <div>Party: <strong className="text-[#17191c]">{customer}</strong></div>
-                    <div>Part: <strong className="text-[#17191c]">{partCode}</strong></div>
-                    <div>Pieces: <strong className="text-[#17191c] font-mono">{targetQty} Pcs</strong></div>
-                    <div>Colour: <strong className="text-[#17191c]">{batchColor}</strong></div>
-                    <div>Painter: <strong className="text-[#17191c]">{painterName}</strong></div>
-                    <div>Booth: <strong className="text-[#17191c]">{dept.split('(')[0]}</strong></div>
-                    <div className="sm:col-span-2">Deadline: <strong className="text-[#8a6521] font-mono">{deadlineDate} • {deadlineTime}</strong></div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px]">
+                    <div className="p-2.5 rounded-[12px] bg-white border border-[#f4e5be] space-y-1">
+                      <span className="font-mono font-bold text-[#8a6521] text-[10px] uppercase block">Tier 1: Master Order Contract</span>
+                      <div>Party: <strong className="text-[#17191c]">{customer}</strong></div>
+                      <div>Part: <strong className="text-[#17191c]">{partCode} • {partDescription}</strong></div>
+                      <div>Master PO Target: <strong className="text-[#17191c] font-mono">{targetQty.toLocaleString('en-IN')} Pcs</strong></div>
+                      <div>Shade: <strong className="text-[#8a6521]">{batchColor}</strong></div>
+                      <div>SLA Deadline: <strong className="text-[#8a6521] font-mono">{deadlineDate} • {deadlineTime}</strong></div>
+                    </div>
+
+                    <div className="p-2.5 rounded-[12px] bg-white border border-[#f4e5be] space-y-1">
+                      <span className="font-mono font-bold text-[#8a6521] text-[10px] uppercase block">Tier 2: Shift Painter Line Allocations</span>
+                      <div>Painters: <strong className="text-[#17191c]">{initialPainterAllocs.length} Assigned</strong></div>
+                      <div>Total Today Quota: <strong className="text-[#8a6521] font-mono">{totalAllocatedShift.toLocaleString('en-IN')} Pcs</strong></div>
+                      <div className="text-[10px] text-[#777b86] truncate">
+                        {initialPainterAllocs.map(a => `${a.painterName} (${a.dailyTargetQty} pcs)`).join(', ')}
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-[12px] bg-white border border-[#f4e5be] space-y-1">
+                      <span className="font-mono font-bold text-[#8a6521] text-[10px] uppercase block">Tier 3: Issued Chemical Consumables</span>
+                      <div>Consumables: <strong className="text-[#17191c]">{issuedMaterials.length} Items Issued</strong></div>
+                      <div className="text-[10px] text-[#777b86]">
+                        Traceable batches handed over to floor. Reconciled upon shift close.
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -5304,8 +5512,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     onClick={handleLaunchJobCard}
                     className="px-6 py-2.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition cursor-pointer flex items-center gap-2 active:scale-95 shadow-2xs"
                   >
-                    <Save className="w-4 h-4 text-[#8a6521]" />
-                    <span>Finish & Launch Job Card for Painter</span>
+                    <Rocket className="w-4 h-4 text-[#8a6521]" />
+                    <span>Launch Master Job Card & Floor Execution</span>
                   </button>
                 )}
               </div>
