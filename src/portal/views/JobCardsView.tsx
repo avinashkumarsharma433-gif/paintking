@@ -226,6 +226,7 @@ const PortalFilterSelect: React.FC<{
 export const JobCardsView: React.FC = () => {
   const {
     jobCards,
+    deleteJobCard,
     plantHeadPriorities = [],
     updatePriorityStatus, 
     universalJobs, 
@@ -603,12 +604,11 @@ export const JobCardsView: React.FC = () => {
   };
 
   const handleCreateNewJobCard = () => {
-    const firstAvailable = storeStockList.find(s => !s.isInternalConsumable && s.balanceAvailable > 0) || storeStockList.find(s => !s.isInternalConsumable) || storeStockList[0];
+    const firstAvailable = storeStockList.find(s => !s.isInternalConsumable && s.balanceAvailable > 0);
     if (firstAvailable) {
       handleRequestFromSpecificStock(firstAvailable);
     } else {
-      setSelectedJobCardForView(null);
-      setShowJobCardModal(true);
+      alert("No available Store GRN stock found to allocate. Please inward materials via 'Stores & Inward GRN' first.");
     }
   };
 
@@ -675,7 +675,7 @@ export const JobCardsView: React.FC = () => {
       setReqPartDesc(targetJc.partDescription || 'Raw Molded Substrates');
       setReqCustomer(targetJc.customer);
       setReqColor(targetJc.color || 'Standard');
-      setReqWoNo(targetJc.woNo || targetJc.wNo || 'WO-1042');
+      setReqWoNo(targetJc.woNo || targetJc.wNo || '');
       const unissued = Math.max(50, (targetJc.targetQty || 500) - (targetJc.issuedRawQty || 0));
       setReqQty(unissued > 0 ? unissued : 200);
       setReqUom('Pcs');
@@ -708,7 +708,7 @@ export const JobCardsView: React.FC = () => {
       setReqPartDesc(found.partDescription || 'Raw Molded Substrates');
       setReqCustomer(found.customer);
       setReqColor(found.color || 'Standard');
-      setReqWoNo(found.woNo || found.wNo || 'WO-1042');
+      setReqWoNo(found.woNo || found.wNo || '');
       const unissued = Math.max(50, (found.targetQty || 500) - (found.issuedRawQty || 0));
       setReqQty(unissued > 0 ? unissued : 200);
     }
@@ -3150,6 +3150,23 @@ export const JobCardsView: React.FC = () => {
                       >
                         <Download className="w-3 h-3 text-[#777b86]" />
                         <span>PDF</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Are you sure you want to permanently delete Job Card ${jc.jobCardNo}?`)) {
+                            deleteJobCard(jc.jobCardNo);
+                            setToastMessage(`✓ Job Card ${jc.jobCardNo} permanently deleted.`);
+                            setTimeout(() => setToastMessage(null), 3500);
+                          }
+                        }}
+                        className="flex-1 md:flex-initial px-2.5 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95"
+                        title="Permanently Delete Job Card"
+                      >
+                        <Trash2 className="w-3 h-3 text-rose-600" />
+                        <span>Delete</span>
                       </button>
 
                       {isMaster && hasChildren && (

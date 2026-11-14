@@ -3376,7 +3376,7 @@ export const downloadStandardPreProductionPdf = (pir: PreProductionInspectionRec
   drawMetaField('SUBSTRATE MATERIAL', cleanText(pir.substrateMaterial || 'ABS Plastic'), metaCol3X, metaY + 18.5, metaY + 24.0, 48);
 
   // Row 3: PART CODE & DESCRIPTION | COLOR / FINISH | STORES ISSUED & ACCEPTED
-  const partCodeDesc = `${pir.partCode || 'RP-8841'} - ${cleanText(pir.partDescription || 'Component')}`;
+  const partCodeDesc = `${pir.partCode || '—'} - ${cleanText(pir.partDescription || 'Component')}`;
   const qtySummary = `${pir.acceptedQty?.toLocaleString() || 0} / ${pir.issuedQty?.toLocaleString() || 0} Pcs ${pir.rejectedQty > 0 ? `(${pir.rejectedQty} Rej)` : '(100% OK)'}`;
   drawMetaField('PART CODE & DESCRIPTION', partCodeDesc, metaCol1X, metaY + 31.5, metaY + 37.0, 54);
   drawMetaField('COLOR / COATING SHADE', pir.color || 'Standard Shade', metaCol2X, metaY + 31.5, metaY + 37.0, 54);
@@ -4168,7 +4168,7 @@ export const downloadStandardMINPdf = (mrn: MaterialRequisitionNote): void => {
 
   // Row 2 (y: metaY + 18.0, valueY: metaY + 22.0)
   drawMetaField('TARGET JOB CARD:', mrn.jobCardNo || 'JC-OPEN', metaCol1X, metaY + 18.0, metaY + 22.0);
-  drawMetaField('CUSTOMER / PARTY:', mrn.customer || 'ROOP POLYMERS LTD', metaCol2X, metaY + 18.0, metaY + 22.0);
+  drawMetaField('CUSTOMER / PARTY:', mrn.customer || '—', metaCol2X, metaY + 18.0, metaY + 22.0);
   drawMetaField('REQUESTED BY (PROD):', mrn.requestedBy || 'Production Supervisor', metaCol3X, metaY + 18.0, metaY + 22.0);
 
   // Row 3 (y: metaY + 30.5, valueY: metaY + 34.5)

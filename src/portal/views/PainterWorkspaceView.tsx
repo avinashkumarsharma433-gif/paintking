@@ -617,7 +617,7 @@ export const PainterWorkspaceView: React.FC = () => {
                             Slot #{index + 1} • {jc.jobCardNo}
                           </span>
                           <span className="text-[10px] font-mono text-[#777b86]">
-                            WO: {jc.woNo || jc.wNo || 'WO-1042'}
+                            WO: {jc.woNo || jc.wNo || '—'}
                           </span>
                         </div>
                         <h3 className="text-base font-serif font-bold text-[#17191c] mt-1.5">

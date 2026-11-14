@@ -1,5 +1,13 @@
 # WORKING SET
 
+- 2026-11-14: Purged Lingering Demo Data Across Entire ERP & Added Permanent Delete Job Card Action
+  - Files touched:
+    - `src/portal/context/PortalStoreContext.tsx`: Bumped `PK_STORAGE_VERSION` to `3.4.0-zero-demo-guarantee`, purged `JC-2026-001` (`ROOP POLYMERS LTD`) from storage and state sanitization, implemented `deleteJobCard`.
+    - `src/portal/views/JobCardsView.tsx`: Added permanent "Delete" button with confirmation on every Job Card and guarded `handleCreateNewJobCard` to require real inward stock instead of creating dummy cards.
+    - `src/portal/components/JobCardModal.tsx`: Added "Delete Job Card" button inside existing modal header, cleaned remaining dummy fallbacks.
+    - `src/portal/components/QuickInwardModal.tsx`, `UniversalJobModal.tsx`, `OQCModal.tsx`, `PDIModal.tsx`, `IPQCModal.tsx`, `QAView.tsx`, `BillingView.tsx`, `pdfStandardHeader.ts`: Cleaned all remaining hardcoded demo state (`ROOP POLYMERS LTD`, `RP-8841`, `WO-1042`, `UK-08-AL-4412`).
+  - Status: Verified with `npx tsc --noEmit` (0 errors), `npm run build` (built in 7.76s).
+
 - 2026-11-14: Added Painter Assignment Dedicated View with Today's Target, 3-Stage Yield & Chemical Ledger
   - Files touched:
     - `src/portal/components/DailyAssignmentModal.tsx`: Fixed undefined crash by adding defensive fallbacks for `painters`/`availablePainters` and `booths`/`availableBooths`.

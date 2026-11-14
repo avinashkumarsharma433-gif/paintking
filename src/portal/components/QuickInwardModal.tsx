@@ -17,22 +17,19 @@ export const QuickInwardModal: React.FC<QuickInwardModalProps> = ({
 }) => {
   const { addGRN, activePlant, currentUser } = usePortalStore();
 
-  const [customer, setCustomer] = useState('ROOP POLYMERS LTD');
-  const [challanNo, setChallanNo] = useState('RP/CH/' + Math.floor(10000 + Math.random() * 90000));
-  const [vehicleNo, setVehicleNo] = useState('UK-08-AL-4412');
-  const [partName, setPartName] = useState('Auto AC Center Vent Bezel Substrates');
-  const [partCode, setPartCode] = useState('RP-8841');
-  const [totalQty, setTotalQty] = useState<number>(1000);
-  const [batchNo, setBatchNo] = useState<string>(`B-ROO-${Date.now().toString().slice(-4)}`);
+  const [customer, setCustomer] = useState('');
+  const [challanNo, setChallanNo] = useState('');
+  const [vehicleNo, setVehicleNo] = useState('');
+  const [partName, setPartName] = useState('');
+  const [partCode, setPartCode] = useState('');
+  const [totalQty, setTotalQty] = useState<number>(0);
+  const [batchNo, setBatchNo] = useState<string>('');
   const [materialType, setMaterialType] = useState<StockMaterialType>('substrate');
   const [mfgDate, setMfgDate] = useState<string>('');
   const [expiryDate, setExpiryDate] = useState<string>('');
 
   // Dynamic Color Breakdown Rows
-  const [colorRows, setColorRows] = useState<Array<{ name: string; code: string; qty: number; rate: number }>>([
-    { name: 'Monza Red Gloss', code: 'RD-01', qty: 250, rate: 25 },
-    { name: 'Matte Jet Black', code: 'BK-09', qty: 750, rate: 20 }
-  ]);
+  const [colorRows, setColorRows] = useState<Array<{ name: string; code: string; qty: number; rate: number }>>([]);
 
   const [submittedResult, setSubmittedResult] = useState<{
     inwardNo: string;

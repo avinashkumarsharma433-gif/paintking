@@ -62,14 +62,14 @@ export const OQCModal: React.FC<OQCModalProps> = ({
   // Header & Job Meta
   const [reportNo, setReportNo] = useState<string>(() => `PK-OQC-2026-${Math.floor(1000 + Math.random() * 9000)}`);
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [customer, setCustomer] = useState<string>('ROOP POLYMERS LTD');
-  const [woNo, setWoNo] = useState<string>('WO-1042');
-  const [partCode, setPartCode] = useState<string>('RP-8841');
-  const [partDescription, setPartDescription] = useState<string>('Car AC Vent Bezel Substrate (ABS)');
-  const [model, setModel] = useState<string>('Model X-2026');
-  const [color, setColor] = useState<string>('Monza Red Gloss');
-  const [offeredQty, setOfferedQty] = useState<number>(1000);
-  const [sampledQty, setSampledQty] = useState<number>(50);
+  const [customer, setCustomer] = useState<string>('');
+  const [woNo, setWoNo] = useState<string>('');
+  const [partCode, setPartCode] = useState<string>('');
+  const [partDescription, setPartDescription] = useState<string>('');
+  const [model, setModel] = useState<string>('');
+  const [color, setColor] = useState<string>('');
+  const [offeredQty, setOfferedQty] = useState<number>(0);
+  const [sampledQty, setSampledQty] = useState<number>(0);
   const [rejectedQty, setRejectedQty] = useState<number>(0);
   const [lotAcceptance, setLotAcceptance] = useState<'Accepted' | 'Rejected' | 'Hold'>('Accepted');
 

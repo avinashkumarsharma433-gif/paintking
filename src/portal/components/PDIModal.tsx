@@ -35,17 +35,17 @@ export const PDIModal: React.FC<PDIModalProps> = ({
   // Auto-fill Header & Job Meta (Read-only for identification)
   const [pdiReportNo, setPdiReportNo] = useState<string>(() => `PK-PDI-2026-${Math.floor(1000 + Math.random() * 9000)}`);
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [customer, setCustomer] = useState<string>('ROOP POLYMERS LTD');
-  const [woNo, setWoNo] = useState<string>('WO-1042');
-  const [partCode, setPartCode] = useState<string>('RP-8841');
-  const [partDescription, setPartDescription] = useState<string>('Car AC Vent Bezel Substrate (ABS)');
-  const [family, setFamily] = useState<string>('Automotive Interior Bezel');
-  const [paintBatchNumber, setPaintBatchNumber] = useState<string>('BAT-PPG-2609-R4');
-  const [paintDescription, setPaintDescription] = useState<string>('Monza Red 2K PU Basecoat');
-  const [paintViscosity, setPaintViscosity] = useState<string>('15s (Ford-4)');
-  const [lotSize, setLotSize] = useState<number>(1000);
-  const [boxQty, setBoxQty] = useState<number>(20);
-  const [invoiceNumber, setInvoiceNumber] = useState<string>('PK-INV-2026-992');
+  const [customer, setCustomer] = useState<string>('');
+  const [woNo, setWoNo] = useState<string>('');
+  const [partCode, setPartCode] = useState<string>('');
+  const [partDescription, setPartDescription] = useState<string>('');
+  const [family, setFamily] = useState<string>('');
+  const [paintBatchNumber, setPaintBatchNumber] = useState<string>('');
+  const [paintDescription, setPaintDescription] = useState<string>('');
+  const [paintViscosity, setPaintViscosity] = useState<string>('');
+  const [lotSize, setLotSize] = useState<number>(0);
+  const [boxQty, setBoxQty] = useState<number>(0);
+  const [invoiceNumber, setInvoiceNumber] = useState<string>('');
 
   // Asthetical Values (1 to 5)
   const [boxBinCondition, setBoxBinCondition] = useState<'Pass' | 'Fail'>('Pass');

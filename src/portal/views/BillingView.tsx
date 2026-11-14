@@ -1018,23 +1018,23 @@ export const BillingView: React.FC = () => {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Challan No (Rule 55):</span>
-                        <strong className="text-[#8a6521] text-xs">PK/DC/2026/0488</strong>
+                        <strong className="text-[#8a6521] text-xs">{(activeInv as any).challanNo || '—'}</strong>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Dispatch Date & Time:</span>
-                        <strong className="text-[#17191c]">{activeInv.invoiceDate} • 14:30 IST</strong>
+                        <strong className="text-[#17191c]">{activeInv.invoiceDate}</strong>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Vehicle No:</span>
-                        <strong className="text-[#17191c] bg-amber-100 px-1.5 py-0.5 rounded border border-amber-300">UK-08-AL-4412</strong>
+                        <strong className="text-[#17191c] bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">{(activeInv as any).vehicleNo || '—'}</strong>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Driver Name & Mobile:</span>
-                        <strong>Ramesh Kumar (+91 98765 43210)</strong>
+                        <strong>{(activeInv as any).driverInfo || '—'}</strong>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">E-Way Bill Ref:</span>
-                        <strong className="text-emerald-800">2410 9988 7766</strong>
+                        <strong className="text-emerald-800">{activeInv.eWayBillNo || '—'}</strong>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Packaging Crates:</span>

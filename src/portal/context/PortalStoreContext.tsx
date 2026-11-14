@@ -329,6 +329,7 @@ interface PortalContextType {
   addOQCRelease: (release: FinalQualityRelease) => void;
   submitPdiClearance: (releaseId: string, pdiData: Partial<FinalQualityRelease>) => void;
   addJobCard: (jc: JobCard) => void;
+  deleteJobCard: (jobCardNo: string) => void;
   updateJobCard: (jc: JobCard) => void;
   addJobCardProgressLog: (jobCardNo: string, log: Omit<JobCardProductionProgressLog, 'id' | 'timestamp'>) => void;
   updateSamplingRecipe: (jobCardNo: string, recipe: Partial<SamplingRecipeSheet>) => void;
@@ -436,7 +437,7 @@ interface PortalContextType {
   reopenPlant: () => void;
 }
 
-const PK_STORAGE_VERSION = '3.3.0-clean-production-no-demo';
+const PK_STORAGE_VERSION = '3.4.0-zero-demo-guarantee';
 const TRANSACTIONAL_STORAGE_KEYS = [
   'pk_painter_assignments',
   'pk_assignment_material_logs',
@@ -476,6 +477,18 @@ function ensureCleanStorageVersion(): void {
         localStorage.removeItem(k);
       }
       localStorage.setItem('pk_storage_version', PK_STORAGE_VERSION);
+    }
+    // Targeted scrubber for any lingering demo job card cache
+    const rawJc = localStorage.getItem('pk_jobcards_data');
+    if (rawJc && (rawJc.includes('ROOP POLYMERS') || rawJc.includes('JC-2026-001'))) {
+      const parsed = JSON.parse(rawJc);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter((j: any) => 
+          !(j.jobCardNo === 'JC-2026-001' && (j.customer === 'ROOP POLYMERS LTD' || !j.customer || j.customer === 'Demo Party')) &&
+          !(j.customer === 'ROOP POLYMERS LTD' && (j.woNo === 'WO-1042' || j.wNo === 'WO-1042'))
+        );
+        localStorage.setItem('pk_jobcards_data', JSON.stringify(cleaned));
+      }
     }
   } catch {
     // ignore storage errors
@@ -661,7 +674,13 @@ export const PortalProvider: React.FC<{
           if (Array.isArray(remote.pk_grn_data)) setGrnList(remote.pk_grn_data as GoodsReceiptNote[]);
           if (Array.isArray(remote.pk_material_requisitions)) setMaterialRequisitions(remote.pk_material_requisitions as MaterialRequisitionNote[]);
           if (Array.isArray(remote.pk_iqc_data)) setIqcRecords(remote.pk_iqc_data as IQCInspectionRecord[]);
-          if (Array.isArray(remote.pk_jobcards_data)) setJobCards(remote.pk_jobcards_data as JobCard[]);
+          if (Array.isArray(remote.pk_jobcards_data)) {
+            const sanitized = (remote.pk_jobcards_data as JobCard[]).filter(j => 
+              !(j.jobCardNo === 'JC-2026-001' && (j.customer === 'ROOP POLYMERS LTD' || !j.customer || j.customer === 'Demo Party')) &&
+              !(j.customer === 'ROOP POLYMERS LTD' && (j.woNo === 'WO-1042' || j.wNo === 'WO-1042'))
+            );
+            setJobCards(sanitized);
+          }
           if (Array.isArray(remote.pk_painter_assignments)) setPainterAssignments(remote.pk_painter_assignments as PainterAssignment[]);
           if (Array.isArray(remote.pk_assignment_material_logs)) setAssignmentMaterialLogs(remote.pk_assignment_material_logs as AssignmentMaterialLog[]);
           if (Array.isArray(remote.pk_painters)) setPainters((remote.pk_painters as PainterProfile[]).map(p => ({ ...p, plant: (p.plant as PlantLocation) || 'Haridwar' })));
@@ -1177,7 +1196,11 @@ export const PortalProvider: React.FC<{
   });
 
   const [jobCards, setJobCards] = useState<JobCard[]>(() => {
-    return mergeByUniqueKey(localStorage.getItem('pk_jobcards_data'), INITIAL_JOB_CARDS, 'jobCardNo');
+    const raw = mergeByUniqueKey(localStorage.getItem('pk_jobcards_data'), INITIAL_JOB_CARDS, 'jobCardNo');
+    return raw.filter(j => 
+      !(j.jobCardNo === 'JC-2026-001' && (j.customer === 'ROOP POLYMERS LTD' || !j.customer || j.customer === 'Demo Party')) &&
+      !(j.customer === 'ROOP POLYMERS LTD' && (j.woNo === 'WO-1042' || j.wNo === 'WO-1042'))
+    );
   });
 
   const [painterAssignments, setPainterAssignments] = useState<PainterAssignment[]>(() => {
@@ -1933,6 +1956,14 @@ export const PortalProvider: React.FC<{
 
   const updateJobCard = (jc: JobCard) => {
     setJobCards(prev => prev.map(existing => existing.jobCardNo === jc.jobCardNo ? { ...existing, ...jc } : existing));
+  };
+
+  const deleteJobCard = (jobCardNo: string) => {
+    setJobCards(prev => {
+      const next = prev.filter(existing => existing.jobCardNo !== jobCardNo);
+      syncState('pk_jobcards_data', next);
+      return next;
+    });
   };
 
   const addJobCardProgressLog = (jobCardNo: string, log: Omit<JobCardProductionProgressLog, 'id' | 'timestamp'>) => {
@@ -3649,6 +3680,7 @@ export const PortalProvider: React.FC<{
         addOQCRelease,
         submitPdiClearance,
         addJobCard,
+        deleteJobCard,
         updateJobCard,
         addJobCardProgressLog,
         updateSamplingRecipe,

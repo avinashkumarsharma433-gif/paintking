@@ -280,11 +280,11 @@ export const IPQCModal: React.FC<IPQCModalProps> = ({
     setActiveSlotKey(getDefaultActiveSlotKey());
 
     if (jobCard) {
-      setWoNo(jobCard.woNo || jobCard.wNo || 'WO-1042');
-      setPartCode(jobCard.partCode || 'RP-8841');
-      setPartDescription(jobCard.partDescription || `${jobCard.partCode || 'RP-8841'} Component`);
-      setCustomer(jobCard.customer || 'ROOP POLYMERS LTD');
-      setColor(jobCard.color || 'Monza Red Gloss');
+      setWoNo(jobCard.woNo || jobCard.wNo || '');
+      setPartCode(jobCard.partCode || '');
+      setPartDescription(jobCard.partDescription || '');
+      setCustomer(jobCard.customer || '');
+      setColor(jobCard.color || '');
       setPaintDescription(jobCard.paintDescription || `${jobCard.color || '2K PU'} Basecoat`);
       const paintMat = jobCard.issuedMaterials?.find(m => 
         m.materialType === 'paint' || 

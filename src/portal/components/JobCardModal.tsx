@@ -255,6 +255,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     ipqcRecords,
     painterAssignments,
     assignmentMaterialLogs,
+    deleteJobCard,
     createPainterAssignment,
     closePainterAssignment
   } = usePortalStore();
@@ -2764,20 +2765,36 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
             {/* Top Master Summary Banner for Existing Job Card */}
             <div className="bg-white rounded-[24px] p-6 sm:p-7 border border-[#ececec] shadow-xs">
               <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-xs font-bold px-3 py-1 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
-                    {jobCardNo}
-                  </span>
-                  <span className="font-mono text-xs font-bold px-3 py-1 rounded-full bg-[#faf7ed] text-[#17191c] border border-[#f4e5be] flex items-center gap-1.5 shadow-2xs">
-                    <PackageCheck className="w-3.5 h-3.5 text-[#c09748]" />
-                    <span>GRN: {selectedGrnNo || 'PK-GRN-VERIFIED'}</span>
-                  </span>
-                  <span className="text-[11px] font-sans font-semibold px-2.5 py-0.5 rounded-full bg-[#fafafb] text-[#777b86] border border-[#ececec]">
-                    Plant: {activePlant}
-                  </span>
-                  <span className="text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be]">
-                    ● ACTIVE FLOOR EXECUTION
-                  </span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs font-bold px-3 py-1 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                      {jobCardNo}
+                    </span>
+                    <span className="font-mono text-xs font-bold px-3 py-1 rounded-full bg-[#faf7ed] text-[#17191c] border border-[#f4e5be] flex items-center gap-1.5 shadow-2xs">
+                      <PackageCheck className="w-3.5 h-3.5 text-[#c09748]" />
+                      <span>GRN: {selectedGrnNo || 'PK-GRN-VERIFIED'}</span>
+                    </span>
+                    <span className="text-[11px] font-sans font-semibold px-2.5 py-0.5 rounded-full bg-[#fafafb] text-[#777b86] border border-[#ececec]">
+                      Plant: {activePlant}
+                    </span>
+                    <span className="text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be]">
+                      ● ACTIVE FLOOR EXECUTION
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(`Are you sure you want to permanently delete Job Card ${jobCardNo}? This action cannot be undone.`)) {
+                        deleteJobCard(jobCardNo);
+                        onClose();
+                      }
+                    }}
+                    className="px-3.5 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                    title="Permanently Delete this Job Card"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Delete Job Card</span>
+                  </button>
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-serif text-[#17191c] font-normal tracking-tight">
                   {customer}
@@ -4696,7 +4713,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       <div className="flex flex-wrap items-center gap-2 text-xs text-[#777b86]">
                         <span>Job Card Tracing No: <strong className="font-mono text-[#8a6521] font-bold bg-[#faf7ed] px-2.5 py-0.5 rounded-full border border-[#f4e5be] shadow-2xs">{jobCardNo}</strong></span>
                         <span>•</span>
-                        <span>Part Code: <strong className="font-mono text-[#17191c] font-bold">{partCode || 'RP-8841'}</strong></span>
+                        <span>Part Code: <strong className="font-mono text-[#17191c] font-bold">{partCode || '—'}</strong></span>
                         <span>•</span>
                         <span>Part Name: <strong className="text-[#17191c] font-semibold">{partDescription || 'Component Description'}</strong></span>
                       </div>

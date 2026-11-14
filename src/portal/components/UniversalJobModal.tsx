@@ -13,23 +13,23 @@ export const UniversalJobModal: React.FC<UniversalJobModalProps> = ({ isOpen, on
   const { addUniversalJob, currentUser } = usePortalStore();
 
   const [jobId, setJobId] = useState<string>(`PK-JOB-2026-${Math.floor(100 + Math.random() * 900)}`);
-  const [partyName, setPartyName] = useState<string>('ROOP POLYMERS LTD');
-  const [customerRefChallan, setCustomerRefChallan] = useState<string>('RP/CH/99824');
+  const [partyName, setPartyName] = useState<string>('');
+  const [customerRefChallan, setCustomerRefChallan] = useState<string>('');
   const [challanDate, setChallanDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [receivingDate, setReceivingDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [vehicleNo, setVehicleNo] = useState<string>('UK-08-AL-4412');
+  const [vehicleNo, setVehicleNo] = useState<string>('');
   
   // Category Dropdown - Strict 2 Options
   const [category, setCategory] = useState<MaterialCategoryOption>('Party Material');
 
   // Material Spec
-  const [materialName, setMaterialName] = useState<string>('Auto AC Center Vent Bezel Substrate (ABS)');
-  const [totalQuantity, setTotalQuantity] = useState<number>(1000);
+  const [materialName, setMaterialName] = useState<string>('');
+  const [totalQuantity, setTotalQuantity] = useState<number>(0);
   const [unit, setUnit] = useState<string>('Pcs');
-  const [colorName, setColorName] = useState<string>('Monza Red Gloss');
-  const [colorCode, setColorCode] = useState<string>('RD-01');
-  const [unitRate, setUnitRate] = useState<number>(25.0);
-  const [remarks, setRemarks] = useState<string>('Physical box count match (1000 pcs). Material intake verified at gate.');
+  const [colorName, setColorName] = useState<string>('');
+  const [colorCode, setColorCode] = useState<string>('');
+  const [unitRate, setUnitRate] = useState<number>(0);
+  const [remarks, setRemarks] = useState<string>('');
 
   if (!isOpen) return null;
 
