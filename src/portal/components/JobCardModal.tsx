@@ -1670,6 +1670,16 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       }
     }
 
+    // Enforce 1 GRN = 1 Master Job Card
+    const resolvedGrnNo = selectedGrn?.grnNo || selectedGrnNo;
+    if (!isExistingCard && resolvedGrnNo) {
+      const existingMaster = jobCards.find(jc => jc.sourceGrnNo === resolvedGrnNo);
+      if (existingMaster) {
+        alert(`Master Job Card (${existingMaster.jobCardNo}) already exists for GRN ${resolvedGrnNo}. Open it to add painter assignments.`);
+        return;
+      }
+    }
+
     const totalAllocatedShift = initialPainterAllocs.reduce((s, a) => s + (Number(a.dailyTargetQty) || 0), 0);
     const primaryPainter = initialPainterAllocs[0];
 
@@ -2914,9 +2924,23 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               </div>
             </div>
 
-            {/* Dedicated Sub-view Tab Navigation for Existing Job Card */}
+            {/* Dedicated Sub-view Tab Navigation for Existing Job Card (3-Tier + QA) */}
             <div className="flex items-center gap-2 border-b border-[#ececec] pb-3 flex-wrap">
-              {/* 3-Tier Shift Allocations & Consumables Ledger Tab */}
+              {/* Tier 1: Master Order Overview */}
+              <button
+                type="button"
+                onClick={() => setExistingCardTab('EXECUTION')}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  existingCardTab === 'EXECUTION'
+                    ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] shadow-2xs ring-1 ring-[#c09748]/20'
+                    : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 text-[#c09748]" />
+                <span>1. Master Order Overview</span>
+              </button>
+
+              {/* Tier 2: Painter Shift Assignments */}
               <button
                 type="button"
                 onClick={() => setExistingCardTab('PAINTER_ASSIGNMENTS')}
@@ -2927,9 +2951,10 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 }`}
               >
                 <Users className="w-3.5 h-3.5 text-[#c09748]" />
-                <span>Painter Shift Assignments ({currentJcAssignments.length})</span>
+                <span>2. Painter Shift Assignments ({currentJcAssignments.length})</span>
               </button>
 
+              {/* Tier 3: Material & Chemical Ledger */}
               <button
                 type="button"
                 onClick={() => setExistingCardTab('DAILY_LOG')}
@@ -2940,25 +2965,13 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 }`}
               >
                 <Calendar className="w-3.5 h-3.5 text-[#8a6521]" />
-                <span>Consumables & Chemical Ledger</span>
+                <span>3. Material & Chemical Ledger</span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#8a6521] text-white">
                   {productionDates.length} {productionDates.length === 1 ? 'Date' : 'Dates'}
                 </span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setExistingCardTab('EXECUTION')}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
-                  existingCardTab === 'EXECUTION'
-                    ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] shadow-2xs'
-                    : 'bg-white text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5 text-[#c09748]" />
-                <span>Master Order & Floor Overview</span>
-              </button>
-
+              {/* QA Gates */}
               <button
                 type="button"
                 onClick={() => setExistingCardTab('QUALITY')}
@@ -2969,7 +2982,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 }`}
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-[#c09748]" />
-                <span>Quality Control Gates (PIR • FPA • IPQC)</span>
+                <span>4. Quality Control Gates (PIR • FPA • IPQC)</span>
                 {isFpaApproved ? (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                     ✓ FPA Approved

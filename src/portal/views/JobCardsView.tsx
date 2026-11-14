@@ -2127,23 +2127,27 @@ export const JobCardsView: React.FC = () => {
                             )}
                           </div>
 
-                          {/* Right: Action Button */}
+                          {/* Right: Action Button (1 GRN = 1 Master Job Card) */}
                           <div>
-                            {remainingQtyToAllocate > 0 ? (
+                            {hasJobCards ? (
                               <button
                                 type="button"
-                                onClick={() => handleLaunchJobCardFromPriority(prio, remainingQtyToAllocate)}
+                                onClick={() => setSelectedJobCardForView(matchingJobCards[0])}
+                                className="px-5 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] font-semibold text-xs shadow-2xs cursor-pointer transition flex items-center gap-1.5 active:scale-95"
+                              >
+                                <CheckCircle className="w-3.5 h-3.5 text-[#c09748]" />
+                                <span>Open Master Job Card ({matchingJobCards[0].jobCardNo})</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleLaunchJobCardFromPriority(prio, totalLotQty)}
                                 disabled={isPlantDayClosed}
                                 className="px-5 py-2.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs shadow-2xs cursor-pointer transition flex items-center gap-1.5 active:scale-95"
                               >
                                 <Plus className="w-3.5 h-3.5 text-[#8a6521]" />
-                                <span>{hasJobCards ? `Create Next Job Card (${remainingQtyToAllocate.toLocaleString('en-IN')} Pcs Left)` : `Create Job Card for this Order (${totalLotQty.toLocaleString('en-IN')} Pcs)`}</span>
+                                <span>Create Master Job Card ({totalLotQty.toLocaleString('en-IN')} Pcs)</span>
                               </button>
-                            ) : (
-                              <div className="px-4 py-2 rounded-full bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be] text-xs font-mono font-bold flex items-center gap-1.5 shadow-2xs">
-                                <CheckCircle className="w-3.5 h-3.5 text-[#c09748]" />
-                                <span>Order 100% Fully Allocated</span>
-                              </div>
                             )}
                           </div>
                         </div>

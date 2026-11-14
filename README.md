@@ -52,3 +52,38 @@ npm run build
 
 This repository is continuously deployed to **Vercel**. Every commit pushed to the `main` branch automatically triggers a production build.
 
+---
+
+## Architecture & Subsystem Contracts (EGM Blueprint)
+
+### Subdirectories
+
+| Directory | Summary | Contract |
+|---|---|---|
+| `src` | Frontend application root for the Public Website and `PK-OS` Portal. | [src/README.md](./src/README.md) |
+| `supabase` | Supabase backend configuration and Edge Functions. | [supabase/README.md](./supabase/README.md) |
+
+### Interface
+
+- **Public Website**: Client-side routed React 19 application (`src/pages`, `src/components`).
+- **Operations OS (`PK-OS`)**: Modular ERP portal (`src/portal`) with Supabase state sync (`pk_portal_state`) and local biometric/face-recognition engine (`src/portal/face-engine`).
+- **Edge Functions**: Privileged Super Admin user lifecycle management (`supabase/functions/admin-users`).
+
+### Invariants
+
+- **Plant Isolation**: Portal views enforce strict plant filtering (`matchesPlant(..., activePlant)`).
+- **Role Guards**: Privileged actions (e.g., `SUPER_ADMIN`, `DIRECTOR`, `PLANT_HEAD`, `STORES`) are gated in UI and Edge Functions.
+- **Type Safety**: Zero TypeScript errors enforced via `npm run lint` (`tsc --noEmit`).
+
+### Side Effects
+
+- **Remote Persistence**: `src/portal/lib/supabaseClient.ts` reads/upserts `pk_portal_state` and invokes `admin-users` Edge Function.
+- **Browser Storage**: `localStorage` and `IndexedDB` used for terminal config, recognition baselines, and encrypted biometric templates.
+- **Client-Side Exports**: `jsPDF` and `html2canvas` generate standardized PDFs and thermal labels.
+
+### Verification
+
+```bash
+npm run lint && npm run build
+```
+
