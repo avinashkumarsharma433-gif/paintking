@@ -1072,6 +1072,29 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     };
   };
 
+  // Live metrics for a painter assignment:
+  // Completed Good = ONLY Stage 3 (Clear Topcoat) OK pieces (passed all 3 stages)
+  // Rework & Dead Scrap = summed cleanly across all 3 stages so neither is conflated
+  const getAssignmentLiveMetrics = (asg: PainterAssignment) => {
+    const s1 = getAssignmentStageSums(asg, 'stage_1_primer');
+    const s2 = getAssignmentStageSums(asg, 'stage_2_basecoat');
+    const s3 = getAssignmentStageSums(asg, 'stage_3_topcoat');
+    const hasStageLogs =
+      s1.good + s1.rework + s1.scrap +
+      s2.good + s2.rework + s2.scrap +
+      s3.good + s3.rework + s3.scrap > 0;
+
+    const completedGood = hasStageLogs ? s3.good : (asg.actualCompletedQty || 0);
+    const rework = hasStageLogs ? (s1.rework + s2.rework + s3.rework) : (asg.rejectReworkQty || 0);
+    const scrap = hasStageLogs ? (s1.scrap + s2.scrap + s3.scrap) : (asg.scrapQty || 0);
+    const pending = Math.max(0, (asg.dailyTargetQty || 0) - completedGood - scrap);
+    const efficiency = (asg.dailyTargetQty || 0) > 0
+      ? Math.min(100, Math.round((completedGood / asg.dailyTargetQty) * 100))
+      : 0;
+
+    return { completedGood, rework, scrap, pending, efficiency };
+  };
+
   // Strict sequential stage cap for an assignment:
   // - Stage 1 receives raw quota (dailyTargetQty - s1Good - s1Scrap)
   // - Stage 2 receives ONLY Stage 1 OK pieces (unless Stage 1 has 0 logs on a pure-Basecoat shift)
@@ -3223,7 +3246,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
 
                   <div className="mt-2.5 space-y-2 max-h-[148px] overflow-y-auto pr-0.5">
                     {currentJcAssignments.length > 0 ? (
-                      currentJcAssignments.map((asg) => (
+                      currentJcAssignments.map((asg) => {
+                        const metrics = getAssignmentLiveMetrics(asg);
+                        return (
                         <div key={asg.id} className="p-2.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between gap-2">
                           <div className="min-w-0">
                             <div className="text-xs font-bold text-[#17191c] truncate">{asg.painterName}</div>
@@ -3241,14 +3266,15 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           </div>
                           <div className="text-right shrink-0">
                             <span className="font-mono font-bold text-[11px] text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
-                              {asg.actualCompletedQty || 0} / {asg.dailyTargetQty} Pcs
+                              {metrics.completedGood} / {asg.dailyTargetQty} Pcs
                             </span>
                             <span className={`block text-[9px] font-mono mt-0.5 ${asg.status.includes('Met') ? 'text-emerald-700 font-bold' : asg.status.includes('Active') ? 'text-blue-700' : 'text-[#777b86]'}`}>
                               {asg.status}
                             </span>
                           </div>
                         </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="p-3.5 rounded-[14px] bg-[#fafafb] border border-dashed border-[#ececec] text-center space-y-1">
                         <div className="text-xs font-semibold text-[#17191c]">No painters assigned yet</div>
@@ -3468,10 +3494,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           .sort((a, b) => (b.assignmentDate || '').localeCompare(a.assignmentDate || ''))
                           .map((asg, idx) => {
                             const todayIso = new Date().toISOString().split('T')[0];
+                            const metrics = getAssignmentLiveMetrics(asg);
                             const quota = Number(asg.dailyTargetQty || 0);
-                            const good = Number(asg.actualCompletedQty || 0);
-                            const scrap = Number(asg.scrapQty || 0);
-                            const achievedPct = quota > 0 ? Math.round((good / quota) * 100) : 0;
+                            const good = metrics.completedGood;
+                            const scrap = metrics.scrap;
+                            const achievedPct = metrics.efficiency;
 
                             return (
                               <tr key={asg.id || idx} className={idx % 2 === 1 ? 'bg-[#fafafb]' : 'bg-white'}>
@@ -3799,44 +3826,55 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   )}
                 </div>
 
-                {/* 4 KPI Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="bg-[#fafafb] p-4 rounded-[20px] border border-[#ececec] text-center space-y-1">
-                    <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">Assigned Today Target</span>
-                    <span className="font-mono font-bold text-xl text-[#17191c] block">
-                      {activeTab2Assignment.dailyTargetQty.toLocaleString()} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
-                    </span>
-                    <span className="text-[10.5px] text-[#777b86] block font-mono">Shift Quota</span>
-                  </div>
+                {/* 5 Dedicated KPI Cards (Target, Completed OK All Stages, Rework, Dead Scrap, Pending Balance) */}
+                {(() => {
+                  const metrics = getAssignmentLiveMetrics(activeTab2Assignment);
+                  return (
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                      <div className="bg-[#fafafb] p-4 rounded-[20px] border border-[#ececec] text-center space-y-1">
+                        <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">Assigned Today Target</span>
+                        <span className="font-mono font-bold text-xl text-[#17191c] block">
+                          {activeTab2Assignment.dailyTargetQty.toLocaleString()} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
+                        </span>
+                        <span className="text-[10.5px] text-[#777b86] block font-mono">Shift Quota</span>
+                      </div>
 
-                  <div className="bg-emerald-50/80 p-4 rounded-[20px] border border-emerald-200 text-center space-y-1">
-                    <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">Completed Good Output</span>
-                    <span className="font-mono font-bold text-xl text-emerald-700 block">
-                      {(activeTab2Assignment.actualCompletedQty || 0).toLocaleString()} <span className="text-xs font-normal text-emerald-800">Pcs</span>
-                    </span>
-                    <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      {activeTab2Assignment.efficiency ?? (activeTab2Assignment.dailyTargetQty > 0 ? Math.min(100, Math.round(((activeTab2Assignment.actualCompletedQty || 0) / activeTab2Assignment.dailyTargetQty) * 100)) : 0)}% Efficiency
-                    </span>
-                  </div>
+                      <div className="bg-emerald-50/80 p-4 rounded-[20px] border border-emerald-200 text-center space-y-1">
+                        <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">Completed Good Output</span>
+                        <span className="font-mono font-bold text-xl text-emerald-700 block">
+                          {metrics.completedGood.toLocaleString()} <span className="text-xs font-normal text-emerald-800">Pcs</span>
+                        </span>
+                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          {metrics.efficiency}% All-Stages OK
+                        </span>
+                      </div>
 
-                  <div className="bg-rose-50/80 p-4 rounded-[20px] border border-rose-200 text-center space-y-1">
-                    <span className="text-[10px] text-rose-800 uppercase font-mono font-bold block">Rework &amp; Dead Scrap</span>
-                    <span className="font-mono font-bold text-xl text-rose-700 block">
-                      {((activeTab2Assignment.rejectReworkQty || 0) + (activeTab2Assignment.scrapQty || 0)).toLocaleString()} <span className="text-xs font-normal text-rose-800">Pcs</span>
-                    </span>
-                    <span className="text-[10.5px] text-rose-800 block font-mono">
-                      RW: {activeTab2Assignment.rejectReworkQty || 0} • Scrap: {activeTab2Assignment.scrapQty || 0}
-                    </span>
-                  </div>
+                      <div className="bg-amber-50/80 p-4 rounded-[20px] border border-amber-200 text-center space-y-1">
+                        <span className="text-[10px] text-amber-800 uppercase font-mono font-bold block">Rework (Salvage)</span>
+                        <span className="font-mono font-bold text-xl text-amber-900 block">
+                          {metrics.rework.toLocaleString()} <span className="text-xs font-normal text-amber-800">Pcs</span>
+                        </span>
+                        <span className="text-[10.5px] text-amber-800 block font-mono">Touch-Up / Re-Spray</span>
+                      </div>
 
-                  <div className="bg-amber-50/80 p-4 rounded-[20px] border border-amber-200 text-center space-y-1">
-                    <span className="text-[10px] text-amber-800 uppercase font-mono font-bold block">Pending Shift Balance</span>
-                    <span className="font-mono font-bold text-xl text-amber-900 block">
-                      {Math.max(0, activeTab2Assignment.dailyTargetQty - (activeTab2Assignment.actualCompletedQty || 0) - (activeTab2Assignment.scrapQty || 0)).toLocaleString()} <span className="text-xs font-normal text-amber-800">Pcs</span>
-                    </span>
-                    <span className="text-[10.5px] text-amber-800 block font-mono">To Be Finished</span>
-                  </div>
-                </div>
+                      <div className="bg-rose-50/80 p-4 rounded-[20px] border border-rose-200 text-center space-y-1">
+                        <span className="text-[10px] text-rose-800 uppercase font-mono font-bold block">Dead Scrap (Rej)</span>
+                        <span className="font-mono font-bold text-xl text-rose-700 block">
+                          {metrics.scrap.toLocaleString()} <span className="text-xs font-normal text-rose-800">Pcs</span>
+                        </span>
+                        <span className="text-[10.5px] text-rose-800 block font-mono">Permanent Loss</span>
+                      </div>
+
+                      <div className="bg-[#faf7ed] p-4 rounded-[20px] border border-[#f4e5be] text-center space-y-1 col-span-2 sm:col-span-1">
+                        <span className="text-[10px] text-[#8a6521] uppercase font-mono font-bold block">Pending Shift Balance</span>
+                        <span className="font-mono font-bold text-xl text-[#17191c] block">
+                          {metrics.pending.toLocaleString()} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
+                        </span>
+                        <span className="text-[10.5px] text-[#8a6521] block font-mono">To Be Finished</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* 2. 3-Stage Process Tracker & Stage Output Batch Logger */}
@@ -4484,6 +4522,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 <div className="space-y-3">
                   {currentJcAssignments.map(asg => {
                     const isClosed = asg.status.startsWith('Closed');
+                    const metrics = getAssignmentLiveMetrics(asg);
                     return (
                       <div
                         key={asg.id}
@@ -4507,13 +4546,14 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           </div>
                           <div className="flex items-center gap-3 text-[11px] text-[#777b86] flex-wrap">
                             <span>Target: <strong className="text-[#17191c] font-mono">{asg.dailyTargetQty} pcs</strong></span>
-                            <span>Completed OK: <strong className="text-emerald-700 font-mono font-bold">{asg.actualCompletedQty || 0} pcs</strong></span>
-                            {((asg.rejectReworkQty || 0) > 0 || (asg.scrapQty || 0) > 0) && (
-                              <span className="text-rose-700 font-mono">RW: {asg.rejectReworkQty || 0} • Scrap: {asg.scrapQty || 0} pcs</span>
+                            <span>Completed OK: <strong className="text-emerald-700 font-mono font-bold">{metrics.completedGood} pcs</strong></span>
+                            {metrics.rework > 0 && (
+                              <span className="text-amber-800 font-mono">Rework: <strong>{metrics.rework}</strong> pcs</span>
                             )}
-                            {asg.efficiency !== undefined && (
-                              <span className="text-amber-800 font-mono font-bold">Efficiency: {asg.efficiency}%</span>
+                            {metrics.scrap > 0 && (
+                              <span className="text-rose-700 font-mono">Scrap: <strong>{metrics.scrap}</strong> pcs</span>
                             )}
+                            <span className="text-amber-800 font-mono font-bold">Efficiency: {metrics.efficiency}%</span>
                           </div>
                         </div>
 

@@ -2921,15 +2921,11 @@ export const PortalProvider: React.FC<{
     setPainterAssignments(prev => prev.map(a => {
       if (a.id !== assignmentId && a.assignmentId !== assignmentId) return a;
 
-      const stageMatchesAssignment =
-        stage === 'stage_3_topcoat' ||
-        (stage === 'stage_1_primer' && String(a.processStage).toLowerCase().includes('primer')) ||
-        (stage === 'stage_2_basecoat' && String(a.processStage).toLowerCase().includes('basecoat'));
-
-      const newActualCompleted = (a.actualCompletedQty || 0) + (stageMatchesAssignment ? goodDelta : 0);
+      // Count as Completed Good Output ONLY once all stages pass (Stage 3: Clear Topcoat)
+      const newActualCompleted = (a.actualCompletedQty || 0) + (stage === 'stage_3_topcoat' ? goodDelta : 0);
       const newRework = (a.rejectReworkQty || 0) + reworkDelta;
       const newScrap = (a.scrapQty || 0) + scrapDelta;
-      const eff = a.dailyTargetQty > 0 ? Math.round((newActualCompleted / a.dailyTargetQty) * 100) : 0;
+      const eff = a.dailyTargetQty > 0 ? Math.min(100, Math.round((newActualCompleted / a.dailyTargetQty) * 100)) : 0;
 
       return {
         ...a,

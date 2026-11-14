@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-14: Fixed All-Stages Completed OK Calculation & Split Dedicated Rework / Dead Scrap KPI Cards
+  - Files touched:
+    - `src/portal/context/PortalStoreContext.tsx`: Updated `recordAssignmentStageOutput` so only Stage 3 (`stage_3_topcoat`) increments `actualCompletedQty` (eliminating Stage 2 + Stage 3 double-counting such as `440 + 440 = 880`).
+    - `src/portal/components/JobCardModal.tsx`: Added shared `getAssignmentLiveMetrics` helper (Completed Good = Stage 3 OK, Rework = summed across stages, Dead Scrap = summed cleanly across stages), and split the combined Rework & Scrap KPI card into 5 dedicated KPI cards (`Assigned Today Target`, `Completed Good Output`, `Rework (Salvage)`, `Dead Scrap (Rej)`, `Pending Shift Balance`) plus reused across Tab 1 & Tab 2.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors).
+
 - 2026-11-14: Enforced Remaining Order Balance & Input Clamping in Assign Daily Target Modal
   - Files touched:
     - `src/portal/components/DailyAssignmentModal.tsx`: Added optional `existingAssignments` prop to compute true `COMPLETED OK` (`max(masterJobCard.goodQty, assignedCompletedOk)`) and `BALANCE PENDING` (`targetQty - max(completed, committed)` -> e.g. 8,000 when 2,000 are done/assigned), clamped `6. Daily Target Qty (Pcs)` `onChange` so users cannot type beyond `balancePending`, synced initial `targetQty` via `useEffect`, and disabled submit when `balancePending <= 0`.
