@@ -1065,14 +1065,42 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     };
   };
 
+  // Strict sequential stage cap for an assignment:
+  // - Stage 1 receives raw quota (dailyTargetQty - s1Good - s1Scrap)
+  // - Stage 2 receives ONLY Stage 1 OK pieces (unless Stage 1 has 0 logs on a pure-Basecoat shift)
+  // - Stage 3 receives ONLY Stage 2 OK pieces (unless Stages 1 & 2 have 0 logs on a pure-Topcoat shift)
+  const getAssignmentStageMaxAllowed = (asg: PainterAssignment, stageKey: CoatingProcessStage): number => {
+    const s1 = getAssignmentStageSums(asg, 'stage_1_primer');
+    const s2 = getAssignmentStageSums(asg, 'stage_2_basecoat');
+    const s3 = getAssignmentStageSums(asg, 'stage_3_topcoat');
+    const s1HasLogs = s1.good + s1.rework + s1.scrap > 0;
+    const s2HasLogs = s2.good + s2.rework + s2.scrap > 0;
+
+    if (stageKey === 'stage_1_primer') {
+      return Math.max(0, asg.dailyTargetQty - s1.good - s1.scrap);
+    }
+    if (stageKey === 'stage_2_basecoat') {
+      if (s1HasLogs) {
+        return Math.max(0, s1.good - s2.good - s2.scrap);
+      }
+      return asg.processStage === 'Basecoat' ? Math.max(0, asg.dailyTargetQty - s2.good - s2.scrap) : 0;
+    }
+    if (s2HasLogs) {
+      return Math.max(0, s2.good - s3.good - s3.scrap);
+    }
+    if (s1HasLogs) {
+      return 0;
+    }
+    return asg.processStage === 'Topcoat / Clear Coat' ? Math.max(0, asg.dailyTargetQty - s3.good - s3.scrap) : 0;
+  };
+
   // Strict Sequential Stage Handshake Logic (assignment-scoped when logging for a selected painter):
   // - Stage 1 Input: Raw substrate parts from Stores (targetQty). Remaining = targetQty - s1Good - s1Scrap
   // - Stage 2 Input: Good Pieces passed by Stage 1 (stageCounts.stage1.good)
   // - Stage 3 Input: Good Pieces passed by Stage 2 (stageCounts.stage2.good)
   const currentStageMaxAllowed = useMemo(() => {
     if (activeTab2Assignment) {
-      const sums = getAssignmentStageSums(activeTab2Assignment, selectedStage);
-      return Math.max(0, activeTab2Assignment.dailyTargetQty - sums.good - sums.scrap);
+      return getAssignmentStageMaxAllowed(activeTab2Assignment, selectedStage);
     }
     if (selectedStage === 'stage_1_primer') {
       return Math.max(0, targetQty - stageCounts.stage1.good - stageCounts.stage1.scrap);
@@ -1107,8 +1135,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     setSelectedStage(stageKey);
     let maxForStage = 0;
     if (activeTab2Assignment) {
-      const sums = getAssignmentStageSums(activeTab2Assignment, stageKey);
-      maxForStage = Math.max(0, activeTab2Assignment.dailyTargetQty - sums.good - sums.scrap);
+      maxForStage = getAssignmentStageMaxAllowed(activeTab2Assignment, stageKey);
     } else if (stageKey === 'stage_1_primer') {
       maxForStage = Math.max(0, targetQty - stageCounts.stage1.good - stageCounts.stage1.scrap);
     } else if (stageKey === 'stage_2_basecoat') {
@@ -1495,7 +1522,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
 
   const handleSaveOutputBatch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (logPiecesSprayed <= 0) return;
+    if (logPiecesSprayed <= 0 || logPiecesSprayed > currentStageMaxAllowed) return;
 
     const now = new Date();
     const dateFormatted = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;

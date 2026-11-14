@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-14: Enforced Sequential 3-Stage Piece Limits Per Painter Assignment
+  - Files touched:
+    - `src/portal/components/JobCardModal.tsx`: Added `getAssignmentStageMaxAllowed` so Stage 2 (`stage_2_basecoat`) is capped at `Stage 1 OK - s2.good - s2.scrap` (excluding Stage 1 dead scrap) and Stage 3 (`stage_3_topcoat`) is capped at `Stage 2 OK - s3.good - s3.scrap`; guarded `handleSaveOutputBatch` against `logPiecesSprayed > currentStageMaxAllowed`.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors).
+
 - 2026-11-14: Merged Tab 2 & Tab 3 into Unified `2. Painter Operations & Material Ledger`
   - Files touched:
     - `src/portal/types/portalTypes.ts`: Added `assignmentId?: string` on `JobCardProductionProgressLog`.
