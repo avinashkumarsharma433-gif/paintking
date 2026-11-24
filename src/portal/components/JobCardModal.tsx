@@ -444,61 +444,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [issuedMaterials, setIssuedMaterials] = useState<IssuedMaterialItem[]>(() => {
     const rawList = initialData?.issuedMaterials;
     const sanitized = sanitizeCompanyMaterials(rawList, initialData?.partDescription);
-    if (sanitized.length > 0) {
-      return sanitized;
-    }
-    const basePcs = initialData?.targetQty || 250;
-    const estPaintLitres = Math.max(1, Math.ceil((basePcs / 500) * 8));
-    return [
-      {
-        id: '1',
-        itemDescription: `${initialData?.color || 'Monza Red Gloss'} 2K PU Basecoat Paint (PPG)`,
-        materialType: 'paint',
-        category: 'COMPANY_CONSUMABLE',
-        qty: estPaintLitres,
-        consumedQty: 0,
-        floorBalanceQty: estPaintLitres,
-        colour: initialData?.color || 'Monza Red Gloss',
-        uom: 'Litres',
-        remark: 'Mix ratio 4:1:1'
-      },
-      {
-        id: '2',
-        itemDescription: 'PU Thinner 400 Solvent',
-        materialType: 'thinner',
-        category: 'COMPANY_CONSUMABLE',
-        qty: Math.max(1, Math.ceil(estPaintLitres * 0.4)),
-        consumedQty: 0,
-        floorBalanceQty: Math.max(1, Math.ceil(estPaintLitres * 0.4)),
-        colour: 'Clear',
-        uom: 'Litres',
-        remark: 'Viscosity control solvent'
-      },
-      {
-        id: '3',
-        itemDescription: '2K Scratch-Resistant Hardener',
-        materialType: 'hardener',
-        category: 'COMPANY_CONSUMABLE',
-        qty: Math.max(1, Math.ceil(estPaintLitres * 0.25)),
-        consumedQty: 0,
-        floorBalanceQty: Math.max(1, Math.ceil(estPaintLitres * 0.25)),
-        colour: 'Clear',
-        uom: 'Litres',
-        remark: 'Reaction curing agent'
-      },
-      {
-        id: '4',
-        itemDescription: '2K Polyurethane Clear Lacquer Topcoat',
-        materialType: 'clear_coat',
-        category: 'COMPANY_CONSUMABLE',
-        qty: Math.max(1, Math.ceil(basePcs / 200)),
-        consumedQty: 0,
-        floorBalanceQty: Math.max(1, Math.ceil(basePcs / 200)),
-        colour: 'Clear Gloss',
-        uom: 'Litres',
-        remark: 'Protective topcoat layer'
-      }
-    ];
+    return sanitized;
   });
 
   // =========================================================================
@@ -1915,9 +1861,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       remainingQty: Math.max(0, targetQty - currentGoodQty - currentReworkQty - currentRejectQty),
       status: (currentGoodQty + currentReworkQty >= targetQty && targetQty > 0) ? 'Target Met' : (currentGoodQty > 0 ? 'In Process' : 'Open'),
       
-      painterName: primaryPainter?.painterName || painterName,
-      assignedPainterName: primaryPainter?.painterName || painterName,
-      assignedPainterId: primaryPainter?.painterId || assignedPainterId,
+      painterName: (primaryPainter && primaryPainter.dailyTargetQty > 0) ? primaryPainter.painterName : '',
+      assignedPainterName: (primaryPainter && primaryPainter.dailyTargetQty > 0) ? primaryPainter.painterName : '',
+      assignedPainterId: (primaryPainter && primaryPainter.dailyTargetQty > 0) ? primaryPainter.painterId : '',
       dept: primaryPainter?.boothNumber || dept,
       boothNo: (primaryPainter?.boothNumber || dept).split('(')[0]?.trim(),
       
@@ -1929,7 +1875,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       deadlineTime,
       isSlaBreached: new Date() > deadlineTimestamp && (targetQty - currentGoodQty) > 0,
       
-      issuedMaterials,
+      issuedMaterials: totalAllocatedShift > 0 ? issuedMaterials : [],
       progressLogs: logsToSave,
       primerCompletedQty: stageCounts.stage1.completed,
       primerRejectQty: stageCounts.stage1.rejects,
@@ -1969,14 +1915,18 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
           // Automatically register Tier-3 Material Traceability Logs
           if (res?.success && res.assignment && issuedMaterials.length > 0) {
             const allocFraction = totalAllocatedShift > 0 ? (alloc.dailyTargetQty / totalAllocatedShift) : 1;
-            issueAssignmentMaterials(res.assignment.id, issuedMaterials.map(m => ({
-              materialName: m.itemDescription,
-              materialType: (m.materialType === 'paint' ? 'Base Paint' : m.materialType === 'hardener' ? 'Hardener' : m.materialType === 'thinner' ? 'Thinner' : m.materialType === 'clear' ? 'Topcoat' : 'Base Paint') as any,
-              batchNumber: m.batchNumber || `LOT-${finalCard.jobCardNo.slice(-4)}`,
-              issuedQty: Math.max(0.2, Number((m.qty * allocFraction).toFixed(2))),
-              uom: m.uom as any,
-              standardNormPerPiece: 0.040
-            })));
+            issueAssignmentMaterials(
+              res.assignment.id,
+              issuedMaterials.map(m => ({
+                materialName: m.itemDescription,
+                materialType: (m.materialType === 'paint' ? 'Base Paint' : m.materialType === 'hardener' ? 'Hardener' : m.materialType === 'thinner' ? 'Thinner' : m.materialType === 'clear' ? 'Topcoat' : 'Base Paint') as any,
+                batchNumber: m.batchNumber || `LOT-${finalCard.jobCardNo.slice(-4)}`,
+                issuedQty: Math.max(0.2, Number((m.qty * allocFraction).toFixed(2))),
+                uom: m.uom as any,
+                standardNormPerPiece: 0.040
+              })),
+              res.assignment
+            );
           }
         }
       });
@@ -3421,11 +3371,16 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               </div>
             </div>
 
-            {/* 2. Total Materials & Chemicals Summary (Read-Only Roll-Up across all Painters) */}
+            {/* 2. Total Materials & Chemicals Summary (Read-Only Roll-Up across Assigned Painters Only) */}
             {(() => {
-              const jcLogs = assignmentMaterialLogs.filter(
-                l => l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo
-              );
+              const validAssignmentIds = new Set(currentJcAssignments.map(a => a.id));
+              const jcLogs = currentJcAssignments.length === 0
+                ? []
+                : assignmentMaterialLogs.filter(
+                    l =>
+                      (l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo) &&
+                      Boolean(l.assignmentId && validAssignmentIds.has(l.assignmentId))
+                  );
               const aggregatedMap = new Map<string, {
                 materialName: string;
                 materialType: string;
@@ -3532,7 +3487,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         </table>
                       </div>
                     </div>
-                  ) : companyMaterials.length > 0 ? (
+                  ) : currentJcAssignments.length > 0 && companyMaterials.length > 0 ? (
                     <div className="border border-[#ececec] rounded-[18px] overflow-hidden bg-white shadow-2xs">
                       <div className="overflow-x-auto">
                         <table className="w-full text-left text-xs border-collapse">
@@ -4763,43 +4718,53 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   All Chemicals Issued &amp; Consumed Across Painters
                 </h4>
 
-                {assignmentMaterialLogs.filter(l => l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo).length === 0 ? (
-                  <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
-                    No shift chemical logs recorded yet for this job card. Select a painter above to issue paints or thinners.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto border border-[#ececec] rounded-[18px]">
-                    <table className="w-full text-left text-xs bg-white border-collapse">
-                      <thead className="bg-[#f2f2f3] text-[#17191c] text-[11px] font-bold border-b border-[#ececec]">
-                        <tr>
-                          <th className="p-3">Date</th>
-                          <th className="p-3">Painter</th>
-                          <th className="p-3">Material &amp; Type</th>
-                          <th className="p-3 text-right">Issued</th>
-                          <th className="p-3 text-right">Good Return</th>
-                          <th className="p-3 text-right">Floor Wastage</th>
-                          <th className="p-3 text-right">Net Consumed</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#ececec]">
-                        {assignmentMaterialLogs.filter(l => l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo).map(log => (
-                          <tr key={log.id} className="hover:bg-[#fafafb] transition">
-                            <td className="p-3 font-mono text-[11px] text-[#777b86]">{log.logDate}</td>
-                            <td className="p-3 font-semibold text-[#17191c]">{log.painterName}</td>
-                            <td className="p-3 font-mono text-[11px]">
-                              <div className="font-sans font-semibold text-[#17191c]">{log.materialName}</div>
-                              <span className="text-[10px] text-[#777b86]">{log.materialType} • Batch: {log.batchNumber || 'N/A'}</span>
-                            </td>
-                            <td className="p-3 text-right font-mono">{log.issuedQty} {log.uom}</td>
-                            <td className="p-3 text-right font-mono text-emerald-700 font-medium">{log.goodReturnedQty} {log.uom}</td>
-                            <td className="p-3 text-right font-mono text-rose-700 font-medium">{log.floorWastageExpiredQty} {log.uom}</td>
-                            <td className="p-3 text-right font-mono font-bold text-[#8a6521]">{log.netConsumedQty} {log.uom}</td>
+                {(() => {
+                  const validAsgIds = new Set(currentJcAssignments.map(a => a.id));
+                  const validJcMatLogs = currentJcAssignments.length === 0
+                    ? []
+                    : assignmentMaterialLogs.filter(
+                        l =>
+                          (l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo) &&
+                          Boolean(l.assignmentId && validAsgIds.has(l.assignmentId))
+                      );
+                  return validJcMatLogs.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
+                      No shift chemical logs recorded yet for this job card. Select a painter above to issue paints or thinners.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto border border-[#ececec] rounded-[18px]">
+                      <table className="w-full text-left text-xs bg-white border-collapse">
+                        <thead className="bg-[#f2f2f3] text-[#17191c] text-[11px] font-bold border-b border-[#ececec]">
+                          <tr>
+                            <th className="p-3">Date</th>
+                            <th className="p-3">Painter</th>
+                            <th className="p-3">Material &amp; Type</th>
+                            <th className="p-3 text-right">Issued</th>
+                            <th className="p-3 text-right">Good Return</th>
+                            <th className="p-3 text-right">Floor Wastage</th>
+                            <th className="p-3 text-right">Net Consumed</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                        </thead>
+                        <tbody className="divide-y divide-[#ececec]">
+                          {validJcMatLogs.map(log => (
+                            <tr key={log.id} className="hover:bg-[#fafafb] transition">
+                              <td className="p-3 font-mono text-[11px] text-[#777b86]">{log.logDate}</td>
+                              <td className="p-3 font-semibold text-[#17191c]">{log.painterName}</td>
+                              <td className="p-3 font-mono text-[11px]">
+                                <div className="font-sans font-semibold text-[#17191c]">{log.materialName}</div>
+                                <span className="text-[10px] text-[#777b86]">{log.materialType} • Batch: {log.batchNumber || 'N/A'}</span>
+                              </td>
+                              <td className="p-3 text-right font-mono">{log.issuedQty} {log.uom}</td>
+                              <td className="p-3 text-right font-mono text-emerald-700 font-medium">{log.goodReturnedQty} {log.uom}</td>
+                              <td className="p-3 text-right font-mono text-rose-700 font-medium">{log.floorWastageExpiredQty} {log.uom}</td>
+                              <td className="p-3 text-right font-mono font-bold text-[#8a6521]">{log.netConsumedQty} {log.uom}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Combined Timestamped Logs */}
@@ -5774,7 +5739,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
 
                 {/* Table of Issued Materials */}
                 <div className="space-y-2.5">
-                  {issuedMaterials.map((mat, idx) => (
+                  {issuedMaterials.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
+                      Abhi koi store chemical pre-issue nahi kiya gaya hai. Zaroorat ho toh upar <strong>"Add Material Row"</strong> dabayein, ya Job Card launch hone ke baad <strong>Tab 2</strong> me assigned painter ko directly material issue karein.
+                    </div>
+                  ) : issuedMaterials.map((mat, idx) => (
                     <div key={mat.id || idx} className="bg-[#fafafb] p-3.5 rounded-[16px] border border-[#ececec] space-y-2 group hover:border-[#c09748]/50 transition shadow-2xs">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">

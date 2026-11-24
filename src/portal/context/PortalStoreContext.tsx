@@ -175,7 +175,8 @@ interface PortalContextType {
       issuedQty: number;
       uom: 'Litres' | 'Kg' | 'Pcs';
       standardNormPerPiece?: number;
-    }>
+    }>,
+    targetAssignmentOverride?: PainterAssignment
   ) => void;
   updateAssignmentMaterialLog: (
     logId: string,
@@ -539,6 +540,14 @@ function filterValidAssignments(assignments: PainterAssignment[], cards: JobCard
   });
 }
 
+function filterValidMaterialLogs(
+  logs: AssignmentMaterialLog[],
+  validAssignments: PainterAssignment[]
+): AssignmentMaterialLog[] {
+  const validAsgIds = new Set(validAssignments.map(a => a.id));
+  return logs.filter(l => Boolean(l.assignmentId && validAsgIds.has(l.assignmentId)));
+}
+
 const PortalContext = createContext<PortalContextType | undefined>(undefined);
 
 export const PortalProvider: React.FC<{
@@ -710,15 +719,13 @@ export const PortalProvider: React.FC<{
             hydratedCards = (remote.pk_jobcards_data as JobCard[]).filter(j => !isLegacyDemoJobCard(j));
             setJobCards(hydratedCards);
           }
+          let hydratedAsgs = painterAssignments;
           if (Array.isArray(remote.pk_painter_assignments)) {
-            const cleanedAsgs = filterValidAssignments(remote.pk_painter_assignments as PainterAssignment[], hydratedCards);
-            setPainterAssignments(cleanedAsgs);
+            hydratedAsgs = filterValidAssignments(remote.pk_painter_assignments as PainterAssignment[], hydratedCards);
+            setPainterAssignments(hydratedAsgs);
           }
           if (Array.isArray(remote.pk_assignment_material_logs)) {
-            const validJcSet = new Set(hydratedCards.map(c => c.jobCardNo));
-            const cleanedLogs = (remote.pk_assignment_material_logs as AssignmentMaterialLog[]).filter(
-              l => validJcSet.has(l.masterJobCardNo || l.masterJobCardId || '')
-            );
+            const cleanedLogs = filterValidMaterialLogs(remote.pk_assignment_material_logs as AssignmentMaterialLog[], hydratedAsgs);
             setAssignmentMaterialLogs(cleanedLogs);
           }
           if (Array.isArray(remote.pk_painters)) setPainters((remote.pk_painters as PainterProfile[]).map(p => ({ ...p, plant: (p.plant as PlantLocation) || 'Haridwar' })));
@@ -1252,9 +1259,8 @@ export const PortalProvider: React.FC<{
     try {
       const s = localStorage.getItem('pk_assignment_material_logs');
       const parsed: AssignmentMaterialLog[] = s ? JSON.parse(s) : [];
-      const validJcSet = new Set(jobCards.map(c => c.jobCardNo));
       return Array.isArray(parsed)
-        ? parsed.filter(l => validJcSet.has(l.masterJobCardNo || l.masterJobCardId || ''))
+        ? filterValidMaterialLogs(parsed, painterAssignments)
         : [];
     } catch {
       return [];
@@ -1959,8 +1965,9 @@ export const PortalProvider: React.FC<{
       });
     }
 
-    // 2. Company Consumable Chemical Lines (Paint, Thinner, Hardener, Primer, Clear Coat for Today's Target)
-    if (formattedJc.issuedMaterials && formattedJc.issuedMaterials.length > 0) {
+    // 2. Company Consumable Chemical Lines (Only when a painter is actually assigned)
+    const hasAssignedPainter = Boolean((formattedJc.assignedPainterName || formattedJc.painterName || '').trim());
+    if (hasAssignedPainter && formattedJc.issuedMaterials && formattedJc.issuedMaterials.length > 0) {
       formattedJc.issuedMaterials.forEach((m, idx) => {
         reqLines.push({
           id: `rl_chem_${idx}_${Date.now()}`,
@@ -2689,7 +2696,12 @@ export const PortalProvider: React.FC<{
     const resolvedPartCode = assignmentData.partCode || selectedPart?.partCode || parentJob.partCode;
     const resolvedPartDescription = assignmentData.partDescription || selectedPart?.partDescription || parentJob.partDescription;
 
-    const nextId = `ASG-${new Date().getFullYear()}-${String(painterAssignments.length + 1).padStart(4, '0')}`;
+    const maxAsgSeq = painterAssignments.reduce((max, a) => {
+      const m = (a.id || '').match(/ASG-\d{4}-(\d+)/i);
+      const n = m ? parseInt(m[1], 10) : 0;
+      return !isNaN(n) && n > max ? n : max;
+    }, 0);
+    const nextId = `ASG-${new Date().getFullYear()}-${String(maxAsgSeq + 1).padStart(4, '0')}`;
     const newAssignment: PainterAssignment = {
       ...assignmentData,
       partCode: resolvedPartCode,
@@ -2735,9 +2747,11 @@ export const PortalProvider: React.FC<{
       issuedQty: number;
       uom: 'Litres' | 'Kg' | 'Pcs';
       standardNormPerPiece?: number;
-    }>
+    }>,
+    targetAssignmentOverride?: PainterAssignment
   ) => {
-    const targetAssignment = painterAssignments.find(a => a.id === assignmentId);
+    // Store chemicals can strictly ONLY be issued against a valid assigned painter shift
+    const targetAssignment = targetAssignmentOverride || painterAssignments.find(a => a.id === assignmentId);
     if (!targetAssignment) return;
 
     const newLogs: AssignmentMaterialLog[] = materials.map((m, idx) => ({

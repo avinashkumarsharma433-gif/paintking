@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-24: Prevented Store Material Issuance & Orphan Chemical Logs Without Assigned Painters
+  - Files touched:
+    - `src/portal/context/PortalStoreContext.tsx`: Added `filterValidMaterialLogs` (purging logs whose `assignmentId` does not belong to valid `painterAssignments`), required valid `PainterAssignment` in `issueAssignmentMaterials` (with optional `targetAssignmentOverride`), prevented `COMPANY_CONSUMABLE` MRN lines when no painter is assigned in `addJobCard`, and used max-sequence `ASG` IDs.
+    - `src/portal/components/JobCardModal.tsx`: Removed auto-seeded fake `issuedMaterials` default, passed `res.assignment` to `issueAssignmentMaterials`, and gated Tab 1 `Total Materials & Chemicals Used`, Tab 2 `All Chemicals Issued`, and `companyMaterials` fallback strictly on `currentJcAssignments.length > 0` + valid `assignmentId`.
+    - `src/portal/views/JobCardsView.tsx`: Removed pre-seeded `issuedMaterials` and hardcoded `Ramesh Kumar (P1)` defaults on `handleLaunchJobCardFromPriority` and `handleRequestFromSpecificStock`, and filtered drilldown `CONSUMABLES` logs by valid `painterAssignments`.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-24: Removed Redundant `Painter Consumables Ledger` Main Tab from Job Cards View
   - Files touched:
     - `src/portal/views/JobCardsView.tsx`: Removed `CONSUMABLES_LEDGER` tab button, view block, and `plantMaterialLogs` memo so painter chemical usage stays focused inside each Master Job Card (`JobCardModal`).

@@ -895,49 +895,12 @@ export const JobCardsView: React.FC = () => {
       docNo: 'Doc No: 001',
       dept: priorityOrder.recommendedBooth || 'Booth #1 (Automotive Robotic Line)',
       boothNo: priorityOrder.recommendedBooth || 'Booth #1 (Automotive Robotic Line)',
-      painterName: 'Ramesh Kumar (P1)',
-      assignedPainterName: 'Ramesh Kumar (P1)',
-      assignedPainterId: 'PAINTER-01',
+      painterName: '',
+      assignedPainterName: '',
+      assignedPainterId: '',
       checkingPerson: 'Amit Verma (QA Lead)',
       headerRemark: `PLANT HEAD DIRECTIVE [${priorityOrder.priorityLevel.replace('_', ' ')}]: ${priorityOrder.plantHeadRemarks}`,
-      issuedMaterials: [
-        {
-          id: '1',
-          itemDescription: `${priorityOrder.color || 'Basecoat'} 2K PU Paint`,
-          materialType: 'paint',
-          category: 'COMPANY_CONSUMABLE',
-          qty: Math.max(5, Math.round(availableCount * 0.05)),
-          consumedQty: 0,
-          floorBalanceQty: Math.max(5, Math.round(availableCount * 0.05)),
-          colour: priorityOrder.color || 'Basecoat Tone',
-          uom: 'Litres',
-          remark: 'Store paint batch'
-        },
-        {
-          id: '2',
-          itemDescription: 'PU Thinner 400 Solvent',
-          materialType: 'thinner',
-          category: 'COMPANY_CONSUMABLE',
-          qty: Math.max(2, Math.round(availableCount * 0.02)),
-          consumedQty: 0,
-          floorBalanceQty: Math.max(2, Math.round(availableCount * 0.02)),
-          colour: 'Clear',
-          uom: 'Litres',
-          remark: 'Solvent line mix'
-        },
-        {
-          id: '3',
-          itemDescription: '2K Scratch-Resistant Hardener',
-          materialType: 'hardener',
-          category: 'COMPANY_CONSUMABLE',
-          qty: Math.max(1, Math.round(availableCount * 0.015)),
-          consumedQty: 0,
-          floorBalanceQty: Math.max(1, Math.round(availableCount * 0.015)),
-          colour: 'Clear',
-          uom: 'Litres',
-          remark: 'Reaction curing agent'
-        }
-      ]
+      issuedMaterials: []
     };
 
     setSelectedJobCardForView(initialJcData as JobCard);
@@ -969,48 +932,11 @@ export const JobCardsView: React.FC = () => {
       docNo: 'Doc No: 001',
       dept: 'Booth #1 (Continuous Conveyor Line)',
       boothNo: 'Booth #1 (Continuous Conveyor Line)',
-      painterName: 'Ramesh Kumar (P1)',
-      assignedPainterName: 'Ramesh Kumar (P1)',
-      assignedPainterId: 'PAINTER-01',
+      painterName: '',
+      assignedPainterName: '',
+      assignedPainterId: '',
       checkingPerson: 'Amit Verma (QA Lead)',
-      issuedMaterials: [
-        {
-          id: '1',
-          itemDescription: 'Monza Red 2K PU Basecoat Paint (PPG)',
-          materialType: 'paint',
-          category: 'COMPANY_CONSUMABLE',
-          qty: Math.max(5, Math.round(availableCount * 0.05)),
-          consumedQty: 0,
-          floorBalanceQty: Math.max(5, Math.round(availableCount * 0.05)),
-          colour: 'Monza Red Gloss',
-          uom: 'Litres',
-          remark: 'Store paint batch'
-        },
-        {
-          id: '2',
-          itemDescription: 'PU Thinner 400 Solvent',
-          materialType: 'thinner',
-          category: 'COMPANY_CONSUMABLE',
-          qty: Math.max(2, Math.round(availableCount * 0.02)),
-          consumedQty: 0,
-          floorBalanceQty: Math.max(2, Math.round(availableCount * 0.02)),
-          colour: 'Clear',
-          uom: 'Litres',
-          remark: 'Solvent line mix'
-        },
-        {
-          id: '3',
-          itemDescription: '2K Scratch-Resistant Hardener',
-          materialType: 'hardener',
-          category: 'COMPANY_CONSUMABLE',
-          qty: Math.max(1, Math.round(availableCount * 0.015)),
-          consumedQty: 0,
-          floorBalanceQty: Math.max(1, Math.round(availableCount * 0.015)),
-          colour: 'Clear',
-          uom: 'Litres',
-          remark: 'Reaction curing agent'
-        }
-      ]
+      issuedMaterials: []
     };
 
     setSelectedJobCardForView(initialJcData as JobCard);
@@ -3356,7 +3282,18 @@ export const JobCardsView: React.FC = () => {
                     {drilldownTab === 'CONSUMABLES' && (
                       <div className="space-y-2">
                         {(() => {
-                          const jcLogs = assignmentMaterialLogs.filter(l => l.masterJobCardNo === jc.jobCardNo || (l as any).masterJobCardId === jc.jobCardNo);
+                          const jcAsgIds = new Set(
+                            painterAssignments
+                              .filter(a => a.masterJobCardNo === jc.jobCardNo || a.masterJobCardId === jc.jobCardNo)
+                              .map(a => a.id)
+                          );
+                          const jcLogs = jcAsgIds.size === 0
+                            ? []
+                            : assignmentMaterialLogs.filter(
+                                l =>
+                                  (l.masterJobCardNo === jc.jobCardNo || (l as any).masterJobCardId === jc.jobCardNo) &&
+                                  Boolean(l.assignmentId && jcAsgIds.has(l.assignmentId))
+                              );
                           if (jcLogs.length === 0) {
                             return (
                               <div className="p-4 text-center text-xs text-[#777b86] bg-white rounded-[12px] border border-dashed border-[#ececec]">
