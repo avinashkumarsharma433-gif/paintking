@@ -3440,29 +3440,21 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                             <tr className="bg-[#f2f2f3] text-[#17191c] font-mono border-b border-[#ececec]">
                               <th className="py-2.5 px-3 font-bold w-10 text-center">#</th>
                               <th className="py-2.5 px-4 font-bold min-w-[200px]">Material Description</th>
-                              <th className="py-2.5 px-3 font-bold text-center whitespace-nowrap">Store Issued</th>
-                              <th className="py-2.5 px-3 font-bold text-center text-[#8a6521] whitespace-nowrap">Actual Consumed</th>
-                              <th className="py-2.5 px-3 font-bold text-center text-emerald-800 whitespace-nowrap">Floor Balance</th>
-                              <th className="py-2.5 px-2 font-bold text-center">UOM</th>
-                              <th className="py-2.5 px-3 font-bold whitespace-nowrap">Shade / Batch</th>
+                              <th className="py-2.5 px-3 font-bold text-right text-[#8a6521] whitespace-nowrap">Issued (= Consumed)</th>
+                              <th className="py-2.5 px-3 font-bold text-center">UOM</th>
+                              <th className="py-2.5 px-4 font-bold whitespace-nowrap">Shade / Batch</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-[#ececec]">
-                            {companyMaterials.map((item, idx) => {
-                              const consumed = item.consumedQty !== undefined ? item.consumedQty : 0;
-                              const balance = item.floorBalanceQty !== undefined ? item.floorBalanceQty : Math.max(0, Number((item.qty - consumed).toFixed(2)));
-                              return (
-                                <tr key={item.id || idx} className={idx % 2 === 1 ? 'bg-[#fafafb]' : 'bg-white'}>
-                                  <td className="py-3 px-3 text-center font-mono text-[#777b86] font-semibold">{idx + 1}</td>
-                                  <td className="py-3 px-4 font-semibold text-[#17191c]">{item.itemDescription}</td>
-                                  <td className="py-3 px-3 text-center font-mono font-bold text-[#17191c]">{item.qty}</td>
-                                  <td className="py-3 px-3 text-center font-mono font-bold text-[#8a6521]">{consumed}</td>
-                                  <td className="py-3 px-3 text-center font-mono font-bold text-emerald-800">{balance}</td>
-                                  <td className="py-3 px-2 text-center font-mono text-[#777b86]">{item.uom}</td>
-                                  <td className="py-3 px-3 font-mono text-xs text-[#777b86]">{item.colour || item.batchNo || '-'}</td>
-                                </tr>
-                              );
-                            })}
+                            {companyMaterials.map((item, idx) => (
+                              <tr key={item.id || idx} className={idx % 2 === 1 ? 'bg-[#fafafb]' : 'bg-white'}>
+                                <td className="py-3 px-3 text-center font-mono text-[#777b86] font-semibold">{idx + 1}</td>
+                                <td className="py-3 px-4 font-semibold text-[#17191c]">{item.itemDescription}</td>
+                                <td className="py-3 px-3 text-right font-mono font-bold text-[#8a6521]">{item.qty}</td>
+                                <td className="py-3 px-3 text-center font-mono text-[#777b86]">{item.uom}</td>
+                                <td className="py-3 px-4 font-mono text-xs text-[#777b86]">{item.colour || item.batchNo || '-'}</td>
+                              </tr>
+                            ))}
                           </tbody>
                         </table>
                       </div>

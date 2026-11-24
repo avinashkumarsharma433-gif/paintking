@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-24: Removed `Actual Consumed` & `Floor Balance` Columns from Tab 1 Legacy Materials Table (`JobCardModal.tsx`)
+  - Files touched:
+    - `src/portal/components/JobCardModal.tsx`: Updated fallback `companyMaterials` table under `Total Materials & Chemicals Used` to show `Issued (= Consumed)`, `UOM`, and `Shade / Batch`, removing `Actual Consumed` and `Floor Balance`.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors).
+
 - 2026-11-24: Removed Manual Chemical Usage Update System (`Issued = Consumed` ISO Policy)
   - Files touched:
     - `src/portal/components/JobCardModal.tsx`: Removed `Update Usage` inline edit drawer/buttons (`editingMatLogId`, `editGoodReturnQty`, `editFloorWasteQty`, `editMatBatch`, `updateAssignmentMaterialLog`), simplified Tab 1 summary & Tab 2 painter/all-painters chemical tables to clean `Issued (= Consumed)` + `MIN / MRN Slip` + `Batch` ISO traceability.
