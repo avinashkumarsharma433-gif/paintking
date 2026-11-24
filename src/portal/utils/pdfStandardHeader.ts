@@ -4240,26 +4240,14 @@ export const downloadStandardMINPdf = (mrn: MaterialRequisitionNote): void => {
     rule: string;
   }> = [];
 
-  if (mrn.batchLines && mrn.batchLines.length > 0) {
-    mrn.batchLines.forEach(bl => {
-      rawLines.push({
-        description: mrn.partDescription || 'Component Substrate',
-        batchNo: bl.supplierBatchNo || bl.batchId,
-        grnNo: bl.grnNo || mrn.sourceGrnNo || 'PK-GRN-STOCK',
-        expiryDate: bl.expiryDate || 'N/A',
-        qty: Number(bl.issuedQty),
-        uom: bl.uom || mrn.uom || 'Pcs',
-        rule: mrn.fifoStatus === 'FIFO Override' ? 'Override' : 'FEFO/FIFO'
-      });
-    });
-  } else if (mrn.requisitionLines && mrn.requisitionLines.length > 0) {
+  if (mrn.requisitionLines && mrn.requisitionLines.length > 0) {
     mrn.requisitionLines.forEach(rl => {
       if (rl.issuedLines && rl.issuedLines.length > 0) {
         rl.issuedLines.forEach(il => {
           rawLines.push({
             description: rl.itemName,
             batchNo: il.supplierBatchNo || il.batchId,
-            grnNo: il.grnNo || 'PK-GRN-STOCK',
+            grnNo: il.grnNo || mrn.sourceGrnNo || 'PK-GRN-STOCK',
             expiryDate: il.expiryDate || 'N/A',
             qty: Number(il.issuedQty),
             uom: rl.uom,
@@ -4272,11 +4260,23 @@ export const downloadStandardMINPdf = (mrn: MaterialRequisitionNote): void => {
           batchNo: mrn.sourceGrnNo ? `LOT-${mrn.sourceGrnNo.slice(-4)}` : 'LOT-STOCK',
           grnNo: mrn.sourceGrnNo || 'PK-GRN-STOCK',
           expiryDate: 'N/A',
-          qty: Number(rl.issuedQty || rl.requestedQty),
+          qty: Number(rl.issuedQty ?? rl.requestedQty),
           uom: rl.uom,
           rule: 'FIFO OK'
         });
       }
+    });
+  } else if (mrn.batchLines && mrn.batchLines.length > 0) {
+    mrn.batchLines.forEach(bl => {
+      rawLines.push({
+        description: mrn.partDescription || 'Component Substrate',
+        batchNo: bl.supplierBatchNo || bl.batchId,
+        grnNo: bl.grnNo || mrn.sourceGrnNo || 'PK-GRN-STOCK',
+        expiryDate: bl.expiryDate || 'N/A',
+        qty: Number(bl.issuedQty),
+        uom: bl.uom || mrn.uom || 'Pcs',
+        rule: mrn.fifoStatus === 'FIFO Override' ? 'Override' : 'FEFO/FIFO'
+      });
     });
   } else {
     rawLines.push({

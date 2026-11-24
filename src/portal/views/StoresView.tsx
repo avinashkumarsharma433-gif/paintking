@@ -507,10 +507,18 @@ export const StoresView: React.FC = () => {
         const slipNo = r.issuedSlipNo || `MIN-2026-${r.mrnNo.replace('MRN-', '')}`;
         const hasOverride = r.fifoStatus === 'FIFO Override' || fifoOverrideLogs.some(l => l.minNo === slipNo || l.mrnNo === r.mrnNo);
         
+        const resolvedBatchLines = (r.batchLines && r.batchLines.length > 0)
+          ? r.batchLines
+          : (r.issuedBatchLines || []);
+
         let batchSummary = '';
-        if (r.issuedBatchLines && r.issuedBatchLines.length > 0) {
-          batchSummary = r.issuedBatchLines
-            .map(b => `${b.supplierBatchNo || b.batchId} (${b.issuedQty} ${r.uom})`)
+        if (r.requisitionLines && r.requisitionLines.length > 0) {
+          batchSummary = r.requisitionLines
+            .map(rl => `${rl.itemName} (${rl.issuedQty ?? rl.requestedQty} ${rl.uom})`)
+            .join(', ');
+        } else if (resolvedBatchLines.length > 0) {
+          batchSummary = resolvedBatchLines
+            .map(b => `${b.supplierBatchNo || b.batchId} (${b.issuedQty} ${b.uom || r.uom})`)
             .join(', ');
         } else if (r.issuedMaterials && r.issuedMaterials.length > 0) {
           batchSummary = r.issuedMaterials
@@ -520,19 +528,25 @@ export const StoresView: React.FC = () => {
           batchSummary = `Lot-${r.sourceGrnNo?.slice(-4) || '2026'} (${r.issuedQty || r.requestedQty} ${r.uom})`;
         }
 
+        const resolvedIssuedTo =
+          (r.painterDemands && r.painterDemands.length > 0)
+            ? r.painterDemands.map(pd => pd.painterName.split('(')[0].trim()).join(', ')
+            : (r.issuedTo || r.requestedBy || 'Line Supervisor');
+
         return {
           slipNo,
-          date: r.issuedDate || `${r.date} ${r.time}`,
-          grnNo: r.sourceGrnNo || r.issuedMaterials?.[0]?.grnNo || 'PK-GRN-2026-1252',
+          date: r.storeIssuedTimestamp || r.issuedDate || `${r.date} ${r.time}`,
+          grnNo: r.sourceGrnNo || r.issuedMaterials?.[0]?.grnNo || 'Direct Store Issue',
           partCode: r.partCode,
           partDescription: r.partDescription,
           customer: r.customer,
           qty: r.issuedQty || r.requestedQty,
           uom: r.uom,
-          issuedTo: r.issuedTo || 'Line Supervisor',
+          issuedTo: resolvedIssuedTo,
           jobCardId: r.jobCardNo,
-          remarks: r.issueRemarks || r.productionRemarks || 'Issued for coating line',
-          batchLines: r.issuedBatchLines || [],
+          remarks: r.storeRemarks || r.issueRemarks || r.productionRemarks || 'Issued for coating line',
+          batchLines: resolvedBatchLines,
+          requisitionLines: r.requisitionLines || [],
           materials: r.issuedMaterials || [],
           hasOverride,
           overrideReasonCode: r.overrideReasonCode,
@@ -550,6 +564,7 @@ export const StoresView: React.FC = () => {
           ...c,
           partDescription: c.partCode,
           batchLines: [],
+          requisitionLines: [],
           materials: [],
           hasOverride,
           overrideReasonCode: undefined,
@@ -2909,7 +2924,35 @@ export const StoresView: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#ececec]">
-                    {selectedIssueSlipForPrint.batchLines && selectedIssueSlipForPrint.batchLines.length > 0 ? (
+                    {selectedIssueSlipForPrint.requisitionLines && selectedIssueSlipForPrint.requisitionLines.length > 0 ? (
+                      selectedIssueSlipForPrint.requisitionLines.map((rl: any, rIdx: number) => {
+                        const firstBatch = rl.issuedLines?.[0];
+                        return (
+                          <tr key={rl.id || rIdx}>
+                            <td className="p-2.5 font-semibold text-[#17191c]">
+                              {rl.itemName}
+                              <span className="block text-[10px] font-mono text-[#777b86]">
+                                {rl.category === 'COMPANY_CONSUMABLE' ? 'Company Consumable' : 'Party Substrate'}
+                              </span>
+                            </td>
+                            <td className="p-2.5 font-mono font-bold text-[#c09748]">
+                              {rl.issuedLines && rl.issuedLines.length > 0
+                                ? rl.issuedLines.map((il: any) => il.supplierBatchNo || il.batchId).join(', ')
+                                : 'Direct Floor Issue'}
+                            </td>
+                            <td className="p-2.5 font-mono text-[#777b86]">
+                              {firstBatch?.grnNo || selectedIssueSlipForPrint.grnNo}
+                            </td>
+                            <td className="p-2.5 font-mono text-[#777b86]">
+                              {firstBatch?.expiryDate || (rl.category === 'COMPANY_CONSUMABLE' ? 'N/A' : 'N/A (Substrate)')}
+                            </td>
+                            <td className="p-2.5 text-center font-mono font-bold text-sm text-[#17191c] bg-[#faf7ed]">
+                              {rl.issuedQty ?? rl.requestedQty} {rl.uom}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : selectedIssueSlipForPrint.batchLines && selectedIssueSlipForPrint.batchLines.length > 0 ? (
                       selectedIssueSlipForPrint.batchLines.map((line: any, bIdx: number) => (
                         <tr key={bIdx}>
                           <td className="p-2.5 font-semibold text-[#17191c]">{selectedIssueSlipForPrint.partDescription || selectedIssueSlipForPrint.partCode}</td>
@@ -2917,7 +2960,7 @@ export const StoresView: React.FC = () => {
                           <td className="p-2.5 font-mono text-[#777b86]">{line.grnNo || selectedIssueSlipForPrint.grnNo}</td>
                           <td className="p-2.5 font-mono text-[#777b86]">{line.expiryDate || 'N/A (Substrate)'}</td>
                           <td className="p-2.5 text-center font-mono font-bold text-sm text-[#17191c] bg-[#faf7ed]">
-                            {line.issuedQty} {selectedIssueSlipForPrint.uom}
+                            {line.issuedQty} {line.uom || selectedIssueSlipForPrint.uom}
                           </td>
                         </tr>
                       ))

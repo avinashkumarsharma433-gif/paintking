@@ -15,7 +15,8 @@ import {
   PainterDailyMaterialAllocation,
   AssignmentProcessStage,
   JobCardOrderLineItem,
-  resolveJobCardInwardParts
+  resolveJobCardInwardParts,
+  computeAssignmentBalance
 } from '../types/portalTypes';
 import { 
   Plus, 
@@ -265,6 +266,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     deleteJobCard,
     createPainterAssignment,
     requestAssignmentChemicals,
+    addTargetToPainterAssignment,
     updateAssignmentMaterialLog,
     recordAssignmentStageOutput
   } = usePortalStore();
@@ -579,6 +581,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [editGoodReturnQty, setEditGoodReturnQty] = useState<number>(0);
   const [editFloorWasteQty, setEditFloorWasteQty] = useState<number>(0);
   const [editMatBatch, setEditMatBatch] = useState<string>('');
+
+  // Party Material Add-On Target Drawer (strictly unlocked when daily target is finished)
+  const [showAddTargetDrawer, setShowAddTargetDrawer] = useState<boolean>(false);
+  const [addTargetExtraQty, setAddTargetExtraQty] = useState<number>(500);
+  const [addTargetExtraChems, setAddTargetExtraChems] = useState<PainterDailyMaterialAllocation[]>([]);
+  const [addTargetError, setAddTargetError] = useState<string | null>(null);
 
   // 3-Tier Daily Assignment Modal inside JobCardModal
   const [showDailyAssignModal, setShowDailyAssignModal] = useState<boolean>(false);
@@ -3888,6 +3896,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         setSelectedAssignmentId(asg.id);
                         setShowOutputLogger(false);
                         setShowIssueChemDrawer(false);
+                        setShowAddTargetDrawer(false);
                         setEditingMatLogId(null);
                       }}
                       className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-2 ${
@@ -3984,52 +3993,319 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   </div>
                 </div>
 
-                {/* 5 Dedicated KPI Cards (Target, Completed OK All Stages, Rework, Dead Scrap, Pending Balance) */}
+                {/* 5 Dedicated KPI Cards + Party Material Add-On Target Control */}
                 {(() => {
                   const metrics = getAssignmentLiveMetrics(activeTab2Assignment);
+                  const partBalInfo = computeAssignmentBalance(
+                    currentJcForModals,
+                    currentJcAssignments,
+                    resolvedInwardParts,
+                    activeTab2Assignment.partCode || activeTab2Assignment.partDescription
+                  );
+                  const remainingPartOrderBal = partBalInfo.balancePending;
+                  const isDailyFinished = metrics.pending <= 0;
+                  const canAddPartyTarget = isDailyFinished && remainingPartOrderBal > 0;
+
                   return (
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                      <div className="bg-[#fafafb] p-4 rounded-[20px] border border-[#ececec] text-center space-y-1">
-                        <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">Assigned Today Target</span>
-                        <span className="font-mono font-bold text-xl text-[#17191c] block">
-                          {activeTab2Assignment.dailyTargetQty.toLocaleString()} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
-                        </span>
-                        <span className="text-[10.5px] text-[#777b86] block font-mono">Shift Quota</span>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                        <div className="bg-[#fafafb] p-4 rounded-[20px] border border-[#ececec] text-center space-y-1.5">
+                          <span className="text-[10px] text-[#777b86] uppercase font-mono font-bold block">Assigned Today Target</span>
+                          <span className="font-mono font-bold text-xl text-[#17191c] block">
+                            {activeTab2Assignment.dailyTargetQty.toLocaleString()} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
+                          </span>
+                          <span className="text-[10.5px] text-[#777b86] block font-mono">Shift Quota</span>
+                        </div>
+
+                        <div className="bg-emerald-50/80 p-4 rounded-[20px] border border-emerald-200 text-center space-y-1">
+                          <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">Completed Good Output</span>
+                          <span className="font-mono font-bold text-xl text-emerald-700 block">
+                            {metrics.completedGood.toLocaleString()} <span className="text-xs font-normal text-emerald-800">Pcs</span>
+                          </span>
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            {metrics.efficiency}% All-Stages OK
+                          </span>
+                        </div>
+
+                        <div className="bg-amber-50/80 p-4 rounded-[20px] border border-amber-200 text-center space-y-1">
+                          <span className="text-[10px] text-amber-800 uppercase font-mono font-bold block">Rework (Salvage)</span>
+                          <span className="font-mono font-bold text-xl text-amber-900 block">
+                            {metrics.rework.toLocaleString()} <span className="text-xs font-normal text-amber-800">Pcs</span>
+                          </span>
+                          <span className="text-[10.5px] text-amber-800 block font-mono">Touch-Up / Re-Spray</span>
+                        </div>
+
+                        <div className="bg-rose-50/80 p-4 rounded-[20px] border border-rose-200 text-center space-y-1">
+                          <span className="text-[10px] text-rose-800 uppercase font-mono font-bold block">Dead Scrap (Rej)</span>
+                          <span className="font-mono font-bold text-xl text-rose-700 block">
+                            {metrics.scrap.toLocaleString()} <span className="text-xs font-normal text-rose-800">Pcs</span>
+                          </span>
+                          <span className="text-[10.5px] text-rose-800 block font-mono">Permanent Loss</span>
+                        </div>
+
+                        <div className="bg-[#faf7ed] p-4 rounded-[20px] border border-[#f4e5be] text-center space-y-1 col-span-2 sm:col-span-1">
+                          <span className="text-[10px] text-[#8a6521] uppercase font-mono font-bold block">Pending Shift Balance</span>
+                          <span className="font-mono font-bold text-xl text-[#17191c] block">
+                            {metrics.pending.toLocaleString()} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
+                          </span>
+                          <span className="text-[10.5px] text-[#8a6521] block font-mono">
+                            {isDailyFinished ? 'Target Finished!' : 'To Be Finished'}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="bg-emerald-50/80 p-4 rounded-[20px] border border-emerald-200 text-center space-y-1">
-                        <span className="text-[10px] text-emerald-800 uppercase font-mono font-bold block">Completed Good Output</span>
-                        <span className="font-mono font-bold text-xl text-emerald-700 block">
-                          {metrics.completedGood.toLocaleString()} <span className="text-xs font-normal text-emerald-800">Pcs</span>
-                        </span>
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                          {metrics.efficiency}% All-Stages OK
-                        </span>
+                      {/* Add-On Party Material Target Action Bar */}
+                      <div className="p-3.5 rounded-[18px] bg-[#fafafb] border border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="text-xs space-y-0.5">
+                          <div className="font-semibold text-[#17191c] flex items-center gap-1.5">
+                            {canAddPartyTarget ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            ) : (
+                              <Lock className="w-4 h-4 text-[#777b86] shrink-0" />
+                            )}
+                            <span>Party Material Daily Target Add-On (+ Add Target)</span>
+                          </div>
+                          <p className="text-[11px] text-[#777b86]">
+                            {!isDailyFinished
+                              ? `Current target ke ${metrics.pending.toLocaleString('en-IN')} Pcs baki hain — Party Material target tabhi badhaya ja sakta hai jab aaj ka target 100% finish ho. (Company chemicals neeche kabhi bhi add kar sakte hain).`
+                              : remainingPartOrderBal <= 0
+                                ? 'Master Job Card / inward material balance 0 Pcs hai — koi extra Party Material remaining nahi hai.'
+                                : `Today's target finished! Remaining shift time me up to ${remainingPartOrderBal.toLocaleString('en-IN')} Pcs extra Party Material assign kar sakte hain.`}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={!canAddPartyTarget}
+                          title={
+                            !isDailyFinished
+                              ? `Complete ${metrics.pending} remaining Pcs before adding Party Material target`
+                              : remainingPartOrderBal <= 0
+                                ? 'No remaining Party Material balance in order'
+                                : 'Assign extra Party Material target for remaining shift time'
+                          }
+                          onClick={() => {
+                            setAddTargetError(null);
+                            setAddTargetExtraQty(Math.min(remainingPartOrderBal, 500));
+                            setAddTargetExtraChems([]);
+                            setShowAddTargetDrawer(prev => !prev);
+                          }}
+                          className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
+                            canAddPartyTarget
+                              ? 'bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] cursor-pointer shadow-2xs active:scale-95'
+                              : 'bg-[#f2f2f3] text-[#a3a6af] border border-[#dcdfe4] cursor-not-allowed'
+                          }`}
+                        >
+                          {canAddPartyTarget ? <Plus className="w-3.5 h-3.5 text-[#8a6521]" /> : <Lock className="w-3.5 h-3.5" />}
+                          <span>{showAddTargetDrawer ? 'Close Add Target' : '+ Add Target (Party Material)'}</span>
+                        </button>
                       </div>
 
-                      <div className="bg-amber-50/80 p-4 rounded-[20px] border border-amber-200 text-center space-y-1">
-                        <span className="text-[10px] text-amber-800 uppercase font-mono font-bold block">Rework (Salvage)</span>
-                        <span className="font-mono font-bold text-xl text-amber-900 block">
-                          {metrics.rework.toLocaleString()} <span className="text-xs font-normal text-amber-800">Pcs</span>
-                        </span>
-                        <span className="text-[10.5px] text-amber-800 block font-mono">Touch-Up / Re-Spray</span>
-                      </div>
+                      {/* Inline Party Material Add-On Target Drawer */}
+                      {showAddTargetDrawer && canAddPartyTarget && (
+                        <div className="p-4 rounded-[20px] bg-[#faf7ed] border border-[#f4e5be] space-y-3 animate-in fade-in duration-150">
+                          <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#f4e5be]">
+                            <div>
+                              <span className="text-[10.5px] font-mono font-bold uppercase tracking-wider text-[#8a6521]">
+                                Party Material Add-On Target ({activeTab2Assignment.painterName})
+                              </span>
+                              <p className="text-[11px] text-[#777b86]">
+                                Extra Pcs assign karne par Store ko naya Floor Demand (MRN) jayega aur transfer par naya MIN Slip banega.
+                              </p>
+                            </div>
+                            <span className="px-2.5 py-0.5 rounded-full bg-white border border-[#f4e5be] font-mono text-[10.5px] font-bold text-[#8a6521]">
+                              Max Balance: {remainingPartOrderBal.toLocaleString('en-IN')} Pcs
+                            </span>
+                          </div>
 
-                      <div className="bg-rose-50/80 p-4 rounded-[20px] border border-rose-200 text-center space-y-1">
-                        <span className="text-[10px] text-rose-800 uppercase font-mono font-bold block">Dead Scrap (Rej)</span>
-                        <span className="font-mono font-bold text-xl text-rose-700 block">
-                          {metrics.scrap.toLocaleString()} <span className="text-xs font-normal text-rose-800">Pcs</span>
-                        </span>
-                        <span className="text-[10.5px] text-rose-800 block font-mono">Permanent Loss</span>
-                      </div>
+                          {addTargetError && (
+                            <div className="p-2.5 rounded-[12px] bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold">
+                              {addTargetError}
+                            </div>
+                          )}
 
-                      <div className="bg-[#faf7ed] p-4 rounded-[20px] border border-[#f4e5be] text-center space-y-1 col-span-2 sm:col-span-1">
-                        <span className="text-[10px] text-[#8a6521] uppercase font-mono font-bold block">Pending Shift Balance</span>
-                        <span className="font-mono font-bold text-xl text-[#17191c] block">
-                          {metrics.pending.toLocaleString()} <span className="text-xs font-normal text-[#777b86]">Pcs</span>
-                        </span>
-                        <span className="text-[10.5px] text-[#8a6521] block font-mono">To Be Finished</span>
-                      </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[10.5px] font-mono font-bold text-[#17191c] block">
+                                Extra Party Material Qty (Pcs) *
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                max={remainingPartOrderBal}
+                                value={addTargetExtraQty}
+                                onChange={e =>
+                                  setAddTargetExtraQty(
+                                    Math.max(0, Math.min(remainingPartOrderBal, Math.floor(Number(e.target.value) || 0)))
+                                  )
+                                }
+                                className="w-full h-10 px-3 rounded-[14px] bg-white border border-[#dcdfe4] font-mono font-bold text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                              />
+                            </div>
+
+                            <div className="space-y-1 flex flex-col justify-end">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const q = Math.max(1, addTargetExtraQty || 100);
+                                    const paintL = Math.max(0.5, Number((q * 0.012).toFixed(2)));
+                                    setAddTargetExtraChems([
+                                      {
+                                        materialName: activeTab2Assignment.colorShade
+                                          ? `Basecoat 2K PU Paint (${activeTab2Assignment.colorShade})`
+                                          : 'Basecoat 2K PU Paint',
+                                        materialType: 'Base Paint',
+                                        qty: paintL,
+                                        uom: 'Litres'
+                                      },
+                                      {
+                                        materialName: 'PU Thinner 400 Solvent',
+                                        materialType: 'Thinner',
+                                        qty: Math.max(0.25, Number((paintL * 0.35).toFixed(2))),
+                                        uom: 'Litres'
+                                      }
+                                    ]);
+                                  }}
+                                  className="px-3 py-2 rounded-full bg-white hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10.5px] font-bold cursor-pointer transition"
+                                >
+                                  + Auto-Add Paint/Thinner for {addTargetExtraQty} Pcs
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setAddTargetExtraChems(prev => [
+                                      ...prev,
+                                      { materialName: '', materialType: 'Base Paint', qty: 1, uom: 'Litres' }
+                                    ])
+                                  }
+                                  className="px-3 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[10.5px] font-semibold cursor-pointer transition"
+                                >
+                                  + Add Chemical Row
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {addTargetExtraChems.length > 0 && (
+                            <div className="space-y-1.5 p-1">
+                              {addTargetExtraChems.map((cm, cIdx) => (
+                                <div key={cIdx} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-white p-2 rounded-[12px] border border-[#ececec]">
+                                  <div className="sm:col-span-3">
+                                    <select
+                                      value={cm.materialType}
+                                      onChange={e =>
+                                        setAddTargetExtraChems(prev =>
+                                          prev.map((r, i) =>
+                                            i === cIdx
+                                              ? { ...r, materialType: e.target.value as PainterDailyMaterialAllocation['materialType'] }
+                                              : r
+                                          )
+                                        )
+                                      }
+                                      className="w-full h-8.5 px-2 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] text-[11px] font-semibold"
+                                    >
+                                      <option value="Base Paint">Base Paint</option>
+                                      <option value="Topcoat">Topcoat</option>
+                                      <option value="Hardener">Hardener</option>
+                                      <option value="Thinner">Thinner</option>
+                                      <option value="Cleaning Solvent">Cleaning Solvent</option>
+                                    </select>
+                                  </div>
+                                  <div className="sm:col-span-4">
+                                    <input
+                                      type="text"
+                                      value={cm.materialName}
+                                      onChange={e =>
+                                        setAddTargetExtraChems(prev =>
+                                          prev.map((r, i) => (i === cIdx ? { ...r, materialName: e.target.value } : r))
+                                        )
+                                      }
+                                      placeholder="Chemical Name"
+                                      className="w-full h-8.5 px-2.5 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] text-xs font-semibold"
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-2">
+                                    <input
+                                      type="number"
+                                      min={0.1}
+                                      step="0.1"
+                                      value={cm.qty}
+                                      onChange={e =>
+                                        setAddTargetExtraChems(prev =>
+                                          prev.map((r, i) => (i === cIdx ? { ...r, qty: Math.max(0, Number(e.target.value)) } : r))
+                                        )
+                                      }
+                                      className="w-full h-8.5 px-2 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] text-xs font-mono font-bold"
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-2">
+                                    <select
+                                      value={cm.uom}
+                                      onChange={e =>
+                                        setAddTargetExtraChems(prev =>
+                                          prev.map((r, i) =>
+                                            i === cIdx ? { ...r, uom: e.target.value as 'Litres' | 'Kg' | 'Pcs' } : r
+                                          )
+                                        )
+                                      }
+                                      className="w-full h-8.5 px-2 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] text-xs font-mono"
+                                    >
+                                      <option value="Litres">Ltr</option>
+                                      <option value="Kg">Kg</option>
+                                      <option value="Pcs">Pcs</option>
+                                    </select>
+                                  </div>
+                                  <div className="sm:col-span-1 flex justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={() => setAddTargetExtraChems(prev => prev.filter((_, i) => i !== cIdx))}
+                                      className="w-7 h-7 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setShowAddTargetDrawer(false)}
+                              className="px-4 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const res = addTargetToPainterAssignment(
+                                  activeTab2Assignment.id,
+                                  addTargetExtraQty,
+                                  addTargetExtraChems,
+                                  currentJcForModals
+                                );
+                                if (!res.success) {
+                                  setAddTargetError(res.error || 'Could not add Party Material target.');
+                                  return;
+                                }
+                                setShowAddTargetDrawer(false);
+                                setAddTargetExtraChems([]);
+                                setToastMessage(
+                                  `✓ Added +${addTargetExtraQty.toLocaleString('en-IN')} Pcs Party target to ${activeTab2Assignment.painterName}! Floor Demand (${res.mrnNo}) raised to Store.`
+                                );
+                                setTimeout(() => setToastMessage(null), 4500);
+                              }}
+                              className="px-4 py-1.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Confirm + Add Target &amp; Raise Store Slip Demand</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
@@ -4326,7 +4602,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs transition cursor-pointer flex items-center gap-1.5 self-start sm:self-auto active:scale-95 shadow-2xs"
                       >
                         {showIssueChemDrawer ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                        <span>{showIssueChemDrawer ? 'Close Request Form' : '+ Demand Chemical from Store'}</span>
+                        <span>{showIssueChemDrawer ? 'Close Chemical Demand Form' : '+ Add Company Chemical (Anytime)'}</span>
                       </button>
                     </div>
 
@@ -4451,30 +4727,60 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       </div>
                     )}
 
-                    {/* Pending Store Floor Demand Preview for this Painter */}
-                    {activeTab2Assignment.plannedMaterials && activeTab2Assignment.plannedMaterials.length > 0 && (() => {
-                      const linkedMrn = materialRequisitions.find(r => r.mrnNo === activeTab2Assignment.storeDemandMrnNo);
-                      const isPendingTransfer = !linkedMrn || linkedMrn.status === 'Pending Store Issue';
-                      if (!isPendingTransfer && painterChemLogs.length > 0) return null;
+                    {/* Store Floor Demands & Generated MIN Slips for this Painter */}
+                    {(() => {
+                      const painterMrns = materialRequisitions.filter(
+                        r =>
+                          r.jobCardNo === jobCardNo &&
+                          ((r.painterDemands || []).some(pd => pd.assignmentId === activeTab2Assignment.id) ||
+                            r.mrnNo === activeTab2Assignment.storeDemandMrnNo)
+                      );
+                      if (painterMrns.length === 0) return null;
                       return (
-                        <div className="p-3.5 rounded-[16px] bg-amber-50/70 border border-amber-200 space-y-2">
+                        <div className="p-3.5 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be] space-y-2">
                           <div className="flex items-center justify-between flex-wrap gap-2">
-                            <span className="text-[11px] font-mono font-bold text-amber-900 flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-amber-700" />
-                              <span>
-                                Floor Demand Raised ({activeTab2Assignment.storeDemandMrnNo || 'MRN'}) — Waiting Store Transfer to Production Floor
-                              </span>
+                            <span className="text-[10.5px] font-mono font-bold text-[#8a6521] uppercase">
+                              Store Floor Demands &amp; MIN Slips ({painterMrns.length})
                             </span>
-                            <span className="px-2 py-0.5 rounded-full bg-white text-amber-800 border border-amber-300 text-[10px] font-mono font-bold">
-                              Party: {activeTab2Assignment.dailyTargetQty.toLocaleString('en-IN')} Pcs
+                            <span className="text-[10px] font-mono text-[#777b86]">
+                              Every add-on generates a Store MRN &rarr; MIN Slip on transfer
                             </span>
                           </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {activeTab2Assignment.plannedMaterials.map((pm, pmIdx) => (
-                              <span key={pmIdx} className="px-2.5 py-1 rounded-full bg-white border border-amber-200 text-[11px] font-mono text-[#17191c]">
-                                {pm.materialName}: <strong className="text-[#8a6521]">{pm.qty} {pm.uom}</strong>
-                              </span>
-                            ))}
+                          <div className="space-y-1.5">
+                            {painterMrns.map(pmrn => {
+                              const pdEntry = (pmrn.painterDemands || []).find(pd => pd.assignmentId === activeTab2Assignment.id);
+                              const isTransferred = pmrn.status !== 'Pending Store Issue';
+                              return (
+                                <div key={pmrn.mrnNo} className="p-2 rounded-[12px] bg-white border border-[#f4e5be] flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-mono font-bold">
+                                      {pmrn.mrnNo}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded-full font-mono font-bold border ${
+                                      isTransferred
+                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                        : 'bg-amber-50 text-amber-900 border-amber-200'
+                                    }`}>
+                                      {isTransferred ? `Slip: ${pmrn.issuedSlipNo || pmrn.minNo}` : 'Pending Store Transfer'}
+                                    </span>
+                                    {pdEntry && pdEntry.partyTargetQty > 0 && (
+                                      <span className="font-mono font-semibold text-[#17191c]">
+                                        Party: {pdEntry.partyTargetQty.toLocaleString('en-IN')} Pcs
+                                      </span>
+                                    )}
+                                  </div>
+                                  {pdEntry && pdEntry.companyMaterials && pdEntry.companyMaterials.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {pdEntry.companyMaterials.map((cm, cmIdx) => (
+                                        <span key={cmIdx} className="px-2 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] font-mono text-[10px] text-[#17191c]">
+                                          {cm.materialName}: <strong className="text-[#8a6521]">{cm.qty} {cm.uom}</strong>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       );

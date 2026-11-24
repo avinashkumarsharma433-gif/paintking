@@ -189,6 +189,12 @@ interface PortalContextType {
     assignmentId: string,
     materials: PainterDailyMaterialAllocation[]
   ) => { success: boolean; mrnNo?: string; error?: string };
+  addTargetToPainterAssignment: (
+    assignmentId: string,
+    extraPartyQty: number,
+    extraChemicals?: PainterDailyMaterialAllocation[],
+    masterJobCardOverride?: JobCard
+  ) => { success: boolean; mrnNo?: string; error?: string };
   updateAssignmentMaterialLog: (
     logId: string,
     updates: { goodReturnedQty: number; floorWastageExpiredQty: number; batchNumber?: string }
@@ -3297,6 +3303,181 @@ export const PortalProvider: React.FC<{
     return { success: true, mrnNo };
   };
 
+  const addTargetToPainterAssignment = (
+    assignmentId: string,
+    extraPartyQty: number,
+    extraChemicals: PainterDailyMaterialAllocation[] = [],
+    masterJobCardOverride?: JobCard
+  ): { success: boolean; mrnNo?: string; error?: string } => {
+    const targetAsg = latestAssignmentsRef.current.find(a => a.id === assignmentId);
+    if (!targetAsg) {
+      return { success: false, error: `Assignment ${assignmentId} not found.` };
+    }
+
+    const parentJob = masterJobCardOverride || jobCards.find(j => j.jobCardNo === targetAsg.masterJobCardNo);
+    if (!parentJob) {
+      return { success: false, error: `Master Job Card ${targetAsg.masterJobCardNo} not found.` };
+    }
+
+    const qtyToAdd = Math.floor(Number(extraPartyQty) || 0);
+    if (qtyToAdd <= 0) {
+      return { success: false, error: 'Add-on Party Material quantity must be greater than zero.' };
+    }
+
+    // Strict check: Party Material target add-on ONLY allowed when current daily target is 100% finished
+    const jobAsgs = latestAssignmentsRef.current.filter(
+      a => a.masterJobCardNo === parentJob.jobCardNo || a.masterJobCardId === parentJob.jobCardNo
+    );
+    const asgLogs = (parentJob.progressLogs || []).filter(
+      l =>
+        l.assignmentId === targetAsg.id ||
+        l.assignmentId === targetAsg.assignmentId ||
+        (!l.assignmentId &&
+          jobAsgs[0]?.id === targetAsg.id &&
+          l.painterName &&
+          l.painterName.trim().toLowerCase() === targetAsg.painterName.trim().toLowerCase())
+    );
+    const hasStageLogs = asgLogs.length > 0;
+    const completedGood = hasStageLogs
+      ? asgLogs
+          .filter(l => l.processStage === 'stage_3_topcoat')
+          .reduce((s, l) => s + Number(l.goodPieces || l.piecesCompleted || 0), 0)
+      : Number(targetAsg.actualCompletedQty || 0);
+    const scrap = hasStageLogs
+      ? asgLogs.reduce((s, l) => s + Number(l.scrapPieces || 0), 0)
+      : Number(targetAsg.scrapQty || 0);
+    const pendingShiftBalance = Math.max(0, Number(targetAsg.dailyTargetQty || 0) - completedGood - scrap);
+
+    if (pendingShiftBalance > 0) {
+      return {
+        success: false,
+        error: `Current daily target is not finished (${pendingShiftBalance} Pcs pending). Complete today's quota before adding Party Material target. Note: Company consumables can still be added anytime.`
+      };
+    }
+
+    // Validate against Master Job Card / Part remaining balance
+    const inwardParts = resolveJobCardInwardParts(parentJob, grnList);
+    const {
+      balancePending,
+      isPartScoped,
+      selectedPart
+    } = computeAssignmentBalance(
+      parentJob,
+      latestAssignmentsRef.current,
+      inwardParts,
+      targetAsg.partCode || targetAsg.partDescription
+    );
+
+    if (qtyToAdd > balancePending) {
+      return {
+        success: false,
+        error: isPartScoped && selectedPart
+          ? `Add-on Qty (${qtyToAdd} pcs) exceeds remaining order balance (${balancePending} pcs) for ${selectedPart.partDescription} (${selectedPart.partCode}).`
+          : `Add-on Qty (${qtyToAdd} pcs) exceeds remaining Master Job Card balance (${balancePending} pcs).`
+      };
+    }
+
+    const cleanChems = (extraChemicals || []).filter(m => m.materialName.trim() && Number(m.qty) > 0);
+    const updatedTargetQty = Number(targetAsg.dailyTargetQty || 0) + qtyToAdd;
+
+    // Raise dedicated Add-On Floor Demand MRN for Store Transfer & new MIN Slip
+    mrnSeqRef.current = Math.max(mrnSeqRef.current, latestReqsRef.current.length) + 1;
+    const addonMrnNo = `MRN-${new Date().getFullYear()}-${String(mrnSeqRef.current).padStart(3, '0')}`;
+    const addonDemands: PainterFloorDemandEntry[] = [
+      {
+        assignmentId: targetAsg.id,
+        painterId: targetAsg.painterId,
+        painterName: targetAsg.painterName,
+        boothNumber: targetAsg.boothNumber,
+        assignmentDate: targetAsg.assignmentDate,
+        partCode: targetAsg.partCode || parentJob.partCode,
+        partDescription: targetAsg.partDescription || parentJob.partDescription,
+        colorShade: targetAsg.colorShade || parentJob.color,
+        partyTargetQty: qtyToAdd,
+        uom: 'Pcs',
+        companyMaterials: cleanChems
+      }
+    ];
+    const { reqLines } = buildConsolidatedFloorDemand(parentJob, addonDemands);
+    const addonMrn: MaterialRequisitionNote = {
+      mrnNo: addonMrnNo,
+      date: targetAsg.assignmentDate || new Date().toISOString().split('T')[0],
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      plant: parentJob.plant || (activePlant === 'ALL' ? 'Haridwar' : activePlant),
+      jobCardNo: parentJob.jobCardNo,
+      woNo: parentJob.woNo || 'WO-AUTO',
+      customer: parentJob.customer,
+      partCode: targetAsg.partCode || parentJob.partCode,
+      partDescription: `${targetAsg.partDescription || parentJob.partDescription} (Add-On Target)`,
+      colorName: targetAsg.colorShade || parentJob.color,
+      requestedQty: qtyToAdd,
+      uom: 'Pcs',
+      sourceGrnNo: parentJob.sourceGrnNo,
+      requiredShift: activeShift,
+      requestedBy: parentJob.prodSupervisor || currentUser.name || 'Production Manager',
+      urgency: 'High (Line Stoppage Risk)',
+      status: 'Pending Store Issue',
+      painterDemands: addonDemands,
+      requisitionLines: reqLines,
+      productionRemarks: `Add-On Target (+${qtyToAdd} Pcs) for ${targetAsg.painterName} after completing previous daily quota.${cleanChems.length > 0 ? ` + Extra Chemicals: ${cleanChems.map(c => `${c.materialName} (${c.qty} ${c.uom})`).join(', ')}` : ''}`
+    };
+
+    latestReqsRef.current = [addonMrn, ...latestReqsRef.current];
+    setMaterialRequisitions(prev => [addonMrn, ...prev]);
+
+    const updatedAsg: PainterAssignment = {
+      ...targetAsg,
+      dailyTargetQty: updatedTargetQty,
+      status: 'Active',
+      plannedMaterials: [...(targetAsg.plannedMaterials || []), ...cleanChems],
+      storeDemandMrnNo: addonMrnNo,
+      storeTransferStatus: 'Pending Store Transfer'
+    };
+
+    latestAssignmentsRef.current = latestAssignmentsRef.current.map(a =>
+      a.id === assignmentId ? updatedAsg : a
+    );
+    setPainterAssignments(latestAssignmentsRef.current);
+
+    // Log audit event and update allocated totals on Master Job Card
+    const now = new Date();
+    const addonLog: JobCardProductionProgressLog = {
+      id: `LOG-ADDON-${Date.now()}`,
+      timestamp: now.toISOString(),
+      dateLabel: `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`,
+      timeLabel: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }),
+      actionType: 'DETAILS_UPDATED',
+      actionTitle: `Party Material Add-On Target (+${qtyToAdd} Pcs) — ${targetAsg.painterName}`,
+      exactChanges: [
+        `Previous Daily Target: ${(updatedTargetQty - qtyToAdd).toLocaleString('en-IN')} Pcs (Finished)`,
+        `Added Party Target: +${qtyToAdd.toLocaleString('en-IN')} Pcs (${targetAsg.partDescription || parentJob.partDescription})`,
+        `New Daily Target: ${updatedTargetQty.toLocaleString('en-IN')} Pcs`,
+        `Floor Demand MRN Raised: ${addonMrnNo}`
+      ],
+      piecesCompleted: 0,
+      cumulativeGoodQty: completedGood,
+      assignmentId: targetAsg.id,
+      painterName: targetAsg.painterName,
+      boothNo: targetAsg.boothNumber,
+      recordedBy: currentUser.name || 'Production Supervisor',
+      remarks: `Extra target issued in remaining shift time (${addonMrnNo})`
+    };
+
+    setJobCards(prev => prev.map(jc => {
+      if (jc.jobCardNo !== parentJob.jobCardNo) return jc;
+      return {
+        ...jc,
+        allocatedQty: Number(jc.allocatedQty || 0) + qtyToAdd,
+        dailyTargetQty: Number(jc.dailyTargetQty || 0) + qtyToAdd,
+        status: jc.status === 'Target Met' ? 'In Process' : jc.status,
+        assignments: (jc.assignments || []).map(a => (a.id === assignmentId ? updatedAsg : a)),
+        progressLogs: [addonLog, ...(jc.progressLogs || [])]
+      };
+    }));
+
+    return { success: true, mrnNo: addonMrnNo };
+  };
+
   const issueAssignmentMaterials = (
     assignmentId: string,
     materials: Array<{
@@ -4480,6 +4661,7 @@ export const PortalProvider: React.FC<{
         closePainterAssignment,
         issueAssignmentMaterials,
         requestAssignmentChemicals,
+        addTargetToPainterAssignment,
         updateAssignmentMaterialLog,
         recordAssignmentStageOutput,
         getPainterConsumablesLedger,

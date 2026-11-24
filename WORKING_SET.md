@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-24: Guarded Party Material `+ Add Target` (Unlocked Only After Daily Target Finished) & Anytime Company Chemical Add-On Slips
+  - Files touched:
+    - `src/portal/context/PortalStoreContext.tsx`: Added `addTargetToPainterAssignment` enforcing `pendingShiftBalance <= 0` and Master Job Card/Part balance before incrementing `dailyTargetQty`, auditing `progressLogs`, and raising a fresh Add-On Floor Demand MRN (`MRN-YYYY-NNN`); company consumables via `requestAssignmentChemicals` remain allowed anytime and generate supplementary MRNs/MIN slips.
+    - `src/portal/components/JobCardModal.tsx`: Added Tab 2 `+ Add Target (Party Material)` bar & inline drawer strictly locked while `metrics.pending > 0` (`Lock` indicator) and unlocked when daily target finishes, plus `+ Add Company Chemical (Anytime)` and a per-painter `Store Floor Demands & MIN Slips` tracker (`showAddTargetDrawer`).
+    - `src/portal/views/StoresView.tsx` & `src/portal/utils/pdfStandardHeader.ts`: Fixed `allIssuedSlips`, `selectedIssueSlipForPrint` modal, and `downloadStandardMINPdf` to prioritize `requisitionLines` and `batchLines` so initial, Party Add-On, and Company Consumable Add-On MIN slips show and print accurate items & UOMs.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`, 8.91s).
+
 - 2026-11-24: Painter-Driven Daily Party + Company Material Allocation, Consolidated Store Floor Demands & Floor Transfer Sync
   - Files touched:
     - `src/portal/types/portalTypes.ts`: Added `PainterDailyMaterialAllocation`, `PainterFloorDemandEntry`, `plannedMaterials` / `storeDemandMrnNo` / `storeTransferStatus` / `storeMinNo` on `PainterAssignment`, `painterDemands` on `MaterialRequisitionNote`, and `transferStatus` / `mrnNo` / `minNo` on `AssignmentMaterialLog`.
