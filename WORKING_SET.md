@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-24: Redesigned Executive Cockpit Header & Removed Stale 6 KPI Cards and EOD/Rework Modals (`DashboardView.tsx`)
+  - Files touched:
+    - `src/portal/views/DashboardView.tsx`: Redesigned Top Operations Cockpit banner (dynamic `activePlant` unit pill, zero buttons, live 3-stat capsule for Store Lots / Master Cards / Painters Active); removed hardcoded `VASAI PLANT` pill, the 6 stale KPI cards (`Today's Sprayed 0/2,000`, `First Pass Yield`, etc.), and unused EOD/Rework modals & states.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-24: Removed Legacy 3-Painter, Active Manufacturing Batches & Rework Hub Sections from Executive Cockpit (`DashboardView.tsx`)
   - Files touched:
     - `src/portal/views/DashboardView.tsx`: Deleted hardcoded `3-Painter Line Allocation`, fake-fallback `Active Manufacturing Batches`, and `Rework & Salvage Hub` blocks along with unused `painterChildCards` / `p1..p3` state and unused Lucide imports.

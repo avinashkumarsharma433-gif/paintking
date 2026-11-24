@@ -5,7 +5,6 @@ import { PaintkingDatePicker } from '../components/PaintkingDatePicker';
 import { matchesPlant } from '../utils/portalAuth';
 import { isChemicalConsumable } from '../utils/stockEngine';
 import { 
-  TrendingUp, 
   AlertTriangle, 
   CheckCircle2, 
   ArrowRight, 
@@ -13,7 +12,6 @@ import {
   Moon,
   Sun,
   Layers,
-  Hammer,
   Search,
   Building2,
   Zap,
@@ -22,7 +20,7 @@ import {
   Send,
   X
 } from 'lucide-react';
-import { DefectCategory, ProductionPriorityLevel, PlantHeadPriorityAssignment, ShiftType } from '../types/portalTypes';
+import { ProductionPriorityLevel, ShiftType } from '../types/portalTypes';
 
 interface DashboardViewProps {
   onNavigateTab: (tab: PortalTab) => void;
@@ -36,17 +34,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
     painterAssignments = [],
     plantHeadPriorities = [],
     assignProductionPriority,
-    currentUser, 
-    billingInvoices, 
-    defects, 
-    activePlant, 
-    activeShift,
-    openOverrunCount,
-    dayEndClosures,
-    isPlantDayClosed,
-    executeDayEndClosure,
-    reopenPlant,
-    routeToRework
+    currentUser,
+    activePlant,
+    isPlantDayClosed
   } = usePortalStore();
 
   
@@ -65,10 +55,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
   const plantJobCards = React.useMemo(() => {
     return jobCards.filter(j => matchesPlant(j.plant, activePlant));
   }, [jobCards, activePlant]);
-
-  const plantInvoices = React.useMemo(() => {
-    return billingInvoices.filter(i => matchesPlant(i.plant, activePlant));
-  }, [billingInvoices, activePlant]);
 
   const plantGrnList = React.useMemo(() => {
     return grnList.filter(g => matchesPlant(g.plant, activePlant));
@@ -236,155 +222,71 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
     setTimeout(() => setToastMsg(null), 4500);
   };
 
-  const [showEodModal, setShowEodModal] = useState<boolean>(false);
-  const [eodRemarks, setEodRemarks] = useState<string>('');
-
-  // Rework Route Modal
-  const [showReworkModal, setShowReworkModal] = useState<boolean>(false);
-  const [selectedParentJc, setSelectedParentJc] = useState<string>('');
-  const [reworkQtyInput, setReworkQtyInput] = useState<number>(0);
-  const [defectCatInput, setDefectCatInput] = useState<DefectCategory>('dust_nibs');
-  const [reworkInstructionsInput, setReworkInstructionsInput] = useState<string>('De-nib with 1500 grit, solvent clean and apply 1 touch-up mist coat.');
-
-  // High-signal Operational Aggregations
-  const masterJobCards = plantJobCards.filter(j => j.jobCardType === 'master' || (!j.jobCardType && !j.parentJobCardId));
-  const reworkChildCards = plantJobCards.filter(j => j.jobCardType === 'rework_child');
-
-  const totalSprayed = plantJobCards.reduce((acc, curr) => acc + (curr.sprayedQty || 0), 0);
-  const totalGood = plantJobCards.reduce((acc, curr) => acc + (curr.goodQty || 0), 0);
-  const totalReworkQueue = reworkChildCards.filter(r => r.status !== 'Completed').reduce((acc, curr) => acc + (curr.targetQty || 0), 0);
-  const totalReworkRecovered = reworkChildCards.reduce((acc, curr) => acc + (curr.reworkRecoveredQty || 0), 0);
-  const totalScrap = plantJobCards.reduce((acc, curr) => acc + (curr.scrapQty || 0), 0);
-  
-  const firstPassYield = totalSprayed > 0 ? (((totalSprayed - totalReworkQueue - totalScrap) / totalSprayed) * 100).toFixed(1) : '0.0';
-  const reworkRecoveryRate = (totalReworkRecovered + totalScrap) > 0 
-    ? ((totalReworkRecovered / (totalReworkRecovered + totalScrap)) * 100).toFixed(1)
-    : '0.0';
-
-  const totalInvoicedRevenue = plantInvoices.reduce((acc, curr) => acc + curr.grandTotal, 0);
-
-  const handleConfirmEod = () => {
-    executeDayEndClosure(eodRemarks);
-    setShowEodModal(false);
-  };
-
-  const handleRouteReworkSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    routeToRework(selectedParentJc, reworkQtyInput, defectCatInput, reworkInstructionsInput);
-    setShowReworkModal(false);
-  };
+  const masterJobCards = plantJobCards.filter(
+    j => j.jobCardType === 'master' || (!j.jobCardType && !j.parentJobCardId)
+  );
+  const plantActivePaintersCount = new Set(
+    painterAssignments
+      .filter(a => masterJobCards.some(mc => mc.jobCardNo === a.masterJobCardNo || mc.jobCardNo === a.masterJobCardId))
+      .map(a => a.painterId || a.painterName)
+  ).size;
 
   return (
     <div className="space-y-6">
-      {/* 1. Header Banner & Operational State */}
-      <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs relative overflow-hidden">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 relative z-10">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 mb-2">
+      {/* 1. Redesigned Editorial Operations Header (Clean Metadata, Zero Buttons) */}
+      <div className="bg-white rounded-[24px] p-5 sm:p-6 border border-[#ececec] shadow-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="px-3 py-1 rounded-full bg-[#faf3e0] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold border border-[#f4e5be]">
-                PK-OPS-DSH-001 • VASAI PLANT
+                PK-OPS-DSH-001 • {activePlant === 'ALL' ? 'ALL PLANTS' : `${activePlant.toUpperCase()} UNIT`}
               </span>
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
-                isPlantDayClosed 
-                  ? 'bg-rose-50 text-rose-800 border-rose-200' 
-                  : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-              }`}>
+              <span
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border ${
+                  isPlantDayClosed
+                    ? 'bg-rose-50 text-rose-800 border-rose-200'
+                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                }`}
+              >
                 {isPlantDayClosed ? (
                   <>
-                    <Moon className="w-3.5 h-3.5 text-rose-600" />
-                    <span>EOD Shutdown (Locked for Night)</span>
+                    <Moon className="w-3 h-3 text-rose-600" />
+                    <span>EOD Closed</span>
                   </>
                 ) : (
                   <>
-                    <Sun className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Single General Day Shift: Active (08:30 – 18:30)</span>
+                    <Sun className="w-3 h-3 text-emerald-600" />
+                    <span>Day Shift Active (08:30 – 18:30)</span>
                   </>
                 )}
               </span>
+              <span className="text-[11px] font-mono text-[#777b86]">
+                {currentUser.name} ({currentUser.roleTitle})
+              </span>
             </div>
-            <h1 className="text-3xl font-serif font-normal tracking-tight text-[#17191c]">
-              {activePlant} Operations Cockpit
+
+            <h1 className="text-2xl sm:text-3xl font-serif font-normal tracking-tight text-[#17191c]">
+              {activePlant === 'ALL' ? 'Enterprise' : activePlant} Operations Cockpit
             </h1>
-            <p className="text-xs text-[#777b86] mt-1">
-              Real-time monitoring: 3-Painter Line Parity, Rework Recovery, and Single Shift Production Flow.
+            <p className="text-xs text-[#777b86]">
+              Plant Head Priority Command — schedule IQC-cleared Party Material GRNs directly into Production Master Job Cards.
             </p>
           </div>
 
-          {/* Quick Primary Actions */}
-          <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
-            <button
-              onClick={() => setShowReworkModal(true)}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] border border-[#ececec] text-[#17191c] text-xs font-semibold transition cursor-pointer"
-            >
-              <Hammer className="w-4 h-4 text-[#c09748]" />
-              <span>+ Route to Rework</span>
-            </button>
-
-            {isPlantDayClosed ? (
-              <button
-                onClick={reopenPlant}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition cursor-pointer shadow-xs"
-              >
-                <Sun className="w-4 h-4 text-white" />
-                <span>Re-open Morning Shift</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => setShowEodModal(true)}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-[#17191c] hover:bg-gray-800 text-white text-xs font-semibold transition cursor-pointer shadow-xs"
-              >
-                <Moon className="w-4 h-4 text-[#c09748]" />
-                <span>Day-End (EOD) Shutdown</span>
-              </button>
-            )}
+          <div className="grid grid-cols-3 gap-2.5 bg-[#fafafb] border border-[#ececec] rounded-[18px] p-3 text-center shrink-0">
+            <div className="px-2.5">
+              <div className="text-[9.5px] font-mono uppercase tracking-wider text-[#777b86]">Store Lots</div>
+              <div className="text-lg font-serif text-[#17191c] mt-0.5">{storeStockItems.length}</div>
+            </div>
+            <div className="px-2.5 border-x border-[#ececec]">
+              <div className="text-[9.5px] font-mono uppercase tracking-wider text-[#8a6521]">Master Cards</div>
+              <div className="text-lg font-serif text-[#8a6521] mt-0.5">{masterJobCards.length}</div>
+            </div>
+            <div className="px-2.5">
+              <div className="text-[9.5px] font-mono uppercase tracking-wider text-[#777b86]">Painters Active</div>
+              <div className="text-lg font-serif text-emerald-700 mt-0.5">{plantActivePaintersCount}</div>
+            </div>
           </div>
-        </div>
-      </div>
-
-      {/* 2. Top Metric Cards (High Signal, Crisp Data) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
-        {/* Daily Output */}
-        <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-xs">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777b86]">Today's Sprayed</div>
-          <div className="text-2xl font-serif font-normal text-[#17191c] mt-1.5">{totalSprayed.toLocaleString()} <span className="text-xs font-sans text-[#777b86]">/ 2,000 pcs</span></div>
-          <div className="text-[10px] text-emerald-700 flex items-center gap-1 mt-1 font-medium">
-            <TrendingUp className="w-3 h-3 text-emerald-600" /> {totalSprayed > 0 ? `${((totalSprayed / 2000) * 100).toFixed(1)}% Shift Target Met` : '0.0% Shift Output'}
-          </div>
-        </div>
-
-        {/* First Pass Yield */}
-        <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-xs">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777b86]">First Pass Yield</div>
-          <div className="text-2xl font-serif font-normal text-emerald-700 mt-1.5">{firstPassYield}%</div>
-          <div className="text-[10px] text-[#777b86] mt-1">Zero Touch-Up Passed</div>
-        </div>
-
-        {/* Rework Queue & Recovery Rate */}
-        <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-xs">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777b86]">Rework Recovery</div>
-          <div className="text-2xl font-serif font-normal text-[#c09748] mt-1.5">{reworkRecoveryRate}%</div>
-          <div className="text-[10px] text-emerald-700 mt-1 font-medium">{totalReworkRecovered}/{totalReworkRecovered + totalScrap} Salvaged from Defect</div>
-        </div>
-
-        {/* Irrecoverable Scrap Rate */}
-        <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-xs">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777b86]">Irrecoverable Scrap</div>
-          <div className="text-2xl font-serif font-normal text-rose-600 mt-1.5">{totalScrap} pcs</div>
-          <div className="text-[10px] text-emerald-700 font-medium mt-1">{totalSprayed > 0 ? `${((totalScrap / totalSprayed) * 100).toFixed(2)}%` : '0.00%'} (OEM Spec &lt;0.5%)</div>
-        </div>
-
-        {/* Active Line Orders */}
-        <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-xs">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777b86]">Active WIP Lots</div>
-          <div className="text-2xl font-serif font-normal text-[#17191c] mt-1.5">{masterJobCards.length} Batches</div>
-          <div className="text-[10px] text-[#777b86] mt-1">{new Set(plantJobCards.map(j => j.boothNo).filter(Boolean)).size} Line Booths Engaged</div>
-        </div>
-
-        {/* Billed Revenue */}
-        <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-xs">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#777b86]">Billed Value</div>
-          <div className="text-xl font-serif font-normal text-[#17191c] mt-1.5">₹{totalInvoicedRevenue.toLocaleString()}</div>
-          <div className="text-[10px] text-emerald-700 font-medium mt-1">Delivered Parts Only</div>
         </div>
       </div>
 
@@ -758,197 +660,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
         </div>
       </div>
 
-      {/* MODAL: Daily Day-End (EOD) Shutdown Modal */}
-      {showEodModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-[24px] max-w-lg w-full p-6 space-y-5 border border-[#ececec] shadow-xl">
-            <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
-              <div className="flex items-center gap-2">
-                <span className="p-2 rounded-full bg-[#17191c] text-[#c09748]">
-                  <Moon className="w-5 h-5" />
-                </span>
-                <div>
-                  <h3 className="font-serif font-medium text-lg text-[#17191c]">
-                    Execute Evening Plant Shutdown (EOD)
-                  </h3>
-                  <p className="text-xs text-[#777b86]">
-                    Single General Day Shift • Vasai Unit
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowEodModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-sm font-bold p-1 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-4 bg-[#fafafb] rounded-[18px] border border-[#ececec] space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-[#777b86]">Total Sprayed Today:</span>
-                <span className="font-bold text-[#17191c]">{totalSprayed} pcs</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#777b86]">First-Pass Accepted:</span>
-                <span className="font-bold text-emerald-700">{totalGood} pcs</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#777b86]">Pending in Rework Racks:</span>
-                <span className="font-bold text-amber-700">{totalReworkQueue} pcs</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#777b86]">Total Non-Salvageable Scrap:</span>
-                <span className="font-bold text-rose-700">{totalScrap} pcs</span>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">
-                Supervisor Evening Handover & Cleaning Notes
-              </label>
-              <textarea
-                value={eodRemarks}
-                onChange={(e) => setEodRemarks(e.target.value)}
-                rows={3}
-                placeholder="Spray booths flushed with thinner, exhaust filters purged, overnight WIP locked in designated holding bays..."
-                className="w-full p-3 rounded-[14px] border border-[#e5e7eb] text-xs text-[#17191c] focus:outline-none focus:border-[#17191c]"
-              />
-            </div>
-
-            <div className="flex gap-2.5">
-              <button
-                type="button"
-                onClick={() => setShowEodModal(false)}
-                className="flex-1 py-2.5 rounded-full border border-[#ececec] text-xs font-semibold text-[#777b86] hover:bg-gray-100 transition cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmEod}
-                className="flex-1 py-2.5 rounded-full bg-[#17191c] hover:bg-gray-800 text-white text-xs font-semibold transition cursor-pointer"
-              >
-                Lock & Close Plant for Night
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: Route Defective Batch to Rework */}
-      {showReworkModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-[24px] max-w-lg w-full p-6 space-y-5 border border-[#ececec] shadow-xl">
-            <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
-              <div className="flex items-center gap-2">
-                <span className="p-2 rounded-full bg-[#faf3e0] text-[#8a6521]">
-                  <Hammer className="w-5 h-5 text-[#c09748]" />
-                </span>
-                <div>
-                  <h3 className="font-serif font-medium text-lg text-[#17191c]">
-                    Route Defective Parts to Rework
-                  </h3>
-                  <p className="text-xs text-[#777b86]">
-                    Avoid unnecessary scrap — salvage parts through controlled touch-up
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowReworkModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-sm font-bold p-1 cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleRouteReworkSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">
-                  Select Parent Job Card
-                </label>
-                <select
-                  value={selectedParentJc}
-                  onChange={(e) => setSelectedParentJc(e.target.value)}
-                  className="w-full h-10 px-3 rounded-[12px] border border-[#e5e7eb] text-xs text-[#17191c] bg-white"
-                >
-                  {plantJobCards.filter(j => j.jobCardType !== 'rework_child').map(jc => (
-                    <option key={jc.jobCardNo} value={jc.jobCardNo}>
-                      {jc.jobCardNo} • {jc.partDescription} ({jc.color})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">
-                    Defective Pieces Qty
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={reworkQtyInput}
-                    onChange={(e) => setReworkQtyInput(Number(e.target.value))}
-                    className="w-full h-10 px-3 rounded-[12px] border border-[#e5e7eb] text-xs text-[#17191c]"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">
-                    Defect Category
-                  </label>
-                  <select
-                    value={defectCatInput}
-                    onChange={(e) => setDefectCatInput(e.target.value as DefectCategory)}
-                    className="w-full h-10 px-3 rounded-[12px] border border-[#e5e7eb] text-xs text-[#17191c] bg-white"
-                  >
-                    <option value="dust_nibs">Dust Nibs / Air Lint</option>
-                    <option value="paint_run">Paint Run / Sagging</option>
-                    <option value="orange_peel">Orange Peel Texture</option>
-                    <option value="scratch">Surface Handling Scratch</option>
-                    <option value="undercoat_show">Undercoat / Shadow Flaw</option>
-                    <option value="shade_deviation">Color Tone Drift (ΔE &gt; 0.70)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#777b86]">
-                  Rework Standard Operating Instructions
-                </label>
-                <textarea
-                  value={reworkInstructionsInput}
-                  onChange={(e) => setReworkInstructionsInput(e.target.value)}
-                  rows={2}
-                  className="w-full p-2.5 rounded-[12px] border border-[#e5e7eb] text-xs text-[#17191c]"
-                  required
-                />
-              </div>
-
-              <div className="flex gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowReworkModal(false)}
-                  className="flex-1 py-2.5 rounded-full border border-[#ececec] text-xs font-semibold text-[#777b86] hover:bg-gray-100 transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold transition cursor-pointer shadow-xs"
-                >
-                  Spawn Rework Child Card
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Inward Modal */}
-      
       {/* ========================================================================= */}
       {/* PLANT HEAD PRIORITY ASSIGNMENT MODAL DIALOG                               */}
       {/* ========================================================================= */}
