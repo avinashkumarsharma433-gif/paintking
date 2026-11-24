@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-24: Auto-Deduplicated Existing Duplicate GRNs & Phantom StockBatches (`PortalStoreContext.tsx`)
+  - Files touched:
+    - `src/portal/context/PortalStoreContext.tsx`: Added `deduplicateGrnsByInward` (prioritizing GRNs linked to `jobCards`/`plantHeadPriorities` so e.g. `PK-GRN-2026-3905` stays while `PK-GRN-2026-2577` & `2697` are purged) and applied it across `localStorage` init, runtime `useEffect`, and `hydrateCloudState()` along with cleaning phantom `stockBatches`.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-24: Enforced `1 Inward = 1 GRN` & Fixed `CreateGRNModal` Success-Screen Reset Loop
   - Files touched:
     - `src/portal/components/CreateGRNModal.tsx`: Fixed `useEffect` dependency bug (`latestGateInward` changing inside `addGRN` had immediately reset `createdGRN(null)` and allowed repeated clicks); guarded initialization via `lastOpenedKeyRef`, added `isSubmitting` lock & duplicate GRN error/preview handling.

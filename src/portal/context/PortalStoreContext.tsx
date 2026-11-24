@@ -696,6 +696,55 @@ export const PortalProvider: React.FC<{
     }
   }
 
+  // Enforce 1 Inward / 1 IQC Report = 1 Official GRN across localStorage & Supabase hydration
+  function deduplicateGrnsByInward(
+    rawGrns: GoodsReceiptNote[],
+    cards: JobCard[],
+    priorities: PlantHeadPriorityAssignment[]
+  ): { uniqueGrns: GoodsReceiptNote[]; removedGrnNos: Set<string> } {
+    const linkedGrnNos = new Set<string>();
+    cards.forEach(jc => {
+      if (jc.sourceGrnNo) linkedGrnNos.add(jc.sourceGrnNo);
+    });
+    priorities.forEach(p => {
+      if (p.grnNo) linkedGrnNos.add(p.grnNo);
+    });
+
+    const prioritized = [...rawGrns].sort((a, b) => {
+      const aLinked = linkedGrnNos.has(a.grnNo) ? 1 : 0;
+      const bLinked = linkedGrnNos.has(b.grnNo) ? 1 : 0;
+      return bLinked - aLinked;
+    });
+
+    const seenKeys = new Set<string>();
+    const uniqueGrns: GoodsReceiptNote[] = [];
+    const removedGrnNos = new Set<string>();
+
+    prioritized.forEach(g => {
+      if (!g || !g.grnNo) return;
+      const iqcKey = g.sourceIqcReportNo ? `iqc:${g.sourceIqcReportNo.trim().toLowerCase()}` : '';
+      const challan = (g.invoiceChallanNo || '').trim().toLowerCase();
+      const cust = (g.supplierCustomer || '').trim().toLowerCase();
+      const recDate = (g.receivedDate || g.date || '').trim();
+      const plantKey = (g.plant || '').trim().toLowerCase();
+      const challanKey = challan && cust ? `ch:${plantKey}::${cust}::${challan}::${recDate}` : '';
+
+      const isDup =
+        (iqcKey && seenKeys.has(iqcKey)) ||
+        (challanKey && seenKeys.has(challanKey));
+
+      if (isDup && !linkedGrnNos.has(g.grnNo)) {
+        removedGrnNos.add(g.grnNo);
+        return;
+      }
+      if (iqcKey) seenKeys.add(iqcKey);
+      if (challanKey) seenKeys.add(challanKey);
+      uniqueGrns.push(g);
+    });
+
+    return { uniqueGrns, removedGrnNos };
+  }
+
   // Operational State Collections with smart localStorage syncing
   
   const [plantHeadPriorities, setPlantHeadPriorities] = useState<PlantHeadPriorityAssignment[]>(() => {
@@ -742,15 +791,11 @@ export const PortalProvider: React.FC<{
         const remote = await fetchAllRemoteState();
         if (remote) {
           if (Array.isArray(remote.pk_universal_jobs)) setUniversalJobs(remote.pk_universal_jobs as UniversalJobRecord[]);
-          if (Array.isArray(remote.pk_stock_batches)) setStockBatches(remote.pk_stock_batches as StockBatch[]);
           if (Array.isArray(remote.pk_fifo_override_logs)) setFifoOverrideLogs(remote.pk_fifo_override_logs as FifoOverrideLog[]);
           if (Array.isArray(remote.pk_balance_return_slips)) setBalanceReturnSlips(remote.pk_balance_return_slips as BalanceReturnSlip[]);
           if (remote.pk_plant_shift_config && typeof remote.pk_plant_shift_config === 'object') {
             setPlantShiftConfig(prev => ({ ...prev, ...(remote.pk_plant_shift_config as Partial<PlantShiftConfig>) }));
           }
-          if (Array.isArray(remote.pk_grn_data)) setGrnList(remote.pk_grn_data as GoodsReceiptNote[]);
-          if (Array.isArray(remote.pk_material_requisitions)) setMaterialRequisitions(remote.pk_material_requisitions as MaterialRequisitionNote[]);
-          if (Array.isArray(remote.pk_iqc_data)) setIqcRecords(remote.pk_iqc_data as IQCInspectionRecord[]);
           let hydratedCards = jobCards;
           if (Array.isArray(remote.pk_jobcards_data)) {
             const seenNos = new Set<string>();
@@ -761,9 +806,31 @@ export const PortalProvider: React.FC<{
             });
             setJobCards(hydratedCards);
           }
+          let hydratedPriorities = plantHeadPriorities;
           if (Array.isArray(remote.pk_plant_head_priorities)) {
-            setPlantHeadPriorities(sanitizePriorityLinks(remote.pk_plant_head_priorities as PlantHeadPriorityAssignment[], hydratedCards));
+            hydratedPriorities = sanitizePriorityLinks(remote.pk_plant_head_priorities as PlantHeadPriorityAssignment[], hydratedCards);
+            setPlantHeadPriorities(hydratedPriorities);
           }
+          let removedDupGrnNos = new Set<string>();
+          if (Array.isArray(remote.pk_grn_data)) {
+            const deduped = deduplicateGrnsByInward(
+              remote.pk_grn_data as GoodsReceiptNote[],
+              hydratedCards,
+              hydratedPriorities
+            );
+            removedDupGrnNos = deduped.removedGrnNos;
+            setGrnList(deduped.uniqueGrns);
+          }
+          if (Array.isArray(remote.pk_stock_batches)) {
+            const rawBatches = remote.pk_stock_batches as StockBatch[];
+            setStockBatches(
+              removedDupGrnNos.size > 0
+                ? rawBatches.filter(b => !b.grnNo || !removedDupGrnNos.has(b.grnNo))
+                : rawBatches
+            );
+          }
+          if (Array.isArray(remote.pk_material_requisitions)) setMaterialRequisitions(remote.pk_material_requisitions as MaterialRequisitionNote[]);
+          if (Array.isArray(remote.pk_iqc_data)) setIqcRecords(remote.pk_iqc_data as IQCInspectionRecord[]);
           if (typeof remote.pk_jobcard_seq_counter === 'number' && !isNaN(remote.pk_jobcard_seq_counter)) {
             setJobCardSeqCounter(prev => {
               const merged = Math.max(prev, remote.pk_jobcard_seq_counter as number);
@@ -850,7 +917,16 @@ export const PortalProvider: React.FC<{
   };
 
   const [grnList, setGrnList] = useState<GoodsReceiptNote[]>(() => {
-    return mergeByUniqueKey(localStorage.getItem('pk_grn_data'), INITIAL_GRN_DATA, 'grnNo');
+    const merged = mergeByUniqueKey(localStorage.getItem('pk_grn_data'), INITIAL_GRN_DATA, 'grnNo');
+    try {
+      const savedCardsRaw = localStorage.getItem('pk_jobcards_data');
+      const savedCards: JobCard[] = savedCardsRaw ? JSON.parse(savedCardsRaw) : [];
+      const savedPrioRaw = localStorage.getItem('pk_plant_head_priorities');
+      const savedPrios: PlantHeadPriorityAssignment[] = savedPrioRaw ? JSON.parse(savedPrioRaw) : [];
+      return deduplicateGrnsByInward(merged, Array.isArray(savedCards) ? savedCards : [], Array.isArray(savedPrios) ? savedPrios : []).uniqueGrns;
+    } catch {
+      return merged;
+    }
   });
 
   const latestGrnListRef = useRef<GoodsReceiptNote[]>(grnList);
@@ -1503,6 +1579,15 @@ export const PortalProvider: React.FC<{
   useEffect(() => {
     latestJobCardsRef.current = jobCards;
   }, [jobCards]);
+
+  useEffect(() => {
+    const { uniqueGrns, removedGrnNos } = deduplicateGrnsByInward(grnList, jobCards, plantHeadPriorities);
+    if (removedGrnNos.size > 0) {
+      latestGrnListRef.current = uniqueGrns;
+      setGrnList(uniqueGrns);
+      setStockBatches(prev => prev.filter(b => !b.grnNo || !removedGrnNos.has(b.grnNo)));
+    }
+  }, [grnList.length, jobCards.length, plantHeadPriorities.length]);
 
   const [painterAssignments, setPainterAssignments] = useState<PainterAssignment[]>(() => {
     try {
