@@ -303,8 +303,8 @@ export const JobCardsView: React.FC = () => {
   const [selectedJcForQuota, setSelectedJcForQuota] = useState<JobCard | null>(null);
   const [nextQuotaInput, setNextQuotaInput] = useState<number>(2000);
 
-  // Active filter tab: PRIORITY_QUEUE, ALL, REQUISITIONS, BOOTH_FLEET
-  const [activeTab, setActiveTab] = useState<'PRIORITY_QUEUE' | 'ALL' | 'REQUISITIONS' | 'BOOTH_FLEET'>('ALL');
+  // Active filter tab: PRIORITY_QUEUE, REQUISITIONS, BOOTH_FLEET
+  const [activeTab, setActiveTab] = useState<'PRIORITY_QUEUE' | 'REQUISITIONS' | 'BOOTH_FLEET'>('PRIORITY_QUEUE');
 
   // Quality Gates: 1. PIR (Pre-Production Substrate), 2. FPA (Golden Gate), 3. IPQC Line Modal States
   const [showPirModal, setShowPirModal] = useState<boolean>(false);
@@ -319,14 +319,14 @@ export const JobCardsView: React.FC = () => {
 
   // Synchronize with sidebar sub-item clicks
   useEffect(() => {
-    if (activeSubTab === 'PRIORITY_QUEUE' || activeSubTab === 'ALL' || activeSubTab === 'REQUISITIONS' || activeSubTab === 'BOOTH_FLEET') {
-      setActiveTab(activeSubTab as any);
-    } else if (activeSubTab === 'PAINTERS' || activeSubTab === 'REWORK') {
-      setActiveTab('ALL');
+    if (activeSubTab === 'PRIORITY_QUEUE' || activeSubTab === 'REQUISITIONS' || activeSubTab === 'BOOTH_FLEET') {
+      setActiveTab(activeSubTab);
+    } else if (activeSubTab === 'ALL' || activeSubTab === 'PAINTERS' || activeSubTab === 'REWORK') {
+      setActiveTab('PRIORITY_QUEUE');
     }
   }, [activeSubTab]);
 
-  const handleSelectTab = (tab: 'PRIORITY_QUEUE' | 'ALL' | 'REQUISITIONS' | 'BOOTH_FLEET') => {
+  const handleSelectTab = (tab: 'PRIORITY_QUEUE' | 'REQUISITIONS' | 'BOOTH_FLEET') => {
     setActiveTab(tab);
     setActiveSubTab(tab);
   };
@@ -1535,17 +1535,7 @@ export const JobCardsView: React.FC = () => {
           }`}
         >
           <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-          <span>Strategic Priority Orders ({plantPriorityOrders.length})</span>
-        </button>
-        <button
-          onClick={() => handleSelectTab('ALL')}
-          className={`px-4 py-2 rounded-full text-xs font-semibold transition cursor-pointer ${
-            activeTab === 'ALL'
-              ? 'bg-[#17191c] text-[#c09748] shadow-xs'
-              : 'bg-white hover:bg-[#fafafb] text-[#777b86] border border-[#ececec]'
-          }`}
-        >
-          All Job Cards ({plantJobCards.length})
+          <span>Master Job Cards &amp; Priority Orders ({plantPriorityOrders.length})</span>
         </button>
         <button
           onClick={() => handleSelectTab('REQUISITIONS')}
@@ -1646,76 +1636,8 @@ export const JobCardsView: React.FC = () => {
         </div>
       )}
 
-      {/* DEDICATED SEARCH & MULTI-FILTER CONTROL BAR for Job Cards */}
-      {activeTab === 'ALL' && (
-        <div className="bg-white rounded-[22px] border border-[#ececec] p-3 sm:p-3.5 shadow-xs">
-          {/* Main Controls Row: Search (flex-1) + 3 Equal-Width Dropdowns (sm:w-[215px]) */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-            {/* Search Input (Expands to fill available space) */}
-            <div className="flex-1 min-w-[200px] relative w-full">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none z-10">
-                <Search className="w-4 h-4 text-[#c09748]" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search Job Card, Part Code, Customer, Painter..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{ paddingLeft: '40px' }}
-                className="w-full pr-9 py-2.5 rounded-[14px] bg-[#fafafb] hover:bg-white focus:bg-white border border-[#ececec] text-xs text-[#17191c] placeholder:text-[#a3a6af] focus:outline-none focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/20 transition"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#777b86] hover:text-[#17191c] cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Painter Dropdown Filter (Equal width: 215px) */}
-            <div className="w-full sm:w-[215px] shrink-0">
-              <PortalFilterSelect
-                value={painterFilter}
-                onChange={setPainterFilter}
-                options={painterDropdownOptions}
-                icon={<Paintbrush className="w-3.5 h-3.5 text-[#c09748]" />}
-                placeholder="All Painters"
-                searchable={true}
-              />
-            </div>
-
-            {/* Active Party / Clients Dropdown Filter (Equal width: 215px) */}
-            <div className="w-full sm:w-[215px] shrink-0">
-              <PortalFilterSelect
-                value={customerFilter}
-                onChange={setCustomerFilter}
-                options={customerDropdownOptions}
-                icon={<Building2 className="w-3.5 h-3.5 text-[#c09748]" />}
-                placeholder="Active Parties"
-                searchable={true}
-              />
-            </div>
-
-            {/* Status / Urgency Dropdown Filter (Equal width: 215px) */}
-            <div className="w-full sm:w-[215px] shrink-0">
-              <PortalFilterSelect
-                value={statusFilter}
-                onChange={setStatusFilter}
-                options={statusDropdownOptions}
-                icon={<Filter className="w-3.5 h-3.5 text-[#c09748]" />}
-                placeholder="All Statuses"
-                searchable={false}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ====================================================================== */}
-      {/* TAB 5: MATERIAL REQUISITIONS & CUSTODY ACCEPTANCE DESK                 */}
+      {/* TAB 1: MASTER JOB CARDS & PRIORITY ORDERS                              */}
       {/* ====================================================================== */}
       
       {activeTab === 'PRIORITY_QUEUE' ? (
@@ -1861,6 +1783,39 @@ export const JobCardsView: React.FC = () => {
                           a => a.masterJobCardNo === masterCard.jobCardNo || a.masterJobCardId === masterCard.jobCardNo
                         ).length
                       : 0;
+                    const completedOkQty = masterCard
+                      ? painterAssignments
+                          .filter(a => a.masterJobCardNo === masterCard.jobCardNo || a.masterJobCardId === masterCard.jobCardNo)
+                          .reduce((s, a) => s + Number(a.actualCompletedQty || 0), 0) || Number(masterCard.goodQty || 0)
+                      : 0;
+
+                    const matchingPir = masterCard
+                      ? preProductionReports.find(
+                          p =>
+                            p.overallResult === 'Passed' &&
+                            (p.jobCardNo.toLowerCase() === masterCard.jobCardNo.toLowerCase() ||
+                              (masterCard.woNo && p.workOrderNo && p.workOrderNo.trim().toLowerCase() === masterCard.woNo.trim().toLowerCase()))
+                        )
+                      : undefined;
+                    const isPirPassed = masterCard ? (masterCard.pirStatus === 'Passed' || matchingPir?.overallResult === 'Passed') : false;
+
+                    const matchingFpa = masterCard
+                      ? fpaRecords.find(
+                          f =>
+                            f.overallResult === 'Approved' &&
+                            (f.jobCardNo.toLowerCase() === masterCard.jobCardNo.toLowerCase() ||
+                              (masterCard.woNo && f.woNo && f.woNo.trim().toLowerCase() === masterCard.woNo.trim().toLowerCase()))
+                        )
+                      : undefined;
+                    const isFpaApproved = masterCard ? (masterCard.fpaStatus === 'Approved' || matchingFpa?.overallResult === 'Approved') : false;
+
+                    const jcIpqcCount = masterCard
+                      ? ipqcRecords.filter(
+                          r =>
+                            (r.jobCardNo && r.jobCardNo.toLowerCase() === masterCard.jobCardNo.toLowerCase()) ||
+                            (masterCard.woNo && r.woNo && r.woNo.trim().toLowerCase() === masterCard.woNo.trim().toLowerCase())
+                        ).length
+                      : 0;
 
                     return (
                       <div
@@ -1873,7 +1828,7 @@ export const JobCardsView: React.FC = () => {
                               : 'border-[#ececec] hover:border-[#c09748]'
                         }`}
                       >
-                        {/* 1. TOP UTILITY HEADER: Priority badge, Master JC No, Challan & Due Date */}
+                        {/* 1. TOP UTILITY HEADER: Priority badge, Master JC No, QA Gates & Due Date */}
                         <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#ececec]">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`px-3 py-1 rounded-full text-xs font-mono font-bold border shadow-2xs ${
@@ -1895,6 +1850,49 @@ export const JobCardsView: React.FC = () => {
                             <span className="text-xs font-mono text-[#777b86] px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec]">
                               {prio.challanNo ? `Challan: ${prio.challanNo}` : prio.id}
                             </span>
+
+                            {masterCard && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedJcForPir(masterCard);
+                                    setShowPirModal(true);
+                                  }}
+                                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border cursor-pointer transition ${
+                                    isPirPassed
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                                      : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                                  }`}
+                                >
+                                  Gate 1: PIR {isPirPassed ? '✓' : ''}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedJcForFpa(masterCard);
+                                    setShowFpaModal(true);
+                                  }}
+                                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border cursor-pointer transition ${
+                                    isFpaApproved
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                                      : 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100'
+                                  }`}
+                                >
+                                  Gate 2: FPA {isFpaApproved ? '✓' : ''}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedJcForIpqc(masterCard);
+                                    setShowIpqcModal(true);
+                                  }}
+                                  className="px-2.5 py-0.5 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] text-[#777b86] border border-[#ececec] text-[11px] font-mono font-semibold cursor-pointer transition"
+                                >
+                                  Gate 3: IPQC ({jcIpqcCount})
+                                </button>
+                              </>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-2 text-xs font-mono text-[#777b86]">
@@ -1931,6 +1929,11 @@ export const JobCardsView: React.FC = () => {
                             <strong className="font-mono text-base sm:text-lg font-bold text-[#17191c]">
                               {totalLotQty.toLocaleString('en-IN')} {prio.uom || 'Pcs'}
                             </strong>
+                            {masterCard && (
+                              <span className="text-[10.5px] font-mono text-emerald-700 font-semibold block">
+                                OK Completed: {completedOkQty.toLocaleString('en-IN')} {prio.uom || 'Pcs'}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -1944,7 +1947,7 @@ export const JobCardsView: React.FC = () => {
                           </div>
                         )}
 
-                        {/* 4. CLEAN FOOTER: Master Job Card Info & Open Action */}
+                        {/* 4. CLEAN FOOTER: Master Job Card Info & Open / PDF / Delete Actions */}
                         <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-[#f2f2f3]">
                           <div className="flex items-center gap-2 flex-wrap text-xs font-mono">
                             {masterCard ? (
@@ -1961,19 +1964,46 @@ export const JobCardsView: React.FC = () => {
                             )}
                           </div>
 
-                          <div>
+                          <div className="flex items-center gap-2 flex-wrap">
                             {hasJobCards && masterCard ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedJobCardForView(masterCard);
-                                  setShowJobCardModal(true);
-                                }}
-                                className="px-5 py-2.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs shadow-2xs cursor-pointer transition flex items-center gap-1.5 active:scale-95"
-                              >
-                                <CheckCircle className="w-3.5 h-3.5 text-[#8a6521]" />
-                                <span>Open Job Card ({masterCard.jobCardNo})</span>
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedJobCardForView(masterCard);
+                                    setShowJobCardModal(true);
+                                  }}
+                                  className="px-5 py-2.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs shadow-2xs cursor-pointer transition flex items-center gap-1.5 active:scale-95"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5 text-[#8a6521]" />
+                                  <span>Open Job Card ({masterCard.jobCardNo})</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => downloadStandardJobCardPdf(masterCard)}
+                                  className="px-3.5 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                                  title="Download Master Job Card PDF"
+                                >
+                                  <Download className="w-3.5 h-3.5 text-[#777b86]" />
+                                  <span>PDF</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (window.confirm(`Are you sure you want to permanently delete Job Card ${masterCard.jobCardNo}?`)) {
+                                      deleteJobCard(masterCard.jobCardNo);
+                                      setToastMessage(`✓ Job Card ${masterCard.jobCardNo} permanently deleted.`);
+                                      setTimeout(() => setToastMessage(null), 3500);
+                                    }
+                                  }}
+                                  className="px-3 py-2 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold transition flex items-center gap-1 cursor-pointer shadow-2xs active:scale-95"
+                                  title="Permanently Delete Job Card"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>Delete</span>
+                                </button>
+                              </>
                             ) : (
                               <button
                                 type="button"
@@ -2284,7 +2314,7 @@ export const JobCardsView: React.FC = () => {
             </div>
           </div>
         </div>
-      ) : activeTab === 'BOOTH_FLEET' ? (
+      ) : (
         /* ====================================================================== */
         /* TAB 7: CENTRAL SPRAY BOOTH & PAINTER TECHNICIAN FLEET MANAGEMENT       */
         /* ====================================================================== */
@@ -2635,641 +2665,6 @@ export const JobCardsView: React.FC = () => {
             </div>
           </div>
         </div>
-      ) : (
-        /* Cards Grid for Job Cards */
-        <div className="space-y-3.5">
-          {/* List Header: Active Filter Reset on Left & Showing Count on Top Right */}
-          <div className="flex items-center justify-between text-xs px-1">
-            <div>
-              {isFilterActive && (
-                <button
-                  type="button"
-                  onClick={handleResetFilters}
-                  className="px-3 py-1 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold transition flex items-center gap-1 cursor-pointer active:scale-95 shadow-2xs"
-                >
-                  <X className="w-3 h-3 text-[#c09748]" />
-                  <span>Reset Filters</span>
-                </button>
-              )}
-            </div>
-
-            <div className="text-xs text-[#777b86] ml-auto font-medium">
-              Showing <strong className="text-[#17191c] font-mono font-bold">{filteredCards.length}</strong> of <strong className="font-mono">{filterStats.total}</strong> Cards
-            </div>
-          </div>
-
-          {filteredCards.length === 0 ? (
-            <div className="bg-white rounded-[24px] border border-[#ececec] p-10 text-center space-y-3">
-              <FileText className="w-8 h-8 text-[#979799] mx-auto" />
-              <h3 className="font-serif text-lg text-[#17191c]">No Job Cards Found</h3>
-              <p className="text-xs text-[#777b86]">No job cards match your active filter criteria.</p>
-            </div>
-          ) : (
-          filteredCards.map(jc => {
-            const isMaster = jc.jobCardType === 'master';
-            const isPainterChild = jc.jobCardType === 'painter_child';
-            const isReworkChild = jc.jobCardType === 'rework_child';
-            const progressPercent = Math.min(100, Math.round((jc.sprayedQty / jc.targetQty) * 100));
-
-            // If this is a master card, locate any associated children
-            const childCards = isMaster 
-              ? jobCards.filter(c => c.parentJobCardId === jc.jobCardNo)
-              : [];
-            const isExpanded = !!expandedMasterIds[jc.jobCardNo];
-            const hasChildren = childCards.length > 0;
-
-            // Lot-Wide Pre-Production Inspection (PIR) Resolution
-            const matchingPir = preProductionReports.find(
-              p => p.overallResult === 'Passed' && (
-                p.jobCardNo.toLowerCase() === jc.jobCardNo.toLowerCase() ||
-                (jc.parentJobCardId && p.jobCardNo.toLowerCase() === jc.parentJobCardId.toLowerCase()) ||
-                (jc.woNo && p.workOrderNo && p.workOrderNo.trim().toLowerCase() === jc.woNo.trim().toLowerCase()) ||
-                (jc.customer && p.customer && jc.customer.trim().toLowerCase() === p.customer.trim().toLowerCase() &&
-                 jc.partCode && p.partCode && jc.partCode.trim().toLowerCase() === p.partCode.trim().toLowerCase())
-              )
-            ) || preProductionReports.find(
-              p => p.jobCardNo.toLowerCase() === jc.jobCardNo.toLowerCase() ||
-                   (jc.woNo && p.workOrderNo && p.workOrderNo.trim().toLowerCase() === jc.woNo.trim().toLowerCase())
-            );
-
-            const isPirPassed = jc.pirStatus === 'Passed' || (matchingPir?.overallResult === 'Passed');
-            const activePirReportNo = jc.pirReportNo || matchingPir?.reportNo;
-
-            // Lot-Wide FPA Resolution: Check if this Job Card or ANY card in the same Lot/WO/Customer+Part passed FPA
-            const matchingFpa = fpaRecords.find(
-              f => f.overallResult === 'Approved' && (
-                f.jobCardNo.toLowerCase() === jc.jobCardNo.toLowerCase() ||
-                (jc.parentJobCardId && f.jobCardNo.toLowerCase() === jc.parentJobCardId.toLowerCase()) ||
-                (jc.woNo && f.woNo && f.woNo.trim().toLowerCase() === jc.woNo.trim().toLowerCase()) ||
-                (jc.customer && f.customer && jc.customer.trim().toLowerCase() === f.customer.trim().toLowerCase() &&
-                 jc.partCode && f.partCode && jc.partCode.trim().toLowerCase() === f.partCode.trim().toLowerCase())
-              )
-            ) || fpaRecords.find(
-              f => f.jobCardNo.toLowerCase() === jc.jobCardNo.toLowerCase() ||
-                   (jc.woNo && f.woNo && f.woNo.trim().toLowerCase() === jc.woNo.trim().toLowerCase())
-            );
-
-            const isFpaApproved = jc.fpaStatus === 'Approved' || (matchingFpa?.overallResult === 'Approved');
-            const activeFpaReportNo = jc.fpaReportNo || matchingFpa?.reportNo;
-
-            const jcIpqcRecords = ipqcRecords.filter(
-              r => (r.jobCardNo && r.jobCardNo.toLowerCase() === jc.jobCardNo.toLowerCase()) ||
-                   (jc.woNo && r.woNo && r.woNo.trim().toLowerCase() === jc.woNo.trim().toLowerCase())
-            );
-
-            const isClosed = jc.status === 'Completed' || jc.status === 'Target Met' || jc.status === 'Verified & Accepted';
-            const isSlaBreachedNow = (jc.isSlaBreached) || (!isClosed && jc.slaDeadline && new Date() > new Date(jc.slaDeadline));
-            const effectiveDailyTarget = jc.dailyTargetQty || (jc.targetQty <= 1000 ? jc.targetQty : 1000);
-            const todaySprayed = jc.sprayedQty || (jc.goodQty + (jc.rejectQty || 0)) || 0;
-            const shiftPercent = effectiveDailyTarget > 0 ? Math.min(100, Math.round((todaySprayed / effectiveDailyTarget) * 100)) : 0;
-            const poPercent = jc.targetQty > 0 ? Math.min(100, Math.round(((jc.goodQty || 0) / jc.targetQty) * 100)) : 0;
-
-            return (
-              <div
-                key={jc.jobCardNo}
-                className={`rounded-[20px] border p-4 sm:p-5 transition shadow-2xs hover:border-[#c09748]/60 space-y-3.5 bg-white ${
-                  isReworkChild
-                    ? 'border-amber-200 bg-amber-50/15'
-                    : isPainterChild
-                    ? 'border-[#ececec]'
-                    : 'border-[#dfdfe2]'
-                }`}
-              >
-                {/* 1. Top Utility Strip: Ref, Type Badges, QA Gates & Status */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-[#f2f2f3]">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* Job Card No Chip (Primary Anchor) */}
-                    <span className="font-mono text-[11px] font-bold text-[#8a6521] px-2.5 py-0.5 rounded-full bg-[#faf7ed] border border-[#f4e5be]">
-                      {jc.jobCardNo}
-                    </span>
-
-                    {/* Type Badge */}
-                    {isMaster && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-[#f2f2f3] border border-[#dcdfe4] text-[#17191c] text-[11px] font-mono font-bold tracking-wide uppercase">
-                        MASTER BATCH
-                      </span>
-                    )}
-                    {isPainterChild && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-800 text-[11px] font-mono font-bold tracking-wide uppercase flex items-center gap-1">
-                        <Users className="w-3 h-3" />
-                        <span>PAINTER CARD ({jc.assignedPainterId || 'P1'})</span>
-                      </span>
-                    )}
-                    {isReworkChild && (
-                      <span className="px-2.5 py-0.5 rounded-full bg-amber-100 border border-amber-300 text-amber-900 text-[11px] font-mono font-bold tracking-wide uppercase flex items-center gap-1">
-                        <RotateCcw className="w-3 h-3 text-amber-700" />
-                        <span>REWORK SALVAGE</span>
-                      </span>
-                    )}
-
-                    {/* Work Order */}
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[11px] font-mono">
-                      WO: <strong className="text-[#17191c] font-semibold">{jc.wNo || jc.woNo || '-'}</strong>
-                    </span>
-
-                    {/* Plant & Booth */}
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[#777b86] text-[11px] font-mono hidden md:inline-flex items-center gap-1">
-                      📍 {jc.plant || 'Haridwar'} ({jc.dept?.split('(')[0]?.trim() || jc.boothNo || 'Booth #1'})
-                    </span>
-
-                    {/* QA Gates Interactive Mini Pills */}
-                    {isPirPassed ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedJcForPir(jc);
-                          setShowPirModal(true);
-                        }}
-                        className="px-2.5 py-0.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-mono font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-2xs"
-                        title={activePirReportNo ? `PIR Cleared under ${activePirReportNo} - Click to inspect/edit` : 'PIR Passed - Click to inspect'}
-                      >
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        <span>Gate 1: PIR ✓</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedJcForPir(jc);
-                          setShowPirModal(true);
-                        }}
-                        className="px-2.5 py-0.5 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-mono font-semibold flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-2xs"
-                        title="Gate 1 PIR Pending - Click to conduct inspection"
-                      >
-                        <AlertTriangle className="w-3 h-3 text-amber-600" />
-                        <span>Gate 1: PIR Pending</span>
-                      </button>
-                    )}
-
-                    {isFpaApproved ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedJcForFpa(jc);
-                          setShowFpaModal(true);
-                        }}
-                        className="px-2.5 py-0.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[11px] font-mono font-bold flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-2xs"
-                        title={activeFpaReportNo ? `FPA Approved under ${activeFpaReportNo} - Click to inspect/edit` : 'FPA Approved - Click to inspect'}
-                      >
-                        <Sparkles className="w-3 h-3 text-emerald-600" />
-                        <span>Gate 2: FPA ✓</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedJcForFpa(jc);
-                          setShowFpaModal(true);
-                        }}
-                        className="px-2.5 py-0.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-[11px] font-mono font-semibold flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-2xs"
-                        title="Gate 2 FPA Pending - Click to conduct Golden Sample test"
-                      >
-                        <Sparkles className="w-3 h-3 text-blue-600" />
-                        <span>Gate 2: FPA Pending</span>
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedJcForIpqc(jc);
-                        setShowIpqcModal(true);
-                      }}
-                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-2xs ${
-                        jcIpqcRecords.length > 0
-                          ? 'bg-[#faf7ed] hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]'
-                          : 'bg-gray-100 hover:bg-gray-200 text-gray-600 border border-gray-200'
-                      }`}
-                      title={jcIpqcRecords.length > 0 ? `${jcIpqcRecords.length} IPQC line audits recorded - Click to inspect or add` : 'Click to record In-Process inspection'}
-                    >
-                      <Clock className="w-3 h-3 text-[#c09748]" />
-                      <span>Gate 3: IPQC {jcIpqcRecords.length > 0 ? `(${jcIpqcRecords.length})` : 'Audit'}</span>
-                    </button>
-                  </div>
-
-                  {/* Right Side: Status Badge & SLA (Confusing non-clickable Open pill removed) */}
-                  <div className="flex items-center gap-2">
-                    {isClosed ? (
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-mono font-bold flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        <span>Time Se Hua ✓</span>
-                      </span>
-                    ) : isSlaBreachedNow ? (
-                      <span className="px-2.5 py-0.5 rounded-full bg-rose-100 border border-rose-300 text-rose-900 text-[11px] font-mono font-bold flex items-center gap-1 animate-pulse">
-                        <AlertTriangle className="w-3 h-3 text-rose-600" />
-                        <span>SLA Overdue</span>
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-
-                {/* 2. Main Content Grid: Customer & Part (Left) | Target Quota & Progress (Center) | Primary Actions (Right) */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                  {/* Left: Customer & Part specs (6 cols) */}
-                  <div className="md:col-span-6 space-y-1">
-                    <h3 className="font-serif text-base sm:text-lg text-[#17191c] font-normal leading-snug">
-                      {jc.customer}
-                    </h3>
-                    {(() => {
-                      const inwardParts = resolveJobCardInwardParts(jc, grnList);
-                      if (inwardParts.length > 1) {
-                        return (
-                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                            <span className="text-[10.5px] font-mono font-bold text-[#8a6521] uppercase">
-                              Materials ({inwardParts.length}):
-                            </span>
-                            {inwardParts.map((part, idx) => (
-                              <span
-                                key={`${part.partCode}-${idx}`}
-                                className="px-2 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[11px] font-medium text-[#17191c]"
-                                title={`${part.partCode}${part.targetQty > 0 ? ` • ${part.targetQty.toLocaleString('en-IN')} Pcs` : ''}`}
-                              >
-                                {part.partDescription}
-                                {part.targetQty > 0 ? ` (${part.targetQty.toLocaleString('en-IN')})` : ''}
-                              </span>
-                            ))}
-                          </div>
-                        );
-                      }
-                      return (
-                        <p className="text-xs text-[#777b86] line-clamp-1">
-                          {inwardParts[0]?.partDescription || jc.partDescription} • Code: <strong className="text-[#17191c] font-mono">{inwardParts[0]?.partCode || jc.partCode}</strong>
-                        </p>
-                      );
-                    })()}
-                    {(() => {
-                      const activeJcAssignments = painterAssignments.filter(a => (a.masterJobCardNo === jc.jobCardNo || (a as any).masterJobCardId === jc.jobCardNo) && a.status === 'Active');
-                      const painterSummary = activeJcAssignments.length > 0
-                        ? activeJcAssignments.map(a => `${a.painterName}${a.partDescription ? ` [${a.partDescription}]` : ''} (${a.dailyTargetQty} pcs)`).join(', ')
-                        : (jc.assignedPainterName || jc.painterName || 'Unassigned');
-                      return (
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#777b86] pt-0.5">
-                          <span>Shade: <strong className="text-[#17191c]">{jc.color}</strong></span>
-                          <span>•</span>
-                          <span>Line Painter(s): <strong className="text-[#17191c]">{painterSummary}</strong></span>
-                          {jc.deadlineDate && (
-                            <>
-                              <span>•</span>
-                              <span className="font-mono text-[#8a6521]">Target SLA: {jc.slaHours || 4}h</span>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Center: Shift & Total Progress (3 cols) */}
-                  <div className="md:col-span-3 space-y-1.5 p-2.5 rounded-[14px] bg-[#fafafb] border border-[#ececec]">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-[#777b86] text-[11px]">Today's Shift:</span>
-                      <span className="font-mono font-bold text-[#17191c]">
-                        {todaySprayed} <span className="text-[#777b86] font-normal">/ {effectiveDailyTarget} Pcs</span>
-                      </span>
-                    </div>
-                    <div className="w-full bg-[#ececec] rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-[#c09748]"
-                        style={{ width: `${shiftPercent}%` }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between text-[10.5px] text-[#777b86]">
-                      <span>PO: {jc.goodQty || 0}/{jc.targetQty} Pcs</span>
-                      <span className="font-mono font-bold text-[#8a6521]">{poPercent}% Complete</span>
-                    </div>
-
-                    {/* ISO 8.7 Quality Yield Breakdown (Good / Rework / Scrap) */}
-                    <div className="flex items-center gap-1 text-[9.5px] font-mono pt-0.5 border-t border-[#ececec]/60">
-                      <span className="text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded font-bold">
-                        OK: {jc.goodQty || 0}
-                      </span>
-                      {((jc.reworkQty !== undefined && jc.reworkQty > 0) || (jc.reworkRecoveredQty !== undefined && jc.reworkRecoveredQty > 0)) && (
-                        <span className="text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded font-bold" title="ISO 8.7 Rework Recovered">
-                          RW: {jc.reworkQty || jc.reworkRecoveredQty}
-                        </span>
-                      )}
-                      {(jc.rejectQty !== undefined && jc.rejectQty > 0) && (
-                        <span className="text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded font-bold" title="Dead Scrap Rejection">
-                          Scrap: {jc.rejectQty}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Right: Actions (3 cols) */}
-                  <div className="md:col-span-3 flex md:flex-col items-center md:items-end justify-end gap-2 shrink-0">
-                    {/* Primary Button: Daily Painter Target Allocation */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedMasterForAssign(jc);
-                        setShowDailyAssignModal(true);
-                      }}
-                      className="w-full sm:w-auto md:w-full px-4 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>+ Assign Painter (Target)</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleViewJobCard(jc)}
-                      className="w-full sm:w-auto md:w-full px-4 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap"
-                    >
-                      <Eye className="w-3.5 h-3.5 text-[#c09748]" />
-                      <span>View Job Card</span>
-                    </button>
-
-                    <div className="flex items-center gap-1.5 w-full sm:w-auto md:w-full justify-end flex-wrap">
-                      {/* Drilldown Trigger: Shift Tasks & Chemical Traceability */}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedMasterDrilldown(selectedMasterDrilldown?.jobCardNo === jc.jobCardNo ? null : jc)}
-                        className={`px-2.5 py-1.5 rounded-full text-[11px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95 ${
-                          selectedMasterDrilldown?.jobCardNo === jc.jobCardNo
-                            ? 'bg-[#17191c] text-[#c09748] border border-[#17191c]'
-                            : 'bg-white hover:bg-[#fafafb] text-[#17191c] border border-[#dcdfe4]'
-                        }`}
-                        title="View Daily Painter Assignments & Material Logs"
-                      >
-                        <Layers className="w-3 h-3 text-[#c09748]" />
-                        <span>Daily Shifts & Logs</span>
-                      </button>
-
-                      {(jc.goodQty || 0) > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => downloadStandardProductionOfferingPdf(jc)}
-                          className="px-2.5 py-1.5 rounded-full bg-white hover:bg-[#fafafb] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95"
-                          title="Download Official Offering Slip (PK-PRD-OFF-01)"
-                        >
-                          <FileText className="w-3 h-3 text-[#c09748]" />
-                          <span>Offering Slip</span>
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => downloadStandardJobCardPdf(jc)}
-                        className="flex-1 md:flex-initial px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95"
-                        title="Download PDF Slip"
-                      >
-                        <Download className="w-3 h-3 text-[#777b86]" />
-                        <span>PDF</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (window.confirm(`Are you sure you want to permanently delete Job Card ${jc.jobCardNo}?`)) {
-                            deleteJobCard(jc.jobCardNo);
-                            setToastMessage(`✓ Job Card ${jc.jobCardNo} permanently deleted.`);
-                            setTimeout(() => setToastMessage(null), 3500);
-                          }
-                        }}
-                        className="flex-1 md:flex-initial px-2.5 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-semibold transition flex items-center justify-center gap-1 cursor-pointer shadow-2xs active:scale-95"
-                        title="Permanently Delete Job Card"
-                      >
-                        <Trash2 className="w-3 h-3 text-rose-600" />
-                        <span>Delete</span>
-                      </button>
-
-                      {isMaster && hasChildren && (
-                        <button
-                          type="button"
-                          onClick={() => toggleMasterExpand(jc.jobCardNo)}
-                          className="px-2.5 py-1.5 rounded-full border border-[#ececec] bg-white hover:bg-gray-50 text-[#777b86] text-[11px] font-semibold transition flex items-center gap-1 cursor-pointer"
-                          title="Toggle Sub-Cards"
-                        >
-                          {isExpanded ? <ChevronDown className="w-3 h-3 text-[#c09748]" /> : <ChevronRight className="w-3 h-3 text-[#c09748]" />}
-                          <span>{childCards.length}</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3-Tier Drilldown: Painter Assignments & Material Traceability */}
-                {selectedMasterDrilldown?.jobCardNo === jc.jobCardNo && (
-                  <div className="bg-[#fafafb] border-t border-[#ececec] p-3.5 rounded-[16px] space-y-3 mt-3 animate-in fade-in duration-150">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setDrilldownTab('ASSIGNMENTS')}
-                          className={`px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                            drilldownTab === 'ASSIGNMENTS'
-                              ? 'bg-[#17191c] text-[#c09748]'
-                              : 'bg-white text-[#777b86] border border-[#ececec] hover:bg-gray-50'
-                          }`}
-                        >
-                          <Users className="w-3.5 h-3.5" />
-                          <span>Painter Daily Assignments</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDrilldownTab('CONSUMABLES')}
-                          className={`px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                            drilldownTab === 'CONSUMABLES'
-                              ? 'bg-[#17191c] text-[#c09748]'
-                              : 'bg-white text-[#777b86] border border-[#ececec] hover:bg-gray-50'
-                          }`}
-                        >
-                          <FlaskConical className="w-3.5 h-3.5" />
-                          <span>Chemical Material Logs</span>
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedMasterForAssign(jc);
-                          setShowDailyAssignModal(true);
-                        }}
-                        className="px-3 py-1 rounded-full bg-[#faf7ed] hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>+ New Shift Target</span>
-                      </button>
-                    </div>
-
-                    {drilldownTab === 'ASSIGNMENTS' && (
-                      <div className="space-y-2">
-                        {(() => {
-                          const jcAssignments = painterAssignments.filter(a => a.masterJobCardNo === jc.jobCardNo || (a as any).masterJobCardId === jc.jobCardNo);
-                          if (jcAssignments.length === 0) {
-                            return (
-                              <div className="p-4 text-center text-xs text-[#777b86] bg-white rounded-[12px] border border-dashed border-[#ececec]">
-                                No daily painter assignments created yet for this Master Job Card. Click <strong>"+ New Shift Target"</strong> to assign today's quota to a painter.
-                              </div>
-                            );
-                          }
-                          return (
-                            <div className="space-y-2">
-                              {jcAssignments.map(asg => {
-                                const isClosed = asg.status.startsWith('Closed');
-                                return (
-                                  <div
-                                    key={asg.id}
-                                    className="p-3 bg-white rounded-[14px] border border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs"
-                                  >
-                                    <div className="space-y-1">
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-mono font-bold text-[#c09748]">{asg.assignmentId}</span>
-                                        <span className="px-2 py-0.5 rounded-full bg-gray-100 font-mono text-[10px] text-[#17191c]">
-                                          {asg.assignmentDate} • {asg.shift} Shift
-                                        </span>
-                                        <span className="font-semibold text-[#17191c]">
-                                          {asg.painterName} ({asg.boothNumber})
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-3 text-[11px] text-[#777b86]">
-                                        <span>Target: <strong className="text-[#17191c] font-mono">{asg.dailyTargetQty} pcs</strong></span>
-                                        <span>OK: <strong className="text-emerald-700 font-mono">{asg.actualCompletedQty || 0} pcs</strong></span>
-                                        {(asg.rejectReworkQty || 0) > 0 && (
-                                          <span className="text-rose-700 font-mono">Reject/RW: {asg.rejectReworkQty} pcs</span>
-                                        )}
-                                        {asg.efficiency !== undefined && (
-                                          <span className="text-amber-800 font-mono font-bold">Eff: {asg.efficiency}%</span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                                      <span className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold ${
-                                        asg.status === 'Closed - Target Met'
-                                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                          : asg.status === 'Closed - Partial/Incomplete'
-                                            ? 'bg-amber-50 text-amber-900 border border-amber-200'
-                                            : 'bg-blue-50 text-blue-800 border border-blue-200'
-                                      }`}>
-                                        {asg.status}
-                                      </span>
-                                      {!isClosed && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setSelectedAssignmentForClose(asg);
-                                            setShowShiftCloseModal(true);
-                                          }}
-                                          className="px-3 py-1 rounded-full bg-[#17191c] hover:bg-[#2e3238] text-[#c09748] font-bold text-[11px] transition cursor-pointer flex items-center gap-1 active:scale-95"
-                                        >
-                                          <CheckCircle2 className="w-3 h-3 text-[#c09748]" />
-                                          <span>Close Shift</span>
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-
-                    {drilldownTab === 'CONSUMABLES' && (
-                      <div className="space-y-2">
-                        {(() => {
-                          const jcAsgIds = new Set(
-                            painterAssignments
-                              .filter(a => a.masterJobCardNo === jc.jobCardNo || a.masterJobCardId === jc.jobCardNo)
-                              .map(a => a.id)
-                          );
-                          const jcLogs = jcAsgIds.size === 0
-                            ? []
-                            : assignmentMaterialLogs.filter(
-                                l =>
-                                  (l.masterJobCardNo === jc.jobCardNo || (l as any).masterJobCardId === jc.jobCardNo) &&
-                                  Boolean(l.assignmentId && jcAsgIds.has(l.assignmentId))
-                              );
-                          if (jcLogs.length === 0) {
-                            return (
-                              <div className="p-4 text-center text-xs text-[#777b86] bg-white rounded-[12px] border border-dashed border-[#ececec]">
-                                No chemical material logs recorded yet. Chemical consumption is tracked automatically when painters close their shifts.
-                              </div>
-                            );
-                          }
-                          return (
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-left text-xs bg-white rounded-[14px] border border-[#ececec] overflow-hidden">
-                                <thead className="bg-[#f2f2f3] text-[#17191c] text-[11px] font-bold border-b border-[#ececec]">
-                                  <tr>
-                                    <th className="p-2.5">Date / Shift</th>
-                                    <th className="p-2.5">Painter</th>
-                                    <th className="p-2.5">Material</th>
-                                    <th className="p-2.5 text-right">Issued</th>
-                                    <th className="p-2.5 text-right">Good Return</th>
-                                    <th className="p-2.5 text-right">Floor Waste</th>
-                                    <th className="p-2.5 text-right">Net Consumed</th>
-                                    <th className="p-2.5 text-right">Rate (L/pc)</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[#ececec]">
-                                  {jcLogs.map(l => (
-                                    <tr key={l.id} className="hover:bg-gray-50/50">
-                                      <td className="p-2.5 font-mono text-[11px] text-[#777b86]">{l.logDate}</td>
-                                      <td className="p-2.5 font-semibold text-[#17191c]">{l.painterName}</td>
-                                      <td className="p-2.5 font-mono text-[11px]">{l.materialName} ({l.materialType})</td>
-                                      <td className="p-2.5 text-right font-mono">{l.issuedQty} {l.uom}</td>
-                                      <td className="p-2.5 text-right font-mono text-emerald-700">{l.goodReturnedQty} {l.uom}</td>
-                                      <td className="p-2.5 text-right font-mono text-rose-700">{l.floorWastageExpiredQty} {l.uom}</td>
-                                      <td className="p-2.5 text-right font-mono font-bold text-[#17191c]">{l.netConsumedQty} {l.uom}</td>
-                                      <td className="p-2.5 text-right font-mono text-[#8a6521]">
-                                        {l.perPieceConsumption ? `${l.perPieceConsumption} ${l.uom}/pc` : '-'}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Sub-Card Tree Expansion for Master Card */}
-                {isMaster && hasChildren && isExpanded && (
-                  <div className="bg-[#fafafb] border-t border-[#ececec] p-3 rounded-[14px] space-y-2 mt-2">
-                    <div className="text-[10.5px] font-bold uppercase tracking-wider text-[#777b86] flex items-center gap-1.5">
-                      <Users className="w-3 h-3 text-[#c09748]" />
-                      <span>Dedicated 3-Painter Sub-Job Cards & Rework Child Ledger ({childCards.length}):</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {childCards.map(child => (
-                        <div
-                          key={child.jobCardNo}
-                          onClick={() => handleViewJobCard(child)}
-                          className="p-2.5 rounded-[12px] bg-white border border-[#ececec] hover:border-[#c09748] cursor-pointer transition text-xs space-y-1 shadow-2xs"
-                        >
-                          <div className="flex items-center justify-between font-mono text-[11px]">
-                            <span className="font-bold text-[#c09748]">{child.jobCardNo}</span>
-                            <span className="text-[#777b86]">{child.assignedPainterId || 'P1'}</span>
-                          </div>
-                          <div className="text-[11px] text-[#17191c] font-medium truncate">
-                            {child.assignedPainterName || 'Painter'}
-                          </div>
-                          <div className="flex items-center justify-between text-[10px] text-[#777b86] pt-1 border-t border-[#f2f2f3]">
-                            <span>{child.sprayedQty || 0} / {child.targetQty} Pcs</span>
-                            <span className="font-bold text-[#8a6521]">
-                              {Math.min(100, Math.round(((child.sprayedQty || 0) / child.targetQty) * 100))}%
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })
-        )}
-      </div>
       )}
 
       {/* Modal 1: Log Shift Progress */}

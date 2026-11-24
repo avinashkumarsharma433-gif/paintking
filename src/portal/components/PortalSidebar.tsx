@@ -135,7 +135,7 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       badgeColor: 'bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521]',
       roles: ['DIRECTOR', 'PLANT_HEAD', 'PRODUCTION', 'QA_QC', 'MANAGER_QA', 'OPERATOR', 'DEPT_INCHARGE'],
       subItems: [
-        { label: 'All Job Cards', subTab: 'ALL' },
+        { label: 'Master Job Cards & Priority Queue', subTab: 'PRIORITY_QUEUE' },
         { label: 'Store Demands & Arriving (MRN)', subTab: 'REQUISITIONS' },
         { label: 'Painting Lines & Spray Booth Fleet', subTab: 'BOOTH_FLEET' }
       ]

@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-24: Removed Redundant `All Job Cards` Tab & Unified Controls into `Master Job Cards & Priority Orders`
+  - Files touched:
+    - `src/portal/views/JobCardsView.tsx`: Removed `All Job Cards` tab pill (`ALL`), `'ALL'` search/filter bar, and orphaned `ALL` JSX cards grid; defaulted `activeTab` to `'PRIORITY_QUEUE'`, renamed tab pill to `Master Job Cards & Priority Orders`, and added `Gate 1: PIR` / `Gate 2: FPA` / `Gate 3: IPQC Audit` badges, `OK Completed` count, `PDF` download, and `Delete` actions directly onto Priority Queue Master Cards.
+    - `src/portal/components/PortalSidebar.tsx`: Updated `jobcards` first `subItems` entry to `{ label: 'Master Job Cards & Priority Queue', subTab: 'PRIORITY_QUEUE' }`.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`, 8.38s).
+
 - 2026-11-24: Simplified Priority Queue Master Card Layout in `JobCardsView.tsx`
   - Files touched:
     - `src/portal/views/JobCardsView.tsx`: Removed the stale `Allocated % / 100% Fully Allocated` progress bar and `"+ Create Job Card"` wording from `PRIORITY_QUEUE`, replaced with crisp Master Card header (`masterCard.jobCardNo`), Total Quantity box (`totalLotQty`), inward material list (`resolveJobCardInwardParts`), `Painters Assigned` count, and clean `Open Job Card` button.
