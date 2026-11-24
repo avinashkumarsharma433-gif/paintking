@@ -8,27 +8,17 @@ import {
   TrendingUp, 
   AlertTriangle, 
   CheckCircle2, 
-  Receipt, 
-  ArrowRightLeft, 
-  ShieldAlert, 
-  Boxes, 
   ArrowRight, 
   Clock,
-  Sparkles,
   Moon,
   Sun,
-  RotateCcw,
-  UserCheck,
-  Activity,
   Layers,
-  ShieldCheck,
   Hammer,
   Search,
   Building2,
   Zap,
   Calendar,
   Flag,
-  Check,
   Send,
   X
 } from 'lucide-react';
@@ -258,7 +248,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
 
   // High-signal Operational Aggregations
   const masterJobCards = plantJobCards.filter(j => j.jobCardType === 'master' || (!j.jobCardType && !j.parentJobCardId));
-  const painterChildCards = plantJobCards.filter(j => j.jobCardType === 'painter_child');
   const reworkChildCards = plantJobCards.filter(j => j.jobCardType === 'rework_child');
 
   const totalSprayed = plantJobCards.reduce((acc, curr) => acc + (curr.sprayedQty || 0), 0);
@@ -273,26 +262,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
     : '0.0';
 
   const totalInvoicedRevenue = plantInvoices.reduce((acc, curr) => acc + curr.grandTotal, 0);
-
-  // 3-Painters Specific Metrics (Strictly live data, zero hardcoded fallback)
-  const painter1Card = painterChildCards.find(p => p.assignedPainterName?.includes('Painter 1') || p.assignedPainterName?.includes('P1') || p.jobCardNo.includes('-P1'));
-  const painter2Card = painterChildCards.find(p => p.assignedPainterName?.includes('Painter 2') || p.assignedPainterName?.includes('P2') || p.jobCardNo.includes('-P2'));
-  const painter3Card = painterChildCards.find(p => p.assignedPainterName?.includes('Painter 3') || p.assignedPainterName?.includes('P3') || p.jobCardNo.includes('-P3'));
-
-  const p1Sprayed = painter1Card?.sprayedQty || 0;
-  const p1Target = painter1Card?.targetQty || 0;
-  const p1Good = painter1Card?.firstPassGoodQty || 0;
-  const p1Rework = painter1Card?.reworkFlaggedQty || 0;
-
-  const p2Sprayed = painter2Card?.sprayedQty || 0;
-  const p2Target = painter2Card?.targetQty || 0;
-  const p2Good = painter2Card?.firstPassGoodQty || 0;
-  const p2Rework = painter2Card?.reworkFlaggedQty || 0;
-
-  const p3Sprayed = painter3Card?.sprayedQty || 0;
-  const p3Target = painter3Card?.targetQty || 0;
-  const p3Good = painter3Card?.firstPassGoodQty || 0;
-  const p3Rework = painter3Card?.reworkFlaggedQty || 0;
 
   const handleConfirmEod = () => {
     executeDayEndClosure(eodRemarks);
@@ -786,298 +755,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
               </div>
             );
           })}
-        </div>
-      </div>
-
-      {/* 3. The 3 Line Painters Output & Parity Grid (Confirmed Floor Architecture) */}
-      <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#ececec]">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#c09748]"></span>
-              <h2 className="text-base font-serif font-medium text-[#17191c]">
-                3-Painter Line Allocation & Daily Output Parity
-              </h2>
-            </div>
-            <p className="text-xs text-[#777b86] mt-0.5">
-              1 Master Batch divides across 3 line painters for strict individual operator accountability.
-            </p>
-          </div>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>{painterChildCards.length > 0 ? 'Live Shift Line Allocation Active' : 'Awaiting Shift Allocation'}</span>
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Painter 1: Ramesh Kumar */}
-          <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#c09748]">
-                  BOOTH #1 • CONVEYOR LINE
-                </span>
-                <h3 className="font-serif font-medium text-sm text-[#17191c]">Ramesh Kumar (P1)</h3>
-              </div>
-              <span className="px-2.5 py-0.5 rounded-full bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c]">
-                {painter1Card?.jobCardNo || 'Unassigned'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 text-center text-xs">
-              <div className="p-2 bg-white rounded-[14px] border border-[#ececec]">
-                <div className="text-[10px] text-[#777b86] uppercase font-semibold">Allocated</div>
-                <div className="font-bold text-[#17191c] mt-0.5">{p1Target} pcs</div>
-              </div>
-              <div className="p-2 bg-emerald-50/60 rounded-[14px] border border-emerald-200/60">
-                <div className="text-[10px] text-emerald-800 uppercase font-semibold">First Pass</div>
-                <div className="font-bold text-emerald-700 mt-0.5">{p1Good} pcs</div>
-              </div>
-              <div className="p-2 bg-amber-50/60 rounded-[14px] border border-amber-200/60">
-                <div className="text-[10px] text-amber-800 uppercase font-semibold">To Rework</div>
-                <div className="font-bold text-amber-700 mt-0.5">{p1Rework} pcs</div>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] text-[#777b86]">
-                <span>Progress: {p1Sprayed} / {p1Target} pcs</span>
-                <span className="font-semibold text-[#17191c]">{p1Target > 0 ? ((p1Sprayed / p1Target) * 100).toFixed(0) : 0}%</span>
-              </div>
-              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full bg-[#c09748] rounded-full" style={{ width: `${p1Target > 0 ? Math.min(100, (p1Sprayed / p1Target) * 100) : 0}%` }}></div>
-              </div>
-            </div>
-          </div>
-
-          {/* Painter 2: Suresh Verma */}
-          <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#c09748]">
-                  BOOTH #2 • ENCLOSED CLEANROOM
-                </span>
-                <h3 className="font-serif font-medium text-sm text-[#17191c]">Suresh Verma (P2)</h3>
-              </div>
-              <span className="px-2.5 py-0.5 rounded-full bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c]">
-                {painter2Card?.jobCardNo || 'Unassigned'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 text-center text-xs">
-              <div className="p-2 bg-white rounded-[14px] border border-[#ececec]">
-                <div className="text-[10px] text-[#777b86] uppercase font-semibold">Allocated</div>
-                <div className="font-bold text-[#17191c] mt-0.5">{p2Target} pcs</div>
-              </div>
-              <div className="p-2 bg-emerald-50/60 rounded-[14px] border border-emerald-200/60">
-                <div className="text-[10px] text-emerald-800 uppercase font-semibold">First Pass</div>
-                <div className="font-bold text-emerald-700 mt-0.5">{p2Good} pcs</div>
-              </div>
-              <div className="p-2 bg-amber-50/60 rounded-[14px] border border-amber-200/60">
-                <div className="text-[10px] text-amber-800 uppercase font-semibold">To Rework</div>
-                <div className="font-bold text-amber-700 mt-0.5">{p2Rework} pcs</div>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] text-[#777b86]">
-                <span>Progress: {p2Sprayed} / {p2Target} pcs</span>
-                <span className="font-semibold text-[#17191c]">{p2Target > 0 ? ((p2Sprayed / p2Target) * 100).toFixed(0) : 0}%</span>
-              </div>
-              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full bg-[#c09748] rounded-full" style={{ width: `${p2Target > 0 ? Math.min(100, (p2Sprayed / p2Target) * 100) : 0}%` }}></div>
-              </div>
-            </div>
-          </div>
-
-          {/* Painter 3: Mahesh Sharma */}
-          <div className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#c09748]">
-                  BOOTH #3 • HIGH-GLOSS CHAMBER
-                </span>
-                <h3 className="font-serif font-medium text-sm text-[#17191c]">Mahesh Sharma (P3)</h3>
-              </div>
-              <span className="px-2.5 py-0.5 rounded-full bg-white border border-[#ececec] text-xs font-mono font-bold text-[#17191c]">
-                {painter3Card?.jobCardNo || 'Unassigned'}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 text-center text-xs">
-              <div className="p-2 bg-white rounded-[14px] border border-[#ececec]">
-                <div className="text-[10px] text-[#777b86] uppercase font-semibold">Allocated</div>
-                <div className="font-bold text-[#17191c] mt-0.5">{p3Target} pcs</div>
-              </div>
-              <div className="p-2 bg-emerald-50/60 rounded-[14px] border border-emerald-200/60">
-                <div className="text-[10px] text-emerald-800 uppercase font-semibold">First Pass</div>
-                <div className="font-bold text-emerald-700 mt-0.5">{p3Good} pcs</div>
-              </div>
-              <div className="p-2 bg-amber-50/60 rounded-[14px] border border-amber-200/60">
-                <div className="text-[10px] text-amber-800 uppercase font-semibold">To Rework</div>
-                <div className="font-bold text-amber-700 mt-0.5">{p3Rework} pcs</div>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] text-[#777b86]">
-                <span>Progress: {p3Sprayed} / {p3Target} pcs</span>
-                <span className="font-semibold text-[#17191c]">{p3Target > 0 ? ((p3Sprayed / p3Target) * 100).toFixed(0) : 0}%</span>
-              </div>
-              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full bg-[#c09748] rounded-full" style={{ width: `${p3Target > 0 ? Math.min(100, (p3Sprayed / p3Target) * 100) : 0}%` }}></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Two Clean Operational Centers (60% Live Batches, 40% Rework & Quality Gate) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Left: Live Floor Batches (60%) */}
-        <div className="lg:col-span-7 bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
-            <div>
-              <h2 className="font-serif font-medium text-base text-[#17191c]">Active Manufacturing Batches</h2>
-              <p className="text-xs text-[#777b86]">Master Orders & their child line splits</p>
-            </div>
-            <button
-              onClick={() => onNavigateTab('jobcards')}
-              className="text-xs font-semibold text-[#c09748] hover:text-[#a97e35] flex items-center gap-1 cursor-pointer"
-            >
-              <span>View All Job Cards</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {masterJobCards.slice(0, 3).map((jc) => {
-              const children = plantJobCards.filter(c => c.parentJobCardId === jc.jobCardNo);
-              const p1 = children.find(c => c.jobCardNo.endsWith('-P1'));
-              const p2 = children.find(c => c.jobCardNo.endsWith('-P2'));
-              const p3 = children.find(c => c.jobCardNo.endsWith('-P3'));
-              const rw = children.find(c => c.jobCardType === 'rework_child');
-
-              return (
-                <div key={jc.jobCardNo} className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-xs text-[#c09748]">{jc.jobCardNo}</span>
-                        <span className="text-xs font-semibold text-[#17191c]">• {jc.customer}</span>
-                      </div>
-                      <div className="text-xs text-[#777b86] mt-0.5">
-                        {jc.partDescription} ({jc.color})
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-semibold border border-emerald-200">
-                        {jc.status}
-                      </span>
-                      <span className="text-xs font-mono font-bold text-[#17191c]">
-                        {jc.targetQty} pcs
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 3-Painter Sub-Card Breakdown Pills */}
-                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#ececec]">
-                    <span className="text-[10px] font-semibold uppercase text-[#777b86] tracking-wider">Line Splits:</span>
-                    <span className="px-2.5 py-1 rounded-full bg-white border border-[#ececec] text-[11px] font-medium text-[#17191c]">
-                      P1: <strong className="text-emerald-700">{p1?.sprayedQty || 650}</strong>/{p1?.targetQty || 1000}
-                    </span>
-                    <span className="px-2.5 py-1 rounded-full bg-white border border-[#ececec] text-[11px] font-medium text-[#17191c]">
-                      P2: <strong className="text-emerald-700">{p2?.sprayedQty || 620}</strong>/{p2?.targetQty || 1000}
-                    </span>
-                    <span className="px-2.5 py-1 rounded-full bg-white border border-[#ececec] text-[11px] font-medium text-[#17191c]">
-                      P3: <strong className="text-emerald-700">{p3?.sprayedQty || 640}</strong>/{p3?.targetQty || 1000}
-                    </span>
-                    {rw && (
-                      <span className="px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-800">
-                        🔁 RW: {rw.reworkRecoveredQty || 33}/{rw.targetQty} pcs Recovered
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Right: Formal Rework & Recovery Hub (40%) */}
-        <div className="lg:col-span-5 bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-[#ececec]">
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-full bg-[#faf3e0] text-[#8a6521]">
-                <RotateCcw className="w-4 h-4 text-[#c09748]" />
-              </span>
-              <div>
-                <h2 className="font-serif font-medium text-base text-[#17191c]">Rework & Salvage Hub</h2>
-                <p className="text-xs text-[#777b86]">Dedicated defect recovery pipeline</p>
-              </div>
-            </div>
-            <span className="px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold">
-              {totalReworkQueue} Pcs In Process
-            </span>
-          </div>
-
-          {/* Rework Protocol Pipeline Steps */}
-          <div className="p-3.5 rounded-[18px] bg-[#fafafb] border border-[#ececec] space-y-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#777b86]">Standard Rework Protocol:</span>
-            <div className="grid grid-cols-4 gap-1.5 text-center text-[10px]">
-              <div className="p-1.5 bg-white rounded-xl border border-[#ececec]">
-                <div className="font-bold text-[#17191c]">1. Sanding</div>
-                <div className="text-[9px] text-[#777b86]">1500 Grit</div>
-              </div>
-              <div className="p-1.5 bg-white rounded-xl border border-[#ececec]">
-                <div className="font-bold text-[#17191c]">2. Clean</div>
-                <div className="text-[9px] text-[#777b86]">Solvent Wipe</div>
-              </div>
-              <div className="p-1.5 bg-white rounded-xl border border-[#ececec]">
-                <div className="font-bold text-[#17191c]">3. Re-coat</div>
-                <div className="text-[9px] text-[#777b86]">Mist Topcoat</div>
-              </div>
-              <div className="p-1.5 bg-emerald-50 rounded-xl border border-emerald-200">
-                <div className="font-bold text-emerald-800">4. Re-bake</div>
-                <div className="text-[9px] text-emerald-700">75°C Cured</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Active Rework Card Preview */}
-          <div className="space-y-2.5">
-            {reworkChildCards.map((rw) => (
-              <div key={rw.jobCardNo} className="p-3.5 rounded-[18px] bg-[#faf7ed] border border-[#f4e5be] space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono font-bold text-xs text-[#8a6521]">{rw.jobCardNo}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white border border-[#f4e5be] font-semibold text-[#8a6521]">
-                      {rw.defectCategory?.replace('_', ' ').toUpperCase()}
-                    </span>
-                  </div>
-                  <span className="text-xs font-bold text-[#17191c]">
-                    {rw.goodQty} / {rw.targetQty} Pcs Cleared
-                  </span>
-                </div>
-                <p className="text-[11px] text-[#777b86] leading-relaxed">
-                  {rw.reworkInstructions || 'De-nib surface with 1500 grit abrasive paper and re-spray.'}
-                </p>
-                <div className="flex items-center justify-between pt-1.5 border-t border-[#f4e5be]/60 text-[10px] text-emerald-800 font-semibold">
-                  <span>✓ 33 Saved from Scrapping</span>
-                  <span className="text-rose-700">2 Discarded (Substrate Crack)</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <button
-            onClick={() => onNavigateTab('qa')}
-            className="w-full py-2.5 rounded-full bg-[#17191c] hover:bg-gray-800 text-white text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-2"
-          >
-            <ShieldCheck className="w-4 h-4 text-[#c09748]" />
-            <span>Open Quality & Rework Clearance Queue</span>
-          </button>
         </div>
       </div>
 
