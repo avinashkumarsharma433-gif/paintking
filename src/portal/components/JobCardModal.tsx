@@ -267,7 +267,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     createPainterAssignment,
     requestAssignmentChemicals,
     addTargetToPainterAssignment,
-    updateAssignmentMaterialLog,
     recordAssignmentStageOutput
   } = usePortalStore();
 
@@ -577,10 +576,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [chemBatch, setChemBatch] = useState<string>('');
   const [chemQty, setChemQty] = useState<number>(10);
   const [chemUom, setChemUom] = useState<'Litres' | 'Kg' | 'Pcs'>('Litres');
-  const [editingMatLogId, setEditingMatLogId] = useState<string | null>(null);
-  const [editGoodReturnQty, setEditGoodReturnQty] = useState<number>(0);
-  const [editFloorWasteQty, setEditFloorWasteQty] = useState<number>(0);
-  const [editMatBatch, setEditMatBatch] = useState<string>('');
 
   // Party Material Add-On Target Drawer (strictly unlocked when daily target is finished)
   const [showAddTargetDrawer, setShowAddTargetDrawer] = useState<boolean>(false);
@@ -3351,9 +3346,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 materialType: string;
                 uom: string;
                 issued: number;
-                returned: number;
-                wastage: number;
-                netConsumed: number;
                 painters: Set<string>;
                 batches: Set<string>;
               }>();
@@ -3365,16 +3357,10 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   materialType: log.materialType,
                   uom: log.uom,
                   issued: 0,
-                  returned: 0,
-                  wastage: 0,
-                  netConsumed: 0,
                   painters: new Set<string>(),
                   batches: new Set<string>()
                 };
                 existing.issued += Number(log.issuedQty || 0);
-                existing.returned += Number(log.goodReturnedQty || 0);
-                existing.wastage += Number(log.floorWastageExpiredQty || 0);
-                existing.netConsumed += Number(log.netConsumedQty || 0);
                 if (log.painterName) existing.painters.add(log.painterName);
                 if (log.batchNumber) existing.batches.add(log.batchNumber);
                 aggregatedMap.set(key, existing);
@@ -3417,10 +3403,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                             <tr className="bg-[#f2f2f3] text-[#17191c] font-mono border-b border-[#ececec]">
                               <th className="py-2.5 px-3 font-bold w-10 text-center">#</th>
                               <th className="py-2.5 px-4 font-bold min-w-[200px]">Material Description</th>
-                              <th className="py-2.5 px-3 font-bold text-right whitespace-nowrap">Total Issued</th>
-                              <th className="py-2.5 px-3 font-bold text-right text-emerald-800 whitespace-nowrap">Good Returned</th>
-                              <th className="py-2.5 px-3 font-bold text-right text-rose-800 whitespace-nowrap">Floor Wastage</th>
-                              <th className="py-2.5 px-3 font-bold text-right text-[#8a6521] whitespace-nowrap">Net Consumed</th>
+                              <th className="py-2.5 px-3 font-bold text-right text-[#8a6521] whitespace-nowrap">Issued (= Consumed)</th>
                               <th className="py-2.5 px-3 font-bold text-center">UOM</th>
                               <th className="py-2.5 px-4 font-bold whitespace-nowrap">Batches / Painters</th>
                             </tr>
@@ -3433,10 +3416,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                                   <div className="font-semibold text-[#17191c]">{mat.materialName}</div>
                                   <span className="text-[10px] text-[#777b86] uppercase font-mono">{mat.materialType}</span>
                                 </td>
-                                <td className="py-3 px-3 text-right font-mono font-bold text-[#17191c]">{mat.issued.toFixed(2)}</td>
-                                <td className="py-3 px-3 text-right font-mono font-semibold text-emerald-700">{mat.returned.toFixed(2)}</td>
-                                <td className="py-3 px-3 text-right font-mono font-semibold text-rose-700">{mat.wastage.toFixed(2)}</td>
-                                <td className="py-3 px-3 text-right font-mono font-bold text-[#8a6521]">{mat.netConsumed.toFixed(2)}</td>
+                                <td className="py-3 px-3 text-right font-mono font-bold text-[#8a6521]">{mat.issued.toFixed(2)}</td>
                                 <td className="py-3 px-3 text-center font-mono text-[#777b86]">{mat.uom}</td>
                                 <td className="py-3 px-4 text-xs text-[#777b86]">
                                   <div className="font-mono text-[11px] text-[#17191c]">
@@ -3808,7 +3788,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                     setSelectedAssignmentId('ALL');
                     setShowOutputLogger(false);
                     setShowIssueChemDrawer(false);
-                    setEditingMatLogId(null);
                   }}
                   className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                     selectedAssignmentId === 'ALL'
@@ -3832,7 +3811,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         setShowOutputLogger(false);
                         setShowIssueChemDrawer(false);
                         setShowAddTargetDrawer(false);
-                        setEditingMatLogId(null);
                       }}
                       className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-2 ${
                         isSelected
@@ -4527,7 +4505,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           </span>
                         </div>
                         <p className="text-xs text-[#777b86] mt-0.5">
-                          Issue additional paint/thinner/hardener or click <strong>Update Usage</strong> on any row to record good returned &amp; floor wastage.
+                          Daily policy: <strong>Issued = Consumed</strong>. Every Store MIN transfer &amp; Batch No is logged automatically for ISO traceability; raise extra chemical demands anytime below.
                         </p>
                       </div>
 
@@ -4742,120 +4720,34 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           <thead className="bg-[#f2f2f3] text-[#17191c] text-[11px] font-bold border-b border-[#ececec]">
                             <tr>
                               <th className="p-3">Material &amp; Batch</th>
-                              <th className="p-3 text-right">Store Issued</th>
-                              <th className="p-3 text-right">Good Returned</th>
-                              <th className="p-3 text-right">Floor Wastage</th>
-                              <th className="p-3 text-right text-[#8a6521]">Net Consumed</th>
-                              <th className="p-3 text-right">Usage Action</th>
+                              <th className="p-3">MIN / MRN Slip</th>
+                              <th className="p-3 text-right text-[#8a6521]">Issued (= Consumed)</th>
+                              <th className="p-3 text-right">Floor Status</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-[#ececec]">
-                            {painterChemLogs.map(log => {
-                              const isEditingThis = editingMatLogId === log.id;
-                              const previewNet = Math.max(0, Number((log.issuedQty - editGoodReturnQty).toFixed(3)));
-
-                              return (
-                                <tr key={log.id} className="hover:bg-[#fafafb] transition">
-                                  <td className="p-3 font-mono text-[11px]">
-                                    <div className="font-bold text-[#17191c] font-sans text-xs">{log.materialName}</div>
-                                    {isEditingThis ? (
-                                      <input
-                                        type="text"
-                                        value={editMatBatch}
-                                        onChange={e => setEditMatBatch(e.target.value)}
-                                        placeholder="Batch #"
-                                        className="mt-1 px-2 py-1 rounded-[10px] border border-[#dcdfe4] text-[11px] w-32 font-mono focus:outline-none focus:border-[#c09748]"
-                                      />
-                                    ) : (
-                                      <span className="text-[10px] text-[#777b86]">
-                                        {log.materialType} • Batch: {log.batchNumber || 'N/A'}
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="p-3 text-right font-mono font-semibold text-[#17191c]">
-                                    {log.issuedQty} {log.uom}
-                                  </td>
-                                  <td className="p-3 text-right font-mono text-emerald-700 font-medium">
-                                    {isEditingThis ? (
-                                      <input
-                                        type="number"
-                                        min={0}
-                                        max={log.issuedQty}
-                                        step="0.1"
-                                        value={editGoodReturnQty}
-                                        onChange={e => setEditGoodReturnQty(Number(e.target.value))}
-                                        className="w-20 px-2 py-1 rounded-[10px] border border-emerald-300 text-right font-mono text-xs focus:outline-none focus:border-emerald-500"
-                                      />
-                                    ) : (
-                                      `${log.goodReturnedQty} ${log.uom}`
-                                    )}
-                                  </td>
-                                  <td className="p-3 text-right font-mono text-rose-700 font-medium">
-                                    {isEditingThis ? (
-                                      <input
-                                        type="number"
-                                        min={0}
-                                        step="0.1"
-                                        value={editFloorWasteQty}
-                                        onChange={e => setEditFloorWasteQty(Number(e.target.value))}
-                                        className="w-20 px-2 py-1 rounded-[10px] border border-rose-300 text-right font-mono text-xs focus:outline-none focus:border-rose-500"
-                                      />
-                                    ) : (
-                                      `${log.floorWastageExpiredQty} ${log.uom}`
-                                    )}
-                                  </td>
-                                  <td className="p-3 text-right font-mono font-bold text-[#8a6521]">
-                                    <div>{isEditingThis ? previewNet : log.netConsumedQty} {log.uom}</div>
-                                    {log.perPieceConsumption ? (
-                                      <span className="text-[10px] font-normal text-[#777b86]">
-                                        {log.perPieceConsumption} {log.uom}/pc
-                                      </span>
-                                    ) : null}
-                                  </td>
-                                  <td className="p-3 text-right whitespace-nowrap">
-                                    {isEditingThis ? (
-                                      <div className="inline-flex items-center gap-1.5">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            updateAssignmentMaterialLog(log.id, {
-                                              goodReturnedQty: editGoodReturnQty,
-                                              floorWastageExpiredQty: editFloorWasteQty,
-                                              batchNumber: editMatBatch.trim() || undefined
-                                            });
-                                            setEditingMatLogId(null);
-                                          }}
-                                          className="px-3 py-1 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-[11px] font-bold transition cursor-pointer"
-                                        >
-                                          Save
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => setEditingMatLogId(null)}
-                                          className="px-2.5 py-1 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] text-[11px] font-semibold transition cursor-pointer"
-                                        >
-                                          Cancel
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setEditingMatLogId(log.id);
-                                          setEditGoodReturnQty(log.goodReturnedQty || 0);
-                                          setEditFloorWasteQty(log.floorWastageExpiredQty || 0);
-                                          setEditMatBatch(log.batchNumber || '');
-                                        }}
-                                        className="px-3 py-1.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
-                                      >
-                                        <Edit3 className="w-3 h-3" />
-                                        <span>Update Usage</span>
-                                      </button>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
+                            {painterChemLogs.map(log => (
+                              <tr key={log.id} className="hover:bg-[#fafafb] transition">
+                                <td className="p-3 font-mono text-[11px]">
+                                  <div className="font-bold text-[#17191c] font-sans text-xs">{log.materialName}</div>
+                                  <span className="text-[10px] text-[#777b86]">
+                                    {log.materialType} • Batch: {log.batchNumber || 'N/A'}
+                                  </span>
+                                </td>
+                                <td className="p-3 font-mono text-[11px] text-[#17191c]">
+                                  {log.minNo || log.mrnNo || 'Store Transfer'}
+                                </td>
+                                <td className="p-3 text-right font-mono font-bold text-[#8a6521]">
+                                  {log.issuedQty} {log.uom}
+                                </td>
+                                <td className="p-3 text-right whitespace-nowrap">
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10.5px] font-mono font-bold">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                    <span>Transferred &amp; Consumed</span>
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
                           </tbody>
                         </table>
                       </div>
@@ -5052,11 +4944,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           <tr>
                             <th className="p-3">Date</th>
                             <th className="p-3">Painter</th>
-                            <th className="p-3">Material &amp; Type</th>
-                            <th className="p-3 text-right">Issued</th>
-                            <th className="p-3 text-right">Good Return</th>
-                            <th className="p-3 text-right">Floor Wastage</th>
-                            <th className="p-3 text-right">Net Consumed</th>
+                            <th className="p-3">Material &amp; Batch</th>
+                            <th className="p-3">MIN / MRN</th>
+                            <th className="p-3 text-right text-[#8a6521]">Issued (= Consumed)</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#ececec]">
@@ -5068,10 +4958,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                                 <div className="font-sans font-semibold text-[#17191c]">{log.materialName}</div>
                                 <span className="text-[10px] text-[#777b86]">{log.materialType} • Batch: {log.batchNumber || 'N/A'}</span>
                               </td>
-                              <td className="p-3 text-right font-mono">{log.issuedQty} {log.uom}</td>
-                              <td className="p-3 text-right font-mono text-emerald-700 font-medium">{log.goodReturnedQty} {log.uom}</td>
-                              <td className="p-3 text-right font-mono text-rose-700 font-medium">{log.floorWastageExpiredQty} {log.uom}</td>
-                              <td className="p-3 text-right font-mono font-bold text-[#8a6521]">{log.netConsumedQty} {log.uom}</td>
+                              <td className="p-3 font-mono text-[11px] text-[#17191c]">{log.minNo || log.mrnNo || '-'}</td>
+                              <td className="p-3 text-right font-mono font-bold text-[#8a6521]">{log.issuedQty} {log.uom}</td>
                             </tr>
                           ))}
                         </tbody>

@@ -197,10 +197,6 @@ interface PortalContextType {
     extraChemicals?: PainterDailyMaterialAllocation[],
     masterJobCardOverride?: JobCard
   ) => { success: boolean; mrnNo?: string; error?: string };
-  updateAssignmentMaterialLog: (
-    logId: string,
-    updates: { goodReturnedQty: number; floorWastageExpiredQty: number; batchNumber?: string }
-  ) => void;
   recordAssignmentStageOutput: (
     assignmentId: string,
     stage: CoatingProcessStage,
@@ -3868,46 +3864,6 @@ export const PortalProvider: React.FC<{
     return { success: true };
   };
 
-  const updateAssignmentMaterialLog = (
-    logId: string,
-    updates: { goodReturnedQty: number; floorWastageExpiredQty: number; batchNumber?: string }
-  ) => {
-    const targetLog = assignmentMaterialLogs.find(l => l.id === logId);
-    if (!targetLog) return;
-
-    const parentAssignment = painterAssignments.find(
-      a => a.id === targetLog.assignmentId || a.assignmentId === targetLog.assignmentId
-    );
-    const completedQty = parentAssignment?.actualCompletedQty || 0;
-    const goodReturned = Math.max(0, Math.min(targetLog.issuedQty, updates.goodReturnedQty));
-    const floorWastage = Math.max(0, updates.floorWastageExpiredQty);
-    const netConsumed = Math.max(0, Number((targetLog.issuedQty - goodReturned).toFixed(3)));
-    const perPiece = completedQty > 0 ? Number((netConsumed / completedQty).toFixed(4)) : 0;
-    const norm = targetLog.standardNormPerPiece || 0.040;
-    const isHighWastage = perPiece > 0 && perPiece > norm * 1.25;
-
-    const updatedLog: AssignmentMaterialLog = {
-      ...targetLog,
-      goodReturnedQty: goodReturned,
-      floorWastageExpiredQty: floorWastage,
-      netConsumedQty: netConsumed,
-      batchNumber: updates.batchNumber !== undefined ? updates.batchNumber : targetLog.batchNumber,
-      perPieceConsumption: perPiece,
-      highWastageFlag: isHighWastage,
-      loggedAt: new Date().toISOString()
-    };
-
-    setAssignmentMaterialLogs(prev => prev.map(l => (l.id === logId ? updatedLog : l)));
-    setPainterAssignments(prev => prev.map(a => {
-      if (a.id !== targetLog.assignmentId && a.assignmentId !== targetLog.assignmentId) return a;
-      const existingLogs = a.materialLogs || [];
-      return {
-        ...a,
-        materialLogs: existingLogs.map(ml => (ml.id === logId ? updatedLog : ml))
-      };
-    }));
-  };
-
   const recordAssignmentStageOutput = (
     assignmentId: string,
     stage: CoatingProcessStage,
@@ -4861,7 +4817,6 @@ export const PortalProvider: React.FC<{
         issueAssignmentMaterials,
         requestAssignmentChemicals,
         addTargetToPainterAssignment,
-        updateAssignmentMaterialLog,
         recordAssignmentStageOutput,
         getPainterConsumablesLedger,
 

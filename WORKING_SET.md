@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-24: Removed Manual Chemical Usage Update System (`Issued = Consumed` ISO Policy)
+  - Files touched:
+    - `src/portal/components/JobCardModal.tsx`: Removed `Update Usage` inline edit drawer/buttons (`editingMatLogId`, `editGoodReturnQty`, `editFloorWasteQty`, `editMatBatch`, `updateAssignmentMaterialLog`), simplified Tab 1 summary & Tab 2 painter/all-painters chemical tables to clean `Issued (= Consumed)` + `MIN / MRN Slip` + `Batch` ISO traceability.
+    - `src/portal/context/PortalStoreContext.tsx`: Removed unused `updateAssignmentMaterialLog` from context type, implementation, and provider value while keeping `AssignmentMaterialLog` backward-compatible.
+    - `src/portal/components/BalanceReturnModal.tsx`: Synced End-of-Job Return `materialsAnalysis` with Store-transferred `assignmentMaterialLogs` (proportional unused calculation only if job closes below target).
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-24: Fixed Missing Store Demand MRN on Add-On Consumables & Stale Job Card Closure
   - Files touched:
     - `src/portal/context/PortalStoreContext.tsx`: Updated `requestAssignmentChemicals` to always raise a dedicated Add-On Store Floor Demand MRN (`Pending Store Issue`) via `getNextUniqueMrnNo` instead of merging silently into `existingPendingMrn` or dropping assignments in `dispatchedAsgIds`; excluded Add-On MRNs from `upsertPendingFloorDemand` overwrite; switched `parentJob` lookup in `createPainterAssignment`, `requestAssignmentChemicals`, and `addTargetToPainterAssignment` to `latestJobCardsRef.current`.

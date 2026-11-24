@@ -59,6 +59,7 @@ export const BalanceReturnModal: React.FC<BalanceReturnModalProps> = ({
   const { 
     jobCards, 
     stockBatches, 
+    assignmentMaterialLogs,
     activePlant, 
     currentUser, 
     balanceReturnSlips,
@@ -131,31 +132,46 @@ export const BalanceReturnModal: React.FC<BalanceReturnModalProps> = ({
     const unpaintedBalance = Math.max(0, target - completed - prevReturnedRaw);
     const unreturnedScrap = Math.max(0, scrap - prevReturnedScrap);
 
-    // Company Consumables Analysis (system checks whether any paint/material was unused)
-    const materialsAnalysis = (selectedJobCard.issuedMaterials || []).map((m, idx) => {
-      const isChem = m.materialType === 'paint' || m.materialType === 'thinner' || /paint|basecoat|thinner|hardener|clear/i.test(m.itemDescription);
-      let consumed = m.consumedQty !== undefined ? m.consumedQty : 0;
-      let floorBal = m.floorBalanceQty !== undefined ? m.floorBalanceQty : 0;
+    // Company Consumables Analysis (Issued = Consumed default; reads legacy issuedMaterials or Store-transferred assignmentMaterialLogs)
+    const jcTransferredLogs = assignmentMaterialLogs.filter(
+      l => l.masterJobCardNo === selectedJobCard.jobCardNo || l.masterJobCardId === selectedJobCard.jobCardNo
+    );
+    const baseMaterials =
+      (selectedJobCard.issuedMaterials && selectedJobCard.issuedMaterials.length > 0)
+        ? selectedJobCard.issuedMaterials
+        : Array.from(
+            jcTransferredLogs.reduce((map, l) => {
+              const key = `${l.materialName}__${l.uom}__${l.batchNumber || ''}`;
+              const prev = map.get(key);
+              if (prev) {
+                prev.qty = Number((prev.qty + Number(l.issuedQty || 0)).toFixed(2));
+              } else {
+                map.set(key, {
+                  id: l.id,
+                  itemDescription: l.materialName,
+                  qty: Number(l.issuedQty || 0),
+                  uom: l.uom || 'Litres',
+                  materialType: l.materialType === 'Thinner' || l.materialType === 'Cleaning Solvent' ? 'thinner' : 'paint',
+                  batchNo: l.batchNumber
+                });
+              }
+              return map;
+            }, new Map<string, any>()).values()
+          );
 
-      // If user did not manually update usage, auto-calculate consumption proportional to pieces produced
-      if (m.floorBalanceQty === undefined && (m.consumedQty === undefined || m.consumedQty === 0)) {
-        const ratio = target > 0 ? Math.min(1, completed / target) : 1;
-        consumed = Number((m.qty * ratio).toFixed(2));
-        floorBal = Math.max(0, Number((m.qty - consumed).toFixed(2)));
-      } else if (m.floorBalanceQty !== undefined) {
-        floorBal = m.floorBalanceQty;
-        consumed = Math.max(0, Number((m.qty - floorBal).toFixed(2)));
-      } else {
-        consumed = m.consumedQty || 0;
-        floorBal = Math.max(0, Number((m.qty - consumed).toFixed(2)));
-      }
+    const materialsAnalysis = baseMaterials.map((m, idx) => {
+      const isChem = m.materialType === 'paint' || m.materialType === 'thinner' || /paint|basecoat|thinner|hardener|clear/i.test(m.itemDescription);
+      const qty = Number(m.qty || 0);
+      const ratio = target > 0 ? Math.min(1, completed / target) : 1;
+      const consumed = Number((qty * ratio).toFixed(2));
+      const floorBal = Math.max(0, Number((qty - consumed).toFixed(2)));
 
       return {
         id: m.id || `mat_${idx + 1}`,
         itemDescription: m.itemDescription,
         qty: Number(m.qty || 0),
-        consumed: Number(consumed || 0),
-        floorBal: Number(floorBal || 0),
+        consumed,
+        floorBal,
         uom: m.uom || 'Litres',
         isChem,
         materialType: m.materialType,
@@ -177,7 +193,7 @@ export const BalanceReturnModal: React.FC<BalanceReturnModalProps> = ({
       materialsAnalysis,
       totalUnusedChemicals
     };
-  }, [selectedJobCard, balanceReturnSlips]);
+  }, [selectedJobCard, assignmentMaterialLogs, balanceReturnSlips]);
 
   // When job card changes, build available return lines for BOTH Party Substrates and Company Consumables
   useEffect(() => {
