@@ -43,6 +43,9 @@ import {
   SamplingPartyApproval,
   JobCardProductionProgressLog,
   CoatingProcessStage,
+  FinalisedVendor,
+  LearnedPartyDirectoryEntry,
+  LearnedPartyMaterial,
   PaintingBooth,
   ProcessStageCount,
   StockCategory,
@@ -376,6 +379,15 @@ interface PortalContextType {
   createMultiPainterJobCards: (parentData: JobCard, splits: { painterId: string; painterName: string; boothNo: string; targetQty: number }[]) => void;
   addMaterialInwardRecord: (record: MaterialInwardRecord) => void;
   addMaterialOutwardRecord: (record: MaterialOutwardRecord) => void;
+
+  // Finalised Vendor Catalog (Internal Company) & Auto-Learned Party Directory
+  finalisedVendors: FinalisedVendor[];
+  learnedParties: LearnedPartyDirectoryEntry[];
+  addFinalisedVendor: (vendor: Omit<FinalisedVendor, 'id' | 'updatedAt'>) => { success: boolean; vendor?: FinalisedVendor; error?: string };
+  updateFinalisedVendor: (id: string, updates: Partial<Omit<FinalisedVendor, 'id'>>) => void;
+  deleteFinalisedVendor: (id: string) => void;
+  updateLearnedParty: (id: string, updates: Partial<Omit<LearnedPartyDirectoryEntry, 'id'>>) => void;
+  deleteLearnedParty: (id: string) => void;
 
   
   // Problem 1: Job Cards, Target Caps & Color Over-run
@@ -859,6 +871,8 @@ export const PortalProvider: React.FC<{
           if (Array.isArray(remote.pk_gate_passes)) setGatePasses(remote.pk_gate_passes as GatePassRecord[]);
           if (Array.isArray(remote.pk_material_inward)) setMaterialInwardLogs(remote.pk_material_inward as MaterialInwardRecord[]);
           if (Array.isArray(remote.pk_material_outward)) setMaterialOutwardLogs(remote.pk_material_outward as MaterialOutwardRecord[]);
+          if (Array.isArray(remote.pk_finalised_vendors)) setFinalisedVendors(remote.pk_finalised_vendors as FinalisedVendor[]);
+          if (Array.isArray(remote.pk_learned_parties)) setLearnedParties(remote.pk_learned_parties as LearnedPartyDirectoryEntry[]);
           if (Array.isArray(remote.pk_calibration_list)) setCalibrationList(remote.pk_calibration_list as CalibrationRecord[]);
           if (Array.isArray(remote.pk_audit_questions)) setAuditQuestions(remote.pk_audit_questions as AuditQuestionItem[]);
           if (Array.isArray(remote.pk_capa_8d)) setCapa8DList(remote.pk_capa_8d as Capa8DRecord[]);
@@ -1792,6 +1806,34 @@ export const PortalProvider: React.FC<{
     return mergeByUniqueKey(localStorage.getItem('pk_material_outward'), INITIAL_MATERIAL_OUTWARD, 'gatePassNo');
   });
 
+  const [finalisedVendors, setFinalisedVendors] = useState<FinalisedVendor[]>(() => {
+    try {
+      const s = localStorage.getItem('pk_finalised_vendors');
+      const parsed = s ? JSON.parse(s) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [learnedParties, setLearnedParties] = useState<LearnedPartyDirectoryEntry[]>(() => {
+    try {
+      const s = localStorage.getItem('pk_learned_parties');
+      const parsed = s ? JSON.parse(s) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    syncState('pk_finalised_vendors', finalisedVendors);
+  }, [finalisedVendors]);
+
+  useEffect(() => {
+    syncState('pk_learned_parties', learnedParties);
+  }, [learnedParties]);
+
   const [defects, setDefects] = useState<DefectItem[]>(MASTER_DEFECTS);
 
   // Module E: 100-Question MNC Audit Engine State
@@ -2236,6 +2278,172 @@ export const PortalProvider: React.FC<{
     localStorage.setItem('pk_calibration_list', JSON.stringify(calibrationList));
   }, [calibrationList]);
 
+  const mergePartyEntryFromInward = (
+    prevParties: LearnedPartyDirectoryEntry[],
+    record: MaterialInwardRecord
+  ): { next: LearnedPartyDirectoryEntry[]; changed: boolean } => {
+    if (record.materialCategory === 'Internal Company') {
+      return { next: prevParties, changed: false };
+    }
+    const cleanParty = (record.partyName || '').trim();
+    if (!cleanParty) return { next: prevParties, changed: false };
+
+    const recDate = record.receivingDate || record.date || new Date().toISOString().split('T')[0];
+    const itemsToLearn: LearnedPartyMaterial[] =
+      record.items && record.items.length > 0
+        ? record.items
+            .filter(it => it.materialName && it.materialName.trim())
+            .map(it => ({
+              materialName: it.materialName.trim(),
+              itemCode: it.itemCode?.trim() || undefined,
+              defaultUnit: (it.unit || 'Pcs') as LearnedPartyMaterial['defaultUnit'],
+              lastInwardDate: recDate
+            }))
+        : record.descriptionOfMaterial?.trim()
+          ? [
+              {
+                materialName: record.descriptionOfMaterial.trim(),
+                defaultUnit: (record.unit === 'Mixed' ? 'Pcs' : record.unit || 'Pcs') as LearnedPartyMaterial['defaultUnit'],
+                lastInwardDate: recDate
+              }
+            ]
+          : [];
+
+    const partyKey = cleanParty.toLowerCase();
+    const existingIdx = prevParties.findIndex(p => p.partyName.trim().toLowerCase() === partyKey);
+    if (existingIdx === -1) {
+      const uniqueMats: LearnedPartyMaterial[] = [];
+      const seenMat = new Set<string>();
+      itemsToLearn.forEach(m => {
+        const mk = m.materialName.toLowerCase();
+        if (!seenMat.has(mk)) {
+          seenMat.add(mk);
+          uniqueMats.push(m);
+        }
+      });
+      const created: LearnedPartyDirectoryEntry = {
+        id: `PTY-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+        partyName: cleanParty,
+        plant: record.plant,
+        materials: uniqueMats,
+        lastInwardDate: recDate
+      };
+      return { next: [created, ...prevParties], changed: true };
+    }
+
+    const existing = prevParties[existingIdx];
+    let matsChanged = false;
+    const mergedMats = [...existing.materials];
+    itemsToLearn.forEach(m => {
+      const mk = m.materialName.toLowerCase();
+      const idx = mergedMats.findIndex(em => em.materialName.trim().toLowerCase() === mk);
+      if (idx === -1) {
+        mergedMats.push(m);
+        matsChanged = true;
+      } else if (m.itemCode && !mergedMats[idx].itemCode) {
+        mergedMats[idx] = { ...mergedMats[idx], itemCode: m.itemCode };
+        matsChanged = true;
+      }
+    });
+
+    if (!matsChanged && existing.lastInwardDate === recDate) {
+      return { next: prevParties, changed: false };
+    }
+
+    const updatedEntry: LearnedPartyDirectoryEntry = {
+      ...existing,
+      materials: mergedMats,
+      lastInwardDate: recDate
+    };
+    const next = prevParties.map((p, i) => (i === existingIdx ? updatedEntry : p));
+    return { next, changed: true };
+  };
+
+  // Backfill auto-learned Party Directory from historical Party Material Inward logs
+  useEffect(() => {
+    if (materialInwardLogs.length === 0) return;
+    setLearnedParties(prev => {
+      let current = prev;
+      let anyChanged = false;
+      materialInwardLogs.forEach(rec => {
+        const res = mergePartyEntryFromInward(current, rec);
+        if (res.changed) {
+          current = res.next;
+          anyChanged = true;
+        }
+      });
+      return anyChanged ? current : prev;
+    });
+  }, [materialInwardLogs]);
+
+  const addFinalisedVendor = (
+    vendor: Omit<FinalisedVendor, 'id' | 'updatedAt'>
+  ): { success: boolean; vendor?: FinalisedVendor; error?: string } => {
+    const cleanName = (vendor.vendorName || '').trim();
+    if (!cleanName) {
+      return { success: false, error: 'Vendor Name bharna zaroori hai.' };
+    }
+    const exists = finalisedVendors.some(v => v.vendorName.trim().toLowerCase() === cleanName.toLowerCase());
+    if (exists) {
+      return { success: false, error: `Vendor "${cleanName}" pehle se Finalised Vendor list me maujood hai.` };
+    }
+    const cleanMats = (vendor.materials || [])
+      .filter(m => m.materialName.trim())
+      .map((m, idx) => ({
+        ...m,
+        id: m.id || `vm_${Date.now()}_${idx}`,
+        materialName: m.materialName.trim(),
+        itemCode: m.itemCode?.trim() || undefined
+      }));
+    const newVendor: FinalisedVendor = {
+      ...vendor,
+      id: `VND-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+      vendorName: cleanName,
+      materials: cleanMats,
+      updatedAt: new Date().toISOString()
+    };
+    setFinalisedVendors(prev => [newVendor, ...prev]);
+    return { success: true, vendor: newVendor };
+  };
+
+  const updateFinalisedVendor = (id: string, updates: Partial<Omit<FinalisedVendor, 'id'>>) => {
+    setFinalisedVendors(prev =>
+      prev.map(v =>
+        v.id === id
+          ? {
+              ...v,
+              ...updates,
+              vendorName: updates.vendorName !== undefined ? updates.vendorName.trim() : v.vendorName,
+              materials:
+                updates.materials !== undefined
+                  ? updates.materials
+                      .filter(m => m.materialName.trim())
+                      .map((m, idx) => ({
+                        ...m,
+                        id: m.id || `vm_${Date.now()}_${idx}`,
+                        materialName: m.materialName.trim(),
+                        itemCode: m.itemCode?.trim() || undefined
+                      }))
+                  : v.materials,
+              updatedAt: new Date().toISOString()
+            }
+          : v
+      )
+    );
+  };
+
+  const deleteFinalisedVendor = (id: string) => {
+    setFinalisedVendors(prev => prev.filter(v => v.id !== id));
+  };
+
+  const updateLearnedParty = (id: string, updates: Partial<Omit<LearnedPartyDirectoryEntry, 'id'>>) => {
+    setLearnedParties(prev => prev.map(p => (p.id === id ? { ...p, ...updates } : p)));
+  };
+
+  const deleteLearnedParty = (id: string) => {
+    setLearnedParties(prev => prev.filter(p => p.id !== id));
+  };
+
   const addMaterialInwardRecord = (record: MaterialInwardRecord) => {
     const fallbackPlant: PlantLocation = activePlant === 'ALL' ? 'Haridwar' : activePlant;
     const recordWithDefaults: MaterialInwardRecord = {
@@ -2245,6 +2453,7 @@ export const PortalProvider: React.FC<{
       status: record.status || 'Pending IQC Inspection'
     };
     setMaterialInwardLogs(prev => [recordWithDefaults, ...prev]);
+    setLearnedParties(prev => mergePartyEntryFromInward(prev, recordWithDefaults).next);
   };
 
 
@@ -4889,6 +5098,13 @@ export const PortalProvider: React.FC<{
         createMultiPainterJobCards,
         addMaterialInwardRecord,
         addMaterialOutwardRecord,
+        finalisedVendors,
+        learnedParties,
+        addFinalisedVendor,
+        updateFinalisedVendor,
+        deleteFinalisedVendor,
+        updateLearnedParty,
+        deleteLearnedParty,
 
         updateJobCardProgress,
         updateJobCardSprayed,

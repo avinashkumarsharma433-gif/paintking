@@ -1,7 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { downloadStandardGateInwardPdf, downloadStandardGateOutwardPdf, formatUnitBreakdown, formatDateDDMMYYYY } from '../utils/pdfStandardHeader';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { GatePassRecord, MaterialInwardRecord, MaterialOutwardRecord, InwardMaterialLineItem, MATERIAL_TYPE_OPTIONS, StockMaterialType } from '../types/portalTypes';
+import {
+  GatePassRecord,
+  MaterialInwardRecord,
+  MaterialOutwardRecord,
+  InwardMaterialLineItem,
+  MATERIAL_TYPE_OPTIONS,
+  StockMaterialType,
+  FinalisedVendor,
+  FinalisedVendorMaterial
+} from '../types/portalTypes';
 import { 
   ArrowDownLeft, 
   ArrowUpRight, 
@@ -31,7 +40,8 @@ import {
   PackageCheck,
   Layers,
   Lock,
-  Unlock
+  Unlock,
+  Edit
 } from 'lucide-react';
 import { UniversalJobModal } from '../components/UniversalJobModal';
 import { PaintkingDatePicker } from '../components/PaintkingDatePicker';
@@ -41,6 +51,97 @@ import { UniversalEmailModal } from '../components/UniversalEmailModal';
 import { composeGatePassEmailDraft, composeGateOutwardEmailDraft, EmailDispatchPayload } from '../utils/emailDispatchEngine';
 import { matchesPlant } from '../utils/portalAuth';
 
+interface SmartSuggestOption {
+  value: string;
+  label: string;
+  sublabel?: string;
+  badge?: string;
+}
+
+interface SmartSuggestInputProps {
+  value: string;
+  onChange: (val: string) => void;
+  onSelectOption: (opt: SmartSuggestOption) => void;
+  options: SmartSuggestOption[];
+  placeholder?: string;
+  required?: boolean;
+  className?: string;
+  emptyHint?: string;
+}
+
+const SmartSuggestInput: React.FC<SmartSuggestInputProps> = ({
+  value,
+  onChange,
+  onSelectOption,
+  options,
+  placeholder,
+  required,
+  className = '',
+  emptyHint
+}) => {
+  const [open, setOpen] = useState(false);
+  const query = value.trim().toLowerCase();
+
+  const filtered = query
+    ? options.filter(
+        o =>
+          o.label.toLowerCase().includes(query) ||
+          (o.sublabel && o.sublabel.toLowerCase().includes(query))
+      )
+    : options.slice(0, 12);
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        required={required}
+        value={value}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 160)}
+        onChange={e => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        placeholder={placeholder}
+        autoComplete="off"
+        className={className}
+      />
+      {open && (filtered.length > 0 || (emptyHint && query.length > 0)) && (
+        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-[16px] border border-[#f4e5be] shadow-xl max-h-56 overflow-y-auto divide-y divide-[#f2f2f3]">
+          {filtered.length > 0 ? (
+            filtered.map((opt, idx) => (
+              <button
+                key={`${opt.value}-${idx}`}
+                type="button"
+                onMouseDown={e => {
+                  e.preventDefault();
+                  onSelectOption(opt);
+                  setOpen(false);
+                }}
+                className="w-full px-3.5 py-2.5 text-left hover:bg-[#faf7ed] transition flex items-center justify-between gap-2 cursor-pointer"
+              >
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-[#17191c] truncate">{opt.label}</div>
+                  {opt.sublabel && (
+                    <div className="text-[10.5px] text-[#777b86] font-mono truncate">{opt.sublabel}</div>
+                  )}
+                </div>
+                {opt.badge && (
+                  <span className="px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold shrink-0">
+                    {opt.badge}
+                  </span>
+                )}
+              </button>
+            ))
+          ) : emptyHint ? (
+            <div className="px-3.5 py-2.5 text-[11px] text-[#777b86]">{emptyHint}</div>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const GatePassView: React.FC = () => {
   const { 
     gatePasses, 
@@ -49,7 +150,14 @@ export const GatePassView: React.FC = () => {
     materialInwardLogs, 
     materialOutwardLogs, 
     addMaterialInwardRecord, 
-    addMaterialOutwardRecord, 
+    addMaterialOutwardRecord,
+    finalisedVendors,
+    learnedParties,
+    addFinalisedVendor,
+    updateFinalisedVendor,
+    deleteFinalisedVendor,
+    updateLearnedParty,
+    deleteLearnedParty,
     billingInvoices,
     recordInvoicePayment,
     markInvoiceDispatched,
@@ -60,10 +168,15 @@ export const GatePassView: React.FC = () => {
     setActiveSubTab
   } = usePortalStore();
 
-  const [activeTab, setActiveTab] = useState<'INWARD' | 'OUTWARD' | 'GATE_PASS'>('INWARD');
+  const [activeTab, setActiveTab] = useState<'INWARD' | 'OUTWARD' | 'GATE_PASS' | 'MASTER_DIRECTORY'>('INWARD');
 
   useEffect(() => {
-    if (activeSubTab === 'INWARD' || activeSubTab === 'OUTWARD' || activeSubTab === 'GATE_PASS') {
+    if (
+      activeSubTab === 'INWARD' ||
+      activeSubTab === 'OUTWARD' ||
+      activeSubTab === 'GATE_PASS' ||
+      activeSubTab === 'MASTER_DIRECTORY'
+    ) {
       setActiveTab(activeSubTab);
     }
   }, [activeSubTab]);
@@ -226,12 +339,126 @@ export const GatePassView: React.FC = () => {
 
   const handleStep1Next = () => {
     if (!inwardHeader.challanNo.trim() || !inwardHeader.vehicleNo.trim() || !inwardHeader.partyName.trim()) {
-      setFormError('Kripya Challan No, Vehicle No aur Party Name bharein!');
+      setFormError('Kripya Challan No, Vehicle No aur Party / Vendor Name bharein!');
       return;
+    }
+    if (inwardHeader.materialCategory === 'Internal Company') {
+      const vendorMatch = finalisedVendors.find(
+        v => v.vendorName.trim().toLowerCase() === inwardHeader.partyName.trim().toLowerCase()
+      );
+      if (finalisedVendors.length === 0) {
+        setFormError('Pehle "Vendors & Parties" me Finalised Company Vendor aur uske materials add karein.');
+        return;
+      }
+      if (!vendorMatch) {
+        setFormError('Internal Company Inward ke liye sirf saved Finalised Vendor list me se Vendor select karein.');
+        return;
+      }
+      if (vendorMatch.materials.length === 0) {
+        setFormError(`Vendor "${vendorMatch.vendorName}" ke catalog me kam se kam 1 material add karein.`);
+        return;
+      }
     }
     setFormError(null);
     setInwardStep(2);
   };
+
+  // Finalised Vendor Catalog Modal State
+  const [showVendorModal, setShowVendorModal] = useState<boolean>(false);
+  const [editingVendorId, setEditingVendorId] = useState<string | null>(null);
+  const [vendorFormName, setVendorFormName] = useState<string>('');
+  const [vendorFormContact, setVendorFormContact] = useState<string>('');
+  const [vendorFormPhone, setVendorFormPhone] = useState<string>('');
+  const [vendorFormGst, setVendorFormGst] = useState<string>('');
+  const [vendorFormMaterials, setVendorFormMaterials] = useState<FinalisedVendorMaterial[]>([
+    { id: 'vm_init_1', materialName: '', itemCode: '', materialType: 'paint', defaultUnit: 'Litres' }
+  ]);
+  const [vendorFormError, setVendorFormError] = useState<string | null>(null);
+
+  const openNewVendorModal = () => {
+    setEditingVendorId(null);
+    setVendorFormName('');
+    setVendorFormContact('');
+    setVendorFormPhone('');
+    setVendorFormGst('');
+    setVendorFormMaterials([
+      { id: `vm_${Date.now()}`, materialName: '', itemCode: '', materialType: 'paint', defaultUnit: 'Litres' }
+    ]);
+    setVendorFormError(null);
+    setShowVendorModal(true);
+  };
+
+  const openEditVendorModal = (vendor: FinalisedVendor) => {
+    setEditingVendorId(vendor.id);
+    setVendorFormName(vendor.vendorName);
+    setVendorFormContact(vendor.contactPerson || '');
+    setVendorFormPhone(vendor.phone || '');
+    setVendorFormGst(vendor.gstNo || '');
+    setVendorFormMaterials(
+      vendor.materials.length > 0
+        ? vendor.materials.map(m => ({ ...m }))
+        : [{ id: `vm_${Date.now()}`, materialName: '', itemCode: '', materialType: 'paint', defaultUnit: 'Litres' }]
+    );
+    setVendorFormError(null);
+    setShowVendorModal(true);
+  };
+
+  const handleSaveVendorCatalog = (e: React.FormEvent) => {
+    e.preventDefault();
+    setVendorFormError(null);
+    if (!vendorFormName.trim()) {
+      setVendorFormError('Vendor Name bharna zaroori hai.');
+      return;
+    }
+    const validMats = vendorFormMaterials.filter(m => m.materialName.trim());
+    if (validMats.length === 0) {
+      setVendorFormError('Kam se kam 1 approved material add karein.');
+      return;
+    }
+
+    if (editingVendorId) {
+      updateFinalisedVendor(editingVendorId, {
+        vendorName: vendorFormName.trim(),
+        contactPerson: vendorFormContact.trim() || undefined,
+        phone: vendorFormPhone.trim() || undefined,
+        gstNo: vendorFormGst.trim() || undefined,
+        materials: validMats
+      });
+      setSubmittedToast(`✓ Vendor "${vendorFormName.trim()}" aur ${validMats.length} materials update ho gaye!`);
+    } else {
+      const res = addFinalisedVendor({
+        vendorName: vendorFormName.trim(),
+        contactPerson: vendorFormContact.trim() || undefined,
+        phone: vendorFormPhone.trim() || undefined,
+        gstNo: vendorFormGst.trim() || undefined,
+        plant: 'ALL',
+        materials: validMats
+      });
+      if (!res.success) {
+        setVendorFormError(res.error || 'Vendor save nahi ho saka.');
+        return;
+      }
+      if (showInwardModal && inwardHeader.materialCategory === 'Internal Company') {
+        setInwardHeader(prev => ({ ...prev, partyName: res.vendor!.vendorName }));
+      }
+      setSubmittedToast(`✓ Finalised Vendor "${res.vendor!.vendorName}" catalog save ho gaya!`);
+    }
+    setShowVendorModal(false);
+  };
+
+  const matchedFinalisedVendor =
+    inwardHeader.materialCategory === 'Internal Company'
+      ? finalisedVendors.find(
+          v => v.vendorName.trim().toLowerCase() === inwardHeader.partyName.trim().toLowerCase()
+        )
+      : undefined;
+
+  const matchedLearnedParty =
+    inwardHeader.materialCategory === 'Party Material'
+      ? learnedParties.find(
+          p => p.partyName.trim().toLowerCase() === inwardHeader.partyName.trim().toLowerCase()
+        )
+      : undefined;
 
   const handleInwardSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -247,8 +474,22 @@ export const GatePassView: React.FC = () => {
       return;
     }
 
-    // For Internal Company Material, validate Supplier Batch No
+    // For Internal Company Material, validate Finalised Vendor, Vendor Catalog Material & Supplier Batch No
     if (inwardHeader.materialCategory === 'Internal Company') {
+      if (!matchedFinalisedVendor) {
+        setFormError('Internal Company Material ke liye Finalised Vendor list me se Vendor select karein.');
+        return;
+      }
+      const unapprovedMat = inwardItems.find(
+        it =>
+          !matchedFinalisedVendor.materials.some(
+            vm => vm.materialName.trim().toLowerCase() === it.materialName.trim().toLowerCase()
+          )
+      );
+      if (unapprovedMat) {
+        setFormError(`"${unapprovedMat.materialName || 'Empty item'}" vendor "${matchedFinalisedVendor.vendorName}" ke approved catalog me se select karein.`);
+        return;
+      }
       const missingBatch = inwardItems.find(i => !i.batchNo?.trim());
       if (missingBatch) {
         setFormError('Company Material ke liye sabhi rows me Supplier Batch No bharna zaroori hai!');
@@ -453,7 +694,7 @@ export const GatePassView: React.FC = () => {
             <span className="font-semibold text-[#17191c]">Gate Security</span>
             <span className="text-gray-300">/</span>
             <span className="text-[#777b86]">
-              {activeTab === 'INWARD' ? 'Material Inward' : activeTab === 'OUTWARD' ? 'Material Outward' : 'Vehicle Passes'}
+              {activeTab === 'INWARD' ? 'Material Inward' : activeTab === 'OUTWARD' ? 'Material Outward' : activeTab === 'MASTER_DIRECTORY' ? 'Vendor & Party Master' : 'Vehicle Passes'}
             </span>
             <span className="text-gray-300">•</span>
             <span className="px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-mono font-bold text-[10px]">
@@ -469,6 +710,7 @@ export const GatePassView: React.FC = () => {
               {activeTab === 'INWARD' && 'Material Inward Intake Desk'}
               {activeTab === 'OUTWARD' && 'Material Outward Dispatch Desk'}
               {activeTab === 'GATE_PASS' && 'Vehicle Movement & Gate Barrier'}
+              {activeTab === 'MASTER_DIRECTORY' && 'Finalised Vendors & Party Directory'}
             </h1>
             <span className="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-mono font-bold shrink-0">
               Live QMS
@@ -529,6 +771,26 @@ export const GatePassView: React.FC = () => {
               activeTab === 'GATE_PASS' ? 'bg-[#f4e5be] text-[#8a6521]' : 'bg-[#f2f2f3] text-[#777b86]'
             }`}>
               {plantGatePasses.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('MASTER_DIRECTORY');
+              setActiveSubTab('MASTER_DIRECTORY');
+            }}
+            className={`px-3.5 sm:px-4 py-2 sm:py-2 rounded-full text-[11px] sm:text-xs font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 shrink-0 active:scale-95 ${
+              activeTab === 'MASTER_DIRECTORY'
+                ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold shadow-2xs'
+                : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+            }`}
+          >
+            <Building2 className={`w-3.5 h-3.5 ${activeTab === 'MASTER_DIRECTORY' ? 'text-[#8a6521]' : 'text-[#777b86]'}`} />
+            <span>Vendors &amp; Parties</span>
+            <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
+              activeTab === 'MASTER_DIRECTORY' ? 'bg-[#f4e5be] text-[#8a6521]' : 'bg-[#f2f2f3] text-[#777b86]'
+            }`}>
+              {finalisedVendors.length + learnedParties.length}
             </span>
           </button>
         </div>
@@ -1179,6 +1441,228 @@ export const GatePassView: React.FC = () => {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------------------- */}
+      {/* TAB 4: FINALISED VENDORS & AUTO-LEARNED PARTY DIRECTORY                    */}
+      {/* -------------------------------------------------------------------------- */}
+      {activeTab === 'MASTER_DIRECTORY' && (
+        <div className="space-y-5">
+          {/* Card 1: Finalised Company Vendors & Approved Materials */}
+          <div className="bg-white rounded-[24px] border border-[#ececec] p-4 sm:p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold uppercase">
+                    Internal Company Stock Master
+                  </span>
+                  <span className="text-xs font-mono text-[#777b86]">
+                    {finalisedVendors.length} Finalised Vendor{finalisedVendors.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <h2 className="text-lg font-serif font-normal text-[#17191c] mt-1">
+                  Finalised Vendors &amp; Approved Material Catalog
+                </h2>
+                <p className="text-xs text-[#777b86]">
+                  Save approved company vendors and exact material names once. During Internal Company Gate Inward, materials are picked strictly from this list — zero spelling duplicates.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={openNewVendorModal}
+                className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition cursor-pointer inline-flex items-center gap-1.5 shadow-2xs self-start sm:self-auto shrink-0 active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#8a6521]" />
+                <span>+ Add Finalised Vendor</span>
+              </button>
+            </div>
+
+            {(() => {
+              const q = searchQuery.trim().toLowerCase();
+              const visibleVendors = finalisedVendors.filter(
+                v =>
+                  !q ||
+                  v.vendorName.toLowerCase().includes(q) ||
+                  v.materials.some(
+                    m =>
+                      m.materialName.toLowerCase().includes(q) ||
+                      (m.itemCode && m.itemCode.toLowerCase().includes(q))
+                  )
+              );
+
+              if (visibleVendors.length === 0) {
+                return (
+                  <div className="p-8 text-center bg-[#fafafb] rounded-[18px] border border-dashed border-[#ececec] space-y-2">
+                    <Building2 className="w-8 h-8 text-[#979799] mx-auto" />
+                    <p className="font-serif text-base text-[#17191c]">
+                      {finalisedVendors.length === 0 ? 'No Finalised Vendors Saved Yet' : 'No Matching Vendors Found'}
+                    </p>
+                    <p className="text-xs text-[#777b86]">
+                      Click <strong>&quot;+ Add Finalised Vendor&quot;</strong> to register paint/chemical vendors and their exact approved material catalog.
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {visibleVendors.map(vendor => (
+                    <div key={vendor.id} className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-3 hover:border-[#c09748] transition">
+                      <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-[#ececec]">
+                        <div>
+                          <div className="font-serif text-base text-[#17191c]">{vendor.vendorName}</div>
+                          <div className="text-[11px] font-mono text-[#777b86] flex flex-wrap gap-2 mt-0.5">
+                            <span>{vendor.materials.length} Approved Material{vendor.materials.length === 1 ? '' : 's'}</span>
+                            {vendor.contactPerson && <span>• {vendor.contactPerson}</span>}
+                            {vendor.phone && <span>• {vendor.phone}</span>}
+                            {vendor.gstNo && <span>• GST: {vendor.gstNo}</span>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => openEditVendorModal(vendor)}
+                            className="px-3 py-1 rounded-full bg-white hover:bg-[#f2f2f3] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold cursor-pointer inline-flex items-center gap-1"
+                          >
+                            <Edit className="w-3 h-3 text-[#c09748]" />
+                            <span>Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Delete Finalised Vendor "${vendor.vendorName}"?`)) {
+                                deleteFinalisedVendor(vendor.id);
+                              }
+                            }}
+                            className="p-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer"
+                            title="Delete Vendor"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {vendor.materials.map(mat => (
+                          <span
+                            key={mat.id}
+                            className="px-2.5 py-1 rounded-full bg-white border border-[#f4e5be] text-[11px] text-[#17191c] inline-flex items-center gap-1.5 shadow-2xs"
+                          >
+                            <span className="font-semibold">{mat.materialName}</span>
+                            {mat.itemCode && <span className="font-mono text-[10px] text-[#8a6521]">[{mat.itemCode}]</span>}
+                            <span className="font-mono text-[10px] text-[#777b86]">• {mat.defaultUnit}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Card 2: Auto-Learned Party & Material Memory (Party Material Inwards) */}
+          <div className="bg-white rounded-[24px] border border-[#ececec] p-4 sm:p-6 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#ececec]">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-mono font-bold uppercase">
+                    Auto-Saved From Party Inwards
+                  </span>
+                  <span className="text-xs font-mono text-[#777b86]">
+                    {learnedParties.length} Saved Part{learnedParties.length === 1 ? 'y' : 'ies'}
+                  </span>
+                </div>
+                <h2 className="text-lg font-serif font-normal text-[#17191c] mt-1">
+                  Learned Party &amp; Substrate Suggestions
+                </h2>
+                <p className="text-xs text-[#777b86]">
+                  Every new Party Material Inward automatically saves the Party Name and its Material Descriptions here so typing 1–2 letters next time auto-suggests exact names.
+                </p>
+              </div>
+            </div>
+
+            {(() => {
+              const q = searchQuery.trim().toLowerCase();
+              const visibleParties = learnedParties.filter(
+                p =>
+                  !q ||
+                  p.partyName.toLowerCase().includes(q) ||
+                  p.materials.some(
+                    m =>
+                      m.materialName.toLowerCase().includes(q) ||
+                      (m.itemCode && m.itemCode.toLowerCase().includes(q))
+                  )
+              );
+
+              if (visibleParties.length === 0) {
+                return (
+                  <div className="p-8 text-center bg-[#fafafb] rounded-[18px] border border-dashed border-[#ececec] text-xs text-[#777b86]">
+                    {learnedParties.length === 0
+                      ? 'Party Material Inwards submit hone ke baad unke Party Names aur Materials yahan automatically save ho jayenge.'
+                      : 'No learned parties matching your search.'}
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {visibleParties.map(party => (
+                    <div key={party.id} className="p-4 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-2.5">
+                      <div className="flex items-start justify-between gap-2 pb-2 border-b border-[#ececec]">
+                        <div>
+                          <div className="font-semibold text-sm text-[#17191c]">{party.partyName}</div>
+                          <div className="text-[11px] font-mono text-[#777b86]">
+                            {party.materials.length} Saved Material{party.materials.length === 1 ? '' : 's'}
+                            {party.lastInwardDate ? ` • Last Inward: ${party.lastInwardDate}` : ''}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(`Remove saved suggestions for "${party.partyName}"?`)) {
+                              deleteLearnedParty(party.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-full text-[#777b86] hover:text-rose-700 hover:bg-rose-50 cursor-pointer"
+                          title="Remove Saved Party"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {party.materials.map((mat, mIdx) => (
+                          <span
+                            key={`${mat.materialName}-${mIdx}`}
+                            className="px-2.5 py-1 rounded-full bg-white border border-[#ececec] text-[11px] text-[#17191c] inline-flex items-center gap-1.5"
+                          >
+                            <span className="font-medium">{mat.materialName}</span>
+                            {mat.itemCode && <span className="font-mono text-[10px] text-[#8a6521]">[{mat.itemCode}]</span>}
+                            <span className="font-mono text-[10px] text-[#777b86]">• {mat.defaultUnit}</span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateLearnedParty(party.id, {
+                                  materials: party.materials.filter((_, idx) => idx !== mIdx)
+                                })
+                              }
+                              className="text-[#979799] hover:text-rose-600 cursor-pointer ml-0.5"
+                              title="Remove this saved material"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -2044,25 +2528,109 @@ export const GatePassView: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Row 2: Supplier, Transporter & Vehicle (3 columns) */}
+                    {/* Row 2: Supplier / Party / Vendor, Transporter & Vehicle (3 columns) */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                       <div className="space-y-2">
-                        <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
-                          <Building2 className="w-3.5 h-3.5 text-[#c09748]" />
-                          <span>4. Name of Party / Supplier</span>
-                          <span className="text-rose-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={inwardHeader.partyName}
-                          onChange={e => {
-                            setInwardHeader({ ...inwardHeader, partyName: e.target.value });
-                            if (formError) setFormError(null);
-                          }}
-                          placeholder="e.g. Roop Polymers Ltd / Asian Paints Ltd"
-                          className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs"
-                        />
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
+                            <Building2 className="w-3.5 h-3.5 text-[#c09748]" />
+                            <span>
+                              {inwardHeader.materialCategory === 'Internal Company'
+                                ? '4. Finalised Company Vendor'
+                                : '4. Name of Party / Customer'}
+                            </span>
+                            <span className="text-rose-500">*</span>
+                          </label>
+                          {inwardHeader.materialCategory === 'Internal Company' && (
+                            <button
+                              type="button"
+                              onClick={openNewVendorModal}
+                              className="text-[10.5px] font-bold text-[#8a6521] hover:underline cursor-pointer"
+                            >
+                              + Add Vendor
+                            </button>
+                          )}
+                        </div>
+
+                        {inwardHeader.materialCategory === 'Internal Company' ? (
+                          <>
+                            <SmartSuggestInput
+                              required
+                              value={inwardHeader.partyName}
+                              onChange={val => {
+                                setInwardHeader({ ...inwardHeader, partyName: val });
+                                if (formError) setFormError(null);
+                              }}
+                              onSelectOption={opt => {
+                                const vendor = finalisedVendors.find(v => v.id === opt.value);
+                                setInwardHeader({ ...inwardHeader, partyName: vendor?.vendorName || opt.label });
+                                const firstMat = vendor?.materials[0];
+                                if (firstMat) {
+                                  setInwardItems([
+                                    {
+                                      id: `item_${Date.now()}`,
+                                      itemCode: firstMat.itemCode || '',
+                                      materialName: firstMat.materialName,
+                                      materialType: firstMat.materialType,
+                                      quantity: 100,
+                                      unit: firstMat.defaultUnit,
+                                      batchNo: '',
+                                      expiryDate: '',
+                                      rawSubstrate: ''
+                                    }
+                                  ]);
+                                }
+                                if (formError) setFormError(null);
+                              }}
+                              options={finalisedVendors.map(v => ({
+                                value: v.id,
+                                label: v.vendorName,
+                                sublabel: v.materials.map(m => m.materialName).slice(0, 3).join(', '),
+                                badge: `${v.materials.length} Items`
+                              }))}
+                              placeholder="Type 1-2 letters to select Finalised Vendor..."
+                              emptyHint="Koi matching Finalised Vendor nahi mila. '+ Add Vendor' se pehle vendor save karein."
+                              className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs"
+                            />
+                            {matchedFinalisedVendor ? (
+                              <div className="text-[10.5px] font-mono text-emerald-700 font-semibold">
+                                ✓ Approved Vendor ({matchedFinalisedVendor.materials.length} catalog materials ready)
+                              </div>
+                            ) : inwardHeader.partyName.trim() ? (
+                              <div className="text-[10.5px] font-mono text-amber-700">
+                                Select an exact Finalised Vendor from dropdown above
+                              </div>
+                            ) : null}
+                          </>
+                        ) : (
+                          <>
+                            <SmartSuggestInput
+                              required
+                              value={inwardHeader.partyName}
+                              onChange={val => {
+                                setInwardHeader({ ...inwardHeader, partyName: val });
+                                if (formError) setFormError(null);
+                              }}
+                              onSelectOption={opt => {
+                                setInwardHeader({ ...inwardHeader, partyName: opt.label });
+                                if (formError) setFormError(null);
+                              }}
+                              options={learnedParties.map(p => ({
+                                value: p.id,
+                                label: p.partyName,
+                                sublabel: p.materials.map(m => m.materialName).slice(0, 2).join(', ') || 'No materials logged yet',
+                                badge: `${p.materials.length} Parts`
+                              }))}
+                              placeholder="Type 1-2 letters for saved Party, or enter new Party Name..."
+                              className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs"
+                            />
+                            {matchedLearnedParty && (
+                              <div className="text-[10.5px] font-mono text-emerald-700 font-semibold">
+                                ✓ Saved Party ({matchedLearnedParty.materials.length} past material suggestions available)
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
 
                       <div className="space-y-2">
@@ -2176,7 +2744,7 @@ export const GatePassView: React.FC = () => {
                       <div className="relative">
                         <div 
                           ref={materialListRef}
-                          className="space-y-3 max-h-[520px] overflow-y-auto no-scrollbar p-1"
+                          className="space-y-3 max-h-[520px] min-h-[240px] pb-24 overflow-y-auto no-scrollbar p-1"
                         >
                           {inwardItems.map((item, idx) => (
                             <div
@@ -2204,20 +2772,47 @@ export const GatePassView: React.FC = () => {
                                 />
                               </div>
 
-                              {/* Material Description */}
+                              {/* Material Description (With Auto-Learned Party Suggestions) */}
                               <div className="sm:col-span-4">
                                 <label className="block text-[10px] font-bold text-[#777b86] mb-1 sm:hidden">
                                   Material Description *
                                 </label>
-                                <input
-                                  type="text"
+                                <SmartSuggestInput
                                   required
                                   value={item.materialName}
-                                  onChange={e => {
-                                    handleItemChange(item.id, 'materialName', e.target.value);
+                                  onChange={val => {
+                                    handleItemChange(item.id, 'materialName', val);
                                     if (formError) setFormError(null);
                                   }}
-                                  placeholder="e.g. ABS Car AC Vent Bezels"
+                                  onSelectOption={opt => {
+                                    const matMatch = matchedLearnedParty?.materials.find(
+                                      m => m.materialName === opt.label
+                                    );
+                                    setInwardItems(prev =>
+                                      prev.map(row =>
+                                        row.id === item.id
+                                          ? {
+                                              ...row,
+                                              materialName: opt.label,
+                                              itemCode: matMatch?.itemCode || row.itemCode || '',
+                                              unit: matMatch?.defaultUnit || row.unit
+                                            }
+                                          : row
+                                      )
+                                    );
+                                    if (formError) setFormError(null);
+                                  }}
+                                  options={(matchedLearnedParty?.materials || []).map(m => ({
+                                    value: m.materialName,
+                                    label: m.materialName,
+                                    sublabel: m.itemCode ? `Code: ${m.itemCode}` : 'Previously inwarded from this party',
+                                    badge: m.defaultUnit
+                                  }))}
+                                  placeholder={
+                                    matchedLearnedParty && matchedLearnedParty.materials.length > 0
+                                      ? 'Type 1-2 letters for past material or enter new...'
+                                      : 'e.g. ABS Car AC Vent Bezels'
+                                  }
                                   className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-white text-xs font-semibold text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 transition shadow-2xs"
                                 />
                               </div>
@@ -2328,6 +2923,48 @@ export const GatePassView: React.FC = () => {
                                 )}
                               </div>
 
+                              {/* Vendor Approved Material Selector (Strict Catalog Picker) */}
+                              {matchedFinalisedVendor && (
+                                <div className="p-3.5 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be] space-y-1.5">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <label className="text-[11px] font-bold text-[#8a6521] uppercase font-mono">
+                                      Select Approved Material from {matchedFinalisedVendor.vendorName} *
+                                    </label>
+                                    <span className="text-[10px] font-mono text-[#777b86]">
+                                      Locked to Finalised Catalog (No Typos)
+                                    </span>
+                                  </div>
+                                  <CenteredSelectModal
+                                    title={`Select Material from ${matchedFinalisedVendor.vendorName}`}
+                                    value={item.materialName}
+                                    onChange={selectedName => {
+                                      const vm = matchedFinalisedVendor.materials.find(m => m.materialName === selectedName);
+                                      if (!vm) return;
+                                      setInwardItems(prev =>
+                                        prev.map(row =>
+                                          row.id === item.id
+                                            ? {
+                                                ...row,
+                                                materialName: vm.materialName,
+                                                itemCode: vm.itemCode || '',
+                                                materialType: vm.materialType,
+                                                unit: vm.defaultUnit
+                                              }
+                                            : row
+                                        )
+                                      );
+                                      if (formError) setFormError(null);
+                                    }}
+                                    options={matchedFinalisedVendor.materials.map(vm => ({
+                                      value: vm.materialName,
+                                      label: `${vm.materialName}${vm.itemCode ? ` [${vm.itemCode}]` : ''} • ${vm.defaultUnit}`
+                                    }))}
+                                    placeholder="Choose Approved Material..."
+                                    className="h-11 rounded-[16px] bg-white border border-[#f4e5be] text-xs font-bold text-[#17191c]"
+                                  />
+                                </div>
+                              )}
+
                               {/* 5 Dedicated Form Fields in Order: Classification -> Batch No -> Description -> Quantity -> Unit */}
                               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 sm:gap-5">
                                 {/* 1. Classification / Type */}
@@ -2335,23 +2972,29 @@ export const GatePassView: React.FC = () => {
                                   <label className="block text-[11px] font-bold text-[#777b86] uppercase font-mono">
                                     Classification / Type <span className="text-rose-500">*</span>
                                   </label>
-                                  <CenteredSelectModal
-                                    title="Select Chemical Classification"
-                                    value={item.materialType || 'paint'}
-                                    onChange={val => {
-                                      const newType = val as StockMaterialType;
-                                      handleItemChange(item.id, 'materialType', newType);
-                                      if (['paint', 'thinner', 'hardener', 'primer', 'clear_coat', 'activator'].includes(newType) && item.unit === 'Pcs') {
-                                        handleItemChange(item.id, 'unit', 'Litres');
-                                      }
-                                    }}
-                                    options={MATERIAL_TYPE_OPTIONS.filter(o => o.value !== 'substrate').map(opt => ({
-                                      value: opt.value,
-                                      label: opt.label
-                                    }))}
-                                    placeholder="Select Classification"
-                                    className="h-11 rounded-[16px] bg-white border border-[#dcdfe4] text-xs font-semibold text-[#17191c]"
-                                  />
+                                  {matchedFinalisedVendor ? (
+                                    <div className="w-full h-11 px-4 rounded-[16px] border border-[#ececec] bg-[#fafafb] text-xs font-semibold text-[#17191c] flex items-center">
+                                      {MATERIAL_TYPE_OPTIONS.find(o => o.value === (item.materialType || 'paint'))?.label || item.materialType}
+                                    </div>
+                                  ) : (
+                                    <CenteredSelectModal
+                                      title="Select Chemical Classification"
+                                      value={item.materialType || 'paint'}
+                                      onChange={val => {
+                                        const newType = val as StockMaterialType;
+                                        handleItemChange(item.id, 'materialType', newType);
+                                        if (['paint', 'thinner', 'hardener', 'primer', 'clear_coat', 'activator'].includes(newType) && item.unit === 'Pcs') {
+                                          handleItemChange(item.id, 'unit', 'Litres');
+                                        }
+                                      }}
+                                      options={MATERIAL_TYPE_OPTIONS.filter(o => o.value !== 'substrate').map(opt => ({
+                                        value: opt.value,
+                                        label: opt.label
+                                      }))}
+                                      placeholder="Select Classification"
+                                      className="h-11 rounded-[16px] bg-white border border-[#dcdfe4] text-xs font-semibold text-[#17191c]"
+                                    />
+                                  )}
                                 </div>
 
                                 {/* 2. Supplier Batch No (Moved directly after Classification) */}
@@ -2377,21 +3020,18 @@ export const GatePassView: React.FC = () => {
                                   <input
                                     type="text"
                                     required
+                                    readOnly={Boolean(matchedFinalisedVendor)}
                                     value={item.materialName}
                                     onChange={e => {
                                       handleItemChange(item.id, 'materialName', e.target.value);
                                       if (formError) setFormError(null);
                                     }}
-                                    placeholder={
-                                      item.materialType === 'paint' 
-                                        ? 'e.g. PPG Rosso Corsa 932 Basecoat' 
-                                        : item.materialType === 'thinner' 
-                                        ? 'e.g. PU Thinner Medium 400' 
-                                        : item.materialType === 'hardener' 
-                                        ? 'e.g. 2K Fast Hardener' 
-                                        : 'e.g. Chemical / Consumable Name'
-                                    }
-                                    className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-white text-xs font-semibold text-[#17191c] placeholder:text-gray-400 focus:outline-none focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 transition shadow-2xs"
+                                    placeholder="Select from Vendor Catalog above..."
+                                    className={`w-full h-11 px-4 rounded-[16px] border text-xs font-semibold text-[#17191c] placeholder:text-gray-400 focus:outline-none transition shadow-2xs ${
+                                      matchedFinalisedVendor
+                                        ? 'border-[#ececec] bg-[#fafafb] cursor-not-allowed'
+                                        : 'border-[#dcdfe4] bg-white focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15'
+                                    }`}
                                   />
                                 </div>
 
@@ -2848,6 +3488,225 @@ export const GatePassView: React.FC = () => {
           }
         }}
       />
+
+      {/* FINALISED VENDOR & APPROVED MATERIAL CATALOG MODAL */}
+      {showVendorModal && (
+        <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div className="bg-white rounded-[24px] max-w-3xl w-full p-5 sm:p-7 shadow-2xl border border-[#ececec] space-y-5 max-h-[92vh] overflow-y-auto no-scrollbar animate-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#ececec]">
+              <div>
+                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold uppercase">
+                  Finalised Company Vendor Catalog
+                </span>
+                <h3 className="font-serif font-normal text-xl text-[#17191c] mt-1">
+                  {editingVendorId ? 'Edit Finalised Vendor & Materials' : 'Register Finalised Vendor & Materials'}
+                </h3>
+                <p className="text-xs text-[#777b86]">
+                  Exact vendor names and approved paint/chemical items saved here appear as dropdown selections during Internal Company Inward.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowVendorModal(false)}
+                className="w-8 h-8 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] flex items-center justify-center cursor-pointer shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {vendorFormError && (
+              <div className="p-3 rounded-[14px] bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{vendorFormError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveVendorCatalog} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-[11px] font-bold text-[#17191c] font-mono uppercase">
+                    Vendor Company Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={vendorFormName}
+                    onChange={e => setVendorFormName(e.target.value)}
+                    placeholder="e.g. Asian Paints PPG Pvt Ltd"
+                    className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] focus:bg-white text-xs font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-[#777b86] font-mono uppercase">
+                    Contact Person (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={vendorFormContact}
+                    onChange={e => setVendorFormContact(e.target.value)}
+                    placeholder="e.g. Rajesh Verma"
+                    className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] focus:bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-[#777b86] font-mono uppercase">Phone</label>
+                    <input
+                      type="text"
+                      value={vendorFormPhone}
+                      onChange={e => setVendorFormPhone(e.target.value)}
+                      placeholder="98XXXXXXXX"
+                      className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] focus:bg-white text-xs font-mono text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-[#777b86] font-mono uppercase">GST No</label>
+                    <input
+                      type="text"
+                      value={vendorFormGst}
+                      onChange={e => setVendorFormGst(e.target.value)}
+                      placeholder="Optional"
+                      className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] focus:bg-white text-xs font-mono uppercase text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-[18px] bg-[#faf7ed]/70 border border-[#f4e5be] space-y-3">
+                <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#f4e5be]">
+                  <div>
+                    <span className="text-[11px] font-bold text-[#8a6521] font-mono uppercase">
+                      Approved Materials Purchased from This Vendor *
+                    </span>
+                    <p className="text-[10.5px] text-[#777b86]">
+                      Add exact names (e.g. Black 2K PU Basecoat, PU Thinner 400) so Gate Inward picks strictly from this list.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setVendorFormMaterials(prev => [
+                        ...prev,
+                        { id: `vm_${Date.now()}_${prev.length}`, materialName: '', itemCode: '', materialType: 'paint', defaultUnit: 'Litres' }
+                      ])
+                    }
+                    className="px-3 py-1.5 rounded-full bg-white hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold cursor-pointer inline-flex items-center gap-1 shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Add Material</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 p-1 max-h-64 overflow-y-auto no-scrollbar">
+                  {vendorFormMaterials.map((mat, idx) => (
+                    <div
+                      key={mat.id}
+                      className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-white p-2.5 rounded-[14px] border border-[#ececec]"
+                    >
+                      <div className="sm:col-span-3">
+                        <select
+                          value={mat.materialType}
+                          onChange={e => {
+                            const nextType = e.target.value as StockMaterialType;
+                            setVendorFormMaterials(prev =>
+                              prev.map((r, i) => (i === idx ? { ...r, materialType: nextType } : r))
+                            );
+                          }}
+                          className="w-full h-9 px-2 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] text-[11px] font-semibold text-[#17191c]"
+                        >
+                          {MATERIAL_TYPE_OPTIONS.filter(o => o.value !== 'substrate').map(opt => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="sm:col-span-4">
+                        <input
+                          type="text"
+                          required
+                          value={mat.materialName}
+                          onChange={e =>
+                            setVendorFormMaterials(prev =>
+                              prev.map((r, i) => (i === idx ? { ...r, materialName: e.target.value } : r))
+                            )
+                          }
+                          placeholder="Exact Material Name *"
+                          className="w-full h-9 px-2.5 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] text-xs font-semibold text-[#17191c]"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <input
+                          type="text"
+                          value={mat.itemCode || ''}
+                          onChange={e =>
+                            setVendorFormMaterials(prev =>
+                              prev.map((r, i) => (i === idx ? { ...r, itemCode: e.target.value } : r))
+                            )
+                          }
+                          placeholder="Code"
+                          className="w-full h-9 px-2 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] font-mono text-[11px] text-[#17191c]"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <select
+                          value={mat.defaultUnit}
+                          onChange={e =>
+                            setVendorFormMaterials(prev =>
+                              prev.map((r, i) =>
+                                i === idx
+                                  ? { ...r, defaultUnit: e.target.value as FinalisedVendorMaterial['defaultUnit'] }
+                                  : r
+                              )
+                            )
+                          }
+                          className="w-full h-9 px-2 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] font-mono text-xs text-[#17191c]"
+                        >
+                          <option value="Litres">Litres</option>
+                          <option value="Kg">Kg</option>
+                          <option value="Drums">Drums</option>
+                          <option value="Boxes">Boxes</option>
+                          <option value="Pcs">Pcs</option>
+                          <option value="Packets">Packets</option>
+                        </select>
+                      </div>
+                      <div className="sm:col-span-1 flex justify-end">
+                        {vendorFormMaterials.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setVendorFormMaterials(prev => prev.filter((_, i) => i !== idx))}
+                            className="w-8 h-8 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center cursor-pointer"
+                            title="Remove Row"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#ececec]">
+                <button
+                  type="button"
+                  onClick={() => setShowVendorModal(false)}
+                  className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{editingVendorId ? 'Update Vendor Catalog' : 'Save Finalised Vendor'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

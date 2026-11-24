@@ -1909,3 +1909,41 @@ export function getNextJobCardNo(
   const highestSeq = Math.max(maxFromCards, maxFromExtras, storedCounter, minCounter);
   return `JC-${year}-${String(highestSeq + 1).padStart(3, '0')}`;
 }
+
+// ============================================================================
+// FINALISED VENDOR CATALOG & AUTO-LEARNED PARTY DIRECTORY (INWARD GUARDRAIL)
+// ============================================================================
+
+export interface FinalisedVendorMaterial {
+  id: string;
+  materialName: string;
+  itemCode?: string;
+  materialType: StockMaterialType;
+  defaultUnit: 'Litres' | 'Kg' | 'Drums' | 'Boxes' | 'Pcs' | 'Packets';
+}
+
+export interface FinalisedVendor {
+  id: string;
+  vendorName: string;
+  contactPerson?: string;
+  phone?: string;
+  gstNo?: string;
+  plant?: PlantLocation | 'ALL';
+  materials: FinalisedVendorMaterial[];
+  updatedAt: string;
+}
+
+export interface LearnedPartyMaterial {
+  materialName: string;
+  itemCode?: string;
+  defaultUnit: 'Pcs' | 'Boxes' | 'Drums' | 'Litres' | 'Kg' | 'Rolls' | 'Packets';
+  lastInwardDate?: string;
+}
+
+export interface LearnedPartyDirectoryEntry {
+  id: string;
+  partyName: string;
+  plant?: PlantLocation;
+  materials: LearnedPartyMaterial[];
+  lastInwardDate?: string;
+}

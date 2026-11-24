@@ -232,7 +232,8 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
       subItems: [
         { label: 'Inward Gate Pass (RGP / NRGP)', subTab: 'INWARD' },
         { label: 'Outward Gate Pass (OGP)', subTab: 'OUTWARD' },
-        { label: 'Vehicle & Transporter Log', subTab: 'GATE_PASS' }
+        { label: 'Vehicle & Transporter Log', subTab: 'GATE_PASS' },
+        { label: 'Vendors & Party Directory', subTab: 'MASTER_DIRECTORY' }
       ]
     },
     {

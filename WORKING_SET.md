@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-24: Built Finalised Vendor Catalog & Auto-Learned Party/Material Suggestion System (`GatePassView.tsx`, `PortalStoreContext.tsx`)
+  - Files touched:
+    - `src/portal/types/portalTypes.ts`: Added `FinalisedVendor`, `FinalisedVendorMaterial`, `LearnedPartyDirectoryEntry`, `LearnedPartyMaterial`.
+    - `src/portal/context/PortalStoreContext.tsx`: Added persistent + Supabase-synced `finalisedVendors` (`pk_finalised_vendors`) with CRUD (`addFinalisedVendor`, `updateFinalisedVendor`, `deleteFinalisedVendor`), plus auto-learning `learnedParties` (`pk_learned_parties`) seeded from historical Party Inwards and auto-updated in `addMaterialInwardRecord`.
+    - `src/portal/views/GatePassView.tsx` & `src/portal/components/PortalSidebar.tsx`: Added `Vendors & Parties` (`MASTER_DIRECTORY`) management tab & modal, reusable `SmartSuggestInput` autocomplete for 1–2 letter Party/Vendor/Material lookup, and strict Finalised Vendor + Approved Material Catalog dropdown lock for `Internal Company` Inwards.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-24: Auto-Deduplicated Existing Duplicate GRNs & Phantom StockBatches (`PortalStoreContext.tsx`)
   - Files touched:
     - `src/portal/context/PortalStoreContext.tsx`: Added `deduplicateGrnsByInward` (prioritizing GRNs linked to `jobCards`/`plantHeadPriorities` so e.g. `PK-GRN-2026-3905` stays while `PK-GRN-2026-2577` & `2697` are purged) and applied it across `localStorage` init, runtime `useEffect`, and `hydrateCloudState()` along with cleaning phantom `stockBatches`.
