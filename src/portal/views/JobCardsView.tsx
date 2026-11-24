@@ -4452,7 +4452,7 @@ export const JobCardsView: React.FC = () => {
           painters={filteredPainters}
           booths={filteredBooths}
           onAssign={(assignmentData) => {
-            const res = createPainterAssignment(assignmentData);
+            const res = createPainterAssignment(assignmentData, selectedMasterForAssign);
             if (res?.success) {
               setToastMessage(`✓ Daily Party & Company materials assigned to ${assignmentData.painterName} — Floor Demand (${res.assignment?.storeDemandMrnNo || 'MRN'}) sent to Store!`);
               setTimeout(() => setToastMessage(null), 4000);

@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-24: Fixed Missing Store Demand MRN on Add-On Consumables & Stale Job Card Closure
+  - Files touched:
+    - `src/portal/context/PortalStoreContext.tsx`: Updated `requestAssignmentChemicals` to always raise a dedicated Add-On Store Floor Demand MRN (`Pending Store Issue`) via `getNextUniqueMrnNo` instead of merging silently into `existingPendingMrn` or dropping assignments in `dispatchedAsgIds`; excluded Add-On MRNs from `upsertPendingFloorDemand` overwrite; switched `parentJob` lookup in `createPainterAssignment`, `requestAssignmentChemicals`, and `addTargetToPainterAssignment` to `latestJobCardsRef.current`.
+    - `src/portal/components/JobCardModal.tsx` & `src/portal/views/JobCardsView.tsx`: Passed `currentJcForModals` / `selectedMasterForAssign` overrides into `createPainterAssignment` & `requestAssignmentChemicals`, and added explicit toast errors for invalid chemical add-on inputs.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-24: Enforced Strict End-to-End Inward -> IQC -> Store GRN -> Priority -> Master Job Card Gatekeepers
   - Files touched:
     - `src/portal/views/DashboardView.tsx`: Removed `+ Inward Intake (GRN)` / `QuickInwardModal` bypass from Executive Cockpit; restricted `storeStockItems` strictly to IQC-cleared (`Accepted` / `Passed` / `Part Accepted`) Party Material GRNs (excluding Company Consumables).

@@ -4634,23 +4634,34 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                             <button
                               type="button"
                               onClick={() => {
-                                if (!chemName.trim() || chemQty <= 0) return;
-                                const res = requestAssignmentChemicals(activeTab2Assignment.id, [
-                                  {
-                                    materialName: chemName.trim(),
-                                    materialType: chemType,
-                                    batchNumber: chemBatch.trim() || undefined,
-                                    qty: chemQty,
-                                    uom: chemUom,
-                                    colour: activeTab2Assignment.colorShade || undefined
-                                  }
-                                ]);
+                                if (!chemName.trim() || chemQty <= 0) {
+                                  setToastMessage('⚠️ Material Name aur Qty (> 0) dono bharna zaroori hai.');
+                                  setTimeout(() => setToastMessage(null), 4000);
+                                  return;
+                                }
+                                const res = requestAssignmentChemicals(
+                                  activeTab2Assignment.id,
+                                  [
+                                    {
+                                      materialName: chemName.trim(),
+                                      materialType: chemType,
+                                      batchNumber: chemBatch.trim() || undefined,
+                                      qty: chemQty,
+                                      uom: chemUom,
+                                      colour: activeTab2Assignment.colorShade || undefined
+                                    }
+                                  ],
+                                  currentJcForModals
+                                );
+                                if (!res.success) {
+                                  setToastMessage(`⚠️ ${res.error || 'Store Demand create nahi ho saki.'}`);
+                                  setTimeout(() => setToastMessage(null), 4500);
+                                  return;
+                                }
                                 setShowIssueChemDrawer(false);
                                 setChemBatch('');
-                                if (res.success) {
-                                  setToastMessage(`✓ Floor Demand (${res.mrnNo}) sent to Store for ${chemName.trim()}!`);
-                                  setTimeout(() => setToastMessage(null), 4000);
-                                }
+                                setToastMessage(`✓ Floor Demand (${res.mrnNo}) sent to Store for ${chemName.trim()}!`);
+                                setTimeout(() => setToastMessage(null), 4000);
                               }}
                               className="px-4 py-1.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
                             >
@@ -5747,7 +5758,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
           painters={painters.filter(p => matchesPlant(p.plant, activePlant))}
           booths={paintingBooths.filter(b => matchesPlant(b.plant, activePlant))}
           onAssign={(assignmentData) => {
-            const res = createPainterAssignment(assignmentData);
+            const res = createPainterAssignment(assignmentData, currentJcForModals);
             if (res?.success) {
               setToastMessage(`✓ Daily Party & Company materials assigned to ${assignmentData.painterName} — Floor Demand (${res.assignment?.storeDemandMrnNo || 'MRN'}) sent to Store!`);
               setTimeout(() => setToastMessage(null), 4000);
