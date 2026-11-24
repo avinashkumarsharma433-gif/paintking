@@ -59,7 +59,10 @@ import {
   PainterAssignment,
   AssignmentMaterialLog,
   AssignmentStatus,
-  MasterJobCard
+  MasterJobCard,
+  resolveJobCardInwardParts,
+  computeAssignmentBalance,
+  isLegacyDemoJobCard
 } from '../types/portalTypes';
 import {
   applyIssueToBatches,
@@ -490,17 +493,12 @@ function ensureCleanStorageVersion(): void {
       }
       localStorage.setItem('pk_storage_version', PK_STORAGE_VERSION);
     }
-    // Targeted scrubber for any lingering demo job card cache
+    // Targeted scrubber for any lingering demo job card cache (never deletes real JC-2026-001 cards)
     const rawJc = localStorage.getItem('pk_jobcards_data');
-    if (rawJc && (rawJc.includes('ROOP POLYMERS') || rawJc.includes('JC-2026-001') || rawJc.includes('WO-1042'))) {
+    if (rawJc && (rawJc.includes('ROOP POLYMERS') || rawJc.includes('Demo Party') || rawJc.includes('WO-1042'))) {
       const parsed = JSON.parse(rawJc);
       if (Array.isArray(parsed)) {
-        const cleaned = parsed.filter((j: any) => 
-          j.jobCardNo !== 'JC-2026-001' &&
-          j.customer !== 'ROOP POLYMERS LTD' &&
-          j.customer !== 'Demo Party' &&
-          j.woNo !== 'WO-1042' && j.wNo !== 'WO-1042'
-        );
+        const cleaned = parsed.filter((j: any) => !isLegacyDemoJobCard(j));
         localStorage.setItem('pk_jobcards_data', JSON.stringify(cleaned));
       }
     }
@@ -520,6 +518,25 @@ export function clearLocalPortalCache(): void {
   } catch {
     // ignore storage errors
   }
+}
+
+function filterValidAssignments(assignments: PainterAssignment[], cards: JobCard[]): PainterAssignment[] {
+  const cardByNo = new Map(cards.map(c => [c.jobCardNo, c]));
+  return assignments.filter(a => {
+    const jcNo = a.masterJobCardNo || a.masterJobCardId || '';
+    const parent = cardByNo.get(jcNo);
+    if (!parent) return false;
+    if (
+      parent.issueDate &&
+      a.assignmentDate &&
+      /^\d{4}-\d{2}-\d{2}$/.test(parent.issueDate) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(a.assignmentDate) &&
+      a.assignmentDate < parent.issueDate
+    ) {
+      return false;
+    }
+    return true;
+  });
 }
 
 const PortalContext = createContext<PortalContextType | undefined>(undefined);
@@ -688,17 +705,22 @@ export const PortalProvider: React.FC<{
           if (Array.isArray(remote.pk_grn_data)) setGrnList(remote.pk_grn_data as GoodsReceiptNote[]);
           if (Array.isArray(remote.pk_material_requisitions)) setMaterialRequisitions(remote.pk_material_requisitions as MaterialRequisitionNote[]);
           if (Array.isArray(remote.pk_iqc_data)) setIqcRecords(remote.pk_iqc_data as IQCInspectionRecord[]);
+          let hydratedCards = jobCards;
           if (Array.isArray(remote.pk_jobcards_data)) {
-            const sanitized = (remote.pk_jobcards_data as JobCard[]).filter(j => 
-              j.jobCardNo !== 'JC-2026-001' &&
-              j.customer !== 'ROOP POLYMERS LTD' &&
-              j.customer !== 'Demo Party' &&
-              j.woNo !== 'WO-1042' && j.wNo !== 'WO-1042'
-            );
-            setJobCards(sanitized);
+            hydratedCards = (remote.pk_jobcards_data as JobCard[]).filter(j => !isLegacyDemoJobCard(j));
+            setJobCards(hydratedCards);
           }
-          if (Array.isArray(remote.pk_painter_assignments)) setPainterAssignments(remote.pk_painter_assignments as PainterAssignment[]);
-          if (Array.isArray(remote.pk_assignment_material_logs)) setAssignmentMaterialLogs(remote.pk_assignment_material_logs as AssignmentMaterialLog[]);
+          if (Array.isArray(remote.pk_painter_assignments)) {
+            const cleanedAsgs = filterValidAssignments(remote.pk_painter_assignments as PainterAssignment[], hydratedCards);
+            setPainterAssignments(cleanedAsgs);
+          }
+          if (Array.isArray(remote.pk_assignment_material_logs)) {
+            const validJcSet = new Set(hydratedCards.map(c => c.jobCardNo));
+            const cleanedLogs = (remote.pk_assignment_material_logs as AssignmentMaterialLog[]).filter(
+              l => validJcSet.has(l.masterJobCardNo || l.masterJobCardId || '')
+            );
+            setAssignmentMaterialLogs(cleanedLogs);
+          }
           if (Array.isArray(remote.pk_painters)) setPainters((remote.pk_painters as PainterProfile[]).map(p => ({ ...p, plant: (p.plant as PlantLocation) || 'Haridwar' })));
           if (Array.isArray(remote.pk_painting_booths)) setPaintingBooths((remote.pk_painting_booths as PaintingBooth[]).map(b => ({ ...b, plant: (b.plant as PlantLocation) || 'Haridwar' })));
           if (Array.isArray(remote.pk_pir_data)) setPreProductionReports(remote.pk_pir_data as PreProductionInspectionRecord[]);
@@ -1213,18 +1235,14 @@ export const PortalProvider: React.FC<{
 
   const [jobCards, setJobCards] = useState<JobCard[]>(() => {
     const raw = mergeByUniqueKey(localStorage.getItem('pk_jobcards_data'), INITIAL_JOB_CARDS, 'jobCardNo');
-    return raw.filter(j => 
-      j.jobCardNo !== 'JC-2026-001' &&
-      j.customer !== 'ROOP POLYMERS LTD' &&
-      j.customer !== 'Demo Party' &&
-      j.woNo !== 'WO-1042' && j.wNo !== 'WO-1042'
-    );
+    return raw.filter(j => !isLegacyDemoJobCard(j));
   });
 
   const [painterAssignments, setPainterAssignments] = useState<PainterAssignment[]>(() => {
     try {
       const s = localStorage.getItem('pk_painter_assignments');
-      return s ? JSON.parse(s) : [];
+      const parsed: PainterAssignment[] = s ? JSON.parse(s) : [];
+      return filterValidAssignments(Array.isArray(parsed) ? parsed : [], jobCards);
     } catch {
       return [];
     }
@@ -1233,7 +1251,11 @@ export const PortalProvider: React.FC<{
   const [assignmentMaterialLogs, setAssignmentMaterialLogs] = useState<AssignmentMaterialLog[]>(() => {
     try {
       const s = localStorage.getItem('pk_assignment_material_logs');
-      return s ? JSON.parse(s) : [];
+      const parsed: AssignmentMaterialLog[] = s ? JSON.parse(s) : [];
+      const validJcSet = new Set(jobCards.map(c => c.jobCardNo));
+      return Array.isArray(parsed)
+        ? parsed.filter(l => validJcSet.has(l.masterJobCardNo || l.masterJobCardId || ''))
+        : [];
     } catch {
       return [];
     }
@@ -1889,6 +1911,12 @@ export const PortalProvider: React.FC<{
     };
 
     setJobCards(prev => [formattedJc, ...prev]);
+    setPainterAssignments(prev =>
+      prev.filter(a => a.masterJobCardNo !== formattedJc.jobCardNo && a.masterJobCardId !== formattedJc.jobCardNo)
+    );
+    setAssignmentMaterialLogs(prev =>
+      prev.filter(l => l.masterJobCardNo !== formattedJc.jobCardNo && l.masterJobCardId !== formattedJc.jobCardNo)
+    );
 
     // Auto-link Plant Head priority status
     setPlantHeadPriorities(prev => prev.map(p => {
@@ -1948,11 +1976,17 @@ export const PortalProvider: React.FC<{
       });
     }
 
+    const maxMrnSeq = materialRequisitions.reduce((max, r) => {
+      const m = (r.mrnNo || '').match(/MRN-\d{4}-(\d+)/i);
+      const n = m ? parseInt(m[1], 10) : 0;
+      return !isNaN(n) && n > max ? n : max;
+    }, 0);
+
     const autoMrn: MaterialRequisitionNote = {
-      mrnNo: `MRN-2026-${String(materialRequisitions.length + 1).padStart(3, '0')}`,
+      mrnNo: `MRN-${new Date().getFullYear()}-${String(maxMrnSeq + 1).padStart(3, '0')}`,
       date: formattedJc.issueDate || new Date().toISOString().split('T')[0],
       time: formattedJc.issueTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      plant: activePlant,
+      plant: formattedJc.plant,
       jobCardNo: formattedJc.jobCardNo,
       woNo: formattedJc.woNo || 'WO-AUTO',
       customer: formattedJc.customer,
@@ -1982,6 +2016,12 @@ export const PortalProvider: React.FC<{
       syncState('pk_jobcards_data', next);
       return next;
     });
+    setPainterAssignments(prev =>
+      prev.filter(a => a.masterJobCardNo !== jobCardNo && a.masterJobCardId !== jobCardNo)
+    );
+    setAssignmentMaterialLogs(prev =>
+      prev.filter(l => l.masterJobCardNo !== jobCardNo && l.masterJobCardId !== jobCardNo)
+    );
   };
 
   const addJobCardProgressLog = (jobCardNo: string, log: Omit<JobCardProductionProgressLog, 'id' | 'timestamp'>) => {
@@ -2623,30 +2663,37 @@ export const PortalProvider: React.FC<{
       return { success: false, error: `Master Job Card ${assignmentData.masterJobCardNo} not found.` };
     }
 
-    // Calculate committed & completed pieces without double-counting active targets and finished OK
-    const currentCompletedOk = parentJob.goodQty || 0;
-    const jobAssignments = painterAssignments.filter(
-      a => a.masterJobCardNo === assignmentData.masterJobCardNo || a.masterJobCardId === assignmentData.masterJobCardNo
+    // Calculate committed & completed pieces (per-part when multiple inward parts exist, plus overall master balance)
+    const inwardParts = resolveJobCardInwardParts(parentJob, grnList);
+    const {
+      balancePending,
+      isPartScoped,
+      selectedPart
+    } = computeAssignmentBalance(
+      parentJob,
+      painterAssignments,
+      inwardParts,
+      assignmentData.partCode || assignmentData.partDescription
     );
-    const assignmentCommittedSum = jobAssignments.reduce((sum, a) => {
-      if (a.status === 'Active') {
-        return sum + Math.max(a.dailyTargetQty || 0, a.actualCompletedQty || 0);
-      }
-      return sum + (a.actualCompletedQty || 0) + (a.scrapQty || 0);
-    }, 0);
-    const balancePending = Math.max(0, parentJob.targetQty - Math.max(currentCompletedOk, assignmentCommittedSum));
     const availableToAssign = balancePending;
 
     if (assignmentData.dailyTargetQty > availableToAssign) {
       return {
         success: false,
-        error: `Daily Target Qty (${assignmentData.dailyTargetQty} pcs) exceeds remaining unallocated balance (${availableToAssign} pcs). Master Pending: ${balancePending} pcs.`
+        error: isPartScoped && selectedPart
+          ? `Daily Target Qty (${assignmentData.dailyTargetQty} pcs) exceeds remaining balance (${availableToAssign} pcs) for ${selectedPart.partDescription} (${selectedPart.partCode}).`
+          : `Daily Target Qty (${assignmentData.dailyTargetQty} pcs) exceeds remaining unallocated balance (${availableToAssign} pcs). Master Pending: ${balancePending} pcs.`
       };
     }
+
+    const resolvedPartCode = assignmentData.partCode || selectedPart?.partCode || parentJob.partCode;
+    const resolvedPartDescription = assignmentData.partDescription || selectedPart?.partDescription || parentJob.partDescription;
 
     const nextId = `ASG-${new Date().getFullYear()}-${String(painterAssignments.length + 1).padStart(4, '0')}`;
     const newAssignment: PainterAssignment = {
       ...assignmentData,
+      partCode: resolvedPartCode,
+      partDescription: resolvedPartDescription,
       id: nextId,
       assignmentId: nextId,
       masterJobCardNo: assignmentData.masterJobCardNo,

@@ -681,6 +681,8 @@ export interface PainterAssignment {
   painterName: string;
   boothNumber: string;                 // e.g. "Booth #1 (Continuous Conveyor Line)"
   processStage: AssignmentProcessStage;
+  partCode?: string;                   // Specific inward part code assigned to this painter's shift
+  partDescription?: string;            // Specific inward material/part name assigned to this painter's shift
   colorShade?: string;                 // Specific colour/shade assigned to this painter's shift
   dailyTargetQty: number;              // Cannot exceed MasterJobCard.balancePendingQty
   actualCompletedQty: number;          // Entered at shift close
@@ -722,10 +724,17 @@ export interface MasterJobCard {
   assignments?: PainterAssignment[];
 }
 
+export interface JobCardOrderLineItem {
+  partCode: string;
+  partDescription: string;
+  targetQty: number;
+}
+
 export interface JobCard {
   jobCardNature?: JobCardNature;
   samplingRecipe?: SamplingRecipeSheet;
   samplingApproval?: SamplingPartyApproval;
+  orderLineItems?: JobCardOrderLineItem[]; // All inward material/part types under this Master Job Card
   progressLogs?: JobCardProductionProgressLog[];
   dailyProductionHistory?: JobCardDailyTargetRecord[];
   dailyTargetQty?: number; // Active shift daily target (e.g. 2,000 Pcs)
@@ -1707,4 +1716,146 @@ export interface PlantHeadPriorityAssignment {
   status: 'Priority Assigned' | 'Job Card Launched' | 'Completed';
   linkedJobCardNo?: string;
   plant: PlantLocation;
+}
+
+/**
+ * Resolves all inward substrate/material line items for a Master Job Card:
+ * 1) Explicit `orderLineItems` saved on the Job Card
+ * 2) Linked GRN `items[]` from `grnList` (matching `sourceGrnNo` or `invoiceChallanNo`)
+ * 3) Legacy single-part fallback (`partCode`, `partDescription`, `targetQty`)
+ */
+export function resolveJobCardInwardParts(
+  jc?: Partial<JobCard> | null,
+  grnList?: GoodsReceiptNote[]
+): JobCardOrderLineItem[] {
+  if (jc?.orderLineItems && jc.orderLineItems.length > 0) {
+    return jc.orderLineItems
+      .filter(it => (it.partCode && it.partCode.trim()) || (it.partDescription && it.partDescription.trim()))
+      .map(it => ({
+        partCode: (it.partCode || 'PART').trim(),
+        partDescription: (it.partDescription || it.partCode || 'Substrate Material').trim(),
+        targetQty: Number(it.targetQty || 0)
+      }));
+  }
+
+  if (grnList && grnList.length > 0 && jc) {
+    const challan = (jc.woNo || jc.wNo || '').trim().toLowerCase();
+    const matchedGrn =
+      (jc.sourceGrnNo ? grnList.find(g => g.grnNo === jc.sourceGrnNo) : undefined) ||
+      (challan ? grnList.find(g => g.invoiceChallanNo && g.invoiceChallanNo.trim().toLowerCase() === challan) : undefined);
+
+    if (matchedGrn?.items && matchedGrn.items.length > 0) {
+      return matchedGrn.items
+        .filter(it => (it.partCode && it.partCode.trim()) || (it.partDescription && it.partDescription.trim()))
+        .map(it => ({
+          partCode: (it.partCode || 'PART').trim(),
+          partDescription: (it.partDescription || it.partCode || 'Substrate Material').trim(),
+          targetQty: Number(it.actualReceivedQty || it.invoicedQty || 0)
+        }));
+    }
+  }
+
+  if (jc?.partCode || jc?.partDescription) {
+    return [
+      {
+        partCode: (jc.partCode || 'PART-01').trim(),
+        partDescription: (jc.partDescription || jc.partCode || 'Substrate Component').trim(),
+        targetQty: Number(jc.targetQty || 0)
+      }
+    ];
+  }
+
+  return [];
+}
+
+export function computeAssignmentBalance(
+  masterJobCard: Partial<JobCard> | null | undefined,
+  existingAssignments: PainterAssignment[],
+  parts: JobCardOrderLineItem[],
+  selectedPartCode?: string
+): {
+  totalOrder: number;
+  completedOk: number;
+  balancePending: number;
+  masterBalancePending: number;
+  isPartScoped: boolean;
+  selectedPart?: JobCardOrderLineItem;
+} {
+  const jcNo = masterJobCard?.jobCardNo;
+  const masterAssignments = jcNo
+    ? existingAssignments.filter(a => a.masterJobCardNo === jcNo || a.masterJobCardId === jcNo)
+    : [];
+  const masterAssignedCompletedOk = masterAssignments.reduce((s, a) => s + (a.actualCompletedQty || 0), 0);
+  const masterCompleted = Math.max(masterJobCard?.goodQty || 0, masterAssignedCompletedOk);
+  const masterCommitted = masterAssignments.reduce((sum, a) => {
+    if (a.status === 'Active') {
+      return sum + Math.max(a.dailyTargetQty || 0, a.actualCompletedQty || 0);
+    }
+    return sum + (a.actualCompletedQty || 0) + (a.scrapQty || 0);
+  }, 0);
+  const masterBalancePending = Math.max(0, (masterJobCard?.targetQty || 0) - Math.max(masterCompleted, masterCommitted));
+
+  if (parts.length > 1 && selectedPartCode) {
+    const normalized = selectedPartCode.trim().toLowerCase();
+    const matchedPart =
+      parts.find(p => p.partCode.trim().toLowerCase() === normalized) ||
+      parts.find(p => p.partDescription.trim().toLowerCase() === normalized);
+
+    if (matchedPart && matchedPart.targetQty > 0) {
+      const partAssignments = masterAssignments.filter(a => {
+        const aCode = (a.partCode || '').trim().toLowerCase();
+        const aDesc = (a.partDescription || '').trim().toLowerCase();
+        return (
+          aCode === matchedPart.partCode.trim().toLowerCase() ||
+          aDesc === matchedPart.partDescription.trim().toLowerCase()
+        );
+      });
+      const partCompleted = partAssignments.reduce((s, a) => s + (a.actualCompletedQty || 0), 0);
+      const partCommitted = partAssignments.reduce((sum, a) => {
+        if (a.status === 'Active') {
+          return sum + Math.max(a.dailyTargetQty || 0, a.actualCompletedQty || 0);
+        }
+        return sum + (a.actualCompletedQty || 0) + (a.scrapQty || 0);
+      }, 0);
+      const partPending = Math.max(0, matchedPart.targetQty - Math.max(partCompleted, partCommitted));
+      return {
+        totalOrder: matchedPart.targetQty,
+        completedOk: partCompleted,
+        balancePending: Math.min(partPending, masterBalancePending),
+        masterBalancePending,
+        isPartScoped: true,
+        selectedPart: matchedPart
+      };
+    }
+  }
+
+  return {
+    totalOrder: masterJobCard?.targetQty || 0,
+    completedOk: masterCompleted,
+    balancePending: masterBalancePending,
+    masterBalancePending,
+    isPartScoped: false,
+    selectedPart: parts[0]
+  };
+}
+
+export function isLegacyDemoJobCard(j: Partial<JobCard> | null | undefined): boolean {
+  if (!j) return false;
+  return (
+    j.customer === 'ROOP POLYMERS LTD' ||
+    j.customer === 'Demo Party' ||
+    j.woNo === 'WO-1042' ||
+    j.wNo === 'WO-1042'
+  );
+}
+
+export function getNextJobCardNo(jobCards: Array<Partial<JobCard>>): string {
+  const year = new Date().getFullYear();
+  const maxSeq = jobCards.reduce((max, jc) => {
+    const match = (jc.jobCardNo || '').match(/JC-\d{4}-(\d+)/i);
+    if (!match) return max;
+    const n = parseInt(match[1], 10);
+    return !isNaN(n) && n > max ? n : max;
+  }, 0);
+  return `JC-${year}-${String(maxSeq + 1).padStart(3, '0')}`;
 }

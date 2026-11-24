@@ -1,11 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { X, Calendar, User, Clock, Layers, Target, AlertCircle, Plus } from 'lucide-react';
-import { JobCard, PainterProfile, PaintingBooth, AssignmentProcessStage, AssignmentShiftType, PainterAssignment } from '../types/portalTypes';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Calendar, User, Layers, Target, AlertCircle, Plus, PackageCheck } from 'lucide-react';
+import {
+  JobCard,
+  JobCardOrderLineItem,
+  PainterProfile,
+  PaintingBooth,
+  AssignmentProcessStage,
+  AssignmentShiftType,
+  PainterAssignment,
+  resolveJobCardInwardParts,
+  computeAssignmentBalance
+} from '../types/portalTypes';
 
 interface DailyAssignmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   masterJobCard: JobCard;
+  inwardParts?: JobCardOrderLineItem[];
   existingAssignments?: PainterAssignment[];
   availablePainters?: PainterProfile[];
   painters?: PainterProfile[];
@@ -19,6 +30,8 @@ interface DailyAssignmentModalProps {
     painterName: string;
     boothNumber: string;
     processStage: AssignmentProcessStage;
+    partCode?: string;
+    partDescription?: string;
     colorShade?: string;
     dailyTargetQty: number;
     remarks?: string;
@@ -29,6 +42,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
   isOpen,
   onClose,
   masterJobCard,
+  inwardParts,
   existingAssignments,
   availablePainters,
   painters,
@@ -39,25 +53,39 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
   const safePainters = availablePainters || painters || [];
   const safeBooths = availableBooths || booths || [];
 
-  const matchingAssignments = (existingAssignments || []).filter(
-    a => a.masterJobCardNo === masterJobCard?.jobCardNo || a.masterJobCardId === masterJobCard?.jobCardNo
-  );
-  const assignedCompletedOk = matchingAssignments.reduce((s, a) => s + (a.actualCompletedQty || 0), 0);
-  const currentCompleted = Math.max(masterJobCard?.goodQty || 0, assignedCompletedOk);
-  const assignmentCommitted = matchingAssignments.reduce((sum, a) => {
-    if (a.status === 'Active') {
-      return sum + Math.max(a.dailyTargetQty || 0, a.actualCompletedQty || 0);
-    }
-    return sum + (a.actualCompletedQty || 0) + (a.scrapQty || 0);
-  }, 0);
-  const totalCommitted = Math.max(currentCompleted, assignmentCommitted);
-  const balancePending = Math.max(0, (masterJobCard?.targetQty || 0) - totalCommitted);
+  const partsList = useMemo<JobCardOrderLineItem[]>(() => {
+    if (inwardParts && inwardParts.length > 0) return inwardParts;
+    return resolveJobCardInwardParts(masterJobCard);
+  }, [inwardParts, masterJobCard]);
 
-  const [date, setDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
-  const [shift, setShift] = useState<AssignmentShiftType>('General Day Shift (08:30 - 18:30)');
+  const [selectedPartCode, setSelectedPartCode] = useState<string>(() => partsList[0]?.partCode || '');
+
+  useEffect(() => {
+    if (isOpen && partsList.length > 0) {
+      const stillValid = partsList.some(p => p.partCode === selectedPartCode);
+      if (!stillValid) {
+        setSelectedPartCode(partsList[0].partCode);
+      }
+    }
+  }, [isOpen, partsList, selectedPartCode]);
+
+  const {
+    totalOrder,
+    completedOk: currentCompleted,
+    balancePending,
+    masterBalancePending,
+    isPartScoped,
+    selectedPart
+  } = useMemo(
+    () => computeAssignmentBalance(masterJobCard, existingAssignments || [], partsList, selectedPartCode),
+    [masterJobCard, existingAssignments, partsList, selectedPartCode]
+  );
+
+  const todayDateStr = new Date().toISOString().slice(0, 10);
+  const defaultShift: AssignmentShiftType = 'General Day Shift (08:30 - 18:30)';
+  const defaultProcessStage: AssignmentProcessStage = 'Full Coating System';
   const [selectedPainterId, setSelectedPainterId] = useState<string>(safePainters[0]?.id || '');
   const [selectedBoothName, setSelectedBoothName] = useState<string>(safeBooths[0]?.name || 'Booth #1');
-  const [processStage, setProcessStage] = useState<AssignmentProcessStage>('Basecoat');
   const [colorShade, setColorShade] = useState<string>(masterJobCard?.color && masterJobCard.color !== 'Multi-Colour / Painter-Wise' ? masterJobCard.color : '');
   const [targetQty, setTargetQty] = useState<number>(() => Math.min(balancePending, 2000));
   const [remarks, setRemarks] = useState<string>('');
@@ -86,7 +114,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
     }
 
     if (targetQty > balancePending) {
-      setErrorMsg(`Target Quantity (${targetQty} pcs) exceeds Master Job Card pending balance (${balancePending} pcs).`);
+      setErrorMsg(`Target Quantity (${targetQty} pcs) exceeds pending balance (${balancePending} pcs).`);
       return;
     }
 
@@ -100,14 +128,17 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
       return;
     }
 
+    const activePart = selectedPart || partsList[0];
     const res = onAssign({
       masterJobCardNo: masterJobCard.jobCardNo,
-      assignmentDate: date,
-      shift,
+      assignmentDate: todayDateStr,
+      shift: defaultShift,
       painterId: selectedPainter.id,
       painterName: selectedPainter.name,
       boothNumber: selectedBoothName,
-      processStage,
+      processStage: defaultProcessStage,
+      partCode: activePart?.partCode || masterJobCard.partCode,
+      partDescription: activePart?.partDescription || masterJobCard.partDescription,
       colorShade: colorShade.trim(),
       dailyTargetQty: Number(targetQty),
       remarks: remarks.trim() || undefined
@@ -136,7 +167,11 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
               Assign Daily Target to Painter
             </h3>
             <p className="text-xs text-[#777b86] mt-0.5">
-              Master Order: <strong className="text-[#17191c]">{masterJobCard.jobCardNo}</strong> • {masterJobCard.customer} ({masterJobCard.partDescription})
+              Master Order: <strong className="text-[#17191c]">{masterJobCard.jobCardNo}</strong> • {masterJobCard.customer} (
+              {partsList.length > 1
+                ? `${partsList.length} Material Types`
+                : (partsList[0]?.partDescription || masterJobCard.partDescription)}
+              )
             </p>
           </div>
 
@@ -150,19 +185,28 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
         </div>
 
         {/* Balance Status Card */}
-        <div className="grid grid-cols-3 gap-2.5 p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-center">
-          <div>
-            <span className="text-[10px] text-[#777b86] block uppercase font-mono">Total Order</span>
-            <strong className="text-sm font-bold text-[#17191c] font-mono">{masterJobCard.targetQty.toLocaleString()} Pcs</strong>
+        <div className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-1.5">
+          <div className="grid grid-cols-3 gap-2.5 text-center">
+            <div>
+              <span className="text-[10px] text-[#777b86] block uppercase font-mono">
+                {isPartScoped ? 'Part Order Qty' : 'Total Order'}
+              </span>
+              <strong className="text-sm font-bold text-[#17191c] font-mono">{totalOrder.toLocaleString()} Pcs</strong>
+            </div>
+            <div>
+              <span className="text-[10px] text-emerald-700 block uppercase font-mono">Completed OK</span>
+              <strong className="text-sm font-bold text-emerald-800 font-mono">{currentCompleted.toLocaleString()} Pcs</strong>
+            </div>
+            <div>
+              <span className="text-[10px] text-amber-700 block uppercase font-mono">Balance Pending</span>
+              <strong className="text-sm font-bold text-amber-900 font-mono">{balancePending.toLocaleString()} Pcs</strong>
+            </div>
           </div>
-          <div>
-            <span className="text-[10px] text-emerald-700 block uppercase font-mono">Completed OK</span>
-            <strong className="text-sm font-bold text-emerald-800 font-mono">{currentCompleted.toLocaleString()} Pcs</strong>
-          </div>
-          <div>
-            <span className="text-[10px] text-amber-700 block uppercase font-mono">Balance Pending</span>
-            <strong className="text-sm font-bold text-amber-900 font-mono">{balancePending.toLocaleString()} Pcs</strong>
-          </div>
+          {isPartScoped && (
+            <div className="text-[10px] text-[#777b86] font-mono text-center pt-1 border-t border-[#ececec]">
+              Selected Material: <strong className="text-[#17191c]">{selectedPart?.partDescription} ({selectedPart?.partCode})</strong> • Master Balance Remaining: <strong className="text-[#17191c]">{masterBalancePending.toLocaleString()} Pcs</strong>
+            </div>
+          )}
         </div>
 
         {errorMsg && (
@@ -173,46 +217,21 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Row 1: Date & Shift */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-[#17191c] flex items-center gap-1 font-mono">
-                <Calendar className="w-3.5 h-3.5 text-[#c09748]" />
-                <span>1. Assignment Date</span>
-              </label>
-              <input
-                type="date"
-                required
-                value={date}
-                onChange={e => setDate(e.target.value)}
-                className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-[#17191c] flex items-center gap-1 font-mono">
-                <Clock className="w-3.5 h-3.5 text-[#c09748]" />
-                <span>2. Shift Allocation</span>
-              </label>
-              <select
-                value={shift}
-                onChange={e => setShift(e.target.value as AssignmentShiftType)}
-                className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
-              >
-                <option value="General Day Shift (08:30 - 18:30)">General Day Shift (08:30 - 18:30)</option>
-                <option value="Day 12H">Day 12H (Extended Day)</option>
-                <option value="Night 12H">Night 12H (Night Shift)</option>
-                <option value="Rotational Shift">Rotational / Floating Replacement</option>
-              </select>
-            </div>
+          {/* Auto-Registered Today Date Pill */}
+          <div className="flex items-center justify-between px-3.5 py-2 rounded-[14px] bg-[#faf7ed] border border-[#f4e5be] text-[11px] font-mono">
+            <span className="flex items-center gap-1.5 font-bold text-[#8a6521]">
+              <Calendar className="w-3.5 h-3.5 text-[#c09748]" />
+              <span>Working Date: {todayDateStr} (Auto-Today)</span>
+            </span>
+            <span className="text-[#777b86]">Single Day Shift • All 3 Stages</span>
           </div>
 
-          {/* Row 2: Painter & Booth */}
+          {/* Row 1: Painter & Booth */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div className="space-y-1">
               <label className="text-[11px] font-bold text-[#17191c] flex items-center gap-1 font-mono">
                 <User className="w-3.5 h-3.5 text-[#c09748]" />
-                <span>3. Assigned Floor Painter</span>
+                <span>1. Assigned Floor Painter *</span>
               </label>
               <select
                 value={selectedPainterId}
@@ -230,7 +249,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
             <div className="space-y-1">
               <label className="text-[11px] font-bold text-[#17191c] flex items-center gap-1 font-mono">
                 <Layers className="w-3.5 h-3.5 text-[#c09748]" />
-                <span>4. Spray Booth / Conveyor Line</span>
+                <span>2. Spray Booth / Conveyor Line *</span>
               </label>
               <select
                 value={selectedBoothName}
@@ -249,29 +268,51 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
             </div>
           </div>
 
-          {/* Row 3: Process Stage & Daily Target Qty */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          {/* Row 2: Part / Material Selection */}
+          {partsList.length > 0 && (
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-[#17191c] flex items-center gap-1 font-mono">
-                <span>5. Coating Process Stage</span>
-              </label>
-              <select
-                value={processStage}
-                onChange={e => setProcessStage(e.target.value as AssignmentProcessStage)}
-                className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
-              >
-                <option value="Basecoat">Basecoat Application</option>
-                <option value="Primer">Primer / Pre-treatment</option>
-                <option value="Topcoat / Clear Coat">Topcoat / Clear 2K Lacquer</option>
-                <option value="Full Coating System">Full System (Primer + Base + Top)</option>
-              </select>
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-[#17191c] flex items-center gap-1 font-mono">
+                  <PackageCheck className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span>3. Part / Material Type ({partsList.length > 1 ? 'Select Inward Type *' : 'Inward Substrate'})</span>
+                </label>
+                {partsList.length > 1 && (
+                  <span className="text-[10px] font-mono text-[#8a6521] font-bold">
+                    {partsList.length} Types in Inward
+                  </span>
+                )}
+              </div>
+              {partsList.length > 1 ? (
+                <select
+                  value={selectedPartCode}
+                  onChange={e => setSelectedPartCode(e.target.value)}
+                  className="w-full h-10 px-3 rounded-[14px] border border-[#f4e5be] bg-[#faf7ed] hover:bg-white focus:bg-white text-xs font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
+                >
+                  {partsList.map(part => {
+                    const partBal = computeAssignmentBalance(masterJobCard, existingAssignments || [], partsList, part.partCode);
+                    return (
+                      <option key={part.partCode} value={part.partCode}>
+                        {part.partDescription} ({part.partCode}) — Order: {part.targetQty.toLocaleString('en-IN')} Pcs • Bal: {partBal.balancePending.toLocaleString('en-IN')} Pcs
+                      </option>
+                    );
+                  })}
+                </select>
+              ) : (
+                <div className="w-full min-h-10 px-3.5 py-2 rounded-[14px] border border-[#ececec] bg-[#fafafb] text-xs font-semibold text-[#17191c] flex items-center justify-between gap-2">
+                  <span>{partsList[0].partDescription}</span>
+                  <span className="font-mono text-[11px] text-[#777b86]">{partsList[0].partCode}</span>
+                </div>
+              )}
             </div>
+          )}
 
+          {/* Row 3: Daily Target Qty & Assigned Colour */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-bold text-[#17191c] flex items-center gap-1 font-mono">
                   <Target className="w-3.5 h-3.5 text-[#c09748]" />
-                  <span>6. Daily Target Qty (Pcs)</span>
+                  <span>4. Daily Target Qty (Pcs) *</span>
                 </label>
                 <span className="text-[10px] text-[#777b86] font-mono">Max: {balancePending} Pcs</span>
               </div>
@@ -293,13 +334,10 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                 className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
               />
             </div>
-          </div>
 
-          {/* Row 4: Colour / Shade & Remarks */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div className="space-y-1">
               <label className="text-[11px] font-bold text-[#17191c] font-mono">
-                7. Assigned Colour / Shade *
+                5. Assigned Colour / Shade *
               </label>
               <input
                 type="text"
@@ -310,19 +348,20 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                 className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
               />
             </div>
+          </div>
 
-            <div className="space-y-1">
-              <label className="text-[11px] font-bold text-[#17191c] font-mono">
-                8. Remarks / Floor Instructions (Optional)
-              </label>
-              <input
-                type="text"
-                value={remarks}
-                onChange={e => setRemarks(e.target.value)}
-                placeholder="e.g. Day 1 target, maintain 25 microns DFT"
-                className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
-              />
-            </div>
+          {/* Row 4: Remarks */}
+          <div className="space-y-1">
+            <label className="text-[11px] font-bold text-[#17191c] font-mono">
+              6. Remarks / Floor Instructions (Optional)
+            </label>
+            <input
+              type="text"
+              value={remarks}
+              onChange={e => setRemarks(e.target.value)}
+              placeholder="e.g. Day 1 target, maintain 25 microns DFT"
+              className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
+            />
           </div>
 
           {/* Action Buttons */}

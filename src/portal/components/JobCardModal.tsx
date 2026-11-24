@@ -12,7 +12,10 @@ import {
   FPARecord,
   IPQCRecord,
   PainterAssignment,
-  AssignmentProcessStage
+  AssignmentProcessStage,
+  JobCardOrderLineItem,
+  resolveJobCardInwardParts,
+  getNextJobCardNo
 } from '../types/portalTypes';
 import { 
   Plus, 
@@ -278,7 +281,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   // =========================================================================
   // POINT 1: Party & Work Order Details
   // =========================================================================
-  const [jobCardNo, setJobCardNo] = useState<string>(initialData?.jobCardNo || `JC-2026-${String(jobCards.length + 1).padStart(3, '0')}`);
+  const [jobCardNo, setJobCardNo] = useState<string>(initialData?.jobCardNo || getNextJobCardNo(jobCards));
   const [selectedGrnNo, setSelectedGrnNo] = useState<string>(initialData?.sourceGrnNo || (initialData as any)?.grnNo || '');
   const [customer, setCustomer] = useState<string>(initialData?.customer || '');
   const [wNo, setWNo] = useState<string>(initialData?.wNo || initialData?.woNo || '');
@@ -297,6 +300,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [partCode, setPartCode] = useState<string>(initialData?.partCode || '');
   const [partDescription, setPartDescription] = useState<string>(
     initialData?.partDescription || ''
+  );
+  const [orderLineItems, setOrderLineItems] = useState<JobCardOrderLineItem[]>(() =>
+    resolveJobCardInwardParts(initialData, grnList)
   );
   const [targetQty, setTargetQty] = useState<number>(initialData?.targetQty || 100);
   const [dailyTargetQty, setDailyTargetQty] = useState<number>(() => {
@@ -348,6 +354,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     painterName: string;
     boothNumber: string;
     processStage: AssignmentProcessStage;
+    partCode?: string;
+    partDescription?: string;
     colorShade?: string;
     dailyTargetQty: number;
   }>>(() => [
@@ -357,6 +365,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       painterName: initialData?.assignedPainterName || initialData?.painterName || painters[0]?.name || 'Ramesh Kumar (P1)',
       boothNumber: initialData?.dept || paintingBooths[0]?.name || 'Booth #1 (Continuous Conveyor Line)',
       processStage: 'Full Coating System',
+      partCode: orderLineItems[0]?.partCode || initialData?.partCode || '',
+      partDescription: orderLineItems[0]?.partDescription || initialData?.partDescription || '',
       colorShade: initialData?.color && initialData.color !== 'Multi-Colour / Painter-Wise' ? initialData.color : '',
       dailyTargetQty: initialData?.dailyTargetQty || (initialData?.targetQty ? Math.min(2000, initialData.targetQty) : 100)
     }
@@ -368,6 +378,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     const fallbackBooth = paintingBooths[nextIdx - 1] || paintingBooths[0] || { name: `Booth #${nextIdx}` };
     const totalAllocated = initialPainterAllocs.reduce((sum, a) => sum + (Number(a.dailyTargetQty) || 0), 0);
     const remaining = Math.max(0, targetQty - totalAllocated);
+    const defaultPart = orderLineItems[0] || (partCode || partDescription ? { partCode, partDescription } : undefined);
     setInitialPainterAllocs(prev => [
       ...prev,
       {
@@ -376,6 +387,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
         painterName: fallbackPainter.name,
         boothNumber: fallbackBooth.name,
         processStage: 'Full Coating System',
+        partCode: defaultPart?.partCode || '',
+        partDescription: defaultPart?.partDescription || '',
         colorShade: batchColor || '',
         dailyTargetQty: remaining > 0 ? Math.min(remaining, 1000) : 500
       }
@@ -593,9 +606,20 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       assignedPainterName: painterName,
       painterName,
       boothNo: dept.split('(')[0]?.trim() || 'Booth #1',
+      orderLineItems: orderLineItems.length > 0 ? orderLineItems : undefined,
       plant: activePlant
     } as unknown as JobCard);
-  }, [initialData, jobCards, jobCardNo, docNo, revNo, revDate, customer, wNo, selectedGrnNo, partDescription, partCode, processType, batchColor, targetQty, currentGoodQty, currentReworkQty, currentRejectQty, currentStep, issueDate, issueTime, painterName, dept, activePlant]);
+  }, [initialData, jobCards, jobCardNo, docNo, revNo, revDate, customer, wNo, selectedGrnNo, partDescription, partCode, orderLineItems, processType, batchColor, targetQty, currentGoodQty, currentReworkQty, currentRejectQty, currentStep, issueDate, issueTime, painterName, dept, activePlant]);
+
+  const resolvedInwardParts = useMemo<JobCardOrderLineItem[]>(() => {
+    const fromCard = resolveJobCardInwardParts(currentJcForModals, grnList);
+    if (!isExistingCard && orderLineItems.length > 0) {
+      return orderLineItems;
+    }
+    if (fromCard.length > 1) return fromCard;
+    if (orderLineItems.length > 1) return orderLineItems;
+    return fromCard;
+  }, [currentJcForModals, grnList, isExistingCard, orderLineItems]);
 
   // =========================================================================
   // DAILY PRODUCTION TRACKING & CONSUMABLES USAGE STATE
@@ -958,6 +982,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       if (initialData.customer) setCustomer(initialData.customer);
       if (initialData.partCode) setPartCode(initialData.partCode);
       if (initialData.partDescription) setPartDescription(initialData.partDescription);
+      setOrderLineItems(resolveJobCardInwardParts(initialData, grnList));
       if (initialData.targetQty) {
         setTargetQty(initialData.targetQty);
         setDailyTargetQty(initialData.dailyTargetQty || (initialData.targetQty > 1000 ? Math.min(2000, initialData.targetQty) : initialData.targetQty));
@@ -1852,6 +1877,20 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     const totalAllocatedShift = initialPainterAllocs.reduce((s, a) => s + (Number(a.dailyTargetQty) || 0), 0);
     const primaryPainter = initialPainterAllocs[0];
 
+    const cleanedOrderItems = orderLineItems
+      .filter(it => it.partCode.trim() || it.partDescription.trim())
+      .map(it => ({
+        partCode: it.partCode.trim() || partCode.trim() || 'PART',
+        partDescription: it.partDescription.trim() || it.partCode.trim() || partDescription.trim() || 'Substrate Material',
+        targetQty: Number(it.targetQty || 0)
+      }));
+    const resolvedOrderItems: JobCardOrderLineItem[] =
+      cleanedOrderItems.length > 0
+        ? cleanedOrderItems
+        : (partCode || partDescription
+            ? [{ partCode: partCode.trim() || 'PART', partDescription: partDescription.trim() || 'Substrate Material', targetQty }]
+            : []);
+
     const finalCard: JobCard = {
       ...(initialData || {}),
       docNo,
@@ -1862,8 +1901,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       wNo: wNo,
       sourceGrnNo: selectedGrn?.grnNo || selectedGrnNo,
       customer,
-      partCode,
-      partDescription,
+      partCode: resolvedOrderItems[0]?.partCode || partCode,
+      partDescription: resolvedOrderItems[0]?.partDescription || partDescription,
+      orderLineItems: resolvedOrderItems.length > 0 ? resolvedOrderItems : undefined,
       color: batchColor.trim() || 'Multi-Colour / Painter-Wise',
       targetQty,
       dailyTargetQty: totalAllocatedShift > 0 ? totalAllocatedShift : dailyTargetQty,
@@ -1919,6 +1959,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
             painterName: alloc.painterName,
             boothNumber: alloc.boothNumber,
             processStage: alloc.processStage,
+            partCode: alloc.partCode || resolvedOrderItems[0]?.partCode || finalCard.partCode,
+            partDescription: alloc.partDescription || resolvedOrderItems[0]?.partDescription || finalCard.partDescription,
             colorShade: alloc.colorShade?.trim() || batchColor.trim() || undefined,
             dailyTargetQty: alloc.dailyTargetQty,
             remarks: 'Shift allocation at Job Card launch'
@@ -3237,19 +3279,52 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               {/* Card 2: Component & Order Specifications */}
               <div className="bg-white p-5 rounded-[24px] border border-[#ececec] shadow-xs flex flex-col justify-between space-y-3">
                 <div>
-                  <span className="text-[10.5px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-[#c09748]" />
-                    <span>Component & Order Specifications</span>
-                  </span>
-                  <div className="mt-2.5">
-                    <div className="text-[11px] font-medium text-[#777b86]">Part Specification</div>
-                    <div className="text-sm font-bold text-[#17191c] font-mono truncate mt-0.5" title={partCode}>
-                      {partCode}
-                    </div>
-                    <div className="text-xs text-[#777b86] truncate mt-0.5" title={partDescription}>
-                      {partDescription || 'Automotive Component Substrate'}
-                    </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10.5px] font-bold text-[#c09748] uppercase tracking-wider font-mono flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-[#c09748]" />
+                      <span>Component & Order Specifications</span>
+                    </span>
+                    {resolvedInwardParts.length > 1 && (
+                      <span className="px-2 py-0.5 rounded-full text-[9.5px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                        {resolvedInwardParts.length} Types
+                      </span>
+                    )}
                   </div>
+                  {resolvedInwardParts.length > 1 ? (
+                    <div className="mt-2.5 space-y-1.5">
+                      <div className="text-[11px] font-medium text-[#777b86]">All Inward Material Types</div>
+                      <div className="space-y-1.5 max-h-[116px] overflow-y-auto pr-0.5">
+                        {resolvedInwardParts.map((item, idx) => (
+                          <div
+                            key={`${item.partCode}-${idx}`}
+                            className="px-2.5 py-1.5 rounded-[12px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between gap-2"
+                          >
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-[#17191c] truncate" title={item.partDescription}>
+                                {item.partDescription}
+                              </div>
+                              <div className="text-[10px] font-mono text-[#777b86] truncate">{item.partCode}</div>
+                            </div>
+                            {item.targetQty > 0 && (
+                              <span className="shrink-0 font-mono text-[10.5px] font-bold text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
+                                {item.targetQty.toLocaleString('en-IN')} Pcs
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2.5">
+                      <div className="text-[11px] font-medium text-[#777b86]">Part Specification</div>
+                      <div className="text-sm font-bold text-[#17191c] font-mono truncate mt-0.5" title={resolvedInwardParts[0]?.partCode || partCode}>
+                        {resolvedInwardParts[0]?.partCode || partCode}
+                      </div>
+                      <div className="text-xs text-[#777b86] truncate mt-0.5" title={resolvedInwardParts[0]?.partDescription || partDescription}>
+                        {resolvedInwardParts[0]?.partDescription || partDescription || 'Automotive Component Substrate'}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-2.5 border-t border-[#f2f2f3] space-y-2 text-xs">
@@ -3301,6 +3376,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                               <span>{asg.boothNumber || (asg as any).boothNo || 'Booth #1'}</span>
                               <span>•</span>
                               <span>{asg.processStage || 'Full System'}</span>
+                              {(asg.partDescription || asg.partCode) && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-[#17191c] font-semibold">{asg.partDescription || asg.partCode}</span>
+                                </>
+                              )}
                               {asg.colorShade && (
                                 <>
                                   <span>•</span>
@@ -3560,11 +3641,18 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                                 </td>
                                 <td className="py-3 px-4">
                                   <div className="font-semibold text-[#17191c]">{asg.painterName}</div>
-                                  {asg.colorShade && (
-                                    <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[9.5px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
-                                      {asg.colorShade}
-                                    </span>
-                                  )}
+                                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                    {(asg.partDescription || asg.partCode) && (
+                                      <span className="inline-block px-2 py-0.5 rounded-full text-[9.5px] font-mono font-semibold bg-[#f2f2f3] text-[#17191c] border border-[#dcdfe4]">
+                                        {asg.partDescription || asg.partCode}
+                                      </span>
+                                    )}
+                                    {asg.colorShade && (
+                                      <span className="inline-block px-2 py-0.5 rounded-full text-[9.5px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                                        {asg.colorShade}
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                                 <td className="py-3 px-4 font-mono text-[#777b86] whitespace-nowrap">
                                   {(asg.boothNumber || (asg as any).boothNo || '-').split('(')[0].trim()}
@@ -3714,6 +3802,46 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   />
                 </div>
               </div>
+
+              {/* Per-Part Breakdown when multiple inward types exist */}
+              {resolvedInwardParts.length > 1 && (
+                <div className="pt-2 border-t border-[#f2f2f3] space-y-2">
+                  <div className="text-[10.5px] font-mono uppercase tracking-wider font-bold text-[#777b86]">
+                    Inward Material-Wise Progress ({resolvedInwardParts.length} Types)
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {resolvedInwardParts.map((part, idx) => {
+                      const pMatches = currentJcAssignments.filter(a => {
+                        const aCode = (a.partCode || '').trim().toLowerCase();
+                        const aDesc = (a.partDescription || '').trim().toLowerCase();
+                        return aCode === part.partCode.trim().toLowerCase() || aDesc === part.partDescription.trim().toLowerCase();
+                      });
+                      const pStats = pMatches.reduce(
+                        (acc, a) => {
+                          const m = getAssignmentLiveMetrics(a);
+                          acc.good += m.completedGood;
+                          acc.scrap += m.scrap;
+                          return acc;
+                        },
+                        { good: 0, scrap: 0 }
+                      );
+                      const pRemaining = Math.max(0, part.targetQty - pStats.good - pStats.scrap);
+                      return (
+                        <div key={`${part.partCode}-${idx}`} className="p-2.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between gap-2 text-xs">
+                          <div className="min-w-0">
+                            <div className="font-bold text-[#17191c] truncate">{part.partDescription}</div>
+                            <div className="text-[10px] font-mono text-[#777b86]">{part.partCode} • Order: {part.targetQty.toLocaleString('en-IN')}</div>
+                          </div>
+                          <div className="text-right font-mono text-[10.5px] shrink-0">
+                            <div className="font-bold text-[#8a6521]">{pStats.good.toLocaleString('en-IN')} OK</div>
+                            <div className="text-[#777b86]">Bal: {pRemaining.toLocaleString('en-IN')}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
       ) : existingCardTab === 'QUALITY' ? (
@@ -3794,6 +3922,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                       <span className={`w-2 h-2 rounded-full ${isClosed ? 'bg-emerald-500' : 'bg-[#c09748]'}`} />
                       <span>{asg.painterName.split('(')[0].trim()}</span>
                       <span className="text-[10px] font-mono text-[#777b86]">• {asg.assignmentDate}</span>
+                      {(asg.partDescription || asg.partCode) && (
+                        <span className="px-2 py-0.2 rounded-full text-[10px] font-mono bg-[#f2f2f3] text-[#17191c] border border-[#dcdfe4]">
+                          {asg.partDescription || asg.partCode}
+                        </span>
+                      )}
                       {asg.colorShade && (
                         <span className="px-2 py-0.2 rounded-full text-[10px] font-mono bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be]">
                           {asg.colorShade}
@@ -3839,6 +3972,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                         }`}>
                           {activeTab2Assignment.status}
                         </span>
+                        {(activeTab2Assignment.partDescription || activeTab2Assignment.partCode) && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#f2f2f3] text-[#17191c] border border-[#dcdfe4] flex items-center gap-1">
+                            <Layers className="w-3 h-3 text-[#c09748]" />
+                            {activeTab2Assignment.partDescription || activeTab2Assignment.partCode}
+                          </span>
+                        )}
                         {activeTab2Assignment.colorShade && (
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be] flex items-center gap-1">
                             <Paintbrush className="w-3 h-3 text-[#c09748]" />
@@ -4565,6 +4704,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                             <span className="px-2 py-0.5 rounded-full bg-white border border-[#ececec] text-[#17191c] font-bold">
                               {asg.assignmentDate} ({asg.shift})
                             </span>
+                            {(asg.partDescription || asg.partCode) && (
+                              <span className="px-2 py-0.5 rounded-full bg-[#f2f2f3] text-[#17191c] border border-[#dcdfe4] font-semibold">
+                                {asg.partDescription || asg.partCode}
+                              </span>
+                            )}
                             {asg.colorShade && (
                               <span className="px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold">
                                 {asg.colorShade}
@@ -4819,11 +4963,35 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                               if (found) {
                                 if (found.supplierCustomer) setCustomer(found.supplierCustomer);
                                 if (found.invoiceChallanNo) setWNo(found.invoiceChallanNo);
-                                const pCode = found.items?.[0]?.partCode || found.partCode;
-                                if (pCode) setPartCode(pCode);
-                                const pDesc = found.items?.[0]?.partDescription || found.description;
-                                if (pDesc) setPartDescription(pDesc);
-                                const qty = Number(found.actualReceivedQty) || Number(found.totalQty) || 0;
+                                const mappedParts: JobCardOrderLineItem[] =
+                                  found.items && found.items.length > 0
+                                    ? found.items
+                                        .filter(it => (it.partCode && it.partCode.trim()) || (it.partDescription && it.partDescription.trim()))
+                                        .map(it => ({
+                                          partCode: (it.partCode || 'PART').trim(),
+                                          partDescription: (it.partDescription || it.partCode || 'Substrate Material').trim(),
+                                          targetQty: Number(it.actualReceivedQty || it.invoicedQty || 0)
+                                        }))
+                                    : (found.partCode || found.description
+                                        ? [{
+                                            partCode: (found.partCode || 'PART').trim(),
+                                            partDescription: (found.description || found.partCode || 'Substrate Material').trim(),
+                                            targetQty: Number(found.actualReceivedQty || found.totalQty || 0)
+                                          }]
+                                        : []);
+                                if (mappedParts.length > 0) {
+                                  setOrderLineItems(mappedParts);
+                                  setPartCode(mappedParts[0].partCode);
+                                  setPartDescription(mappedParts[0].partDescription);
+                                  setInitialPainterAllocs(prev =>
+                                    prev.map(a => ({
+                                      ...a,
+                                      partCode: a.partCode || mappedParts[0].partCode,
+                                      partDescription: a.partDescription || mappedParts[0].partDescription
+                                    }))
+                                  );
+                                }
+                                const qty = Number(found.actualReceivedQty) || Number(found.totalQty) || mappedParts.reduce((s, p) => s + p.targetQty, 0) || 0;
                                 if (qty > 0) {
                                   setTargetQty(qty);
                                   setDailyTargetQty(Math.min(2000, qty));
@@ -4981,35 +5149,139 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Left Column: Substrate Specifications & Total PO Target */}
                     <div className="space-y-4">
-                      {/* Substrate Part Inputs */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <label className="block text-[11px] font-bold text-[#17191c] uppercase font-mono">
-                            Part Code / Substrate Code *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={partCode}
-                            onChange={e => setPartCode(e.target.value)}
-                            className="w-full h-11 px-3.5 rounded-[14px] border border-[#dcdfe4] font-mono font-bold text-xs bg-white text-[#17191c] focus:outline-none focus:border-[#c09748]"
-                            placeholder="e.g. RP-8841 / SUB-01"
-                          />
+                      {/* Substrate Part Inputs (Single or Multi-Material Inward) */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-bold text-[#17191c] uppercase font-mono">
+                            {orderLineItems.length > 1
+                              ? `Inward Material Types (${orderLineItems.length} Items)`
+                              : 'Part / Substrate Specification'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentList = orderLineItems.length > 0
+                                ? orderLineItems
+                                : [{ partCode: partCode || 'PART-01', partDescription: partDescription || 'Material 1', targetQty }];
+                              setOrderLineItems([
+                                ...currentList,
+                                { partCode: `PART-0${currentList.length + 1}`, partDescription: '', targetQty: 0 }
+                              ]);
+                            }}
+                            className="px-2.5 py-1 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-[10.5px] font-bold transition cursor-pointer flex items-center gap-1"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Add Material Type</span>
+                          </button>
                         </div>
 
-                        <div className="space-y-1.5">
-                          <label className="block text-[11px] font-bold text-[#17191c] uppercase font-mono">
-                            Substrate Description *
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={partDescription}
-                            onChange={e => setPartDescription(e.target.value)}
-                            className="w-full h-11 px-3.5 rounded-[14px] border border-[#dcdfe4] text-xs font-semibold bg-white text-[#17191c] focus:outline-none focus:border-[#c09748]"
-                            placeholder="e.g. Center Vent Bezel (ABS)"
-                          />
-                        </div>
+                        {orderLineItems.length > 1 ? (
+                          <div className="space-y-2 max-h-[220px] overflow-y-auto pr-0.5">
+                            {orderLineItems.map((item, idx) => (
+                              <div key={idx} className="grid grid-cols-12 gap-2 items-center p-2.5 rounded-[14px] bg-white border border-[#ececec]">
+                                <div className="col-span-4">
+                                  <input
+                                    type="text"
+                                    value={item.partCode}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      const next = orderLineItems.map((it, i) => i === idx ? { ...it, partCode: val } : it);
+                                      setOrderLineItems(next);
+                                      if (idx === 0) setPartCode(val);
+                                    }}
+                                    placeholder="Part Code"
+                                    className="w-full h-9 px-2.5 rounded-[10px] border border-[#dcdfe4] font-mono font-bold text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                                  />
+                                </div>
+                                <div className="col-span-5">
+                                  <input
+                                    type="text"
+                                    value={item.partDescription}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      const next = orderLineItems.map((it, i) => i === idx ? { ...it, partDescription: val } : it);
+                                      setOrderLineItems(next);
+                                      if (idx === 0) setPartDescription(val);
+                                    }}
+                                    placeholder="Material / Part Name"
+                                    className="w-full h-9 px-2.5 rounded-[10px] border border-[#dcdfe4] text-xs font-semibold text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                                  />
+                                </div>
+                                <div className="col-span-2">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={item.targetQty}
+                                    onChange={e => {
+                                      const qtyVal = Math.max(0, Number(e.target.value) || 0);
+                                      const next = orderLineItems.map((it, i) => i === idx ? { ...it, targetQty: qtyVal } : it);
+                                      setOrderLineItems(next);
+                                      const sum = next.reduce((s, it) => s + (Number(it.targetQty) || 0), 0);
+                                      if (sum > 0) setTargetQty(availableStoreBalance > 0 ? Math.min(availableStoreBalance, sum) : sum);
+                                    }}
+                                    placeholder="Qty"
+                                    className="w-full h-9 px-2 rounded-[10px] border border-[#dcdfe4] font-mono font-bold text-xs text-[#17191c] text-right focus:outline-none focus:border-[#c09748]"
+                                  />
+                                </div>
+                                <div className="col-span-1 flex justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = orderLineItems.filter((_, i) => i !== idx);
+                                      setOrderLineItems(next);
+                                      if (next[0]) {
+                                        setPartCode(next[0].partCode);
+                                        setPartDescription(next[0].partDescription);
+                                      }
+                                    }}
+                                    className="w-7 h-7 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center cursor-pointer"
+                                    title="Remove part type"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                              <label className="block text-[11px] font-bold text-[#17191c] uppercase font-mono">
+                                Part Code / Substrate Code *
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={partCode}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setPartCode(val);
+                                  setOrderLineItems([{ partCode: val, partDescription, targetQty }]);
+                                }}
+                                className="w-full h-11 px-3.5 rounded-[14px] border border-[#dcdfe4] font-mono font-bold text-xs bg-white text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                                placeholder="e.g. RP-8841 / SUB-01"
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <label className="block text-[11px] font-bold text-[#17191c] uppercase font-mono">
+                                Substrate Description *
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={partDescription}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  setPartDescription(val);
+                                  setOrderLineItems([{ partCode, partDescription: val, targetQty }]);
+                                }}
+                                className="w-full h-11 px-3.5 rounded-[14px] border border-[#dcdfe4] text-xs font-semibold bg-white text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                                placeholder="e.g. Center Vent Bezel (ABS)"
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Overall Order Target */}
@@ -5311,7 +5583,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           )}
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                           {/* Painter Combobox */}
                           <div>
                             <label className="block text-[10.5px] font-bold text-[#17191c] uppercase font-mono mb-1">
@@ -5370,23 +5642,6 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                             </select>
                           </div>
 
-                          {/* Coating Process Stage */}
-                          <div>
-                            <label className="block text-[10.5px] font-bold text-[#17191c] uppercase font-mono mb-1">
-                              Coating Stage *
-                            </label>
-                            <select
-                              value={alloc.processStage}
-                              onChange={(e) => handleUpdatePainterAlloc(alloc.id, { processStage: e.target.value as any })}
-                              className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-white font-medium text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
-                            >
-                              <option value="Full Coating System">Full Coating System (3-Stage)</option>
-                              <option value="Stage 1: Primer Undercoat">Stage 1: Primer Undercoat</option>
-                              <option value="Stage 2: Basecoat Colour">Stage 2: Basecoat Colour</option>
-                              <option value="Stage 3: Clear Topcoat">Stage 3: Clear Topcoat</option>
-                            </select>
-                          </div>
-
                           {/* Daily Target Quota */}
                           <div>
                             <label className="block text-[10.5px] font-bold text-[#8a6521] uppercase font-mono mb-1 flex items-center justify-between">
@@ -5418,18 +5673,45 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           </div>
                         </div>
 
-                        {/* Painter-Specific Colour / Shade */}
-                        <div>
-                          <label className="block text-[10.5px] font-bold text-[#17191c] uppercase font-mono mb-1">
-                            Assigned Colour / Shade for this Painter
-                          </label>
-                          <input
-                            type="text"
-                            value={alloc.colorShade || ''}
-                            onChange={(e) => handleUpdatePainterAlloc(alloc.id, { colorShade: e.target.value })}
-                            placeholder="e.g. Monza Red Gloss, Piano Black, Pearl White"
-                            className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-white font-semibold text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
-                          />
+                        {/* Painter-Specific Part/Material & Colour / Shade */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {orderLineItems.length > 0 && (
+                            <div>
+                              <label className="block text-[10.5px] font-bold text-[#17191c] uppercase font-mono mb-1">
+                                Assigned Inward Material / Part *
+                              </label>
+                              <select
+                                value={alloc.partCode || orderLineItems[0]?.partCode || ''}
+                                onChange={(e) => {
+                                  const selected = orderLineItems.find(it => it.partCode === e.target.value);
+                                  handleUpdatePainterAlloc(alloc.id, {
+                                    partCode: selected?.partCode || e.target.value,
+                                    partDescription: selected?.partDescription || e.target.value
+                                  });
+                                }}
+                                className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-white font-semibold text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                              >
+                                {orderLineItems.map((it, pIdx) => (
+                                  <option key={`${it.partCode}-${pIdx}`} value={it.partCode}>
+                                    {it.partDescription || it.partCode} ({it.partCode}) {it.targetQty > 0 ? `• ${it.targetQty.toLocaleString('en-IN')} Pcs` : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          <div className={orderLineItems.length > 0 ? '' : 'sm:col-span-2'}>
+                            <label className="block text-[10.5px] font-bold text-[#17191c] uppercase font-mono mb-1">
+                              Assigned Colour / Shade for this Painter
+                            </label>
+                            <input
+                              type="text"
+                              value={alloc.colorShade || ''}
+                              onChange={(e) => handleUpdatePainterAlloc(alloc.id, { colorShade: e.target.value })}
+                              placeholder="e.g. Monza Red Gloss, Piano Black, Pearl White"
+                              className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-white font-semibold text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                            />
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -6271,6 +6553,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
           isOpen={showDailyAssignModal}
           onClose={() => setShowDailyAssignModal(false)}
           masterJobCard={currentJcForModals}
+          inwardParts={resolvedInwardParts}
           existingAssignments={currentJcAssignments}
           painters={painters.filter(p => matchesPlant(p.plant, activePlant))}
           booths={paintingBooths.filter(b => matchesPlant(b.plant, activePlant))}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { JobCard, DefectCategory, MaterialRequisitionNote, RequisitionStatus, PlantHeadPriorityAssignment, ProductionPriorityLevel, PaintingBooth, PainterProfile } from '../types/portalTypes';
+import { JobCard, DefectCategory, MaterialRequisitionNote, RequisitionStatus, PlantHeadPriorityAssignment, ProductionPriorityLevel, PaintingBooth, PainterProfile, resolveJobCardInwardParts, getNextJobCardNo } from '../types/portalTypes';
 import { 
   AlertTriangle, 
   Plus, 
@@ -302,8 +302,8 @@ export const JobCardsView: React.FC = () => {
   const [selectedJcForQuota, setSelectedJcForQuota] = useState<JobCard | null>(null);
   const [nextQuotaInput, setNextQuotaInput] = useState<number>(2000);
 
-  // Active filter tab: PRIORITY_QUEUE, ALL, REQUISITIONS, BOOTH_FLEET, CONSUMABLES_LEDGER
-  const [activeTab, setActiveTab] = useState<'PRIORITY_QUEUE' | 'ALL' | 'REQUISITIONS' | 'BOOTH_FLEET' | 'CONSUMABLES_LEDGER'>('ALL');
+  // Active filter tab: PRIORITY_QUEUE, ALL, REQUISITIONS, BOOTH_FLEET
+  const [activeTab, setActiveTab] = useState<'PRIORITY_QUEUE' | 'ALL' | 'REQUISITIONS' | 'BOOTH_FLEET'>('ALL');
 
   // Quality Gates: 1. PIR (Pre-Production Substrate), 2. FPA (Golden Gate), 3. IPQC Line Modal States
   const [showPirModal, setShowPirModal] = useState<boolean>(false);
@@ -860,18 +860,30 @@ export const JobCardsView: React.FC = () => {
   
   // Production Manager 1-Click Job Card Creation from Plant Head Priority Order
   const handleLaunchJobCardFromPriority = (priorityOrder: PlantHeadPriorityAssignment, defaultQty?: number) => {
-    const nextJcIndex = String(jobCards.length + 1).padStart(3, '0');
+    const generatedJcNo = getNextJobCardNo(jobCards);
+    const nextJcIndex = generatedJcNo.split('-').pop() || '001';
     const totalOrder = priorityOrder.totalOrderQty || (priorityOrder.id === 'PRIO-2026-001' ? 10000 : priorityOrder.availableQty);
     const availableCount = defaultQty !== undefined ? defaultQty : (totalOrder > 0 ? totalOrder : 250);
+    const linkedGrn = grnList.find(g => g.grnNo === priorityOrder.grnNo);
+    const grnOrderItems = linkedGrn?.items && linkedGrn.items.length > 0
+      ? linkedGrn.items
+          .filter(it => (it.partCode && it.partCode.trim()) || (it.partDescription && it.partDescription.trim()))
+          .map(it => ({
+            partCode: (it.partCode || 'PART').trim(),
+            partDescription: (it.partDescription || it.partCode || 'Substrate Material').trim(),
+            targetQty: Number(it.actualReceivedQty || it.invoicedQty || 0)
+          }))
+      : undefined;
     
     const initialJcData: Partial<JobCard> = {
-      jobCardNo: `JC-2026-${nextJcIndex}`,
+      jobCardNo: generatedJcNo,
       woNo: priorityOrder.challanNo || `WO-2026-${nextJcIndex}`,
       wNo: priorityOrder.challanNo || `WO-2026-${nextJcIndex}`,
       sourceGrnNo: priorityOrder.grnNo,
       customer: priorityOrder.customer,
       partCode: priorityOrder.partCode,
       partDescription: priorityOrder.partDescription,
+      orderLineItems: grnOrderItems,
       color: priorityOrder.color || 'Monza Red Gloss',
       targetQty: availableCount,
       issuedRawQty: availableCount,
@@ -934,11 +946,12 @@ export const JobCardsView: React.FC = () => {
 
   // DIRECT 1-CLICK JOB CARD CREATION & STORE MATERIAL DEMAND from Store Stock Item
   const handleRequestFromSpecificStock = (stockItem: any) => {
-    const nextJcIndex = String(jobCards.length + 1).padStart(3, '0');
+    const generatedJcNo = getNextJobCardNo(jobCards);
+    const nextJcIndex = generatedJcNo.split('-').pop() || '001';
     const availableCount = stockItem.balanceAvailable > 0 ? stockItem.balanceAvailable : 250;
     
     const initialJcData: Partial<JobCard> = {
-      jobCardNo: `JC-2026-${nextJcIndex}`,
+      jobCardNo: generatedJcNo,
       woNo: stockItem.challanNo || `WO-2026-${nextJcIndex}`,
       wNo: stockItem.challanNo || `WO-2026-${nextJcIndex}`,
       sourceGrnNo: stockItem.grnNo,
@@ -1168,12 +1181,28 @@ export const JobCardsView: React.FC = () => {
     return !!match;
   };
 
+  // Plant-Scoped Slices (so tab counts, dropdown stats & lists stay 100% synced per selected plant)
+  const plantJobCards = useMemo(
+    () => jobCards.filter(jc => matchesPlant(jc.plant, activePlant)),
+    [jobCards, activePlant]
+  );
+
+  const plantPriorityOrders = useMemo(
+    () => plantHeadPriorities.filter(p => matchesPlant(p.plant, activePlant)),
+    [plantHeadPriorities, activePlant]
+  );
+
+  const plantMaterialRequisitions = useMemo(
+    () => materialRequisitions.filter(r => matchesPlant(r.plant, activePlant)),
+    [materialRequisitions, activePlant]
+  );
+
   // Available Painter Options for Dropdown Filter
   // STRICT RULE: Only painters with at least 1 currently assigned job card appear.
   const availablePainterOptions = useMemo(() => {
     const map = new Map<string, { id: string; name: string; count: number }>();
 
-    jobCards.forEach(jc => {
+    plantJobCards.forEach(jc => {
       const rawName = (jc.assignedPainterName || jc.painterName || '').trim();
       if (!rawName) return;
 
@@ -1209,7 +1238,7 @@ export const JobCardsView: React.FC = () => {
     return Array.from(map.values())
       .filter(p => p.count > 0)
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  }, [jobCards, painters, activeTab]);
+  }, [plantJobCards, painters, activeTab]);
 
   // Active Parties / Clients Options for Dropdown Filter
   // STRICT RULE: Only parties that currently have at least 1 ACTIVE job card appear.
@@ -1217,7 +1246,7 @@ export const JobCardsView: React.FC = () => {
   const activeClientOptions = useMemo(() => {
     const map = new Map<string, { name: string; activeCount: number }>();
 
-    jobCards.forEach(jc => {
+    plantJobCards.forEach(jc => {
       const cust = (jc.customer || '').trim();
       if (!cust) return;
 
@@ -1245,7 +1274,7 @@ export const JobCardsView: React.FC = () => {
     return Array.from(map.values())
       .filter(c => c.activeCount > 0)
       .sort((a, b) => b.activeCount - a.activeCount || a.name.localeCompare(b.name));
-  }, [jobCards, activeTab]);
+  }, [plantJobCards, activeTab]);
 
   // Reset dropdown selection safely if the selected party or painter has 0 matching jobs in current view
   useEffect(() => {
@@ -1293,7 +1322,7 @@ export const JobCardsView: React.FC = () => {
     });
 
     return {
-      total: jobCards.length,
+      total: plantCards.length,
       active: activeCount,
       completed: completedCount,
       overdue: overdueCount,
@@ -1323,11 +1352,11 @@ export const JobCardsView: React.FC = () => {
 
   // Plant Priority Production Orders Filter Options & List
   const priorityLevelDropdownOptions: FilterOption[] = useMemo(() => {
-    const total = plantHeadPriorities.length;
-    const p1 = plantHeadPriorities.filter(p => p.priorityLevel === 'P1_URGENT').length;
-    const p2 = plantHeadPriorities.filter(p => p.priorityLevel === 'P2_HIGH').length;
-    const p3 = plantHeadPriorities.filter(p => p.priorityLevel === 'P3_NORMAL').length;
-    const hold = plantHeadPriorities.filter(p => p.priorityLevel === 'HOLD').length;
+    const total = plantPriorityOrders.length;
+    const p1 = plantPriorityOrders.filter(p => p.priorityLevel === 'P1_URGENT').length;
+    const p2 = plantPriorityOrders.filter(p => p.priorityLevel === 'P2_HIGH').length;
+    const p3 = plantPriorityOrders.filter(p => p.priorityLevel === 'P3_NORMAL').length;
+    const hold = plantPriorityOrders.filter(p => p.priorityLevel === 'HOLD').length;
 
     return [
       { value: 'ALL', label: 'All Priorities', badge: total },
@@ -1336,14 +1365,14 @@ export const JobCardsView: React.FC = () => {
       { value: 'P3_NORMAL', label: 'P3: Standard FIFO', badge: p3 },
       { value: 'HOLD', label: 'On Hold', badge: hold },
     ];
-  }, [plantHeadPriorities]);
+  }, [plantPriorityOrders]);
 
   const priorityStatusDropdownOptions: FilterOption[] = useMemo(() => {
-    const total = plantHeadPriorities.length;
-    const assigned = plantHeadPriorities.filter(p => p.status === 'Priority Assigned').length;
-    const launched = plantHeadPriorities.filter(p => p.status === 'Job Card Launched').length;
-    const inProd = plantHeadPriorities.filter(p => p.status === 'In Production').length;
-    const completed = plantHeadPriorities.filter(p => p.status === 'Completed').length;
+    const total = plantPriorityOrders.length;
+    const assigned = plantPriorityOrders.filter(p => p.status === 'Priority Assigned').length;
+    const launched = plantPriorityOrders.filter(p => p.status === 'Job Card Launched').length;
+    const inProd = plantPriorityOrders.filter(p => p.status === 'In Production').length;
+    const completed = plantPriorityOrders.filter(p => p.status === 'Completed').length;
 
     return [
       { value: 'ALL', label: 'All Statuses', badge: total },
@@ -1352,7 +1381,7 @@ export const JobCardsView: React.FC = () => {
       { value: 'In Production', label: 'In Production', badge: inProd },
       { value: 'Completed', label: 'Completed', badge: completed },
     ];
-  }, [plantHeadPriorities]);
+  }, [plantPriorityOrders]);
 
   const filteredPriorityOrders = useMemo(() => {
     return plantHeadPriorities
@@ -1693,7 +1722,7 @@ export const JobCardsView: React.FC = () => {
           }`}
         >
           <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-          <span>Strategic Priority Orders ({plantHeadPriorities.filter(p => p.status === 'Priority Assigned').length})</span>
+          <span>Strategic Priority Orders ({plantPriorityOrders.length})</span>
         </button>
         <button
           onClick={() => handleSelectTab('ALL')}
@@ -1703,7 +1732,7 @@ export const JobCardsView: React.FC = () => {
               : 'bg-white hover:bg-[#fafafb] text-[#777b86] border border-[#ececec]'
           }`}
         >
-          All Job Cards ({jobCards.length})
+          All Job Cards ({plantJobCards.length})
         </button>
         <button
           onClick={() => handleSelectTab('REQUISITIONS')}
@@ -1713,7 +1742,7 @@ export const JobCardsView: React.FC = () => {
               : 'bg-white hover:bg-[#fafafb] text-[#777b86] border border-[#ececec]'
           }`}
         >
-          Store Demands (MRN) ({materialRequisitions.length})
+          Store Demands (MRN) ({plantMaterialRequisitions.length})
         </button>
                 <button
           onClick={() => handleSelectTab('BOOTH_FLEET')}
@@ -1725,17 +1754,6 @@ export const JobCardsView: React.FC = () => {
         >
           <Settings className="w-3.5 h-3.5 text-[#c09748]" />
           <span>Painting Lines & Spray Booth Fleet ({filteredBooths.length})</span>
-        </button>
-        <button
-          onClick={() => handleSelectTab('CONSUMABLES_LEDGER' as any)}
-          className={`px-4 py-2 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-            activeTab === ('CONSUMABLES_LEDGER' as any)
-              ? 'bg-[#17191c] text-[#c09748] shadow-xs'
-              : 'bg-white hover:bg-[#fafafb] text-[#777b86] border border-[#ececec]'
-          }`}
-        >
-          <FlaskConical className="w-3.5 h-3.5 text-[#c09748]" />
-          <span>Painter Consumables Ledger ({assignmentMaterialLogs.length})</span>
         </button>
       </div>
 
@@ -1910,7 +1928,7 @@ export const JobCardsView: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-2 text-xs font-mono text-[#777b86]">
-                Pending Launches: <strong className="text-[#17191c]">{plantHeadPriorities.filter(p => p.status === 'Priority Assigned').length}</strong>
+                Pending Launches: <strong className="text-[#17191c]">{plantPriorityOrders.filter(p => p.status === 'Priority Assigned').length}</strong>
               </div>
             </div>
 
@@ -3039,13 +3057,37 @@ export const JobCardsView: React.FC = () => {
                     <h3 className="font-serif text-base sm:text-lg text-[#17191c] font-normal leading-snug">
                       {jc.customer}
                     </h3>
-                    <p className="text-xs text-[#777b86] line-clamp-1">
-                      {jc.partDescription} • Code: <strong className="text-[#17191c] font-mono">{jc.partCode}</strong>
-                    </p>
+                    {(() => {
+                      const inwardParts = resolveJobCardInwardParts(jc, grnList);
+                      if (inwardParts.length > 1) {
+                        return (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            <span className="text-[10.5px] font-mono font-bold text-[#8a6521] uppercase">
+                              Materials ({inwardParts.length}):
+                            </span>
+                            {inwardParts.map((part, idx) => (
+                              <span
+                                key={`${part.partCode}-${idx}`}
+                                className="px-2 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[11px] font-medium text-[#17191c]"
+                                title={`${part.partCode}${part.targetQty > 0 ? ` • ${part.targetQty.toLocaleString('en-IN')} Pcs` : ''}`}
+                              >
+                                {part.partDescription}
+                                {part.targetQty > 0 ? ` (${part.targetQty.toLocaleString('en-IN')})` : ''}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      }
+                      return (
+                        <p className="text-xs text-[#777b86] line-clamp-1">
+                          {inwardParts[0]?.partDescription || jc.partDescription} • Code: <strong className="text-[#17191c] font-mono">{inwardParts[0]?.partCode || jc.partCode}</strong>
+                        </p>
+                      );
+                    })()}
                     {(() => {
                       const activeJcAssignments = painterAssignments.filter(a => (a.masterJobCardNo === jc.jobCardNo || (a as any).masterJobCardId === jc.jobCardNo) && a.status === 'Active');
                       const painterSummary = activeJcAssignments.length > 0
-                        ? activeJcAssignments.map(a => `${a.painterName} (${a.dailyTargetQty} pcs)`).join(', ')
+                        ? activeJcAssignments.map(a => `${a.painterName}${a.partDescription ? ` [${a.partDescription}]` : ''} (${a.dailyTargetQty} pcs)`).join(', ')
                         : (jc.assignedPainterName || jc.painterName || 'Unassigned');
                       return (
                         <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#777b86] pt-0.5">
@@ -3399,117 +3441,6 @@ export const JobCardsView: React.FC = () => {
           })
         )}
       </div>
-      )}
-
-      {/* ====================================================================== */}
-      {/* VIEW: PAINTER CONSUMABLES LEDGER & MATERIAL TRACEABILITY MATRIX        */}
-      {/* ====================================================================== */}
-      {activeTab === ('CONSUMABLES_LEDGER' as any) && (
-        <div className="space-y-4">
-          <div className="p-4 rounded-[20px] bg-white border border-[#ececec] space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
-                  TIER 3 CONSUMABLES LEDGER • ISO 9001 CHEMICAL AUDIT
-                </span>
-                <h3 className="text-base sm:text-lg font-serif font-normal text-[#17191c] mt-0.5">
-                  Painter-Wise Material Consumption & Wastage Ledger
-                </h3>
-                <p className="text-xs text-[#777b86]">
-                  Every drop of paint, hardener, thinner, and solvent issued to floor painters, good returns credited back to store stock, and high-wastage alerts.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-[#777b86] font-semibold">Total Logs:</span>
-                <span className="px-3 py-1 rounded-full bg-[#f2f2f3] font-mono text-xs font-bold text-[#17191c]">
-                  {assignmentMaterialLogs.length} Records
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {assignmentMaterialLogs.length === 0 ? (
-            <div className="p-10 text-center bg-white rounded-[20px] border border-[#ececec] space-y-2">
-              <FlaskConical className="w-8 h-8 text-[#979799] mx-auto" />
-              <div className="font-serif text-base text-[#17191c]">No Material Logs Yet</div>
-              <p className="text-xs text-[#777b86] max-w-md mx-auto">
-                Daily Painter Assignments me shift close hone par chemicals ka consumption automatically is ledger me record hoga.
-              </p>
-            </div>
-          ) : (
-            <div className="bg-white rounded-[20px] border border-[#ececec] overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#f2f2f3] text-[#17191c] text-[11px] font-bold border-b border-[#ececec]">
-                    <tr>
-                      <th className="p-3">Log Date</th>
-                      <th className="p-3">Painter / Tech</th>
-                      <th className="p-3">Master JC / Assignment</th>
-                      <th className="p-3">Material & Batch</th>
-                      <th className="p-3 text-right">Issued</th>
-                      <th className="p-3 text-right">Good Return</th>
-                      <th className="p-3 text-right">Floor Waste</th>
-                      <th className="p-3 text-right">Net Consumed</th>
-                      <th className="p-3 text-right">Rate (L/pc)</th>
-                      <th className="p-3 text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#ececec]">
-                    {assignmentMaterialLogs.map(log => (
-                      <tr key={log.id} className="hover:bg-gray-50/60 transition">
-                        <td className="p-3 font-mono text-[11px] text-[#777b86] whitespace-nowrap">
-                          {log.logDate}
-                        </td>
-                        <td className="p-3 whitespace-nowrap">
-                          <strong className="text-[#17191c]">{log.painterName}</strong>
-                        </td>
-                        <td className="p-3 font-mono text-[11px] whitespace-nowrap">
-                          <span className="text-[#c09748] font-bold block">{log.masterJobCardId}</span>
-                          <span className="text-[#777b86] text-[10px]">{log.assignmentId}</span>
-                        </td>
-                        <td className="p-3">
-                          <div className="font-semibold text-[#17191c]">{log.materialName}</div>
-                          <div className="text-[10px] font-mono text-[#777b86]">
-                            Type: {log.materialType} • Batch: {log.batchNumber || 'N/A'}
-                          </div>
-                        </td>
-                        <td className="p-3 text-right font-mono font-medium text-[#17191c] whitespace-nowrap">
-                          {log.issuedQty} {log.uom}
-                        </td>
-                        <td className="p-3 text-right font-mono font-medium text-emerald-700 whitespace-nowrap">
-                          {log.goodReturnedQty} {log.uom}
-                        </td>
-                        <td className="p-3 text-right font-mono font-medium text-rose-700 whitespace-nowrap">
-                          {log.floorWastageExpiredQty} {log.uom}
-                        </td>
-                        <td className="p-3 text-right font-mono font-bold text-[#17191c] whitespace-nowrap">
-                          {log.netConsumedQty} {log.uom}
-                        </td>
-                        <td className="p-3 text-right font-mono text-[#8a6521] whitespace-nowrap">
-                          {log.perPieceConsumption ? `${log.perPieceConsumption} ${log.uom}/pc` : '-'}
-                        </td>
-                        <td className="p-3 text-center whitespace-nowrap">
-                          {log.highWastageAlert ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 font-bold text-[10px]">
-                              <AlertTriangle className="w-3 h-3 text-rose-600" />
-                              <span>High Wastage</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-[10px]">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              <span>Norm OK</span>
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
       )}
 
       {/* Modal 1: Log Shift Progress */}
@@ -5216,6 +5147,7 @@ export const JobCardsView: React.FC = () => {
             setSelectedMasterForAssign(null);
           }}
           masterJobCard={selectedMasterForAssign}
+          inwardParts={resolveJobCardInwardParts(selectedMasterForAssign, grnList)}
           existingAssignments={painterAssignments.filter(
             a => a.masterJobCardNo === selectedMasterForAssign.jobCardNo || a.masterJobCardId === selectedMasterForAssign.jobCardNo
           )}

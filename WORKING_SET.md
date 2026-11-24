@@ -1,5 +1,34 @@
 # WORKING SET
 
+- 2026-11-24: Removed Redundant `Painter Consumables Ledger` Main Tab from Job Cards View
+  - Files touched:
+    - `src/portal/views/JobCardsView.tsx`: Removed `CONSUMABLES_LEDGER` tab button, view block, and `plantMaterialLogs` memo so painter chemical usage stays focused inside each Master Job Card (`JobCardModal`).
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and pushed to `origin/main`.
+
+- 2026-11-23: Simplified Painter Assignment Modal (Auto Today Date, Removed Shift & Coating Stage) & Fixed Orphan Assignment Ghost Counts
+  - Files touched:
+    - `src/portal/components/DailyAssignmentModal.tsx`: Removed `Assignment Date` input (auto-uses today's date with info pill), removed `Shift Allocation` and `Coating Process Stage` dropdowns (background defaults), renumbered fields cleanly 1–6 including `Part / Material Type` inward selector.
+    - `src/portal/components/JobCardModal.tsx`: Removed redundant `Coating Stage *` dropdown from Wizard Step 3 painter allocation grid.
+    - `src/portal/context/PortalStoreContext.tsx`: Added `filterValidAssignments` + cascade cleanup in `addJobCard`, `deleteJobCard`, local state initializers, and `hydrateCloudState` to prevent stale deleted-card `painterAssignments`/`assignmentMaterialLogs` (e.g. `4,975 Pcs` ghost counts) from re-attaching to reused `JC-2026-001`.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors).
+
+- 2026-11-23: Fixed `JC-2026-001` Disappearing on Refresh & Plant-Scoped Tab Badge Counts in Job Cards
+  - Files touched:
+    - `src/portal/types/portalTypes.ts`: Added `isLegacyDemoJobCard` (only matches `ROOP POLYMERS LTD`, `Demo Party`, `WO-1042` without deleting real `JC-2026-001` cards) and `getNextJobCardNo`.
+    - `src/portal/context/PortalStoreContext.tsx`: Replaced `j.jobCardNo !== 'JC-2026-001'` filters in `ensureCleanStorageVersion`, `hydrateCloudState`, and `jobCards` initializer with `!isLegacyDemoJobCard(j)` so newly created `JC-2026-001` Job Cards persist across refresh; scoped `autoMrn.plant` to `formattedJc.plant` and used collision-free `mrnNo`.
+    - `src/portal/components/JobCardModal.tsx`: Used `getNextJobCardNo(jobCards)` for new Job Card numbers.
+    - `src/portal/views/JobCardsView.tsx`: Added `plantJobCards`, `plantPriorityOrders`, `plantMaterialRequisitions`, and `plantMaterialLogs` using `matchesPlant(..., activePlant)` and wired them across all 5 tab badges, dropdown stats, `Pending Launches`, `filterStats.total`, and `CONSUMABLES_LEDGER`.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors).
+
+- 2026-11-19: Multi-Material Inward Support Across Master Job Cards & Per-Part Painter Shift Assignment
+  - Files touched:
+    - `src/portal/types/portalTypes.ts`: Added `JobCardOrderLineItem`, `JobCard.orderLineItems`, `PainterAssignment.partCode`/`partDescription`, `resolveJobCardInwardParts`, and `computeAssignmentBalance` helpers.
+    - `src/portal/context/PortalStoreContext.tsx`: Updated `createPainterAssignment` to validate per-part pending balance alongside Master Job Card pending balance and persist `partCode`/`partDescription`.
+    - `src/portal/components/DailyAssignmentModal.tsx`: Added inward material/part selector (`inwardParts` prop / `resolveJobCardInwardParts`) with per-part pending balance & max quota clamping.
+    - `src/portal/components/JobCardModal.tsx`: Preserved all GRN inward parts in `orderLineItems` (Step 1/2/3 + `handleSave`), displayed all inward material types on Tab 1 `Component & Order Specifications` + per-part completion breakdown, and surfaced assigned material pills across Tab 1 & Tab 2.
+    - `src/portal/views/JobCardsView.tsx`: Displayed all inward material types on main Job Card cards via `resolveJobCardInwardParts`, carried `orderLineItems` from GRN priority launch, and passed `inwardParts` into `DailyAssignmentModal`.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`, built in 7.91s, 0 errors).
+
 - 2026-11-14: Fixed Temporal Dead Zone Runtime Crash (`Cannot access before initialization`) in `JobCardModal`
   - Files touched:
     - `src/portal/components/JobCardModal.tsx`: Declared `getAssignmentStageSums` and `getAssignmentLiveMetrics` above `masterMetrics` so `masterMetrics` `useMemo` never invokes them before initialization in production builds.
