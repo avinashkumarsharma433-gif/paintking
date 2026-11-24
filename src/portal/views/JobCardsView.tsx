@@ -1942,13 +1942,24 @@ export const JobCardsView: React.FC = () => {
                     const isP2 = prio.priorityLevel === 'P2_HIGH';
                     const isP3 = prio.priorityLevel === 'P3_NORMAL';
                     
-                    // Strict matching for this specific priority batch (avoids pulling unrelated historical cards)
-                    const matchingJobCards = jobCards.filter(jc => 
-                      (prio.linkedJobCardNo && jc.jobCardNo === prio.linkedJobCardNo) ||
-                      (jc.sourceGrnNo && prio.grnNo && jc.sourceGrnNo === prio.grnNo) ||
-                      (jc.wNo && prio.challanNo && jc.wNo.toLowerCase().trim() === prio.challanNo.toLowerCase().trim()) ||
-                      (jc.woNo && prio.challanNo && jc.woNo.toLowerCase().trim() === prio.challanNo.toLowerCase().trim())
-                    );
+                    // Strict matching for this specific priority batch (never pulls a different customer/GRN sharing an old JC number)
+                    const prioCust = (prio.customer || '').trim().toLowerCase();
+                    const prioGrn = (prio.grnNo || '').trim().toLowerCase();
+                    const prioChallan = (prio.challanNo || '').trim().toLowerCase();
+                    const matchingJobCards = jobCards.filter(jc => {
+                      if (!matchesPlant(jc.plant, prio.plant)) return false;
+                      const jcCust = (jc.customer || '').trim().toLowerCase();
+                      const jcGrn = (jc.sourceGrnNo || '').trim().toLowerCase();
+                      const jcWo = (jc.woNo || jc.wNo || '').trim().toLowerCase();
+                      if (prioGrn && jcGrn) return jcGrn === prioGrn;
+                      if (prioChallan && jcWo && prioCust && jcCust) {
+                        return jcWo === prioChallan && jcCust === prioCust;
+                      }
+                      if (prio.linkedJobCardNo && jc.jobCardNo === prio.linkedJobCardNo) {
+                        return Boolean(prioCust && jcCust && jcCust === prioCust);
+                      }
+                      return false;
+                    });
 
                     // Dynamic multi-card allocation calculation
                     const totalLotQty = prio.totalOrderQty || (prio.id === 'PRIO-2026-001' ? 10000 : prio.availableQty);

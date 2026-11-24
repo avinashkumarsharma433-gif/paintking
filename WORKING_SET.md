@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-24: Prevented Duplicate `jobCardNo` Creation & Cross-Customer Priority Queue Linking
+  - Files touched:
+    - `src/portal/views/JobCardsView.tsx`: Tightened `PRIORITY_QUEUE` `matchingJobCards` filter to require plant + GRN/Challan+Customer ownership so stale `linkedJobCardNo` never maps one customer's Priority Order (e.g. `Avinash Sharma`) to another customer's `JC-2026-001`.
+    - `src/portal/components/JobCardModal.tsx`: Guaranteed unique `resolvedJobCardNo` via `getNextJobCardNo(jobCards)` before saving a new card.
+    - `src/portal/context/PortalStoreContext.tsx`: Added `sanitizePriorityLinks`, deduplicated `jobCardNo` across local init, `hydrateCloudState`, and `addJobCard`, scoped priority auto-linking strictly to matching GRN/Customer+Part+Challan, and reset `linkedJobCardNo` on `deleteJobCard`.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-24: Prevented Store Material Issuance & Orphan Chemical Logs Without Assigned Painters
   - Files touched:
     - `src/portal/context/PortalStoreContext.tsx`: Added `filterValidMaterialLogs` (purging logs whose `assignmentId` does not belong to valid `painterAssignments`), required valid `PainterAssignment` in `issueAssignmentMaterials` (with optional `targetAssignmentOverride`), prevented `COMPANY_CONSUMABLE` MRN lines when no painter is assigned in `addJobCard`, and used max-sequence `ASG` IDs.

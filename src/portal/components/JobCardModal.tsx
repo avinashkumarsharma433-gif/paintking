@@ -1837,12 +1837,16 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
             ? [{ partCode: partCode.trim() || 'PART', partDescription: partDescription.trim() || 'Substrate Material', targetQty }]
             : []);
 
+    const resolvedJobCardNo = isExistingCard
+      ? jobCardNo
+      : (jobCards.some(j => j.jobCardNo === jobCardNo) ? getNextJobCardNo(jobCards) : jobCardNo);
+
     const finalCard: JobCard = {
       ...(initialData || {}),
       docNo,
       revNo,
       revDate,
-      jobCardNo,
+      jobCardNo: resolvedJobCardNo,
       woNo: wNo,
       wNo: wNo,
       sourceGrnNo: selectedGrn?.grnNo || selectedGrnNo,

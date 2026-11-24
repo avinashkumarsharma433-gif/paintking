@@ -548,6 +548,33 @@ function filterValidMaterialLogs(
   return logs.filter(l => Boolean(l.assignmentId && validAsgIds.has(l.assignmentId)));
 }
 
+function sanitizePriorityLinks(
+  priorities: PlantHeadPriorityAssignment[],
+  cards: JobCard[]
+): PlantHeadPriorityAssignment[] {
+  const cardByNo = new Map(cards.map(c => [c.jobCardNo, c]));
+  return priorities.map(p => {
+    if (!p.linkedJobCardNo) return p;
+    const linked = cardByNo.get(p.linkedJobCardNo);
+    const prioCust = (p.customer || '').trim().toLowerCase();
+    const jcCust = (linked?.customer || '').trim().toLowerCase();
+    const prioGrn = (p.grnNo || '').trim().toLowerCase();
+    const jcGrn = (linked?.sourceGrnNo || '').trim().toLowerCase();
+    const isValidOwner =
+      Boolean(linked) &&
+      (!prioCust || !jcCust || prioCust === jcCust) &&
+      (!prioGrn || !jcGrn || prioGrn === jcGrn);
+    if (!isValidOwner) {
+      return {
+        ...p,
+        status: p.status === 'Job Card Launched' ? 'Priority Assigned' : p.status,
+        linkedJobCardNo: undefined
+      };
+    }
+    return p;
+  });
+}
+
 const PortalContext = createContext<PortalContextType | undefined>(undefined);
 
 export const PortalProvider: React.FC<{
@@ -703,7 +730,6 @@ export const PortalProvider: React.FC<{
       try {
         const remote = await fetchAllRemoteState();
         if (remote) {
-          if (Array.isArray(remote.pk_plant_head_priorities)) setPlantHeadPriorities(remote.pk_plant_head_priorities as PlantHeadPriorityAssignment[]);
           if (Array.isArray(remote.pk_universal_jobs)) setUniversalJobs(remote.pk_universal_jobs as UniversalJobRecord[]);
           if (Array.isArray(remote.pk_stock_batches)) setStockBatches(remote.pk_stock_batches as StockBatch[]);
           if (Array.isArray(remote.pk_fifo_override_logs)) setFifoOverrideLogs(remote.pk_fifo_override_logs as FifoOverrideLog[]);
@@ -716,8 +742,16 @@ export const PortalProvider: React.FC<{
           if (Array.isArray(remote.pk_iqc_data)) setIqcRecords(remote.pk_iqc_data as IQCInspectionRecord[]);
           let hydratedCards = jobCards;
           if (Array.isArray(remote.pk_jobcards_data)) {
-            hydratedCards = (remote.pk_jobcards_data as JobCard[]).filter(j => !isLegacyDemoJobCard(j));
+            const seenNos = new Set<string>();
+            hydratedCards = (remote.pk_jobcards_data as JobCard[]).filter(j => {
+              if (isLegacyDemoJobCard(j) || !j.jobCardNo || seenNos.has(j.jobCardNo)) return false;
+              seenNos.add(j.jobCardNo);
+              return true;
+            });
             setJobCards(hydratedCards);
+          }
+          if (Array.isArray(remote.pk_plant_head_priorities)) {
+            setPlantHeadPriorities(sanitizePriorityLinks(remote.pk_plant_head_priorities as PlantHeadPriorityAssignment[], hydratedCards));
           }
           let hydratedAsgs = painterAssignments;
           if (Array.isArray(remote.pk_painter_assignments)) {
@@ -1242,7 +1276,12 @@ export const PortalProvider: React.FC<{
 
   const [jobCards, setJobCards] = useState<JobCard[]>(() => {
     const raw = mergeByUniqueKey(localStorage.getItem('pk_jobcards_data'), INITIAL_JOB_CARDS, 'jobCardNo');
-    return raw.filter(j => !isLegacyDemoJobCard(j));
+    const seenNos = new Set<string>();
+    return raw.filter(j => {
+      if (isLegacyDemoJobCard(j) || !j.jobCardNo || seenNos.has(j.jobCardNo)) return false;
+      seenNos.add(j.jobCardNo);
+      return true;
+    });
   });
 
   const [painterAssignments, setPainterAssignments] = useState<PainterAssignment[]>(() => {
@@ -1905,6 +1944,9 @@ export const PortalProvider: React.FC<{
   };
 
   const addJobCard = (jc: JobCard) => {
+    if (jobCards.some(existing => existing.jobCardNo === jc.jobCardNo)) {
+      return;
+    }
     const fallbackPlant: PlantLocation = activePlant === 'ALL' ? 'Haridwar' : activePlant;
     const formattedJc: JobCard = {
       ...jc,
@@ -1916,7 +1958,7 @@ export const PortalProvider: React.FC<{
       status: jc.status || 'Open'
     };
 
-    setJobCards(prev => [formattedJc, ...prev]);
+    setJobCards(prev => (prev.some(existing => existing.jobCardNo === formattedJc.jobCardNo) ? prev : [formattedJc, ...prev]));
     setPainterAssignments(prev =>
       prev.filter(a => a.masterJobCardNo !== formattedJc.jobCardNo && a.masterJobCardId !== formattedJc.jobCardNo)
     );
@@ -1924,10 +1966,14 @@ export const PortalProvider: React.FC<{
       prev.filter(l => l.masterJobCardNo !== formattedJc.jobCardNo && l.masterJobCardId !== formattedJc.jobCardNo)
     );
 
-    // Auto-link Plant Head priority status
+    // Auto-link Plant Head priority status strictly to matching GRN or Customer+Challan+Part
     setPlantHeadPriorities(prev => prev.map(p => {
-      const isMatch = (p.grnNo && formattedJc.issuedMaterials?.some(m => m.remark?.includes(p.grnNo))) ||
-                      (p.customer.toLowerCase().trim() === formattedJc.customer.toLowerCase().trim() && p.partCode.toLowerCase().trim() === formattedJc.partCode.toLowerCase().trim());
+      const sameGrn = Boolean(p.grnNo && formattedJc.sourceGrnNo && p.grnNo === formattedJc.sourceGrnNo);
+      const sameCustAndPart =
+        p.customer.toLowerCase().trim() === formattedJc.customer.toLowerCase().trim() &&
+        p.partCode.toLowerCase().trim() === formattedJc.partCode.toLowerCase().trim() &&
+        (!p.challanNo || !(formattedJc.woNo || formattedJc.wNo) || p.challanNo.toLowerCase().trim() === (formattedJc.woNo || formattedJc.wNo || '').toLowerCase().trim());
+      const isMatch = sameGrn || sameCustAndPart;
       if (isMatch && p.status === 'Priority Assigned') {
         return {
           ...p,
@@ -2028,6 +2074,13 @@ export const PortalProvider: React.FC<{
     );
     setAssignmentMaterialLogs(prev =>
       prev.filter(l => l.masterJobCardNo !== jobCardNo && l.masterJobCardId !== jobCardNo)
+    );
+    setPlantHeadPriorities(prev =>
+      prev.map(p =>
+        p.linkedJobCardNo === jobCardNo
+          ? { ...p, status: 'Priority Assigned', linkedJobCardNo: undefined }
+          : p
+      )
     );
   };
 
