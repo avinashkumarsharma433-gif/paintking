@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { JobCard, DefectCategory, MaterialRequisitionNote, RequisitionStatus, PlantHeadPriorityAssignment, ProductionPriorityLevel, PaintingBooth, PainterProfile, resolveJobCardInwardParts, getNextJobCardNo } from '../types/portalTypes';
+import { JobCard, DefectCategory, MaterialRequisitionNote, RequisitionStatus, PlantHeadPriorityAssignment, ProductionPriorityLevel, PaintingBooth, PainterProfile, resolveJobCardInwardParts } from '../types/portalTypes';
 import { 
   AlertTriangle, 
   Plus, 
@@ -228,6 +228,7 @@ const PortalFilterSelect: React.FC<{
 export const JobCardsView: React.FC = () => {
   const {
     jobCards,
+    getNextUniqueJobCardNo,
     deleteJobCard,
     plantHeadPriorities = [],
     updatePriorityStatus, 
@@ -860,7 +861,7 @@ export const JobCardsView: React.FC = () => {
   
   // Production Manager 1-Click Job Card Creation from Plant Head Priority Order
   const handleLaunchJobCardFromPriority = (priorityOrder: PlantHeadPriorityAssignment, defaultQty?: number) => {
-    const generatedJcNo = getNextJobCardNo(jobCards);
+    const generatedJcNo = getNextUniqueJobCardNo();
     const nextJcIndex = generatedJcNo.split('-').pop() || '001';
     const totalOrder = priorityOrder.totalOrderQty || (priorityOrder.id === 'PRIO-2026-001' ? 10000 : priorityOrder.availableQty);
     const availableCount = defaultQty !== undefined ? defaultQty : (totalOrder > 0 ? totalOrder : 250);
@@ -909,7 +910,7 @@ export const JobCardsView: React.FC = () => {
 
   // DIRECT 1-CLICK JOB CARD CREATION & STORE MATERIAL DEMAND from Store Stock Item
   const handleRequestFromSpecificStock = (stockItem: any) => {
-    const generatedJcNo = getNextJobCardNo(jobCards);
+    const generatedJcNo = getNextUniqueJobCardNo();
     const nextJcIndex = generatedJcNo.split('-').pop() || '001';
     const availableCount = stockItem.balanceAvailable > 0 ? stockItem.balanceAvailable : 250;
     

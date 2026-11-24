@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-24: Enforced Strictly Monotonic Never-Reused Job Card Numbering (`pk_jobcard_seq_counter`)
+  - Files touched:
+    - `src/portal/types/portalTypes.ts`: Added `extractJobCardSeq` and enhanced `getNextJobCardNo` to combine `jobCards`, `localStorage` monotonic counter `pk_jobcard_seq_counter`, and historical records.
+    - `src/portal/context/PortalStoreContext.tsx`: Added persistent cloud-synced `jobCardSeqCounter` (`pk_jobcard_seq_counter`), exposed `getNextUniqueJobCardNo`, updated `addJobCard` to auto-assign the next never-used number if a number was ever used before (even after deletion) and return the saved `JobCard`, and added `masterJobCardOverride` on `createPainterAssignment`.
+    - `src/portal/components/JobCardModal.tsx` & `src/portal/views/JobCardsView.tsx`: Switched new Job Card numbering to `getNextUniqueJobCardNo()` and passed `savedCard` to `createPainterAssignment`.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-24: Prevented Duplicate `jobCardNo` Creation & Cross-Customer Priority Queue Linking
   - Files touched:
     - `src/portal/views/JobCardsView.tsx`: Tightened `PRIORITY_QUEUE` `matchingJobCards` filter to require plant + GRN/Challan+Customer ownership so stale `linkedJobCardNo` never maps one customer's Priority Order (e.g. `Avinash Sharma`) to another customer's `JC-2026-001`.

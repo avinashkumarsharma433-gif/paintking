@@ -1849,13 +1849,29 @@ export function isLegacyDemoJobCard(j: Partial<JobCard> | null | undefined): boo
   );
 }
 
-export function getNextJobCardNo(jobCards: Array<Partial<JobCard>>): string {
+export function extractJobCardSeq(jobCardNo?: string): number {
+  const match = (jobCardNo || '').match(/JC-\d{4}-(\d+)/i);
+  if (!match) return 0;
+  const n = parseInt(match[1], 10);
+  return isNaN(n) ? 0 : n;
+}
+
+export function getNextJobCardNo(
+  jobCards: Array<Partial<JobCard>>,
+  minCounter: number = 0,
+  extraKnownJobCardNos: Array<string | undefined | null> = []
+): string {
   const year = new Date().getFullYear();
-  const maxSeq = jobCards.reduce((max, jc) => {
-    const match = (jc.jobCardNo || '').match(/JC-\d{4}-(\d+)/i);
-    if (!match) return max;
-    const n = parseInt(match[1], 10);
-    return !isNaN(n) && n > max ? n : max;
-  }, 0);
-  return `JC-${year}-${String(maxSeq + 1).padStart(3, '0')}`;
+  let storedCounter = 0;
+  try {
+    if (typeof window !== 'undefined') {
+      storedCounter = Number(localStorage.getItem('pk_jobcard_seq_counter') || '0') || 0;
+    }
+  } catch {
+    storedCounter = 0;
+  }
+  const maxFromCards = jobCards.reduce((max, jc) => Math.max(max, extractJobCardSeq(jc.jobCardNo)), 0);
+  const maxFromExtras = extraKnownJobCardNos.reduce((max, no) => Math.max(max, extractJobCardSeq(no || undefined)), 0);
+  const highestSeq = Math.max(maxFromCards, maxFromExtras, storedCounter, minCounter);
+  return `JC-${year}-${String(highestSeq + 1).padStart(3, '0')}`;
 }

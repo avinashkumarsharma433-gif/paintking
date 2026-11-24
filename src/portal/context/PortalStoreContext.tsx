@@ -62,7 +62,9 @@ import {
   MasterJobCard,
   resolveJobCardInwardParts,
   computeAssignmentBalance,
-  isLegacyDemoJobCard
+  isLegacyDemoJobCard,
+  extractJobCardSeq,
+  getNextJobCardNo
 } from '../types/portalTypes';
 import {
   applyIssueToBatches,
@@ -142,7 +144,10 @@ interface PortalContextType {
   // 3-Tier Spray Painting Job Card Architecture (PK-OS 2026)
   painterAssignments: PainterAssignment[];
   assignmentMaterialLogs: AssignmentMaterialLog[];
-  createPainterAssignment: (assignmentData: Omit<PainterAssignment, 'id' | 'status' | 'actualCompletedQty' | 'rejectReworkQty' | 'scrapQty' | 'stageOkQty' | 'stageReworkQty' | 'stageScrapQty'>) => { success: boolean; error?: string; assignment?: PainterAssignment };
+  createPainterAssignment: (
+    assignmentData: Omit<PainterAssignment, 'id' | 'status' | 'actualCompletedQty' | 'rejectReworkQty' | 'scrapQty' | 'stageOkQty' | 'stageReworkQty' | 'stageScrapQty'>,
+    masterJobCardOverride?: JobCard
+  ) => { success: boolean; error?: string; assignment?: PainterAssignment };
   closePainterAssignment: (
     assignmentId: string,
     completionData: {
@@ -344,7 +349,8 @@ interface PortalContextType {
   addIPQCRecord: (ipqc: IPQCRecord) => void;
   addOQCRelease: (release: FinalQualityRelease) => void;
   submitPdiClearance: (releaseId: string, pdiData: Partial<FinalQualityRelease>) => void;
-  addJobCard: (jc: JobCard) => void;
+  getNextUniqueJobCardNo: () => string;
+  addJobCard: (jc: JobCard) => JobCard;
   deleteJobCard: (jobCardNo: string) => void;
   updateJobCard: (jc: JobCard) => void;
   addJobCardProgressLog: (jobCardNo: string, log: Omit<JobCardProductionProgressLog, 'id' | 'timestamp'>) => void;
@@ -752,6 +758,13 @@ export const PortalProvider: React.FC<{
           }
           if (Array.isArray(remote.pk_plant_head_priorities)) {
             setPlantHeadPriorities(sanitizePriorityLinks(remote.pk_plant_head_priorities as PlantHeadPriorityAssignment[], hydratedCards));
+          }
+          if (typeof remote.pk_jobcard_seq_counter === 'number' && !isNaN(remote.pk_jobcard_seq_counter)) {
+            setJobCardSeqCounter(prev => {
+              const merged = Math.max(prev, remote.pk_jobcard_seq_counter as number);
+              localStorage.setItem('pk_jobcard_seq_counter', String(merged));
+              return merged;
+            });
           }
           let hydratedAsgs = painterAssignments;
           if (Array.isArray(remote.pk_painter_assignments)) {
@@ -1273,6 +1286,19 @@ export const PortalProvider: React.FC<{
   const [iqcRecords, setIqcRecords] = useState<IQCInspectionRecord[]>(() => {
     return mergeByUniqueKey(localStorage.getItem('pk_iqc_data'), INITIAL_IQC_RECORDS, 'reportNo');
   });
+
+  const [jobCardSeqCounter, setJobCardSeqCounter] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem('pk_jobcard_seq_counter') || '0');
+      return isNaN(saved) ? 0 : saved;
+    } catch {
+      return 0;
+    }
+  });
+
+  useEffect(() => {
+    syncState('pk_jobcard_seq_counter', jobCardSeqCounter);
+  }, [jobCardSeqCounter]);
 
   const [jobCards, setJobCards] = useState<JobCard[]>(() => {
     const raw = mergeByUniqueKey(localStorage.getItem('pk_jobcards_data'), INITIAL_JOB_CARDS, 'jobCardNo');
@@ -1943,13 +1969,49 @@ export const PortalProvider: React.FC<{
     // Role switching disabled: identity is strictly enforced by Supabase Auth + pk_portal_users
   };
 
-  const addJobCard = (jc: JobCard) => {
-    if (jobCards.some(existing => existing.jobCardNo === jc.jobCardNo)) {
-      return;
+  const getAllKnownJobCardNos = (): string[] => [
+    ...jobCards.map(j => j.jobCardNo),
+    ...materialRequisitions.map(r => r.jobCardNo),
+    ...painterAssignments.map(a => a.masterJobCardNo || a.masterJobCardId || ''),
+    ...preProductionReports.map(p => p.jobCardNo),
+    ...fpaRecords.map(f => f.jobCardNo),
+    ...ipqcRecords.map(i => i.jobCardNo),
+    ...qualityReleases.map(q => q.jobCardNo),
+    ...packingSlips.map(s => s.jobCardNo),
+    ...billingInvoices.map(b => b.jobCardNo)
+  ].filter(Boolean);
+
+  const getNextUniqueJobCardNo = (): string => {
+    return getNextJobCardNo(jobCards, jobCardSeqCounter, getAllKnownJobCardNos());
+  };
+
+  const addJobCard = (jc: JobCard): JobCard => {
+    const knownNos = getAllKnownJobCardNos();
+    const usedSet = new Set(knownNos.map(n => n.trim().toLowerCase()));
+    const peakExistingSeq = knownNos.reduce((m, n) => Math.max(m, extractJobCardSeq(n)), jobCardSeqCounter);
+    const requestedNo = (jc.jobCardNo || '').trim();
+    const requestedSeq = extractJobCardSeq(requestedNo);
+    const isDuplicateOrStale =
+      !requestedNo ||
+      usedSet.has(requestedNo.toLowerCase()) ||
+      (requestedSeq > 0 && requestedSeq <= peakExistingSeq);
+
+    const resolvedJobCardNo = isDuplicateOrStale
+      ? getNextJobCardNo(jobCards, peakExistingSeq, knownNos)
+      : requestedNo;
+
+    const finalSeq = Math.max(peakExistingSeq, extractJobCardSeq(resolvedJobCardNo));
+    setJobCardSeqCounter(finalSeq);
+    try {
+      localStorage.setItem('pk_jobcard_seq_counter', String(finalSeq));
+    } catch {
+      // ignore storage errors
     }
+
     const fallbackPlant: PlantLocation = activePlant === 'ALL' ? 'Haridwar' : activePlant;
     const formattedJc: JobCard = {
       ...jc,
+      jobCardNo: resolvedJobCardNo,
       plant: jc.plant || fallbackPlant,
       painterJobStatus: jc.painterJobStatus || 'Assigned',
       assignedPainterName: jc.assignedPainterName || jc.painterName,
@@ -2057,6 +2119,7 @@ export const PortalProvider: React.FC<{
     };
 
     setMaterialRequisitions(prev => [autoMrn, ...prev]);
+    return formattedJc;
   };
 
   const updateJobCard = (jc: JobCard) => {
@@ -2716,9 +2779,10 @@ export const PortalProvider: React.FC<{
   // ======================================================================
 
   const createPainterAssignment = (
-    assignmentData: Omit<PainterAssignment, 'id' | 'status' | 'actualCompletedQty' | 'rejectReworkQty' | 'scrapQty' | 'stageOkQty' | 'stageReworkQty' | 'stageScrapQty'>
+    assignmentData: Omit<PainterAssignment, 'id' | 'status' | 'actualCompletedQty' | 'rejectReworkQty' | 'scrapQty' | 'stageOkQty' | 'stageReworkQty' | 'stageScrapQty'>,
+    masterJobCardOverride?: JobCard
   ): { success: boolean; error?: string; assignment?: PainterAssignment } => {
-    const parentJob = jobCards.find(j => j.jobCardNo === assignmentData.masterJobCardNo);
+    const parentJob = masterJobCardOverride || jobCards.find(j => j.jobCardNo === assignmentData.masterJobCardNo);
     if (!parentJob) {
       return { success: false, error: `Master Job Card ${assignmentData.masterJobCardNo} not found.` };
     }
@@ -3894,6 +3958,7 @@ export const PortalProvider: React.FC<{
         addIPQCRecord,
         addOQCRelease,
         submitPdiClearance,
+        getNextUniqueJobCardNo,
         addJobCard,
         deleteJobCard,
         updateJobCard,

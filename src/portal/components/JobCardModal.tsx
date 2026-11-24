@@ -14,8 +14,7 @@ import {
   PainterAssignment,
   AssignmentProcessStage,
   JobCardOrderLineItem,
-  resolveJobCardInwardParts,
-  getNextJobCardNo
+  resolveJobCardInwardParts
 } from '../types/portalTypes';
 import { 
   Plus, 
@@ -243,6 +242,7 @@ const STEP_TITLES = [
 
 export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, initialData }) => {
   const { 
+    getNextUniqueJobCardNo,
     addJobCard, 
     updateJobCard,
     addJobCardProgressLog,
@@ -281,7 +281,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   // =========================================================================
   // POINT 1: Party & Work Order Details
   // =========================================================================
-  const [jobCardNo, setJobCardNo] = useState<string>(initialData?.jobCardNo || getNextJobCardNo(jobCards));
+  const [jobCardNo, setJobCardNo] = useState<string>(initialData?.jobCardNo || getNextUniqueJobCardNo());
   const [selectedGrnNo, setSelectedGrnNo] = useState<string>(initialData?.sourceGrnNo || (initialData as any)?.grnNo || '');
   const [customer, setCustomer] = useState<string>(initialData?.customer || '');
   const [wNo, setWNo] = useState<string>(initialData?.wNo || initialData?.woNo || '');
@@ -963,6 +963,8 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       }
       if (initialData.deadlineDate) setDeadlineDate(initialData.deadlineDate);
       if (initialData.deadlineTime) setDeadlineTime(initialData.deadlineTime);
+    } else if (isOpen && !initialData) {
+      setJobCardNo(getNextUniqueJobCardNo());
     }
   }, [initialData, isOpen, grnList]);
 
@@ -1839,7 +1841,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
 
     const resolvedJobCardNo = isExistingCard
       ? jobCardNo
-      : (jobCards.some(j => j.jobCardNo === jobCardNo) ? getNextJobCardNo(jobCards) : jobCardNo);
+      : (jobCards.some(j => j.jobCardNo === jobCardNo) ? getNextUniqueJobCardNo() : jobCardNo);
 
     const finalCard: JobCard = {
       ...(initialData || {}),
@@ -1896,25 +1898,28 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     if (isExistingCard) {
       updateJobCard(finalCard);
     } else {
-      addJobCard(finalCard);
+      const savedCard = addJobCard(finalCard);
 
-      // Automatically register Tier-2 Painter Assignments
+      // Automatically register Tier-2 Painter Assignments against the guaranteed-unique savedCard
       initialPainterAllocs.forEach(alloc => {
         if (alloc.dailyTargetQty > 0) {
-          const res = createPainterAssignment({
-            masterJobCardNo: finalCard.jobCardNo,
-            assignmentDate: issueDate,
-            shift: 'General Day Shift (08:30 - 18:30)',
-            painterId: alloc.painterId,
-            painterName: alloc.painterName,
-            boothNumber: alloc.boothNumber,
-            processStage: alloc.processStage,
-            partCode: alloc.partCode || resolvedOrderItems[0]?.partCode || finalCard.partCode,
-            partDescription: alloc.partDescription || resolvedOrderItems[0]?.partDescription || finalCard.partDescription,
-            colorShade: alloc.colorShade?.trim() || batchColor.trim() || undefined,
-            dailyTargetQty: alloc.dailyTargetQty,
-            remarks: 'Shift allocation at Job Card launch'
-          });
+          const res = createPainterAssignment(
+            {
+              masterJobCardNo: savedCard.jobCardNo,
+              assignmentDate: issueDate,
+              shift: 'General Day Shift (08:30 - 18:30)',
+              painterId: alloc.painterId,
+              painterName: alloc.painterName,
+              boothNumber: alloc.boothNumber,
+              processStage: alloc.processStage,
+              partCode: alloc.partCode || resolvedOrderItems[0]?.partCode || savedCard.partCode,
+              partDescription: alloc.partDescription || resolvedOrderItems[0]?.partDescription || savedCard.partDescription,
+              colorShade: alloc.colorShade?.trim() || batchColor.trim() || undefined,
+              dailyTargetQty: alloc.dailyTargetQty,
+              remarks: 'Shift allocation at Job Card launch'
+            },
+            savedCard
+          );
 
           // Automatically register Tier-3 Material Traceability Logs
           if (res?.success && res.assignment && issuedMaterials.length > 0) {
@@ -1924,7 +1929,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
               issuedMaterials.map(m => ({
                 materialName: m.itemDescription,
                 materialType: (m.materialType === 'paint' ? 'Base Paint' : m.materialType === 'hardener' ? 'Hardener' : m.materialType === 'thinner' ? 'Thinner' : m.materialType === 'clear' ? 'Topcoat' : 'Base Paint') as any,
-                batchNumber: m.batchNumber || `LOT-${finalCard.jobCardNo.slice(-4)}`,
+                batchNumber: m.batchNumber || `LOT-${savedCard.jobCardNo.slice(-4)}`,
                 issuedQty: Math.max(0.2, Number((m.qty * allocFraction).toFixed(2))),
                 uom: m.uom as any,
                 standardNormPerPiece: 0.040
