@@ -1,5 +1,13 @@
 # WORKING SET
 
+- 2026-11-24: Enforced Strict End-to-End Inward -> IQC -> Store GRN -> Priority -> Master Job Card Gatekeepers
+  - Files touched:
+    - `src/portal/views/DashboardView.tsx`: Removed `+ Inward Intake (GRN)` / `QuickInwardModal` bypass from Executive Cockpit; restricted `storeStockItems` strictly to IQC-cleared (`Accepted` / `Passed` / `Part Accepted`) Party Material GRNs (excluding Company Consumables).
+    - `src/portal/context/PortalStoreContext.tsx`: Added `isGrnAndIqcVerified` guard inside `assignProductionPriority` & `createMasterJobCardFromPriority`, and tightened `canIssueJobCard` to require explicit IQC clearance (`Accepted` / `Passed` / `Part Accepted`).
+    - `src/portal/views/JobCardsView.tsx`: Filtered `plantPriorityOrders` to require a matching IQC-cleared GRN in `grnList` and added a `{grnNo} • IQC ✓` badge on every Master Job Card.
+    - `src/portal/views/QAView.tsx`: Blocked standalone/blank IQC report creation in `openMasterIqcForNewReport` when no pending Gate Inward exists.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-24: Removed Redundant `All Job Cards` Tab & Unified Controls into `Master Job Cards & Priority Orders`
   - Files touched:
     - `src/portal/views/JobCardsView.tsx`: Removed `All Job Cards` tab pill (`ALL`), `'ALL'` search/filter bar, and orphaned `ALL` JSX cards grid; defaulted `activeTab` to `'PRIORITY_QUEUE'`, renamed tab pill to `Master Job Cards & Priority Orders`, and added `Gate 1: PIR` / `Gate 2: FPA` / `Gate 3: IPQC Audit` badges, `OK Completed` count, `PDF` download, and `Delete` actions directly onto Priority Queue Master Cards.

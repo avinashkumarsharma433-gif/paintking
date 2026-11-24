@@ -221,7 +221,7 @@ interface PortalContextType {
   assignProductionPriority: (assignment: Omit<PlantHeadPriorityAssignment, 'id' | 'assignedAt' | 'status'>) => {
     priority: PlantHeadPriorityAssignment;
     jobCard: JobCard;
-  };
+  } | null;
   createMasterJobCardFromPriority: (priorityId: string) => JobCard | null;
   updatePriorityStatus: (priorityId: string, status: PlantHeadPriorityAssignment['status'], linkedJobCardNo?: string) => void;
 
@@ -2435,9 +2435,21 @@ export const PortalProvider: React.FC<{
     return addJobCard(newMasterCard);
   };
 
+  const isGrnAndIqcVerified = (grnNo?: string): boolean => {
+    if (!grnNo) return false;
+    const grn = grnList.find(g => g.grnNo === grnNo);
+    if (!grn) return false;
+    return grn.iqcStatus === 'Accepted' || grn.iqcStatus === 'Passed' || grn.iqcStatus === 'Part Accepted';
+  };
+
   const assignProductionPriority = (
     assignment: Omit<PlantHeadPriorityAssignment, 'id' | 'assignedAt' | 'status'>
-  ): { priority: PlantHeadPriorityAssignment; jobCard: JobCard } => {
+  ): { priority: PlantHeadPriorityAssignment; jobCard: JobCard } | null => {
+    // Hard gate: Priority & Master Job Card can ONLY be launched from a 100% GRN + IQC cleared lot
+    if (!isGrnAndIqcVerified(assignment.grnNo)) {
+      return null;
+    }
+
     const savedCard = buildOrReuseMasterJobCardForPriority(assignment);
     const maxPrioSeq = plantHeadPriorities.reduce((max, p) => {
       const m = (p.id || '').match(/PRIO-\d{4}-(\d+)/i);
@@ -2462,6 +2474,7 @@ export const PortalProvider: React.FC<{
   const createMasterJobCardFromPriority = (priorityId: string): JobCard | null => {
     const prio = plantHeadPriorities.find(p => p.id === priorityId);
     if (!prio) return null;
+    if (!isGrnAndIqcVerified(prio.grnNo)) return null;
     const savedCard = buildOrReuseMasterJobCardForPriority(prio);
     setPlantHeadPriorities(prev =>
       prev.map(p => (p.id === priorityId ? { ...p, status: 'Job Card Launched', linkedJobCardNo: savedCard.jobCardNo } : p))
@@ -4643,8 +4656,12 @@ export const PortalProvider: React.FC<{
   const canIssueJobCard = (grnNo: string): { allowed: boolean; reason?: string } => {
     const grn = grnList.find(g => g.grnNo === grnNo);
     if (!grn) return { allowed: false, reason: 'GRN record not found in system.' };
-    if (grn.iqcStatus === 'Rejected' || grn.iqcStatus === 'Hold') {
-      return { allowed: false, reason: `Gate 1 Block: GRN ${grnNo} is on IQC ${grn.iqcStatus}. Raw substrate cannot be issued to Job Card.` };
+    const isCleared = grn.iqcStatus === 'Accepted' || grn.iqcStatus === 'Passed' || grn.iqcStatus === 'Part Accepted';
+    if (!isCleared) {
+      return {
+        allowed: false,
+        reason: `Gate 1 Block: GRN ${grnNo} is IQC ${grn.iqcStatus || 'Pending'}. 100% GRN & IQC clearance is mandatory.`
+      };
     }
     return { allowed: true };
   };

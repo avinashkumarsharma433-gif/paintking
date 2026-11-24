@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
 import { PortalTab } from '../components/PortalSidebar';
-import { QuickInwardModal } from '../components/QuickInwardModal';
 import { matchesPlant } from '../utils/portalAuth';
+import { isChemicalConsumable } from '../utils/stockEngine';
 import { 
   TrendingUp, 
   AlertTriangle, 
@@ -11,7 +11,6 @@ import {
   ArrowRightLeft, 
   ShieldAlert, 
   Boxes, 
-  Plus, 
   ArrowRight, 
   Clock,
   Sparkles,
@@ -85,10 +84,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
     return plantHeadPriorities.filter(p => matchesPlant(p.plant, activePlant));
   }, [plantHeadPriorities, activePlant]);
 
-  // Synchronized Store Stock Items with Priority Status
+  // Synchronized Store Stock Items with Priority Status (Strict: 100% GRN + IQC Cleared Party Material Only)
   const storeStockItems = React.useMemo(() => {
     return plantGrnList
-      .filter(g => g.iqcStatus !== 'Rejected')
+      .filter(g => {
+        if (!g.grnNo) return false;
+        const isIqcCleared =
+          g.iqcStatus === 'Accepted' || g.iqcStatus === 'Passed' || g.iqcStatus === 'Part Accepted';
+        if (!isIqcCleared) return false;
+
+        const firstItem = g.items?.[0];
+        const partDesc = firstItem?.partDescription || g.description || '';
+        const custLower = (g.supplierCustomer || '').toLowerCase();
+        const isCompanyConsumable =
+          firstItem?.category === 'COMPANY_CONSUMABLE' ||
+          isChemicalConsumable(firstItem?.materialType, firstItem?.category, partDesc) ||
+          custLower.includes('asian paints') ||
+          custLower.includes('ppg') ||
+          custLower.includes('berger');
+        return !isCompanyConsumable;
+      })
       .map(grn => {
         const partCode = grn.items?.[0]?.partCode || grn.partCode || 'SUBSTRATE';
         const partDesc = grn.items?.[0]?.partDescription || grn.description || 'Raw Molded Components';
@@ -179,12 +194,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
       plant: activePlant === 'ALL' ? (selectedStockForPriority.plant || 'Haridwar') : activePlant
     });
 
+    if (!res) {
+      setShowPriorityModal(false);
+      setToastMsg(`⚠️ Blocked: GRN ${selectedStockForPriority.grnNo} ka 100% GRN & IQC clearance verify nahi hua.`);
+      setTimeout(() => setToastMsg(null), 4500);
+      return;
+    }
+
     setShowPriorityModal(false);
     setToastMsg(`✓ Priority set & Master Job Card (${res.jobCard.jobCardNo}) auto-created for ${selectedStockForPriority.customer}!`);
     setTimeout(() => setToastMsg(null), 4500);
   };
 
-  const [showInwardModal, setShowInwardModal] = useState<boolean>(false);
   const [showEodModal, setShowEodModal] = useState<boolean>(false);
   const [eodRemarks, setEodRemarks] = useState<string>('');
 
@@ -282,14 +303,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
 
           {/* Quick Primary Actions */}
           <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
-            <button
-              onClick={() => setShowInwardModal(true)}
-              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-semibold shadow-xs transition cursor-pointer"
-            >
-              <Plus className="w-4 h-4 text-[#17191c]" />
-              <span>+ Inward Intake (GRN)</span>
-            </button>
-
             <button
               onClick={() => setShowReworkModal(true)}
               className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-full bg-[#fafafb] hover:bg-[#f2f2f3] border border-[#ececec] text-[#17191c] text-xs font-semibold transition cursor-pointer"
@@ -1294,10 +1307,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
             </form>
           </div>
         </div>
-      )}
-
-      {showInwardModal && (
-        <QuickInwardModal onClose={() => setShowInwardModal(false)} />
       )}
     </div>
   );

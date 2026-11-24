@@ -703,70 +703,13 @@ export const QAView: React.FC = () => {
   };
 
   const openMasterIqcForNewReport = () => {
-    // If pending inwards exist, select the first pending inward as default, otherwise create standard entry
-    const defaultInward = pendingInwards[0] || materialInwardLogs[0];
+    // Hard gate: IQC report can ONLY be initiated against a real Pending Gate Inward shipment
+    const defaultInward = pendingInwards[0];
     if (defaultInward) {
       openMasterIqcForInward(defaultInward);
     } else {
-      const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
-      const randNum = Math.floor(10 + Math.random() * 90);
-      const repNo = `IQC-${dateStr}-${randNum}`;
-      setSelectedInwardForIqc(null);
-      setIqcModalStep(1);
-      setIqcFormError(null);
-      setMasterIqcForm({
-        reportNo: repNo,
-        inwardSrNo: '',
-        vendorCustomer: '',
-        partComponent: '',
-        partDescription: '',
-        invoiceChallanNo: '',
-        invoiceChallanDate: new Date().toISOString().split('T')[0],
-        inspectionDate: new Date().toISOString().split('T')[0],
-        batchNo: `B-${dateStr.slice(-4)}`,
-        invQuantity: 0,
-        uom: 'Pcs',
-        actualReceived: 0,
-        shortageQty: 0,
-        boxCondition: 'Intact & Clean',
-        hasDiscrepancy: false,
-        discrepancyReportedToProductionManager: false,
-        productionManagerNote: '',
-        deltaEValue: 0.42,
-        verifiedItems: [{
-          id: '1',
-          materialName: 'ABS Car AC Vent Bezel Substrates',
-          challanQty: 1000,
-          actualQty: 1000,
-          unit: 'Pcs',
-          isReceived: true,
-          condition: 'Intact & Clean',
-          shortageQty: 0,
-          notes: '',
-          sampleSize: 200,
-          passQty: 200,
-          rejectQty: 0,
-          rejectionPercent: 0,
-          defectDetail: 'Nil - All parts pass visual & physical checks'
-        }],
-        aspects: defaultCoreAspects.map(a => ({ ...a })),
-        sampleSize: 200,
-        passQty: 200,
-        rejectQty: 0,
-        rejectionPercent: 0,
-        rejectionDetail: 'Nil - All parts pass visual and physical checks',
-        rootCause: 'N/A - Compliant material',
-        correctiveAction: 'N/A',
-        preventiveAction: 'Standard storage and handling maintained',
-        remarks: 'Material meets all quality specs. Approved for production issue.',
-        status: 'Accepted',
-        materialCategory: 'Party Material',
-        preparedBy: currentUser.name || 'Manoj Tiwari (IQC Inspector)',
-        verifiedBy: 'Sanjay Rawat (Production Manager)',
-        generatedAt: '',
-        generatedTimestamp: ''
-      });
-      setShowMasterIqcModal(true);
+      setIqcToast('⚠️ Koi pending Gate Inward shipment nahi hai. Pehle Inward / Gate Pass me entry register karein.');
+      setTimeout(() => setIqcToast(null), 5000);
     }
   };
 
@@ -1918,10 +1861,16 @@ export const QAView: React.FC = () => {
             <button
               type="button"
               onClick={openMasterIqcForNewReport}
-              className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1.5 active:scale-95 self-start sm:self-auto whitespace-nowrap shrink-0"
+              disabled={pendingInwards.length === 0}
+              title={pendingInwards.length === 0 ? 'Requires a Pending Gate Inward entry first' : 'Inspect next pending Gate Inward shipment'}
+              className={`px-4 py-2 rounded-full border text-xs font-semibold shadow-2xs transition inline-flex items-center gap-1.5 self-start sm:self-auto whitespace-nowrap shrink-0 ${
+                pendingInwards.length === 0
+                  ? 'bg-[#fafafb] text-[#979799] border-[#ececec] cursor-not-allowed'
+                  : 'bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border-[#dcdfe4] cursor-pointer active:scale-95'
+              }`}
             >
               <Plus className="w-3.5 h-3.5 text-[#c09748]" />
-              <span>+ New IQC Report</span>
+              <span>{pendingInwards.length > 0 ? `+ Inspect Next Inward (${pendingInwards.length})` : 'Awaiting Gate Inward'}</span>
             </button>
           </div>
 

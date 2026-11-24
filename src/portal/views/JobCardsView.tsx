@@ -1015,8 +1015,24 @@ export const JobCardsView: React.FC = () => {
   );
 
   const plantPriorityOrders = useMemo(
-    () => plantHeadPriorities.filter(p => matchesPlant(p.plant, activePlant)),
-    [plantHeadPriorities, activePlant]
+    () =>
+      plantHeadPriorities.filter(p => {
+        if (!matchesPlant(p.plant, activePlant)) return false;
+        const linkedGrn = grnList.find(
+          g =>
+            (p.grnNo && g.grnNo === p.grnNo) ||
+            (p.challanNo &&
+              g.invoiceChallanNo === p.challanNo &&
+              g.supplierCustomer?.trim().toLowerCase() === p.customer?.trim().toLowerCase())
+        );
+        return Boolean(
+          linkedGrn &&
+            (linkedGrn.iqcStatus === 'Accepted' ||
+              linkedGrn.iqcStatus === 'Passed' ||
+              linkedGrn.iqcStatus === 'Part Accepted')
+        );
+      }),
+    [plantHeadPriorities, grnList, activePlant]
   );
 
   const plantMaterialRequisitions = useMemo(
@@ -1849,6 +1865,10 @@ export const JobCardsView: React.FC = () => {
 
                             <span className="text-xs font-mono text-[#777b86] px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec]">
                               {prio.challanNo ? `Challan: ${prio.challanNo}` : prio.id}
+                            </span>
+
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-mono font-semibold">
+                              {prio.grnNo ? `${prio.grnNo} • IQC ✓` : 'GRN & IQC ✓'}
                             </span>
 
                             {masterCard && (
