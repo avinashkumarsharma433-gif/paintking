@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
 import { GoodsReceiptNote, GRNLineItem, OrderColorSplit, MATERIAL_TYPE_OPTIONS, StockMaterialType } from '../types/portalTypes';
 import { isChemicalConsumable } from '../utils/stockEngine';
@@ -37,8 +37,11 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
 
   const latestGateInward = materialInwardLogs[0];
 
-  // Success state after receiving material into store
+  // Success & Duplicate-Guard states after receiving material into store
   const [createdGRN, setCreatedGRN] = useState<GoodsReceiptNote | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const lastOpenedKeyRef = useRef<string>('');
 
   // 1. Inward & Party Metadata (Pre-filled from Gate & IQC)
   const [grnNo, setGrnNo] = useState<string>(`PK-GRN-2026-${Math.floor(1000 + Math.random() * 9000)}`);
@@ -63,10 +66,22 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
   // Line Items with editable Actual Received Qty
   const [items, setItems] = useState<GRNLineItem[]>([]);
 
-  // Auto populate all fields from the pending IQC lot when opened
+  // Auto populate all fields ONLY when modal opens for a new pending IQC lot (never wipe createdGRN mid-save)
   useEffect(() => {
-    if (isOpen) {
-      setCreatedGRN(null);
+    if (!isOpen) {
+      lastOpenedKeyRef.current = '';
+      setIsSubmitting(false);
+      setSubmitError(null);
+      return;
+    }
+
+    const openKey = `${pendingJob?.reportNo || ''}__${pendingJob?.inwardSrNo || ''}__${pendingJob?.invoiceChallanNo || pendingJob?.challanNo || ''}`;
+    if (lastOpenedKeyRef.current === openKey) return;
+    lastOpenedKeyRef.current = openKey;
+
+    setCreatedGRN(null);
+    setIsSubmitting(false);
+    setSubmitError(null);
 
       const genGrnNo = `PK-GRN-2026-${Math.floor(1000 + Math.random() * 9000)}`;
       setGrnNo(genGrnNo);
@@ -147,8 +162,7 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
         setInvoiceChallanNo(latestGateInward?.challanNo || '');
         setVehicleNo(latestGateInward?.vehicleNo || '');
       }
-    }
-  }, [isOpen, pendingJob, latestGateInward, currentUser]);
+  }, [isOpen, pendingJob]);
 
   if (!isOpen) return null;
 
@@ -221,8 +235,20 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
 
   const handleAcceptAndGenerateGRN = (e: React.FormEvent) => {
     e.preventDefault();
-    addGRN(previewGRN);
-    setCreatedGRN(previewGRN);
+    if (isSubmitting || createdGRN) return;
+    setIsSubmitting(true);
+    setSubmitError(null);
+    const res = addGRN(previewGRN);
+    if (!res.success) {
+      setSubmitError(res.error || 'GRN already exists for this Inward.');
+      if (res.grn && res.grn.grnNo !== previewGRN.grnNo) {
+        setCreatedGRN(res.grn);
+      }
+      setIsSubmitting(false);
+      return;
+    }
+    setCreatedGRN(res.grn);
+    setIsSubmitting(false);
   };
 
   return (
@@ -577,6 +603,12 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
             {/* ========================================================================= */}
             {/* PART 4: ACCEPTANCE & REPORT GENERATION ACTION BAR (NO BLACK BUTTONS)       */}
             {/* ========================================================================= */}
+            {submitError && (
+              <div className="p-3 rounded-[14px] bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold">
+                {submitError}
+              </div>
+            )}
+
             <div className="pt-3 border-t border-[#ececec] flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-2 self-start sm:self-auto">
                 <span className="text-xs text-[#777b86]">Total Store Intake Quantity:</span>
@@ -595,10 +627,11 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs cursor-pointer flex items-center gap-2 shadow-2xs transition active:scale-95"
+                  disabled={isSubmitting || Boolean(createdGRN)}
+                  className="px-6 py-2.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] disabled:opacity-50 text-[#8a6521] border border-[#f4e5be] font-bold text-xs cursor-pointer flex items-center gap-2 shadow-2xs transition active:scale-95"
                 >
                   <Save className="w-4 h-4 text-[#8a6521]" />
-                  <span>Accept Material & Generate Official GRN</span>
+                  <span>{isSubmitting ? 'Generating Official GRN...' : 'Accept Material & Generate Official GRN'}</span>
                 </button>
               </div>
             </div>

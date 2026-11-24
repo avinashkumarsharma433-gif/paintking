@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-24: Enforced `1 Inward = 1 GRN` & Fixed `CreateGRNModal` Success-Screen Reset Loop
+  - Files touched:
+    - `src/portal/components/CreateGRNModal.tsx`: Fixed `useEffect` dependency bug (`latestGateInward` changing inside `addGRN` had immediately reset `createdGRN(null)` and allowed repeated clicks); guarded initialization via `lastOpenedKeyRef`, added `isSubmitting` lock & duplicate GRN error/preview handling.
+    - `src/portal/context/PortalStoreContext.tsx`: Added `latestGrnListRef` + strict duplicate guard in `addGRN` (blocks duplicate `grnNo`, `sourceIqcReportNo`, or `(challan + customer + date + plant)`) and `deleteGRN` (only allowed when unlinked from Job Cards, Priorities & Stock Issues).
+    - `src/portal/views/StoresView.tsx`: Strengthened `acceptedIqcJobs` filter against duplicate GRNs and added `Delete` button on unlinked duplicate GRNs in GRN Register.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-24: Redesigned Executive Cockpit Header & Removed Stale 6 KPI Cards and EOD/Rework Modals (`DashboardView.tsx`)
   - Files touched:
     - `src/portal/views/DashboardView.tsx`: Redesigned Top Operations Cockpit banner (dynamic `activePlant` unit pill, zero buttons, live 3-stat capsule for Store Lots / Master Cards / Painters Active); removed hardcoded `VASAI PLANT` pill, the 6 stale KPI cards (`Today's Sprayed 0/2,000`, `First Pass Yield`, etc.), and unused EOD/Rework modals & states.

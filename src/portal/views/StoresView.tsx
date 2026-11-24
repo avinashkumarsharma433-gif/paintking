@@ -35,7 +35,8 @@ import {
   CheckSquare,
   User,
   MapPin,
-  RotateCcw
+  RotateCcw,
+  Trash2
 } from 'lucide-react';
 import { CreateGRNModal } from '../components/CreateGRNModal';
 import { downloadStandardIQCPdf, downloadStandardGRNPdf, formatDateDDMMYYYY, downloadStandardMINPdf } from '../utils/pdfStandardHeader';
@@ -51,9 +52,11 @@ import { MaterialRequisitionNote } from '../types/portalTypes';
 export const StoresView: React.FC = () => {
   const { 
     grnList, 
+    deleteGRN,
     materialInwardLogs, 
     iqcRecords, 
     jobCards, 
+    plantHeadPriorities,
     activePlant,
     materialRequisitions,
     issueMaterialRequisition,
@@ -159,6 +162,22 @@ export const StoresView: React.FC = () => {
       .filter(rec => {
         if (receivedReportNos.has(rec.reportNo)) return false;
         if (grnList.some(g => (g.sourceIqcReportNo && g.sourceIqcReportNo === rec.reportNo) || (g.remarks && g.remarks.includes(rec.reportNo)))) {
+          return false;
+        }
+        const recChallan = (rec.invoiceChallanNo || '').trim().toLowerCase();
+        const recCust = (rec.vendorCustomer || rec.supplierCustomer || '').trim().toLowerCase();
+        const recDate = (rec.inspectionDate || rec.date || '').trim();
+        if (
+          recChallan &&
+          recCust &&
+          grnList.some(
+            g =>
+              (g.invoiceChallanNo || '').trim().toLowerCase() === recChallan &&
+              (g.supplierCustomer || '').trim().toLowerCase() === recCust &&
+              (g.receivedDate || g.date || '').trim() === recDate &&
+              matchesPlant(g.plant, rec.plant)
+          )
+        ) {
           return false;
         }
         return true;
@@ -2024,6 +2043,27 @@ export const StoresView: React.FC = () => {
                       <Download className="w-3.5 h-3.5 text-[#c09748]" />
                       <span>Download PDF</span>
                     </button>
+
+                    {isStoreIncharge &&
+                      !jobCards.some(j => j.sourceGrnNo === grn.grnNo) &&
+                      !plantHeadPriorities.some(p => p.grnNo === grn.grnNo) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(`Delete unlinked duplicate GRN ${grn.grnNo} (${grn.supplierCustomer})?`)) {
+                              const res = deleteGRN(grn.grnNo);
+                              if (!res.success && res.error) {
+                                alert(res.error);
+                              }
+                            }
+                          }}
+                          className="px-3.5 py-2 rounded-full border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                          title="Delete unlinked duplicate GRN"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete</span>
+                        </button>
+                      )}
                   </div>
                 </div>
               </div>

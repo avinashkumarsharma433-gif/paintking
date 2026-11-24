@@ -358,7 +358,8 @@ interface PortalContextType {
   advanceJobStage: (jobId: string, nextStage: JobPipelineStage) => void;
 
   // Logic Engine Actions
-  addGRN: (grn: GoodsReceiptNote) => void;
+  addGRN: (grn: GoodsReceiptNote) => { success: boolean; grn: GoodsReceiptNote; error?: string };
+  deleteGRN: (grnNo: string) => { success: boolean; error?: string };
   addIQCRecord: (iqc: IQCInspectionRecord) => void;
   submitMasterIQCReport: (report: IQCInspectionRecord) => void;
   addIPQCRecord: (ipqc: IPQCRecord) => void;
@@ -851,6 +852,9 @@ export const PortalProvider: React.FC<{
   const [grnList, setGrnList] = useState<GoodsReceiptNote[]>(() => {
     return mergeByUniqueKey(localStorage.getItem('pk_grn_data'), INITIAL_GRN_DATA, 'grnNo');
   });
+
+  const latestGrnListRef = useRef<GoodsReceiptNote[]>(grnList);
+  latestGrnListRef.current = grnList;
 
   const [materialRequisitions, setMaterialRequisitions] = useState<MaterialRequisitionNote[]>(() => {
     return mergeByUniqueKey(localStorage.getItem('pk_material_requisitions'), INITIAL_REQUISITIONS, 'mrnNo');
@@ -1766,6 +1770,7 @@ export const PortalProvider: React.FC<{
   }, [activeShift]);
 
   useEffect(() => {
+    latestGrnListRef.current = grnList;
     syncState('pk_grn_data', grnList);
   }, [grnList]);
 
@@ -2686,8 +2691,40 @@ export const PortalProvider: React.FC<{
     setMaterialRequisitions(prev => [autoMrn, ...prev]);
   };
 
-  const addGRN = (grn: GoodsReceiptNote) => {
-    if (!grn || !grn.grnNo) return;
+  const addGRN = (grn: GoodsReceiptNote): { success: boolean; grn: GoodsReceiptNote; error?: string } => {
+    if (!grn || !grn.grnNo) {
+      return { success: false, grn, error: 'Invalid GRN payload.' };
+    }
+
+    // Strict 1 Inward / 1 IQC Report = max 1 Official GRN enforcement
+    const normalizedChallan = (grn.invoiceChallanNo || '').trim().toLowerCase();
+    const normalizedCustomer = (grn.supplierCustomer || '').trim().toLowerCase();
+    const normalizedRecDate = (grn.receivedDate || grn.date || '').trim();
+    const existingDuplicate = latestGrnListRef.current.find(g => {
+      if (g.grnNo === grn.grnNo) return true;
+      if (grn.sourceIqcReportNo && g.sourceIqcReportNo && g.sourceIqcReportNo === grn.sourceIqcReportNo) return true;
+      if (
+        normalizedChallan &&
+        normalizedCustomer &&
+        (g.invoiceChallanNo || '').trim().toLowerCase() === normalizedChallan &&
+        (g.supplierCustomer || '').trim().toLowerCase() === normalizedCustomer &&
+        (g.receivedDate || g.date || '').trim() === normalizedRecDate &&
+        matchesPlant(g.plant, grn.plant)
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (existingDuplicate) {
+      return {
+        success: false,
+        grn: existingDuplicate,
+        error: `GRN (${existingDuplicate.grnNo}) is Inward / IQC lot ke liye pehle hi generate ho chuka hai. 1 Inward par ek hi GRN allowed hai.`
+      };
+    }
+
+    latestGrnListRef.current = [grn, ...latestGrnListRef.current];
     setGrnList(prev => [grn, ...prev]);
 
     // Auto-create StockBatch records from GRN lines (Store Role Stock Inward)
@@ -2784,6 +2821,26 @@ export const PortalProvider: React.FC<{
       }
       return rec;
     }));
+
+    return { success: true, grn };
+  };
+
+  const deleteGRN = (grnNo: string): { success: boolean; error?: string } => {
+    const isLinkedToJobCard = latestJobCardsRef.current.some(j => j.sourceGrnNo === grnNo);
+    const isLinkedToPriority = plantHeadPriorities.some(p => p.grnNo === grnNo);
+    const isIssuedFromBatch = stockBatches.some(
+      b => b.grnNo === grnNo && Number(b.balanceQty || 0) < Number(b.receivedQty || 0)
+    );
+    if (isLinkedToJobCard || isLinkedToPriority || isIssuedFromBatch) {
+      return {
+        success: false,
+        error: `GRN ${grnNo} already Job Card / Priority ya Stock Issue se linked hai — ise delete nahi kiya ja sakta.`
+      };
+    }
+    latestGrnListRef.current = latestGrnListRef.current.filter(g => g.grnNo !== grnNo);
+    setGrnList(prev => prev.filter(g => g.grnNo !== grnNo));
+    setStockBatches(prev => prev.filter(b => b.grnNo !== grnNo));
+    return { success: true };
   };
 
   // PROBLEM 1: Job Cards & Target Caps
@@ -4730,6 +4787,7 @@ export const PortalProvider: React.FC<{
         issueMaterialRequisition,
         acceptMaterialRequisition,
         addGRN,
+        deleteGRN,
         addIQCRecord,
         submitMasterIQCReport,
         addIPQCRecord,
