@@ -1,5 +1,14 @@
 # WORKING SET
 
+- 2026-11-24: Painter-Driven Daily Party + Company Material Allocation, Consolidated Store Floor Demands & Floor Transfer Sync
+  - Files touched:
+    - `src/portal/types/portalTypes.ts`: Added `PainterDailyMaterialAllocation`, `PainterFloorDemandEntry`, `plannedMaterials` / `storeDemandMrnNo` / `storeTransferStatus` / `storeMinNo` on `PainterAssignment`, `painterDemands` on `MaterialRequisitionNote`, and `transferStatus` / `mrnNo` / `minNo` on `AssignmentMaterialLog`.
+    - `src/portal/context/PortalStoreContext.tsx`: Stopped premature `autoMrn` creation in `addJobCard` when no painter is assigned; added `upsertPendingFloorDemand`, `buildConsolidatedFloorDemand`, and `requestAssignmentChemicals`; updated `createPainterAssignment` to raise/merge consolidated `Pending Store Issue` MRNs covering all assigned painters and their daily Party + Company materials; updated `issueMaterialRequisitionWithBatches` to deduct store batches (with clean unbatched chemical fallback) and transfer chemicals directly into `painterAssignments` & `assignmentMaterialLogs`.
+    - `src/portal/components/DailyAssignmentModal.tsx`: Added `6. Daily Company Materials (Today's Basis Only)` inline builder with presets, Store stock pickers, and `Auto-Estimate` alongside Party Material daily target qty.
+    - `src/portal/components/JobCardModal.tsx` & `src/portal/views/JobCardsView.tsx`: Made Step 3 optional/per-painter with daily Company Materials per painter, turned Step 4 into Consolidated Store Floor Demand Report Preview, synced Tab 2 to show Store Transfer status and route extra chemical requests to Stores (`requestAssignmentChemicals`), removed fake `companyMaterials` fallback, and surfaced `painterDemands` in `JobCardsView` MRN details.
+    - `src/portal/views/StoresView.tsx` & `src/portal/components/IssueWizardModal.tsx`: Scoped `Floor Demands` by `activePlant`, displayed the exact `painterDemands` report on Floor Demand cards & inside `IssueWizardModal`, strictly isolated `PARTY_MATERIAL` vs `COMPANY_CONSUMABLE` batch matching, and wired Store transfer directly to production floor.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`, 9.25s).
+
 - 2026-11-24: Enforced Strictly Monotonic Never-Reused Job Card Numbering (`pk_jobcard_seq_counter`)
   - Files touched:
     - `src/portal/types/portalTypes.ts`: Added `extractJobCardSeq` and enhanced `getNextJobCardNo` to combine `jobCards`, `localStorage` monotonic counter `pk_jobcard_seq_counter`, and historical records.

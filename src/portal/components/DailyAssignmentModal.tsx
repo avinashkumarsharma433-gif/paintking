@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Calendar, User, Layers, Target, AlertCircle, Plus, PackageCheck } from 'lucide-react';
+import { X, Calendar, User, Layers, Target, AlertCircle, Plus, PackageCheck, FlaskConical, Trash2, Sparkles } from 'lucide-react';
+import { usePortalStore } from '../context/PortalStoreContext';
+import { matchesPlant } from '../utils/portalAuth';
 import {
   JobCard,
   JobCardOrderLineItem,
@@ -8,9 +10,14 @@ import {
   AssignmentProcessStage,
   AssignmentShiftType,
   PainterAssignment,
+  PainterDailyMaterialAllocation,
   resolveJobCardInwardParts,
   computeAssignmentBalance
 } from '../types/portalTypes';
+
+interface DailyMaterialDraftRow extends PainterDailyMaterialAllocation {
+  id: string;
+}
 
 interface DailyAssignmentModalProps {
   isOpen: boolean;
@@ -34,6 +41,7 @@ interface DailyAssignmentModalProps {
     partDescription?: string;
     colorShade?: string;
     dailyTargetQty: number;
+    plannedMaterials?: PainterDailyMaterialAllocation[];
     remarks?: string;
   }) => { success: boolean; error?: string } | void;
 }
@@ -50,8 +58,21 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
   booths,
   onAssign
 }) => {
+  const { stockBatches, activePlant } = usePortalStore();
   const safePainters = availablePainters || painters || [];
   const safeBooths = availableBooths || booths || [];
+
+  const availableCompanyBatches = useMemo(
+    () =>
+      stockBatches.filter(
+        b =>
+          b.category === 'COMPANY_CONSUMABLE' &&
+          b.status === 'Available' &&
+          Number(b.balanceQty) > 0 &&
+          matchesPlant(b.plant, masterJobCard?.plant || activePlant)
+      ),
+    [stockBatches, masterJobCard, activePlant]
+  );
 
   const partsList = useMemo<JobCardOrderLineItem[]>(() => {
     if (inwardParts && inwardParts.length > 0) return inwardParts;
@@ -88,6 +109,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
   const [selectedBoothName, setSelectedBoothName] = useState<string>(safeBooths[0]?.name || 'Booth #1');
   const [colorShade, setColorShade] = useState<string>(masterJobCard?.color && masterJobCard.color !== 'Multi-Colour / Painter-Wise' ? masterJobCard.color : '');
   const [targetQty, setTargetQty] = useState<number>(() => Math.min(balancePending, 2000));
+  const [plannedMaterials, setPlannedMaterials] = useState<DailyMaterialDraftRow[]>([]);
   const [remarks, setRemarks] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -97,6 +119,9 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
         if (prev <= 0 && balancePending > 0) return Math.min(balancePending, 2000);
         return Math.min(balancePending, prev);
       });
+    } else {
+      setPlannedMaterials([]);
+      setErrorMsg(null);
     }
   }, [isOpen, balancePending]);
 
@@ -104,12 +129,67 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
 
   const selectedPainter = safePainters.find(p => p.id === selectedPainterId) || safePainters[0] || { id: 'unknown', name: 'Floor Technician', boothNo: 'Booth #1' };
 
+  const handleAddDailyMaterial = (preset?: {
+    materialName: string;
+    materialType: PainterDailyMaterialAllocation['materialType'];
+    qty: number;
+    uom: 'Litres' | 'Kg' | 'Pcs';
+    stockBatchId?: string;
+    batchNumber?: string;
+  }) => {
+    const scaledPaint = Math.max(0.5, Number(((targetQty || 100) * 0.015).toFixed(2)));
+    setPlannedMaterials(prev => [
+      ...prev,
+      {
+        id: `dmat_${Date.now()}_${prev.length}`,
+        materialName: preset?.materialName ?? '',
+        materialType: preset?.materialType ?? 'Base Paint',
+        qty: preset?.qty ?? scaledPaint,
+        uom: preset?.uom ?? 'Litres',
+        stockBatchId: preset?.stockBatchId,
+        batchNumber: preset?.batchNumber,
+        colour: colorShade.trim() || undefined
+      }
+    ]);
+  };
+
+  const handleAutoEstimateMaterials = () => {
+    const qty = Math.max(1, targetQty || balancePending || 100);
+    const paintLtr = Math.max(0.5, Number((qty * 0.012).toFixed(2)));
+    const hardenerLtr = Math.max(0.25, Number((paintLtr * 0.25).toFixed(2)));
+    const thinnerLtr = Math.max(0.25, Number((paintLtr * 0.35).toFixed(2)));
+    setPlannedMaterials([
+      {
+        id: `dmat_p_${Date.now()}`,
+        materialName: colorShade.trim() ? `Basecoat 2K PU Paint (${colorShade.trim()})` : 'Basecoat 2K PU Paint',
+        materialType: 'Base Paint',
+        qty: paintLtr,
+        uom: 'Litres',
+        colour: colorShade.trim() || undefined
+      },
+      {
+        id: `dmat_h_${Date.now()}`,
+        materialName: '2K PU Hardener',
+        materialType: 'Hardener',
+        qty: hardenerLtr,
+        uom: 'Litres'
+      },
+      {
+        id: `dmat_t_${Date.now()}`,
+        materialName: 'PU Thinner 400 Solvent',
+        materialType: 'Thinner',
+        qty: thinnerLtr,
+        uom: 'Litres'
+      }
+    ]);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
     if (targetQty <= 0) {
-      setErrorMsg('Target Quantity must be greater than zero.');
+      setErrorMsg('Daily Party Material Qty must be greater than zero.');
       return;
     }
 
@@ -128,6 +208,20 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
       return;
     }
 
+    const validMaterials: PainterDailyMaterialAllocation[] = plannedMaterials
+      .filter(m => m.materialName.trim() && Number(m.qty) > 0)
+      .map(({ id: _id, ...rest }) => ({
+        ...rest,
+        materialName: rest.materialName.trim(),
+        qty: Number(rest.qty),
+        colour: rest.colour || colorShade.trim()
+      }));
+
+    if (validMaterials.length === 0) {
+      setErrorMsg('Aaj ke kaam ke liye kam se kam ek Company Material (Paint / Thinner / Hardener) mention karein.');
+      return;
+    }
+
     const activePart = selectedPart || partsList[0];
     const res = onAssign({
       masterJobCardNo: masterJobCard.jobCardNo,
@@ -141,6 +235,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
       partDescription: activePart?.partDescription || masterJobCard.partDescription,
       colorShade: colorShade.trim(),
       dailyTargetQty: Number(targetQty),
+      plannedMaterials: validMaterials,
       remarks: remarks.trim() || undefined
     });
 
@@ -153,7 +248,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
-      <div className="bg-white rounded-[24px] max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-[#ececec] space-y-5 text-xs relative max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-[24px] max-w-2xl w-full p-6 sm:p-7 shadow-2xl border border-[#ececec] space-y-5 text-xs relative max-h-[92vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between pb-3.5 border-b border-[#ececec]">
           <div>
@@ -350,10 +445,176 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
             </div>
           </div>
 
-          {/* Row 4: Remarks */}
+          {/* Row 4: Daily Company Materials (Today's Basis Only) */}
+          <div className="p-4 rounded-[18px] bg-[#faf7ed]/70 border border-[#f4e5be] space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#f4e5be]">
+              <div>
+                <label className="text-[11px] font-bold text-[#8a6521] flex items-center gap-1.5 font-mono uppercase">
+                  <FlaskConical className="w-3.5 h-3.5 text-[#c09748]" />
+                  <span>6. Daily Company Materials (Today&apos;s Basis Only) *</span>
+                </label>
+                <p className="text-[10.5px] text-[#777b86] mt-0.5">
+                  Aaj ke {targetQty || 0} Pcs kaam ke liye zaroori Paints, Thinners &amp; Hardeners — Store ko Floor Demand jayegi.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleAutoEstimateMaterials}
+                  className="px-2.5 py-1 rounded-full bg-white hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-bold cursor-pointer flex items-center gap-1 transition shadow-2xs active:scale-95"
+                >
+                  <Sparkles className="w-3 h-3 text-[#c09748]" />
+                  <span>Auto-Estimate ({targetQty || 0} Pcs)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddDailyMaterial()}
+                  className="px-2.5 py-1 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[10px] font-semibold cursor-pointer flex items-center gap-1 transition shadow-2xs active:scale-95"
+                >
+                  <Plus className="w-3 h-3 text-[#c09748]" />
+                  <span>Add Item</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Presets + Available Store Stock Pickers */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                { label: '+ Basecoat PU Paint', materialName: colorShade.trim() ? `Basecoat 2K PU Paint (${colorShade.trim()})` : 'Basecoat 2K PU Paint', materialType: 'Base Paint' as const, qty: Math.max(0.5, Number(((targetQty || 100) * 0.012).toFixed(2))), uom: 'Litres' as const },
+                { label: '+ 2K PU Hardener', materialName: '2K PU Hardener', materialType: 'Hardener' as const, qty: Math.max(0.25, Number(((targetQty || 100) * 0.003).toFixed(2))), uom: 'Litres' as const },
+                { label: '+ PU Thinner 400', materialName: 'PU Thinner 400 Solvent', materialType: 'Thinner' as const, qty: Math.max(0.25, Number(((targetQty || 100) * 0.004).toFixed(2))), uom: 'Litres' as const },
+                { label: '+ 2K Clear Coat', materialName: '2K Clear Lacquer Topcoat', materialType: 'Topcoat' as const, qty: Math.max(0.5, Number(((targetQty || 100) * 0.01).toFixed(2))), uom: 'Litres' as const }
+              ].map(preset => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => handleAddDailyMaterial(preset)}
+                  className="px-2.5 py-0.5 rounded-full bg-white hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-semibold cursor-pointer transition"
+                >
+                  {preset.label}
+                </button>
+              ))}
+              {availableCompanyBatches.slice(0, 4).map(batch => (
+                <button
+                  key={batch.batchId}
+                  type="button"
+                  onClick={() =>
+                    handleAddDailyMaterial({
+                      materialName: batch.itemName,
+                      materialType:
+                        batch.materialType === 'hardener'
+                          ? 'Hardener'
+                          : batch.materialType === 'thinner'
+                            ? 'Thinner'
+                            : batch.materialType === 'clear_coat'
+                              ? 'Topcoat'
+                              : 'Base Paint',
+                      qty: Math.min(batch.balanceQty, Math.max(0.5, Number(((targetQty || 100) * 0.01).toFixed(2)))),
+                      uom: (batch.uom === 'Kg' || batch.uom === 'Pcs' ? batch.uom : 'Litres'),
+                      stockBatchId: batch.batchId,
+                      batchNumber: batch.supplierBatchNo
+                    })
+                  }
+                  className="px-2.5 py-0.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-mono font-semibold cursor-pointer transition"
+                  title={`Store Avail: ${batch.balanceQty} ${batch.uom} (${batch.supplierBatchNo})`}
+                >
+                  Store: {batch.itemName} ({batch.balanceQty} {batch.uom})
+                </button>
+              ))}
+            </div>
+
+            {plannedMaterials.length === 0 ? (
+              <div className="p-3 rounded-[14px] bg-white border border-dashed border-[#f4e5be] text-center text-[11px] text-[#777b86]">
+                Upar se quick presets ya <strong>&quot;Auto-Estimate&quot;</strong> click karein, ya <strong>&quot;Add Item&quot;</strong> se aaj ka exact chemical quantity add karein.
+              </div>
+            ) : (
+              <div className="space-y-2 p-1">
+                {plannedMaterials.map((mat, idx) => (
+                  <div key={mat.id} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-white p-2.5 rounded-[14px] border border-[#ececec]">
+                    <div className="sm:col-span-3">
+                      <select
+                        value={mat.materialType}
+                        onChange={e =>
+                          setPlannedMaterials(prev =>
+                            prev.map((r, rIdx) =>
+                              rIdx === idx ? { ...r, materialType: e.target.value as PainterDailyMaterialAllocation['materialType'] } : r
+                            )
+                          )
+                        }
+                        className="w-full h-9 px-2 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] text-[11px] font-semibold text-[#17191c]"
+                      >
+                        <option value="Base Paint">Base Paint</option>
+                        <option value="Topcoat">Topcoat</option>
+                        <option value="Hardener">Hardener</option>
+                        <option value="Thinner">Thinner</option>
+                        <option value="Cleaning Solvent">Cleaning Solvent</option>
+                      </select>
+                    </div>
+                    <div className="sm:col-span-4">
+                      <input
+                        type="text"
+                        required
+                        value={mat.materialName}
+                        onChange={e =>
+                          setPlannedMaterials(prev =>
+                            prev.map((r, rIdx) => (rIdx === idx ? { ...r, materialName: e.target.value } : r))
+                          )
+                        }
+                        placeholder="Chemical / Paint Name *"
+                        className="w-full h-9 px-2.5 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] text-xs font-semibold text-[#17191c]"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <input
+                        type="number"
+                        required
+                        min="0.1"
+                        step="0.1"
+                        value={mat.qty}
+                        onChange={e =>
+                          setPlannedMaterials(prev =>
+                            prev.map((r, rIdx) => (rIdx === idx ? { ...r, qty: Math.max(0, Number(e.target.value)) } : r))
+                          )
+                        }
+                        placeholder="Qty"
+                        className="w-full h-9 px-2.5 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] text-xs font-mono font-bold text-[#17191c]"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <select
+                        value={mat.uom}
+                        onChange={e =>
+                          setPlannedMaterials(prev =>
+                            prev.map((r, rIdx) => (rIdx === idx ? { ...r, uom: e.target.value as 'Litres' | 'Kg' | 'Pcs' } : r))
+                          )
+                        }
+                        className="w-full h-9 px-2 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] text-xs font-mono text-[#17191c]"
+                      >
+                        <option value="Litres">Ltr</option>
+                        <option value="Kg">Kg</option>
+                        <option value="Pcs">Pcs</option>
+                      </select>
+                    </div>
+                    <div className="sm:col-span-1 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setPlannedMaterials(prev => prev.filter((_, rIdx) => rIdx !== idx))}
+                        className="w-8 h-8 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center cursor-pointer transition"
+                        title="Remove Chemical"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Row 5: Remarks */}
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-[#17191c] font-mono">
-              6. Remarks / Floor Instructions (Optional)
+              7. Remarks / Floor Instructions (Optional)
             </label>
             <input
               type="text"
@@ -365,22 +626,27 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#ececec]">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold cursor-pointer shadow-2xs"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={balancePending <= 0 || targetQty <= 0 || targetQty > balancePending}
-              className="px-5 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] disabled:opacity-50 text-white text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1.5 active:scale-95"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Create Shift Assignment</span>
-            </button>
+          <div className="flex items-center justify-between gap-2.5 pt-3 border-t border-[#ececec]">
+            <span className="text-[10.5px] font-mono text-[#777b86]">
+              Exact Store Floor Demand auto-generated on save
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold cursor-pointer shadow-2xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={balancePending <= 0 || targetQty <= 0 || targetQty > balancePending}
+                className="px-5 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] disabled:opacity-50 text-white text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1.5 active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Assign &amp; Send Floor Demand</span>
+              </button>
+            </div>
           </div>
         </form>
       </div>

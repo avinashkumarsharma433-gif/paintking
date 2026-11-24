@@ -57,6 +57,8 @@ import {
   PlantShiftConfig,
   JobCardDailyTargetRecord,
   PainterAssignment,
+  PainterDailyMaterialAllocation,
+  PainterFloorDemandEntry,
   AssignmentMaterialLog,
   AssignmentStatus,
   MasterJobCard,
@@ -183,6 +185,10 @@ interface PortalContextType {
     }>,
     targetAssignmentOverride?: PainterAssignment
   ) => void;
+  requestAssignmentChemicals: (
+    assignmentId: string,
+    materials: PainterDailyMaterialAllocation[]
+  ) => { success: boolean; mrnNo?: string; error?: string };
   updateAssignmentMaterialLog: (
     logId: string,
     updates: { goodReturnedQty: number; floorWastageExpiredQty: number; batchNumber?: string }
@@ -258,6 +264,7 @@ interface PortalContextType {
     lineAllocations: Array<{
       requisitionLineId?: string;
       itemName: string;
+      isDirectUnbatched?: boolean;
       batchLines: BatchIssueLine[];
     }>;
     fifoStatus?: 'FIFO OK' | 'FIFO Override';
@@ -852,6 +859,25 @@ export const PortalProvider: React.FC<{
     return mergeByUniqueKey(localStorage.getItem('pk_material_requisitions'), INITIAL_REQUISITIONS, 'mrnNo');
   });
 
+  const latestReqsRef = useRef<MaterialRequisitionNote[]>(materialRequisitions);
+  latestReqsRef.current = materialRequisitions;
+  const mrnSeqRef = useRef<number>(
+    materialRequisitions.reduce((max, r) => {
+      const m = (r.mrnNo || '').match(/MRN-\d{4}-(\d+)/i);
+      const n = m ? parseInt(m[1], 10) : 0;
+      return !isNaN(n) && n > max ? n : max;
+    }, 0)
+  );
+  useEffect(() => {
+    latestReqsRef.current = materialRequisitions;
+    const peak = materialRequisitions.reduce((max, r) => {
+      const m = (r.mrnNo || '').match(/MRN-\d{4}-(\d+)/i);
+      const n = m ? parseInt(m[1], 10) : 0;
+      return !isNaN(n) && n > max ? n : max;
+    }, 0);
+    if (peak > mrnSeqRef.current) mrnSeqRef.current = peak;
+  }, [materialRequisitions]);
+
   useEffect(() => {
     syncState('pk_material_requisitions', materialRequisitions);
   }, [materialRequisitions]);
@@ -873,6 +899,7 @@ export const PortalProvider: React.FC<{
     lineAllocations: Array<{
       requisitionLineId?: string;
       itemName: string;
+      isDirectUnbatched?: boolean;
       batchLines: BatchIssueLine[];
     }>;
     fifoStatus?: 'FIFO OK' | 'FIFO Override';
@@ -880,49 +907,77 @@ export const PortalProvider: React.FC<{
     overrideRemark?: string;
   }): { success: boolean; error?: string; minNo: string } => {
     const allIssueLines: BatchIssueLine[] = [];
+    const batchedIssueLines: BatchIssueLine[] = [];
+    const batchIdSet = new Set(stockBatches.map(b => b.batchId));
+
     params.lineAllocations.forEach(la => {
       la.batchLines.forEach(bl => {
-        allIssueLines.push(bl);
+        if (Number(bl.issuedQty) > 0) {
+          allIssueLines.push(bl);
+          if (!la.isDirectUnbatched && batchIdSet.has(bl.batchId)) {
+            batchedIssueLines.push(bl);
+          }
+        }
       });
     });
 
-    // 1. Strict validation with pure engine
-    const validation = validateIssue(allIssueLines, stockBatches);
-    if (!validation.isValid) {
-      return { success: false, error: validation.errors.join(' | '), minNo: '' };
+    if (allIssueLines.length === 0) {
+      return { success: false, error: 'At least one item must have an issue quantity greater than zero.', minNo: '' };
     }
 
-    // 2. Atomically deduct balances
-    const updatedBatches = applyIssueToBatches(allIssueLines, stockBatches);
-    setStockBatches(updatedBatches);
+    // 1. Strict validation with pure engine for all real store batches
+    if (batchedIssueLines.length > 0) {
+      const validation = validateIssue(batchedIssueLines, stockBatches);
+      if (!validation.isValid) {
+        return { success: false, error: validation.errors.join(' | '), minNo: '' };
+      }
 
-    // 3. Generate MIN slip number
-    const minNo = params.issuedSlipNo || `MIN-2026-${String(materialRequisitions.length + 1).padStart(3, '0')}`;
+      // 2. Atomically deduct balances from store stock batches
+      const updatedBatches = applyIssueToBatches(batchedIssueLines, stockBatches);
+      setStockBatches(updatedBatches);
+    }
+
+    const targetMrn = latestReqsRef.current.find(r => r.mrnNo === params.mrnNo);
+
+    // 3. Generate unique MIN slip number
+    const existingMinPeak = latestReqsRef.current.reduce((max, r) => {
+      const m = (r.issuedSlipNo || r.minNo || '').match(/MIN-\d{4}-(\d+)/i);
+      const n = m ? parseInt(m[1], 10) : 0;
+      return !isNaN(n) && n > max ? n : max;
+    }, 0);
+    const minNo = params.issuedSlipNo || `MIN-${new Date().getFullYear()}-${String(Math.max(existingMinPeak, latestReqsRef.current.length) + 1).padStart(3, '0')}`;
     const timestamp = `${new Date().toISOString().split('T')[0]} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
     // 4. Update MRN status & batch allocations
     setMaterialRequisitions(prev => prev.map(req => {
       if (req.mrnNo !== params.mrnNo) return req;
 
-      const totalIssued = allIssueLines.reduce((acc, l) => acc + Number(l.issuedQty || 0), 0);
-      const isPartial = totalIssued < req.requestedQty;
-      const pendingQty = Math.max(0, req.requestedQty - totalIssued);
-
-      const grnSummary = Array.from(new Set(allIssueLines.map(l => l.grnNo).filter(Boolean))).join(', ');
-
       const updatedReqLines = (req.requisitionLines || []).map(rLine => {
         const alloc = params.lineAllocations.find(la => la.requisitionLineId === rLine.id || la.itemName === rLine.itemName);
         if (!alloc) return rLine;
-        const lineIssuedQty = alloc.batchLines.reduce((acc, bl) => acc + bl.issuedQty, 0);
+        const lineIssuedQty = alloc.batchLines.reduce((acc, bl) => acc + Number(bl.issuedQty || 0), 0);
         const linePendingQty = Math.max(0, rLine.requestedQty - lineIssuedQty);
         return {
           ...rLine,
           issuedQty: lineIssuedQty,
           issuedLines: alloc.batchLines,
           pendingQty: linePendingQty,
-          status: (linePendingQty === 0 ? 'Fully Issued' : 'Partially Issued') as 'Fully Issued' | 'Partially Issued'
+          status: (linePendingQty <= 0.001 ? 'Fully Issued' : 'Partially Issued') as 'Fully Issued' | 'Partially Issued'
         };
       });
+
+      const partyIssuedTotal = updatedReqLines
+        .filter(l => l.category === 'PARTY_MATERIAL')
+        .reduce((acc, l) => acc + Number(l.issuedQty || 0), 0);
+      const totalIssued = updatedReqLines.length > 0 && partyIssuedTotal > 0
+        ? partyIssuedTotal
+        : allIssueLines.reduce((acc, l) => acc + Number(l.issuedQty || 0), 0);
+      const isPartial = updatedReqLines.length > 0
+        ? updatedReqLines.some(l => (l.pendingQty || 0) > 0.001)
+        : totalIssued < req.requestedQty;
+      const pendingQty = Math.max(0, req.requestedQty - totalIssued);
+
+      const grnSummary = Array.from(new Set(allIssueLines.map(l => l.grnNo).filter(Boolean))).join(', ');
 
       return {
         ...req,
@@ -942,6 +997,136 @@ export const PortalProvider: React.FC<{
         requisitionLines: updatedReqLines.length > 0 ? updatedReqLines : req.requisitionLines
       };
     }));
+
+    // 4B. Sync Store -> Production Floor Transfer to Painter Assignments & Chemical Logs
+    if (targetMrn) {
+      const coveredAsgIds = new Set<string>(
+        (targetMrn.painterDemands || []).map(pd => pd.assignmentId).filter(Boolean)
+      );
+      latestAssignmentsRef.current.forEach(a => {
+        if (a.storeDemandMrnNo === params.mrnNo) coveredAsgIds.add(a.id);
+      });
+
+      const transferredLogs: AssignmentMaterialLog[] = [];
+      const reqLines = targetMrn.requisitionLines || [];
+
+      params.lineAllocations.forEach((alloc, allocIdx) => {
+        const matchedReqLine = reqLines.find(rl => rl.id === alloc.requisitionLineId || rl.itemName === alloc.itemName);
+        const isParty = matchedReqLine?.category === 'PARTY_MATERIAL' || (!matchedReqLine && !isChemicalConsumable(undefined, undefined, alloc.itemName));
+        if (isParty) return;
+
+        const lineIssuedQty = alloc.batchLines.reduce((sum, bl) => sum + Number(bl.issuedQty || 0), 0);
+        if (lineIssuedQty <= 0) return;
+
+        const batchSummary = alloc.batchLines
+          .map(bl => bl.supplierBatchNo || bl.grnNo || 'STORE-MIN')
+          .filter(Boolean)
+          .join(', ') || minNo;
+
+        // Match requesting painters on this MRN
+        const matchingPainterDemands = (targetMrn.painterDemands || []).filter(pd =>
+          pd.companyMaterials.some(cm =>
+            cm.materialName.trim().toLowerCase() === alloc.itemName.trim().toLowerCase()
+          )
+        );
+
+        if (matchingPainterDemands.length > 0) {
+          const totalReqForMat = matchingPainterDemands.reduce((sum, pd) => {
+            const pQty = pd.companyMaterials
+              .filter(cm => cm.materialName.trim().toLowerCase() === alloc.itemName.trim().toLowerCase())
+              .reduce((s, cm) => s + Number(cm.qty || 0), 0);
+            return sum + pQty;
+          }, 0);
+
+          matchingPainterDemands.forEach((pd, pdIdx) => {
+            const matchingCm = pd.companyMaterials.find(
+              cm => cm.materialName.trim().toLowerCase() === alloc.itemName.trim().toLowerCase()
+            );
+            const painterReqQty = pd.companyMaterials
+              .filter(cm => cm.materialName.trim().toLowerCase() === alloc.itemName.trim().toLowerCase())
+              .reduce((s, cm) => s + Number(cm.qty || 0), 0);
+            const ratio = totalReqForMat > 0 ? painterReqQty / totalReqForMat : 1 / matchingPainterDemands.length;
+            const painterIssued = Number((lineIssuedQty * ratio).toFixed(2));
+            const asgObj = latestAssignmentsRef.current.find(a => a.id === pd.assignmentId);
+
+            transferredLogs.push({
+              id: `MAT-LOG-${Date.now()}-${allocIdx}-${pdIdx}`,
+              assignmentId: pd.assignmentId,
+              masterJobCardNo: targetMrn.jobCardNo,
+              masterJobCardId: targetMrn.jobCardNo,
+              painterId: pd.painterId,
+              painterName: pd.painterName,
+              date: pd.assignmentDate || targetMrn.date,
+              logDate: pd.assignmentDate || targetMrn.date,
+              shift: asgObj?.shift || 'General Day Shift (08:30 - 18:30)',
+              materialName: alloc.itemName,
+              materialType: matchingCm?.materialType || 'Base Paint',
+              batchNumber: batchSummary,
+              issuedQty: painterIssued,
+              goodReturnedQty: 0,
+              floorWastageExpiredQty: 0,
+              netConsumedQty: painterIssued,
+              uom: (matchedReqLine?.uom as 'Litres' | 'Kg' | 'Pcs') || matchingCm?.uom || 'Litres',
+              standardNormPerPiece: 0.04,
+              transferStatus: 'Transferred to Floor',
+              mrnNo: targetMrn.mrnNo,
+              minNo,
+              loggedAt: new Date().toISOString()
+            });
+          });
+        } else if (coveredAsgIds.size > 0) {
+          const firstAsgId = Array.from(coveredAsgIds)[0];
+          const asgObj = latestAssignmentsRef.current.find(a => a.id === firstAsgId);
+          if (asgObj) {
+            transferredLogs.push({
+              id: `MAT-LOG-${Date.now()}-${allocIdx}`,
+              assignmentId: asgObj.id,
+              masterJobCardNo: targetMrn.jobCardNo,
+              masterJobCardId: targetMrn.jobCardNo,
+              painterId: asgObj.painterId,
+              painterName: asgObj.painterName,
+              date: asgObj.assignmentDate,
+              logDate: asgObj.assignmentDate,
+              shift: asgObj.shift,
+              materialName: alloc.itemName,
+              materialType: 'Base Paint',
+              batchNumber: batchSummary,
+              issuedQty: lineIssuedQty,
+              goodReturnedQty: 0,
+              floorWastageExpiredQty: 0,
+              netConsumedQty: lineIssuedQty,
+              uom: (matchedReqLine?.uom as 'Litres' | 'Kg' | 'Pcs') || 'Litres',
+              standardNormPerPiece: 0.04,
+              transferStatus: 'Transferred to Floor',
+              mrnNo: targetMrn.mrnNo,
+              minNo,
+              loggedAt: new Date().toISOString()
+            });
+          }
+        }
+      });
+
+      if (transferredLogs.length > 0) {
+        setAssignmentMaterialLogs(prev => [...transferredLogs, ...prev]);
+      }
+
+      if (coveredAsgIds.size > 0) {
+        setPainterAssignments(prev => {
+          const next = prev.map(a => {
+            if (!coveredAsgIds.has(a.id)) return a;
+            const myLogs = transferredLogs.filter(l => l.assignmentId === a.id);
+            return {
+              ...a,
+              storeTransferStatus: 'Transferred to Floor' as const,
+              storeMinNo: minNo,
+              materialLogs: myLogs.length > 0 ? [...(a.materialLogs || []), ...myLogs] : a.materialLogs
+            };
+          });
+          latestAssignmentsRef.current = next;
+          return next;
+        });
+      }
+    }
 
     // 5. Audit override if logged
     if (params.fifoStatus === 'FIFO Override' && params.overrideReasonCode) {
@@ -1319,6 +1504,25 @@ export const PortalProvider: React.FC<{
       return [];
     }
   });
+
+  const latestAssignmentsRef = useRef<PainterAssignment[]>(painterAssignments);
+  latestAssignmentsRef.current = painterAssignments;
+  const asgSeqRef = useRef<number>(
+    painterAssignments.reduce((max, a) => {
+      const m = (a.id || '').match(/ASG-\d{4}-(\d+)/i);
+      const n = m ? parseInt(m[1], 10) : 0;
+      return !isNaN(n) && n > max ? n : max;
+    }, 0)
+  );
+  useEffect(() => {
+    latestAssignmentsRef.current = painterAssignments;
+    const peak = painterAssignments.reduce((max, a) => {
+      const m = (a.id || '').match(/ASG-\d{4}-(\d+)/i);
+      const n = m ? parseInt(m[1], 10) : 0;
+      return !isNaN(n) && n > max ? n : max;
+    }, 0);
+    if (peak > asgSeqRef.current) asgSeqRef.current = peak;
+  }, [painterAssignments]);
 
   const [assignmentMaterialLogs, setAssignmentMaterialLogs] = useState<AssignmentMaterialLog[]>(() => {
     try {
@@ -2009,18 +2213,23 @@ export const PortalProvider: React.FC<{
     }
 
     const fallbackPlant: PlantLocation = activePlant === 'ALL' ? 'Haridwar' : activePlant;
+    const hasAssignedPainter = Boolean((jc.assignedPainterName || jc.painterName || '').trim());
     const formattedJc: JobCard = {
       ...jc,
       jobCardNo: resolvedJobCardNo,
       plant: jc.plant || fallbackPlant,
-      painterJobStatus: jc.painterJobStatus || 'Assigned',
-      assignedPainterName: jc.assignedPainterName || jc.painterName,
-      allocatedQty: jc.allocatedQty || jc.targetQty,
+      painterJobStatus: hasAssignedPainter ? (jc.painterJobStatus || 'Assigned') : undefined,
+      assignedPainterName: jc.assignedPainterName || jc.painterName || '',
+      allocatedQty: hasAssignedPainter ? (jc.allocatedQty || jc.targetQty) : 0,
+      dailyTargetQty: hasAssignedPainter ? (jc.dailyTargetQty || 0) : 0,
       fpaStatus: jc.fpaStatus || 'Approved',
       status: jc.status || 'Open'
     };
 
     setJobCards(prev => (prev.some(existing => existing.jobCardNo === formattedJc.jobCardNo) ? prev : [formattedJc, ...prev]));
+    latestAssignmentsRef.current = latestAssignmentsRef.current.filter(
+      a => a.masterJobCardNo !== formattedJc.jobCardNo && a.masterJobCardId !== formattedJc.jobCardNo
+    );
     setPainterAssignments(prev =>
       prev.filter(a => a.masterJobCardNo !== formattedJc.jobCardNo && a.masterJobCardId !== formattedJc.jobCardNo)
     );
@@ -2046,79 +2255,7 @@ export const PortalProvider: React.FC<{
       return p;
     }));
 
-    // SMART UNIFIED WORKFLOW:
-    // Creating a Job Card automatically creates a Material Release Demand (MRN) for Store Incharge
-    // Strictly requests Today's Shift Quota (dailyTargetQty) instead of flooding the floor with the entire order
-    const shiftTargetPcs = formattedJc.dailyTargetQty || formattedJc.targetQty;
-    const itemsSummary = formattedJc.issuedMaterials && formattedJc.issuedMaterials.length > 0
-      ? formattedJc.issuedMaterials.map(m => `${m.itemDescription} (${m.qty} ${m.uom})`).join(', ')
-      : `${formattedJc.partDescription} (${shiftTargetPcs} Pcs)`;
-
-    const reqLines: RequisitionLineItem[] = [];
-
-    // 1. Substrate Party Material Line (Limited to Today's Shift Target)
-    if (shiftTargetPcs > 0) {
-      reqLines.push({
-        id: `rl_sub_${Date.now()}`,
-        itemCode: formattedJc.partCode || 'SUBSTRATE',
-        itemName: formattedJc.partDescription || 'Component Substrate',
-        category: 'PARTY_MATERIAL',
-        materialType: 'substrate',
-        requestedQty: shiftTargetPcs,
-        uom: 'Pcs',
-        customer: formattedJc.customer,
-        partCode: formattedJc.partCode,
-        colour: formattedJc.color,
-        status: 'Pending'
-      });
-    }
-
-    // 2. Company Consumable Chemical Lines (Only when a painter is actually assigned)
-    const hasAssignedPainter = Boolean((formattedJc.assignedPainterName || formattedJc.painterName || '').trim());
-    if (hasAssignedPainter && formattedJc.issuedMaterials && formattedJc.issuedMaterials.length > 0) {
-      formattedJc.issuedMaterials.forEach((m, idx) => {
-        reqLines.push({
-          id: `rl_chem_${idx}_${Date.now()}`,
-          itemCode: m.itemDescription.slice(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, ''),
-          itemName: m.itemDescription,
-          category: 'COMPANY_CONSUMABLE',
-          materialType: m.materialType || 'paint',
-          requestedQty: Number(m.qty),
-          uom: m.uom || 'Litres',
-          colour: m.colour || formattedJc.color,
-          status: 'Pending'
-        });
-      });
-    }
-
-    const maxMrnSeq = materialRequisitions.reduce((max, r) => {
-      const m = (r.mrnNo || '').match(/MRN-\d{4}-(\d+)/i);
-      const n = m ? parseInt(m[1], 10) : 0;
-      return !isNaN(n) && n > max ? n : max;
-    }, 0);
-
-    const autoMrn: MaterialRequisitionNote = {
-      mrnNo: `MRN-${new Date().getFullYear()}-${String(maxMrnSeq + 1).padStart(3, '0')}`,
-      date: formattedJc.issueDate || new Date().toISOString().split('T')[0],
-      time: formattedJc.issueTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      plant: formattedJc.plant,
-      jobCardNo: formattedJc.jobCardNo,
-      woNo: formattedJc.woNo || 'WO-AUTO',
-      customer: formattedJc.customer,
-      partCode: formattedJc.partCode,
-      partDescription: formattedJc.partDescription,
-      colorName: formattedJc.color,
-      requestedQty: shiftTargetPcs,
-      uom: 'Pcs',
-      requiredShift: activeShift,
-      requestedBy: formattedJc.prodSupervisor || currentUser.name || 'Production Manager',
-      urgency: 'High (Line Stoppage Risk)',
-      status: 'Pending Store Issue',
-      requisitionLines: reqLines.length > 0 ? reqLines : undefined,
-      productionRemarks: `Auto-generated for Painter [${formattedJc.painterName}]. Today's Shift Quota: ${shiftTargetPcs} Pcs (Total Order: ${formattedJc.targetQty} Pcs). Store to release: ${itemsSummary}`
-    };
-
-    setMaterialRequisitions(prev => [autoMrn, ...prev]);
+    // Floor Demands (MRN) are strictly raised when Painter(s) are assigned with daily Party + Company Material allocations.
     return formattedJc;
   };
 
@@ -2132,12 +2269,17 @@ export const PortalProvider: React.FC<{
       syncState('pk_jobcards_data', next);
       return next;
     });
+    latestAssignmentsRef.current = latestAssignmentsRef.current.filter(
+      a => a.masterJobCardNo !== jobCardNo && a.masterJobCardId !== jobCardNo
+    );
     setPainterAssignments(prev =>
       prev.filter(a => a.masterJobCardNo !== jobCardNo && a.masterJobCardId !== jobCardNo)
     );
     setAssignmentMaterialLogs(prev =>
       prev.filter(l => l.masterJobCardNo !== jobCardNo && l.masterJobCardId !== jobCardNo)
     );
+    latestReqsRef.current = latestReqsRef.current.filter(r => r.jobCardNo !== jobCardNo);
+    setMaterialRequisitions(prev => prev.filter(r => r.jobCardNo !== jobCardNo));
     setPlantHeadPriorities(prev =>
       prev.map(p =>
         p.linkedJobCardNo === jobCardNo
@@ -2778,6 +2920,184 @@ export const PortalProvider: React.FC<{
   // 3-TIER SPRAY PAINTING JOB CARD & CONSUMABLES ENGINE (PK-OS 2026)
   // ======================================================================
 
+  // Helper: map PainterDailyMaterialAllocation type -> StockMaterialType
+  const mapPainterMatTypeToStockType = (
+    mType: PainterDailyMaterialAllocation['materialType']
+  ): StockMaterialType => {
+    if (mType === 'Topcoat') return 'clear_coat';
+    if (mType === 'Hardener') return 'hardener';
+    if (mType === 'Thinner' || mType === 'Cleaning Solvent') return 'thinner';
+    return 'paint';
+  };
+
+  // Helper: build consolidated Floor Demand MRN lines & painter breakdown for pending assignments
+  const buildConsolidatedFloorDemand = (
+    parentJob: JobCard,
+    demands: PainterFloorDemandEntry[]
+  ): { reqLines: RequisitionLineItem[]; totalPartyPcs: number; summaryText: string } => {
+    const partyMap = new Map<string, RequisitionLineItem>();
+    const chemMap = new Map<string, RequisitionLineItem>();
+
+    demands.forEach((pd, idx) => {
+      if (pd.partyTargetQty > 0) {
+        const pCode = (pd.partCode || parentJob.partCode || 'SUBSTRATE').trim();
+        const pDesc = (pd.partDescription || parentJob.partDescription || 'Component Substrate').trim();
+        const key = `${pCode.toLowerCase()}__${pDesc.toLowerCase()}`;
+        const existing = partyMap.get(key);
+        if (existing) {
+          existing.requestedQty += Number(pd.partyTargetQty || 0);
+          existing.assignmentIds = Array.from(new Set([...(existing.assignmentIds || []), pd.assignmentId]));
+          existing.painterNames = Array.from(new Set([...(existing.painterNames || []), pd.painterName]));
+        } else {
+          partyMap.set(key, {
+            id: `rl_sub_${idx}_${Date.now()}`,
+            itemCode: pCode,
+            itemName: pDesc,
+            category: 'PARTY_MATERIAL',
+            materialType: 'substrate',
+            requestedQty: Number(pd.partyTargetQty || 0),
+            uom: 'Pcs',
+            customer: parentJob.customer,
+            partCode: pCode,
+            colour: pd.colorShade || parentJob.color,
+            status: 'Pending',
+            assignmentIds: [pd.assignmentId],
+            painterNames: [pd.painterName]
+          });
+        }
+      }
+
+      (pd.companyMaterials || []).forEach((cm, cIdx) => {
+        if (!cm.materialName.trim() || Number(cm.qty) <= 0) return;
+        const cKey = `${cm.materialName.trim().toLowerCase()}__${cm.materialType}__${cm.uom}`;
+        const existingChem = chemMap.get(cKey);
+        if (existingChem) {
+          existingChem.requestedQty = Number((existingChem.requestedQty + Number(cm.qty)).toFixed(2));
+          existingChem.assignmentIds = Array.from(new Set([...(existingChem.assignmentIds || []), pd.assignmentId]));
+          existingChem.painterNames = Array.from(new Set([...(existingChem.painterNames || []), pd.painterName]));
+        } else {
+          chemMap.set(cKey, {
+            id: `rl_chem_${idx}_${cIdx}_${Date.now()}`,
+            itemCode: cm.materialName.slice(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, '') || 'CHEM',
+            itemName: cm.materialName.trim(),
+            category: 'COMPANY_CONSUMABLE',
+            materialType: mapPainterMatTypeToStockType(cm.materialType),
+            requestedQty: Number(Number(cm.qty).toFixed(2)),
+            uom: cm.uom || 'Litres',
+            colour: cm.colour || pd.colorShade || parentJob.color,
+            status: 'Pending',
+            assignmentIds: [pd.assignmentId],
+            painterNames: [pd.painterName]
+          });
+        }
+      });
+    });
+
+    const reqLines = [...Array.from(partyMap.values()), ...Array.from(chemMap.values())];
+    const totalPartyPcs = Array.from(partyMap.values()).reduce((sum, l) => sum + Number(l.requestedQty || 0), 0);
+    const painterListStr = demands.map(d => `${d.painterName.split('(')[0].trim()} (${d.partyTargetQty} Pcs)`).join(', ');
+    const summaryText = `Floor Demand for ${demands.length} Painter(s): ${painterListStr}. Party Substrate: ${totalPartyPcs} Pcs + ${chemMap.size} Daily Chemical Item(s).`;
+
+    return { reqLines, totalPartyPcs, summaryText };
+  };
+
+  // Upsert exact Floor Demand (MRN) for a Job Card's pending painter assignments
+  const upsertPendingFloorDemand = (
+    parentJob: JobCard,
+    allAssignmentsForJob: PainterAssignment[],
+    targetDate: string
+  ): string => {
+    const dispatchedAsgIds = new Set<string>();
+    latestReqsRef.current.forEach(r => {
+      if (r.jobCardNo === parentJob.jobCardNo && r.status !== 'Pending Store Issue' && r.status !== 'Cancelled') {
+        (r.painterDemands || []).forEach(pd => {
+          if (pd.assignmentId) dispatchedAsgIds.add(pd.assignmentId);
+        });
+      }
+    });
+
+    const pendingAsgsForDate = allAssignmentsForJob.filter(
+      a => a.assignmentDate === targetDate && !dispatchedAsgIds.has(a.id)
+    );
+    const activePendingAsgs = pendingAsgsForDate.length > 0 ? pendingAsgsForDate : allAssignmentsForJob.filter(a => !dispatchedAsgIds.has(a.id));
+
+    const painterDemands: PainterFloorDemandEntry[] = activePendingAsgs.map(a => ({
+      assignmentId: a.id,
+      painterId: a.painterId,
+      painterName: a.painterName,
+      boothNumber: a.boothNumber,
+      assignmentDate: a.assignmentDate,
+      partCode: a.partCode || parentJob.partCode,
+      partDescription: a.partDescription || parentJob.partDescription,
+      colorShade: a.colorShade || parentJob.color,
+      partyTargetQty: Number(a.dailyTargetQty || 0),
+      uom: 'Pcs',
+      companyMaterials: a.plannedMaterials || []
+    }));
+
+    const { reqLines, totalPartyPcs, summaryText } = buildConsolidatedFloorDemand(parentJob, painterDemands);
+    const existingPendingMrn = latestReqsRef.current.find(
+      r => r.jobCardNo === parentJob.jobCardNo && r.date === targetDate && r.status === 'Pending Store Issue'
+    );
+
+    const mrnNo = existingPendingMrn
+      ? existingPendingMrn.mrnNo
+      : (() => {
+          mrnSeqRef.current = Math.max(mrnSeqRef.current, latestReqsRef.current.length) + 1;
+          return `MRN-${new Date().getFullYear()}-${String(mrnSeqRef.current).padStart(3, '0')}`;
+        })();
+
+    const allShades = Array.from(new Set(painterDemands.map(d => d.colorShade).filter(Boolean))).join(', ');
+    const allParts = Array.from(new Set(painterDemands.map(d => d.partDescription).filter(Boolean))).join(' + ');
+    const allPartCodes = Array.from(new Set(painterDemands.map(d => d.partCode).filter(Boolean))).join(', ');
+
+    const nextMrnObj: MaterialRequisitionNote = existingPendingMrn
+      ? {
+          ...existingPendingMrn,
+          partCode: allPartCodes || parentJob.partCode,
+          partDescription: allParts || parentJob.partDescription,
+          colorName: allShades || parentJob.color,
+          requestedQty: totalPartyPcs,
+          uom: 'Pcs',
+          sourceGrnNo: parentJob.sourceGrnNo || existingPendingMrn.sourceGrnNo,
+          painterDemands,
+          requisitionLines: reqLines,
+          productionRemarks: summaryText
+        }
+      : {
+          mrnNo,
+          date: targetDate || new Date().toISOString().split('T')[0],
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          plant: parentJob.plant || (activePlant === 'ALL' ? 'Haridwar' : activePlant),
+          jobCardNo: parentJob.jobCardNo,
+          woNo: parentJob.woNo || 'WO-AUTO',
+          customer: parentJob.customer,
+          partCode: allPartCodes || parentJob.partCode,
+          partDescription: allParts || parentJob.partDescription,
+          colorName: allShades || parentJob.color,
+          requestedQty: totalPartyPcs,
+          uom: 'Pcs',
+          sourceGrnNo: parentJob.sourceGrnNo,
+          requiredShift: activeShift,
+          requestedBy: parentJob.prodSupervisor || currentUser.name || 'Production Manager',
+          urgency: 'High (Line Stoppage Risk)',
+          status: 'Pending Store Issue',
+          painterDemands,
+          requisitionLines: reqLines,
+          productionRemarks: summaryText
+        };
+
+    if (existingPendingMrn) {
+      latestReqsRef.current = latestReqsRef.current.map(r => (r.mrnNo === mrnNo ? nextMrnObj : r));
+      setMaterialRequisitions(prev => prev.map(r => (r.mrnNo === mrnNo ? nextMrnObj : r)));
+    } else {
+      latestReqsRef.current = [nextMrnObj, ...latestReqsRef.current];
+      setMaterialRequisitions(prev => [nextMrnObj, ...prev]);
+    }
+
+    return mrnNo;
+  };
+
   const createPainterAssignment = (
     assignmentData: Omit<PainterAssignment, 'id' | 'status' | 'actualCompletedQty' | 'rejectReworkQty' | 'scrapQty' | 'stageOkQty' | 'stageReworkQty' | 'stageScrapQty'>,
     masterJobCardOverride?: JobCard
@@ -2787,6 +3107,8 @@ export const PortalProvider: React.FC<{
       return { success: false, error: `Master Job Card ${assignmentData.masterJobCardNo} not found.` };
     }
 
+    const currentAssignments = latestAssignmentsRef.current;
+
     // Calculate committed & completed pieces (per-part when multiple inward parts exist, plus overall master balance)
     const inwardParts = resolveJobCardInwardParts(parentJob, grnList);
     const {
@@ -2795,7 +3117,7 @@ export const PortalProvider: React.FC<{
       selectedPart
     } = computeAssignmentBalance(
       parentJob,
-      painterAssignments,
+      currentAssignments,
       inwardParts,
       assignmentData.partCode || assignmentData.partDescription
     );
@@ -2813,16 +3135,23 @@ export const PortalProvider: React.FC<{
     const resolvedPartCode = assignmentData.partCode || selectedPart?.partCode || parentJob.partCode;
     const resolvedPartDescription = assignmentData.partDescription || selectedPart?.partDescription || parentJob.partDescription;
 
-    const maxAsgSeq = painterAssignments.reduce((max, a) => {
+    const maxAsgSeq = currentAssignments.reduce((max, a) => {
       const m = (a.id || '').match(/ASG-\d{4}-(\d+)/i);
       const n = m ? parseInt(m[1], 10) : 0;
       return !isNaN(n) && n > max ? n : max;
     }, 0);
-    const nextId = `ASG-${new Date().getFullYear()}-${String(maxAsgSeq + 1).padStart(4, '0')}`;
+    asgSeqRef.current = Math.max(asgSeqRef.current, maxAsgSeq) + 1;
+    const nextId = `ASG-${new Date().getFullYear()}-${String(asgSeqRef.current).padStart(4, '0')}`;
+    const cleanedPlannedMaterials = (assignmentData.plannedMaterials || []).filter(
+      m => m.materialName.trim() && Number(m.qty) > 0
+    );
+
     const newAssignment: PainterAssignment = {
       ...assignmentData,
       partCode: resolvedPartCode,
       partDescription: resolvedPartDescription,
+      plannedMaterials: cleanedPlannedMaterials,
+      storeTransferStatus: 'Pending Store Transfer',
       id: nextId,
       assignmentId: nextId,
       masterJobCardNo: assignmentData.masterJobCardNo,
@@ -2839,20 +3168,133 @@ export const PortalProvider: React.FC<{
       startedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    setPainterAssignments(prev => [newAssignment, ...prev]);
+    const nextAllAssignments = [newAssignment, ...currentAssignments];
+    const jobCardAssignmentsAfter = nextAllAssignments.filter(
+      a => a.masterJobCardNo === parentJob.jobCardNo || a.masterJobCardId === parentJob.jobCardNo
+    );
 
-    // Update Master Job Card status to 'In Process' if it was 'Open' or 'Pending'
+    // Raise or update exact Store Floor Demand (MRN) with all pending painters + their Party & Company materials
+    const mrnNo = upsertPendingFloorDemand(parentJob, jobCardAssignmentsAfter, assignmentData.assignmentDate);
+    newAssignment.storeDemandMrnNo = mrnNo;
+
+    const coveredIds = new Set(jobCardAssignmentsAfter.map(a => a.id));
+    latestAssignmentsRef.current = nextAllAssignments.map(a =>
+      a.id === newAssignment.id || (coveredIds.has(a.id) && !a.storeMinNo && a.assignmentDate === assignmentData.assignmentDate)
+        ? { ...a, storeDemandMrnNo: mrnNo }
+        : a
+    );
+    setPainterAssignments(latestAssignmentsRef.current);
+
+    // Update Master Job Card status & assigned painter metadata
+    const totalAllocatedForCard = jobCardAssignmentsAfter.reduce((sum, a) => sum + Number(a.dailyTargetQty || 0), 0);
     setJobCards(prev => prev.map(jc => {
       if (jc.jobCardNo !== assignmentData.masterJobCardNo) return jc;
       const currentList = jc.assignments || [];
       return {
         ...jc,
         status: jc.status === 'Open' ? 'In Process' : jc.status,
+        painterJobStatus: 'Assigned',
+        assignedPainterName: jc.assignedPainterName || newAssignment.painterName,
+        painterName: jc.painterName || newAssignment.painterName,
+        allocatedQty: totalAllocatedForCard,
+        dailyTargetQty: totalAllocatedForCard,
         assignments: [newAssignment, ...currentList]
       };
     }));
 
     return { success: true, assignment: newAssignment };
+  };
+
+  const requestAssignmentChemicals = (
+    assignmentId: string,
+    materials: PainterDailyMaterialAllocation[]
+  ): { success: boolean; mrnNo?: string; error?: string } => {
+    const cleanMats = materials.filter(m => m.materialName.trim() && Number(m.qty) > 0);
+    if (cleanMats.length === 0) {
+      return { success: false, error: 'Please specify at least one chemical with quantity > 0.' };
+    }
+    const targetAsg = latestAssignmentsRef.current.find(a => a.id === assignmentId);
+    if (!targetAsg) {
+      return { success: false, error: `Assignment ${assignmentId} not found.` };
+    }
+    const parentJob = jobCards.find(j => j.jobCardNo === targetAsg.masterJobCardNo);
+    if (!parentJob) {
+      return { success: false, error: `Master Job Card ${targetAsg.masterJobCardNo} not found.` };
+    }
+
+    const updatedAsg: PainterAssignment = {
+      ...targetAsg,
+      plannedMaterials: [...(targetAsg.plannedMaterials || []), ...cleanMats]
+    };
+
+    const existingPendingMrn = latestReqsRef.current.find(
+      r => r.jobCardNo === parentJob.jobCardNo && r.date === targetAsg.assignmentDate && r.status === 'Pending Store Issue'
+    );
+
+    let mrnNo: string;
+    if (existingPendingMrn) {
+      latestAssignmentsRef.current = latestAssignmentsRef.current.map(a =>
+        a.id === assignmentId ? updatedAsg : a
+      );
+      const jobAsgs = latestAssignmentsRef.current.filter(
+        a => a.masterJobCardNo === parentJob.jobCardNo || a.masterJobCardId === parentJob.jobCardNo
+      );
+      mrnNo = upsertPendingFloorDemand(parentJob, jobAsgs, targetAsg.assignmentDate);
+      updatedAsg.storeDemandMrnNo = mrnNo;
+    } else {
+      // Previous MRN already dispatched by Store -> raise supplementary Floor Demand strictly for the extra company chemicals
+      mrnSeqRef.current = Math.max(mrnSeqRef.current, latestReqsRef.current.length) + 1;
+      mrnNo = `MRN-${new Date().getFullYear()}-${String(mrnSeqRef.current).padStart(3, '0')}`;
+      const suppDemands: PainterFloorDemandEntry[] = [
+        {
+          assignmentId: targetAsg.id,
+          painterId: targetAsg.painterId,
+          painterName: targetAsg.painterName,
+          boothNumber: targetAsg.boothNumber,
+          assignmentDate: targetAsg.assignmentDate,
+          partCode: targetAsg.partCode || parentJob.partCode,
+          partDescription: targetAsg.partDescription || parentJob.partDescription,
+          colorShade: targetAsg.colorShade || parentJob.color,
+          partyTargetQty: 0,
+          uom: 'Pcs',
+          companyMaterials: cleanMats
+        }
+      ];
+      const { reqLines } = buildConsolidatedFloorDemand(parentJob, suppDemands);
+      const totalChemQty = reqLines.reduce((sum, l) => sum + Number(l.requestedQty || 0), 0);
+      const suppMrn: MaterialRequisitionNote = {
+        mrnNo,
+        date: targetAsg.assignmentDate || new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        plant: parentJob.plant || (activePlant === 'ALL' ? 'Haridwar' : activePlant),
+        jobCardNo: parentJob.jobCardNo,
+        woNo: parentJob.woNo || 'WO-AUTO',
+        customer: parentJob.customer,
+        partCode: targetAsg.partCode || parentJob.partCode,
+        partDescription: `${targetAsg.partDescription || parentJob.partDescription} (Extra Chemical Demand)`,
+        colorName: targetAsg.colorShade || parentJob.color,
+        requestedQty: totalChemQty,
+        uom: cleanMats[0]?.uom || 'Litres',
+        sourceGrnNo: parentJob.sourceGrnNo,
+        requiredShift: activeShift,
+        requestedBy: parentJob.prodSupervisor || currentUser.name || 'Production Manager',
+        urgency: 'High (Line Stoppage Risk)',
+        status: 'Pending Store Issue',
+        painterDemands: suppDemands,
+        requisitionLines: reqLines,
+        productionRemarks: `Supplementary chemical demand for ${targetAsg.painterName} (${targetAsg.assignmentId}): ${cleanMats.map(c => `${c.materialName} (${c.qty} ${c.uom})`).join(', ')}`
+      };
+      latestReqsRef.current = [suppMrn, ...latestReqsRef.current];
+      setMaterialRequisitions(prev => [suppMrn, ...prev]);
+      updatedAsg.storeTransferStatus = 'Pending Store Transfer';
+      updatedAsg.storeDemandMrnNo = mrnNo;
+    }
+
+    latestAssignmentsRef.current = latestAssignmentsRef.current.map(a =>
+      a.id === assignmentId ? updatedAsg : a
+    );
+    setPainterAssignments(latestAssignmentsRef.current);
+    return { success: true, mrnNo };
   };
 
   const issueAssignmentMaterials = (
@@ -4037,6 +4479,7 @@ export const PortalProvider: React.FC<{
         createPainterAssignment,
         closePainterAssignment,
         issueAssignmentMaterials,
+        requestAssignmentChemicals,
         updateAssignmentMaterialLog,
         recordAssignmentStageOutput,
         getPainterConsumablesLedger,

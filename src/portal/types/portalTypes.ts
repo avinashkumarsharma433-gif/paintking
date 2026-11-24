@@ -197,6 +197,8 @@ export interface RequisitionLineItem {
   partCode?: string;
   colour?: string;
   customer?: string;
+  assignmentIds?: string[];
+  painterNames?: string[];
 }
 
 export type JobCardType = 'master' | 'painter_child' | 'rework_child';
@@ -450,6 +452,7 @@ export interface MaterialRequisitionNote {
 
   // Next-Gen Requisition Lines & FIFO Tracking (PK-OS Store Role Upgrade)
   requisitionLines?: RequisitionLineItem[];
+  painterDemands?: PainterFloorDemandEntry[];
   minNo?: string;
   fifoStatus?: 'FIFO OK' | 'FIFO Override';
   overrideReasonCode?: FifoOverrideReasonCode;
@@ -644,6 +647,30 @@ export type AssignmentShiftType = 'General Day Shift (08:30 - 18:30)' | 'Day 12H
 export type AssignmentProcessStage = 'Primer' | 'Basecoat' | 'Topcoat / Clear Coat' | 'Full Coating System';
 export type AssignmentStatus = 'Active' | 'Closed - Target Met' | 'Closed - Partial/Incomplete';
 
+export interface PainterDailyMaterialAllocation {
+  materialName: string;
+  materialType: 'Base Paint' | 'Topcoat' | 'Hardener' | 'Thinner' | 'Cleaning Solvent';
+  qty: number;
+  uom: 'Litres' | 'Kg' | 'Pcs';
+  batchNumber?: string;
+  colour?: string;
+  stockBatchId?: string;
+}
+
+export interface PainterFloorDemandEntry {
+  assignmentId: string;
+  painterId: string;
+  painterName: string;
+  boothNumber: string;
+  assignmentDate: string;
+  partCode?: string;
+  partDescription?: string;
+  colorShade?: string;
+  partyTargetQty: number;
+  uom: 'Pcs';
+  companyMaterials: PainterDailyMaterialAllocation[];
+}
+
 export interface AssignmentMaterialLog {
   id: string;                          // e.g. "MAT-LOG-001"
   assignmentId: string;                // FK -> PainterAssignment.id
@@ -666,6 +693,9 @@ export interface AssignmentMaterialLog {
   uom: 'Litres' | 'Kg' | 'Pcs';
   highWastageFlag?: boolean;           // True if exceeding standard norm
   standardNormPerPiece?: number;       // BOM standard norm
+  transferStatus?: 'Pending Store Transfer' | 'Transferred to Floor';
+  mrnNo?: string;
+  minNo?: string;
   remarks?: string;
   loggedAt?: string;
 }
@@ -685,6 +715,10 @@ export interface PainterAssignment {
   partDescription?: string;            // Specific inward material/part name assigned to this painter's shift
   colorShade?: string;                 // Specific colour/shade assigned to this painter's shift
   dailyTargetQty: number;              // Cannot exceed MasterJobCard.balancePendingQty
+  plannedMaterials?: PainterDailyMaterialAllocation[]; // Daily company materials allocated with this assignment
+  storeDemandMrnNo?: string;           // Linked Store Floor Demand MRN
+  storeTransferStatus?: 'Pending Store Transfer' | 'Transferred to Floor';
+  storeMinNo?: string;                 // Store Material Issue Note generated on transfer
   actualCompletedQty: number;          // Entered at shift close
   rejectReworkQty: number;             // Re-spray / Rework items
   scrapQty: number;                    // Permanent loss

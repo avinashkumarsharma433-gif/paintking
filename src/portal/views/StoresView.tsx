@@ -465,6 +465,10 @@ export const StoresView: React.FC = () => {
     return balanceReturnSlips.filter(s => matchesPlant(s.plant, activePlant));
   }, [balanceReturnSlips, activePlant]);
 
+  const plantMaterialRequisitions = useMemo(() => {
+    return materialRequisitions.filter(r => matchesPlant(r.plant, activePlant));
+  }, [materialRequisitions, activePlant]);
+
   // Items qualifying for the Email Trigger (Days in Store >= Threshold Days AND balance > 0 OR Near Expiry/Expired)
   const itemsTriggeringEmail = useMemo(() => {
     return batchShelfLifeList.filter(item => 
@@ -496,8 +500,8 @@ export const StoresView: React.FC = () => {
 
   // Unified List of Issued MIN Slips (Dispatched MRNs + Legacy Slips)
   const allIssuedSlips = useMemo(() => {
-    // 1. From materialRequisitions that are dispatched or partially issued
-    const mrnIssued = materialRequisitions
+    // 1. From plantMaterialRequisitions that are dispatched or partially issued
+    const mrnIssued = plantMaterialRequisitions
       .filter(r => r.issuedSlipNo || r.status === 'Dispatched by Store' || r.status === 'Partially Issued')
       .map(r => {
         const slipNo = r.issuedSlipNo || `MIN-2026-${r.mrnNo.replace('MRN-', '')}`;
@@ -564,7 +568,7 @@ export const StoresView: React.FC = () => {
       s.jobCardId.toLowerCase().includes(q) ||
       s.grnNo.toLowerCase().includes(q)
     );
-  }, [materialRequisitions, customIssuedRecords, fifoOverrideLogs, searchQuery]);
+  }, [plantMaterialRequisitions, customIssuedRecords, fifoOverrideLogs, searchQuery]);
 
   // Handlers for Material Issue Slip (MIN) and Return to Store
   const handleOpenIssueModal = (item: any) => {
@@ -735,7 +739,7 @@ export const StoresView: React.FC = () => {
           className={`p-4 rounded-[20px] border shadow-xs space-y-1 cursor-pointer transition hover:shadow-sm active:scale-[0.98] ${
             activeTab === 'REQUISITIONS' 
               ? 'border-amber-400 ring-1 ring-amber-300' 
-              : materialRequisitions.filter(r => r.status === 'Pending Store Issue').length > 0 
+              : plantMaterialRequisitions.filter(r => r.status === 'Pending Store Issue').length > 0 
                 ? 'bg-amber-50/70 border-amber-300 hover:border-amber-400' 
                 : 'bg-white border-[#ececec] hover:border-[#c09748]/60'
           }`}
@@ -749,10 +753,10 @@ export const StoresView: React.FC = () => {
             <span className="text-[9px] uppercase tracking-normal underline text-[#8a6521]">View Demands &rarr;</span>
           </div>
           <div className="text-xl sm:text-2xl font-serif font-bold text-amber-900">
-            {materialRequisitions.filter(r => r.status === 'Pending Store Issue').length} Pending
+            {plantMaterialRequisitions.filter(r => r.status === 'Pending Store Issue').length} Pending
           </div>
           <div className="text-[10px] sm:text-[11px] text-[#777b86] truncate">
-            {materialRequisitions.length} Total requisitions raised
+            {plantMaterialRequisitions.length} Total requisitions raised
           </div>
         </div>
       </div>
@@ -810,7 +814,7 @@ export const StoresView: React.FC = () => {
             <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
               activeTab === 'REQUISITIONS' ? 'bg-[#f4e5be] text-[#8a6521]' : 'bg-[#f2f2f3] text-[#777b86]'
             }`}>
-              {materialRequisitions.length}
+              {plantMaterialRequisitions.length}
             </span>
           </button>
 
@@ -1210,14 +1214,14 @@ export const StoresView: React.FC = () => {
 
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[#777b86] font-mono">
-                  Pending Issues: <strong className="text-amber-700">{materialRequisitions.filter(r => r.status === 'Pending Store Issue').length}</strong>
+                  Pending Issues: <strong className="text-amber-700">{plantMaterialRequisitions.filter(r => r.status === 'Pending Store Issue').length}</strong>
                 </span>
               </div>
             </div>
 
             {/* Executive Card Strips Architecture (Modern PK-OS Standard) */}
             <div className="space-y-3">
-              {materialRequisitions.map((req, idx) => {
+              {plantMaterialRequisitions.map((req, idx) => {
                 const isPending = req.status === 'Pending Store Issue';
                 const isDispatched = req.status === 'Dispatched by Store';
                 const isReceived = req.status === 'Received by Production';
@@ -1292,19 +1296,50 @@ export const StoresView: React.FC = () => {
                         {/* Breakdown Chips */}
                         {req.requisitionLines && req.requisitionLines.length > 0 && (
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="text-[10px] font-mono font-bold text-[#777b86] uppercase tracking-wider">Required:</span>
+                            <span className="text-[10px] font-mono font-bold text-[#777b86] uppercase tracking-wider">Store Release Total:</span>
                             {req.requisitionLines.map((l, i) => (
                               <span
                                 key={i}
                                 className={`px-2.5 py-1 rounded-lg text-xs font-mono border shadow-2xs ${
                                   l.category === 'COMPANY_CONSUMABLE'
                                     ? 'bg-blue-50/50 border-blue-100 text-blue-900'
-                                    : 'bg-[#fafafb] border-[#ececec] text-[#17191c]'
+                                    : 'bg-[#faf7ed] border-[#f4e5be] text-[#8a6521]'
                                 }`}
                               >
                                 {l.itemName}: <strong className={l.category === 'COMPANY_CONSUMABLE' ? 'text-blue-900' : 'text-[#8a6521]'}>{l.requestedQty} {l.uom}</strong>
                               </span>
                             ))}
+                          </div>
+                        )}
+
+                        {/* Painter-Wise Allocation Report */}
+                        {req.painterDemands && req.painterDemands.length > 0 && (
+                          <div className="p-2.5 rounded-[14px] bg-[#fafafb] border border-[#ececec] space-y-1.5">
+                            <div className="text-[10px] font-mono font-bold text-[#8a6521] uppercase tracking-wider">
+                              Painter-Wise Floor Report ({req.painterDemands.length} Painter{req.painterDemands.length > 1 ? 's' : ''} Assigned):
+                            </div>
+                            <div className="space-y-1">
+                              {req.painterDemands.map((pd, pIdx) => (
+                                <div key={pd.assignmentId || pIdx} className="flex flex-wrap items-center justify-between gap-2 text-[11px] py-1 border-b border-[#ececec] last:border-b-0">
+                                  <div className="text-[#17191c]">
+                                    <strong>{pd.painterName}</strong>
+                                    <span className="text-[#777b86] font-mono ml-1.5">({pd.boothNumber})</span>
+                                    <span className="text-[#777b86] ml-2">
+                                      • Party: <strong className="text-[#8a6521]">{pd.partDescription || pd.partCode} ({pd.partyTargetQty.toLocaleString('en-IN')} Pcs)</strong>
+                                    </span>
+                                  </div>
+                                  {pd.companyMaterials && pd.companyMaterials.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {pd.companyMaterials.map((cm, cmi) => (
+                                        <span key={cmi} className="px-2 py-0.5 rounded-full bg-white border border-[#dcdfe4] text-[10px] font-mono text-[#17191c]">
+                                          {cm.materialName}: <strong className="text-[#8a6521]">{cm.qty} {cm.uom}</strong>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
 
@@ -1348,12 +1383,12 @@ export const StoresView: React.FC = () => {
                             }`}
                           >
                             <ArrowRightLeft className="w-4 h-4 text-[#c09748]" />
-                            <span>{req.status === 'Partially Issued' ? 'Issue Balance' : 'Review & Issue Material'}</span>
+                            <span>{req.status === 'Partially Issued' ? 'Transfer Balance to Floor' : 'Review & Transfer to Floor'}</span>
                           </button>
                         ) : (
                           <span className="px-4 py-2 rounded-full text-xs font-mono font-semibold bg-[#f2f2f3] text-[#777b86] border border-[#dcdfe4] inline-flex items-center gap-1.5">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Issued ({req.issuedQty || req.requestedQty} {req.uom})</span>
+                            <span>Transferred to Floor ({req.issuedQty || req.requestedQty} {req.uom})</span>
                           </span>
                         )}
                       </div>
@@ -1381,7 +1416,7 @@ export const StoresView: React.FC = () => {
                 );
               })}
 
-              {materialRequisitions.length === 0 && (
+              {plantMaterialRequisitions.length === 0 && (
                 <div className="bg-white rounded-[22px] border border-[#ececec] p-12 text-center text-[#777b86]">
                   Koi pending material requisition nahi hai.
                 </div>

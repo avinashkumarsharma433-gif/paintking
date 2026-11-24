@@ -4157,7 +4157,9 @@ export const JobCardsView: React.FC = () => {
                 <div className="p-2.5 rounded-[12px] bg-[#faf7ed] border border-[#f4e5be]">
                   <span className="text-[9.5px] uppercase text-[#8a6521] font-bold block">Store Issued Qty</span>
                   <span className="text-base font-bold text-[#8a6521]">
-                    {selectedReqForView.issuedQty !== undefined ? selectedReqForView.issuedQty : selectedReqForView.requestedQty} {selectedReqForView.uom}
+                    {selectedReqForView.issuedQty !== undefined
+                      ? `${selectedReqForView.issuedQty} ${selectedReqForView.uom}`
+                      : 'Pending Transfer'}
                   </span>
                   <span className="text-[9px] text-[#8a6521] block mt-0.5">
                     Slip: {selectedReqForView.issuedSlipNo || 'Pending'}
@@ -4174,6 +4176,58 @@ export const JobCardsView: React.FC = () => {
                   </span>
                 </div>
               </div>
+              {selectedReqForView.requisitionLines && selectedReqForView.requisitionLines.length > 0 && (
+                <div className="pt-2 border-t border-[#ececec] space-y-1.5">
+                  <span className="text-[10px] font-mono uppercase font-bold text-[#777b86] block">
+                    Exact Consolidated Store Release Lines
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedReqForView.requisitionLines.map((rl, rIdx) => (
+                      <span
+                        key={rl.id || rIdx}
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-mono border ${
+                          rl.category === 'COMPANY_CONSUMABLE'
+                            ? 'bg-blue-50/70 border-blue-200 text-blue-900'
+                            : 'bg-[#faf7ed] border-[#f4e5be] text-[#8a6521]'
+                        }`}
+                      >
+                        {rl.itemName}: <strong>{rl.requestedQty} {rl.uom}</strong>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedReqForView.painterDemands && selectedReqForView.painterDemands.length > 0 && (
+                <div className="pt-2 border-t border-[#ececec] space-y-2">
+                  <span className="text-[10px] font-mono uppercase font-bold text-[#8a6521] block">
+                    Painter-Wise Floor Demand Report ({selectedReqForView.painterDemands.length} Painter{selectedReqForView.painterDemands.length > 1 ? 's' : ''})
+                  </span>
+                  <div className="space-y-1.5">
+                    {selectedReqForView.painterDemands.map((pd, pIdx) => (
+                      <div key={pd.assignmentId || pIdx} className="p-2.5 rounded-[12px] bg-[#fafafb] border border-[#ececec] space-y-1 text-xs">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-bold text-[#17191c]">
+                            {pd.painterName} <span className="font-mono text-[10.5px] text-[#777b86]">({pd.boothNumber})</span>
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-mono text-[10.5px] font-bold">
+                            Party: {pd.partDescription || pd.partCode} • {pd.partyTargetQty.toLocaleString('en-IN')} Pcs
+                          </span>
+                        </div>
+                        {pd.companyMaterials && pd.companyMaterials.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-0.5">
+                            {pd.companyMaterials.map((cm, cmIdx) => (
+                              <span key={cmIdx} className="px-2 py-0.5 rounded-full bg-white border border-[#ececec] text-[10px] font-mono text-[#17191c]">
+                                {cm.materialName}: <strong className="text-[#8a6521]">{cm.qty} {cm.uom}</strong>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Section 3: Store Dispatch & Receipt Verification Details */}
@@ -5105,8 +5159,8 @@ export const JobCardsView: React.FC = () => {
           onAssign={(assignmentData) => {
             const res = createPainterAssignment(assignmentData);
             if (res?.success) {
-              setToastMessage(`✓ Target assigned to ${assignmentData.painterName}!`);
-              setTimeout(() => setToastMessage(null), 3500);
+              setToastMessage(`✓ Daily Party & Company materials assigned to ${assignmentData.painterName} — Floor Demand (${res.assignment?.storeDemandMrnNo || 'MRN'}) sent to Store!`);
+              setTimeout(() => setToastMessage(null), 4000);
             }
             return res;
           }}

@@ -48,6 +48,7 @@ interface EditableLineState {
   customer?: string;
   requestedQty: number;
   uom: string;
+  isDirectUnbatched?: boolean;
   batchLines: Array<{
     batchId: string;
     supplierBatchNo: string;
@@ -160,8 +161,9 @@ export const IssueWizardModal: React.FC<IssueWizardModalProps> = ({
       });
     }
 
-    // Run suggestBatches for each line to auto-fill ideal FIFO/FEFO allocations
+    // Run suggestBatches for each line strictly isolated by StockCategory (Party vs Company)
     const initialLines: EditableLineState[] = demandItems.map(item => {
+      const categoryScopedBatches = plantBatches.filter(b => b.category === item.category);
       const suggestion = suggestBatches(
         {
           itemName: item.itemName,
@@ -173,11 +175,11 @@ export const IssueWizardModal: React.FC<IssueWizardModalProps> = ({
           requestedQty: item.requestedQty,
           plant: activePlant
         },
-        plantBatches
+        categoryScopedBatches
       );
 
-      const mappedBatchLines = suggestion.suggestedLines.map(sl => {
-        const matchingBatch = plantBatches.find(b => b.batchId === sl.batchId);
+      const mappedBatchLines: EditableLineState['batchLines'] = suggestion.suggestedLines.map(sl => {
+        const matchingBatch = categoryScopedBatches.find(b => b.batchId === sl.batchId);
         return {
           batchId: sl.batchId,
           supplierBatchNo: sl.supplierBatchNo,
@@ -188,17 +190,43 @@ export const IssueWizardModal: React.FC<IssueWizardModalProps> = ({
         };
       });
 
+      let isDirectUnbatched = false;
       if (mappedBatchLines.length === 0) {
-        const fallbackGrn = linkedJobCard?.sourceGrnNo || mrn.sourceGrnNo || 'PK-GRN-2026';
-        const fallbackBatch = plantBatches.find(b => b.grnNo === fallbackGrn) || plantBatches[0];
-        mappedBatchLines.push({
-          batchId: fallbackBatch?.batchId || `batch_${item.id}`,
-          supplierBatchNo: fallbackBatch?.supplierBatchNo || linkedJobCard?.batchLotNo || mrn.partCode || 'LOT-INW',
-          grnNo: fallbackGrn,
-          issuedQty: item.requestedQty,
-          expiryDate: fallbackBatch?.expiryDate,
-          availableBalance: fallbackBatch?.balanceQty || item.requestedQty
-        });
+        if (item.category === 'PARTY_MATERIAL') {
+          const fallbackGrn = linkedJobCard?.sourceGrnNo || mrn.sourceGrnNo || '';
+          const partyFallback =
+            categoryScopedBatches.find(b => (fallbackGrn && b.grnNo === fallbackGrn) || (item.partCode && b.partCode === item.partCode)) ||
+            categoryScopedBatches[0];
+          if (partyFallback) {
+            mappedBatchLines.push({
+              batchId: partyFallback.batchId,
+              supplierBatchNo: partyFallback.supplierBatchNo,
+              grnNo: partyFallback.grnNo || fallbackGrn,
+              issuedQty: Math.min(item.requestedQty, partyFallback.balanceQty),
+              expiryDate: partyFallback.expiryDate,
+              availableBalance: partyFallback.balanceQty
+            });
+          } else {
+            isDirectUnbatched = true;
+            mappedBatchLines.push({
+              batchId: `direct_${item.id}`,
+              supplierBatchNo: linkedJobCard?.batchLotNo || mrn.partCode || 'LOT-INW',
+              grnNo: fallbackGrn || 'Direct Floor Stock',
+              issuedQty: item.requestedQty,
+              availableBalance: item.requestedQty
+            });
+          }
+        } else {
+          // Company Consumable with no matching chemical Store batch yet -> allow clean Direct Store Floor Transfer
+          isDirectUnbatched = true;
+          mappedBatchLines.push({
+            batchId: `direct_chem_${item.id}`,
+            supplierBatchNo: `CHEM-${mrn.mrnNo.slice(-3)}`,
+            grnNo: 'Direct Chemical Store Transfer',
+            issuedQty: item.requestedQty,
+            availableBalance: item.requestedQty
+          });
+        }
       }
 
       return {
@@ -211,6 +239,7 @@ export const IssueWizardModal: React.FC<IssueWizardModalProps> = ({
         customer: item.customer,
         requestedQty: item.requestedQty,
         uom: item.uom,
+        isDirectUnbatched,
         batchLines: mappedBatchLines,
         isOverride: false
       };
@@ -295,6 +324,7 @@ export const IssueWizardModal: React.FC<IssueWizardModalProps> = ({
     const lineAllocations = lines.map(l => ({
       requisitionLineId: l.requisitionLineId,
       itemName: l.itemName,
+      isDirectUnbatched: l.isDirectUnbatched,
       batchLines: l.batchLines.map(bl => ({
         batchId: bl.batchId,
         grnNo: bl.grnNo,
@@ -390,6 +420,38 @@ export const IssueWizardModal: React.FC<IssueWizardModalProps> = ({
         )}
 
         <form onSubmit={handleConfirmIssue} className="space-y-4">
+          {/* Painter-Wise Demand Breakdown Summary inside Wizard */}
+          {mrn.painterDemands && mrn.painterDemands.length > 0 && (
+            <div className="p-3.5 rounded-[18px] bg-[#faf7ed] border border-[#f4e5be] space-y-2">
+              <div className="text-[10.5px] font-mono font-bold text-[#8a6521] uppercase tracking-wider flex items-center justify-between">
+                <span>Assigned Painters &amp; Production Floor Breakdown ({mrn.painterDemands.length} Painter{mrn.painterDemands.length > 1 ? 's' : ''})</span>
+                <span className="text-[#17191c]">Transferring to Floor</span>
+              </div>
+              <div className="space-y-1.5">
+                {mrn.painterDemands.map((pd, pIdx) => (
+                  <div key={pd.assignmentId || pIdx} className="p-2.5 rounded-[12px] bg-white border border-[#f4e5be] flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div>
+                      <strong className="text-[#17191c]">{pd.painterName}</strong>
+                      <span className="text-[#777b86] font-mono ml-1.5">({pd.boothNumber})</span>
+                      {pd.partyTargetQty > 0 && (
+                        <span className="text-[#777b86] ml-2">
+                          • Party: <strong className="text-[#8a6521]">{pd.partDescription || pd.partCode} ({pd.partyTargetQty.toLocaleString('en-IN')} Pcs)</strong>
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {(pd.companyMaterials || []).map((cm, cmi) => (
+                        <span key={cmi} className="px-2 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec] text-[10.5px] font-mono text-[#17191c]">
+                          {cm.materialName}: <strong className="text-[#8a6521]">{cm.qty} {cm.uom}</strong>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* ========================================================================= */}
           {/* DEMAND LINES GROUP (PARTY SUBSTRATES & COMPANY CONSUMABLES)               */}
           {/* ========================================================================= */}
@@ -442,8 +504,10 @@ export const IssueWizardModal: React.FC<IssueWizardModalProps> = ({
                   {/* Linked GRN Allocation & Material Issue Statement (No Dropdown - Tied to Job Card GRN) */}
                   <div className="space-y-2.5">
                     <div className="text-[10px] font-mono font-bold text-[#777b86] uppercase tracking-wider flex items-center justify-between">
-                      <span>Linked GRN Lot Allocation</span>
-                      <span className="text-[#8a6521] font-semibold">Pre-Allocated From Job Card</span>
+                      <span>Linked Store Batch / GRN Allocation</span>
+                      <span className="text-[#8a6521] font-semibold">
+                        {line.isDirectUnbatched ? 'Direct Floor Transfer (Unbatched Consumable)' : 'Pre-Allocated From Store Batch / GRN'}
+                      </span>
                     </div>
 
                     {line.batchLines.map((batchLine, batchIdx) => {
@@ -643,14 +707,14 @@ export const IssueWizardModal: React.FC<IssueWizardModalProps> = ({
             <button
               type="submit"
               disabled={!isAuthorizedToIssue}
-              className={`px-6 py-2.5 rounded-full font-bold text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer active:scale-95 ${
+              className={`px-6 py-2.5 rounded-full font-bold text-xs flex items-center gap-1.5 shadow-2xs transition cursor-pointer active:scale-95 border ${
                 isAuthorizedToIssue
-                  ? 'bg-[#17191c] hover:bg-black text-[#c09748]'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  ? 'bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border-[#f4e5be]'
+                  : 'bg-gray-200 text-gray-400 border-gray-200 cursor-not-allowed'
               }`}
             >
-              <CheckSquare className="w-4 h-4 text-[#c09748]" />
-              <span>Confirm Issue &amp; Generate MIN Slip</span>
+              <CheckSquare className="w-4 h-4 text-[#8a6521]" />
+              <span>Confirm Transfer to Floor &amp; Generate MIN Slip</span>
             </button>
           </div>
         </form>
