@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-24: Simplified Priority Queue Master Card Layout in `JobCardsView.tsx`
+  - Files touched:
+    - `src/portal/views/JobCardsView.tsx`: Removed the stale `Allocated % / 100% Fully Allocated` progress bar and `"+ Create Job Card"` wording from `PRIORITY_QUEUE`, replaced with crisp Master Card header (`masterCard.jobCardNo`), Total Quantity box (`totalLotQty`), inward material list (`resolveJobCardInwardParts`), `Painters Assigned` count, and clean `Open Job Card` button.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`, 9.10s).
+
 - 2026-11-24: Plant Head Priority Auto-Generates System Master Job Card & Removed Production 4-Step Creation Form
   - Files touched:
     - `src/portal/context/PortalStoreContext.tsx`: Added `buildOrReuseMasterJobCardForPriority` & `createMasterJobCardFromPriority`, updated `assignProductionPriority` to automatically generate a strictly monotonic unique `JC-YYYY-NNN` Master Job Card when Plant Head sets Priority (`status: 'Job Card Launched'`, `0` premature painters/MRNs), and synced `latestJobCardsRef`/`jobCardSeqRef`.

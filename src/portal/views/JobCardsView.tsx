@@ -1736,12 +1736,12 @@ export const JobCardsView: React.FC = () => {
                   </span>
                 </div>
                 <p className="text-xs text-[#777b86] mt-1">
-                  Prioritized production batches aligned with OEM delivery commitments and line changeover efficiency. Click <strong>"+ Create Job Card"</strong> to allocate paint lines and technicians.
+                  Prioritized master job orders dispatched by Plant Head. Open any Master Job Card to assign painters, daily quotas &amp; chemicals.
                 </p>
               </div>
 
               <div className="flex items-center gap-2 text-xs font-mono text-[#777b86]">
-                Pending Launches: <strong className="text-[#17191c]">{plantPriorityOrders.filter(p => p.status === 'Priority Assigned').length}</strong>
+                Master Orders: <strong className="text-[#17191c]">{plantPriorityOrders.length}</strong>
               </div>
             </div>
 
@@ -1827,7 +1827,6 @@ export const JobCardsView: React.FC = () => {
                   .map((prio) => {
                     const isP1 = prio.priorityLevel === 'P1_URGENT';
                     const isP2 = prio.priorityLevel === 'P2_HIGH';
-                    const isP3 = prio.priorityLevel === 'P3_NORMAL';
                     
                     // Strict matching for this specific priority batch (never pulls a different customer/GRN sharing an old JC number)
                     const prioCust = (prio.customer || '').trim().toLowerCase();
@@ -1848,13 +1847,20 @@ export const JobCardsView: React.FC = () => {
                       return false;
                     });
 
-                    // Dynamic multi-card allocation calculation
-                    const totalLotQty = prio.totalOrderQty || (prio.id === 'PRIO-2026-001' ? 10000 : prio.availableQty);
-                    const allocatedQty = matchingJobCards.reduce((acc, jc) => acc + (Number(jc.targetQty) || 0), 0);
-                    const remainingQtyToAllocate = Math.max(0, totalLotQty - allocatedQty);
-                    const hasJobCards = matchingJobCards.length > 0;
-                    const isFullyAllocated = hasJobCards && remainingQtyToAllocate === 0;
-                    const allocationPercent = Math.min(100, Math.round((allocatedQty / totalLotQty) * 100));
+                    const masterCard = matchingJobCards[0];
+                    const totalLotQty = masterCard?.targetQty || prio.totalOrderQty || (prio.id === 'PRIO-2026-001' ? 10000 : prio.availableQty);
+                    const hasJobCards = Boolean(masterCard);
+                    const inwardPartsList = masterCard
+                      ? resolveJobCardInwardParts(masterCard, grnList)
+                      : resolveJobCardInwardParts(
+                          { sourceGrnNo: prio.grnNo, partCode: prio.partCode, partDescription: prio.partDescription, targetQty: totalLotQty },
+                          grnList
+                        );
+                    const assignedPaintersCount = masterCard
+                      ? painterAssignments.filter(
+                          a => a.masterJobCardNo === masterCard.jobCardNo || a.masterJobCardId === masterCard.jobCardNo
+                        ).length
+                      : 0;
 
                     return (
                       <div
@@ -1867,7 +1873,7 @@ export const JobCardsView: React.FC = () => {
                               : 'border-[#ececec] hover:border-[#c09748]'
                         }`}
                       >
-                        {/* 1. TOP UTILITY HEADER: Priority badge, Challan & Due Date */}
+                        {/* 1. TOP UTILITY HEADER: Priority badge, Master JC No, Challan & Due Date */}
                         <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#ececec]">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className={`px-3 py-1 rounded-full text-xs font-mono font-bold border shadow-2xs ${
@@ -1880,6 +1886,12 @@ export const JobCardsView: React.FC = () => {
                               {isP1 ? 'Priority 1: Critical Line Shortage' : isP2 ? 'Priority 2: High Priority' : 'Priority 3: Standard FIFO'}
                             </span>
 
+                            {masterCard && (
+                              <span className="px-3 py-1 rounded-full bg-white border border-[#dcdfe4] text-xs font-mono font-bold text-[#17191c]">
+                                {masterCard.jobCardNo}
+                              </span>
+                            )}
+
                             <span className="text-xs font-mono text-[#777b86] px-2.5 py-0.5 rounded-full bg-[#fafafb] border border-[#ececec]">
                               {prio.challanNo ? `Challan: ${prio.challanNo}` : prio.id}
                             </span>
@@ -1891,15 +1903,35 @@ export const JobCardsView: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* 2. MAIN DETAILS: Customer Name & Part Description */}
-                        <div>
-                          <h4 className="font-serif font-normal text-xl sm:text-2xl text-[#17191c] flex items-center gap-2">
-                            <Building2 className="w-5 h-5 text-[#c09748] shrink-0" />
-                            <span>{prio.customer}</span>
-                          </h4>
-                          <p className="text-xs text-[#777b86] mt-1">
-                            Part: <strong className="font-mono text-[#17191c]">{prio.partCode}</strong> • {prio.partDescription}
-                          </p>
+                        {/* 2. MAIN DETAILS: Customer Name, Part Specs & Total Quantity */}
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <h4 className="font-serif font-normal text-xl sm:text-2xl text-[#17191c] flex items-center gap-2">
+                              <Building2 className="w-5 h-5 text-[#c09748] shrink-0" />
+                              <span>{prio.customer}</span>
+                            </h4>
+                            <p className="text-xs text-[#777b86]">
+                              {inwardPartsList.length > 1 ? (
+                                <span>
+                                  Materials ({inwardPartsList.length}):{' '}
+                                  <strong className="font-mono text-[#17191c]">
+                                    {inwardPartsList.map(p => `${p.partDescription} (${p.targetQty.toLocaleString('en-IN')} Pcs)`).join(' + ')}
+                                  </strong>
+                                </span>
+                              ) : (
+                                <span>
+                                  Part: <strong className="font-mono text-[#17191c]">{prio.partCode}</strong> • {prio.partDescription}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+
+                          <div className="shrink-0 px-4 py-2.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-left sm:text-right">
+                            <span className="text-[10px] font-mono uppercase text-[#777b86] block">Total Quantity</span>
+                            <strong className="font-mono text-base sm:text-lg font-bold text-[#17191c]">
+                              {totalLotQty.toLocaleString('en-IN')} {prio.uom || 'Pcs'}
+                            </strong>
+                          </div>
                         </div>
 
                         {/* 3. PLANT HEAD DIRECTIVE (Concise & Elegant) */}
@@ -1908,80 +1940,39 @@ export const JobCardsView: React.FC = () => {
                             <span className="font-bold not-italic font-mono uppercase text-[10px] text-[#8a6521] px-2 py-0.5 rounded-md bg-white border border-[#f4e5be] shrink-0">
                               Directive
                             </span>
-                            <span className="truncate leading-relaxed">"{prio.plantHeadRemarks}"</span>
+                            <span className="truncate leading-relaxed">&ldquo;{prio.plantHeadRemarks}&rdquo;</span>
                           </div>
                         )}
 
-                        {/* 4. VISUAL QUANTITY ALLOCATION PROGRESS STRIP */}
-                        <div className="space-y-2 bg-[#fafafb] p-3.5 rounded-[18px] border border-[#ececec]">
-                          <div className="flex items-center justify-between text-xs font-mono flex-wrap gap-2">
-                            <span className="text-[#777b86]">
-                              Total Lot: <strong className="text-[#17191c] font-bold">{totalLotQty.toLocaleString('en-IN')} {prio.uom}</strong> • Allocated: <strong className="text-[#8a6521] font-bold">{allocatedQty.toLocaleString('en-IN')} {prio.uom}</strong> ({allocationPercent}%)
-                            </span>
-                            <span className={`font-bold px-2.5 py-0.5 rounded-full text-xs ${
-                              remainingQtyToAllocate > 0
-                                ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]'
-                                : 'bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be]'
-                            }`}>
-                              {remainingQtyToAllocate > 0
-                                ? `${remainingQtyToAllocate.toLocaleString('en-IN')} Pcs Unassigned`
-                                : '100% Fully Allocated'}
-                            </span>
-                          </div>
-
-                          <div className="h-2 w-full bg-[#e5e7eb] rounded-full overflow-hidden">
-                            <div 
-                              className="bg-[#c09748] h-full transition-all duration-300 rounded-full"
-                              style={{ width: `${allocationPercent}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* 5. FOOTER: Active Job Cards & Primary Action Button */}
-                        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#f2f2f3]">
-                          {/* Left: Active Cards Badges */}
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {matchingJobCards.length > 0 ? (
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-xs font-mono text-[#777b86]">Active Cards:</span>
-                                {matchingJobCards.slice(0, 3).map(c => (
-                                  <button
-                                    key={c.jobCardNo}
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedJobCardForView(c);
-                                      setShowJobCardModal(true);
-                                    }}
-                                    className="px-2.5 py-1 rounded-full bg-white hover:bg-gray-100 border border-[#dcdfe4] text-xs font-mono font-bold text-[#17191c] cursor-pointer shadow-2xs transition active:scale-95"
-                                    title={`Open ${c.jobCardNo}`}
-                                  >
-                                    {c.jobCardNo} ({c.targetQty} Pcs)
-                                  </button>
-                                ))}
-                                {matchingJobCards.length > 3 && (
-                                  <span className="text-xs text-[#777b86] font-mono">
-                                    +${matchingJobCards.length - 3} more
-                                  </span>
-                                )}
-                              </div>
+                        {/* 4. CLEAN FOOTER: Master Job Card Info & Open Action */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-[#f2f2f3]">
+                          <div className="flex items-center gap-2 flex-wrap text-xs font-mono">
+                            {masterCard ? (
+                              <>
+                                <span className="px-2.5 py-1 rounded-full bg-[#fafafb] border border-[#ececec] text-[#17191c] font-bold">
+                                  Master Card: {masterCard.jobCardNo}
+                                </span>
+                                <span className="text-[#777b86]">
+                                  • Painters Assigned: <strong className="text-[#17191c]">{assignedPaintersCount}</strong>
+                                </span>
+                              </>
                             ) : (
-                              <span className="text-xs text-[#777b86] font-mono">No Job Card issued yet</span>
+                              <span className="text-[#777b86]">Ready — click right to open Master Job Card</span>
                             )}
                           </div>
 
-                          {/* Right: Action Button (1 GRN = 1 Master Job Card) */}
                           <div>
-                            {hasJobCards ? (
+                            {hasJobCards && masterCard ? (
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setSelectedJobCardForView(matchingJobCards[0]);
+                                  setSelectedJobCardForView(masterCard);
                                   setShowJobCardModal(true);
                                 }}
-                                className="px-5 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] font-semibold text-xs shadow-2xs cursor-pointer transition flex items-center gap-1.5 active:scale-95"
+                                className="px-5 py-2.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs shadow-2xs cursor-pointer transition flex items-center gap-1.5 active:scale-95"
                               >
-                                <CheckCircle className="w-3.5 h-3.5 text-[#c09748]" />
-                                <span>Open Master Job Card ({matchingJobCards[0].jobCardNo})</span>
+                                <CheckCircle className="w-3.5 h-3.5 text-[#8a6521]" />
+                                <span>Open Job Card ({masterCard.jobCardNo})</span>
                               </button>
                             ) : (
                               <button
@@ -1991,7 +1982,7 @@ export const JobCardsView: React.FC = () => {
                                 className="px-5 py-2.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs shadow-2xs cursor-pointer transition flex items-center gap-1.5 active:scale-95"
                               >
                                 <Plus className="w-3.5 h-3.5 text-[#8a6521]" />
-                                <span>Open / Generate Master Job Card ({totalLotQty.toLocaleString('en-IN')} Pcs)</span>
+                                <span>Open Job Card</span>
                               </button>
                             )}
                           </div>
