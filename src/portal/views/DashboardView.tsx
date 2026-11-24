@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
 import { PortalTab } from '../components/PortalSidebar';
+import { PaintkingDatePicker } from '../components/PaintkingDatePicker';
 import { matchesPlant } from '../utils/portalAuth';
 import { isChemicalConsumable } from '../utils/stockEngine';
 import { 
@@ -22,7 +23,7 @@ import {
   Layers,
   ShieldCheck,
   Hammer,
-  Filter,
+  Search,
   Building2,
   Zap,
   Calendar,
@@ -41,6 +42,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
   const {
     jobCards,
     grnList = [],
+    stockBatches = [],
+    painterAssignments = [],
     plantHeadPriorities = [],
     assignProductionPriority,
     currentUser, 
@@ -65,6 +68,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
   const [targetShiftInput, setTargetShiftInput] = useState<ShiftType>('General Day Shift (08:30 - 18:30)');
   const [instructionsInput, setInstructionsInput] = useState<string>('');
   const [priorityFilter, setPriorityFilter] = useState<'ALL' | 'P1_URGENT' | 'P2_HIGH' | 'P3_NORMAL' | 'HOLD' | 'UNASSIGNED'>('ALL');
+  const [prioritySearch, setPrioritySearch] = useState<string>('');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // Plant Scoped Collections (Strict Plant Isolation Guard)
@@ -107,23 +111,45 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
       .map(grn => {
         const partCode = grn.items?.[0]?.partCode || grn.partCode || 'SUBSTRATE';
         const partDesc = grn.items?.[0]?.partDescription || grn.description || 'Raw Molded Components';
+        const partCount = grn.items?.length || 1;
         const totalInward = grn.totalQty || grn.actualReceivedQty || grn.invoicedQty || 0;
         const uom = 'Pcs';
         const customer = grn.supplierCustomer;
 
-        const matchingJobCards = plantJobCards.filter(jc => 
-          (jc.customer && jc.customer.trim().toLowerCase() === customer.trim().toLowerCase()) ||
-          (jc.partCode && jc.partCode.trim().toLowerCase() === partCode.trim().toLowerCase()) ||
-          (jc.woNo && grn.invoiceChallanNo && jc.woNo.includes(grn.invoiceChallanNo)) ||
-          (jc.wNo && grn.invoiceChallanNo && jc.wNo.includes(grn.invoiceChallanNo))
+        const linkedMasterCard = plantJobCards.find(
+          jc =>
+            (jc.jobCardType === 'master' || (!jc.jobCardType && !jc.parentJobCardId)) &&
+            ((jc.sourceGrnNo && jc.sourceGrnNo === grn.grnNo) ||
+              (!jc.sourceGrnNo &&
+                jc.customer?.trim().toLowerCase() === customer.trim().toLowerCase() &&
+                jc.partCode?.trim().toLowerCase() === partCode.trim().toLowerCase()))
         );
-        const primaryJobCards = matchingJobCards.filter(jc => jc.jobCardType === 'master' || (!jc.jobCardType && !jc.parentJobCardId));
-        const totalIssuedToFloor = primaryJobCards.reduce((acc, curr) => acc + (Number(curr.targetQty) || 0), 0);
-        const balanceAvailable = Math.max(0, totalInward - totalIssuedToFloor);
 
-        const priority = plantPriorities.find(p => 
-          (p.grnNo && p.grnNo === grn.grnNo) ||
-          (p.customer.toLowerCase().trim() === customer.toLowerCase().trim() && p.partCode.toLowerCase().trim() === partCode.toLowerCase().trim())
+        const grnBatches = stockBatches.filter(
+          b => b.grnNo === grn.grnNo && b.category === 'PARTY_MATERIAL'
+        );
+        const transferredToPainters = linkedMasterCard
+          ? painterAssignments
+              .filter(
+                a =>
+                  a.masterJobCardNo === linkedMasterCard.jobCardNo ||
+                  a.masterJobCardId === linkedMasterCard.jobCardNo
+              )
+              .reduce((sum, a) => sum + Number(a.actualCompletedQty || 0), 0)
+          : 0;
+
+        const balanceAvailable =
+          grnBatches.length > 0
+            ? grnBatches.reduce((sum, b) => sum + Number(b.balanceQty || 0), 0)
+            : Math.max(0, totalInward - transferredToPainters);
+        const totalIssuedToFloor = Math.max(0, totalInward - balanceAvailable);
+
+        const priority = plantPriorities.find(
+          p =>
+            (p.grnNo && p.grnNo === grn.grnNo) ||
+            (!p.grnNo &&
+              p.customer.toLowerCase().trim() === customer.toLowerCase().trim() &&
+              p.partCode.toLowerCase().trim() === partCode.toLowerCase().trim())
         );
 
         return {
@@ -133,15 +159,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
           customer,
           partCode,
           partDesc,
+          partCount,
           uom,
           totalInward,
           totalIssuedToFloor,
           balanceAvailable,
+          linkedJobCardNo: priority?.linkedJobCardNo || linkedMasterCard?.jobCardNo,
           priorityRecord: priority,
           vehicleNo: grn.vehicleNo
         };
       });
-  }, [plantGrnList, plantJobCards, plantPriorities]);
+  }, [plantGrnList, plantJobCards, stockBatches, painterAssignments, plantPriorities]);
 
   const p1Count = storeStockItems.filter(s => s.priorityRecord?.priorityLevel === 'P1_URGENT').length;
   const p2Count = storeStockItems.filter(s => s.priorityRecord?.priorityLevel === 'P2_HIGH').length;
@@ -149,12 +177,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
   const unassignedCount = storeStockItems.filter(s => !s.priorityRecord).length;
 
   const filteredStoreStockItems = React.useMemo(() => {
+    const q = prioritySearch.trim().toLowerCase();
     return storeStockItems.filter(item => {
-      if (priorityFilter === 'ALL') return true;
-      if (priorityFilter === 'UNASSIGNED') return !item.priorityRecord;
-      return item.priorityRecord?.priorityLevel === priorityFilter;
+      if (priorityFilter === 'UNASSIGNED') {
+        if (item.priorityRecord) return false;
+      } else if (priorityFilter !== 'ALL') {
+        if (item.priorityRecord?.priorityLevel !== priorityFilter) return false;
+      }
+      if (!q) return true;
+      return (
+        item.customer.toLowerCase().includes(q) ||
+        item.partCode.toLowerCase().includes(q) ||
+        item.partDesc.toLowerCase().includes(q) ||
+        item.grnNo.toLowerCase().includes(q) ||
+        (item.challanNo || '').toLowerCase().includes(q) ||
+        (item.linkedJobCardNo || '').toLowerCase().includes(q)
+      );
     });
-  }, [storeStockItems, priorityFilter]);
+  }, [storeStockItems, priorityFilter, prioritySearch]);
 
   const handleOpenPriorityModal = (stockItem: any) => {
     setSelectedStockForPriority(stockItem);
@@ -393,234 +433,281 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
       {/* ========================================================================= */}
       <div className="bg-white rounded-[24px] p-5 sm:p-6 border border-[#ececec] shadow-xs space-y-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#ececec]">
-          <div>
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#c09748] animate-pulse" />
-              <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#8a6521] bg-[#faf3e0] px-2.5 py-0.5 rounded-full border border-[#f4e5be]">
-                PLANT HEAD SCHEDULER • SATISH SHARMA
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="w-2 h-2 rounded-full bg-[#c09748]" />
+              <span className="text-[10.5px] font-mono font-bold uppercase tracking-widest text-[#8a6521] bg-[#faf3e0] px-2.5 py-0.5 rounded-full border border-[#f4e5be]">
+                Plant Head Scheduler • {currentUser.name}
               </span>
-              <span className="text-[10px] font-mono text-[#777b86]">
-                Target Assignee: <strong>Vikram Patel (Production Manager)</strong>
+              <span className="text-[11px] font-mono text-[#777b86]">
+                IQC-Cleared Party Stock → Auto Master Job Card
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-serif font-normal text-[#17191c] tracking-tight">
-              Store Material Stock & Production Priority Allocator
+              Store Material Stock &amp; Production Priority Allocator
             </h2>
-            <p className="text-xs text-[#777b86] mt-1">
-              Store me aaye huye sabhi raw substrates aur paint stock ki list. Plant Head delivery SLA aur line constraints dekh kar <strong>P1 Urgent, P2 High, P3 Normal</strong> priority assign karta hai jo direct Production Manager ke dashboard me reflect hoti hai.
+            <p className="text-xs text-[#777b86]">
+              All IQC-cleared Party Material GRNs ready in Store. Assigning priority automatically launches a Master Job Card to the Production queue.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 self-start md:self-auto">
-            <button
-              onClick={() => onNavigateTab('jobcards')}
-              className="px-4 py-2 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
-            >
-              <span>View Production Queue</span>
-              <ArrowRight className="w-3.5 h-3.5 text-[#c09748]" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => onNavigateTab('jobcards')}
+            className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs font-bold transition inline-flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95 whitespace-nowrap self-start md:self-auto shrink-0"
+          >
+            <span>View Production Queue</span>
+            <ArrowRight className="w-3.5 h-3.5 text-[#8a6521]" />
+          </button>
         </div>
 
-        {/* Priority KPI Metric Chips */}
+        {/* Interactive Priority KPI Filter Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
-          <div 
+          <button
+            type="button"
             onClick={() => setPriorityFilter('ALL')}
-            className={`p-3 rounded-[16px] border cursor-pointer transition flex flex-col justify-between ${
-              priorityFilter === 'ALL' ? 'bg-[#fafafb] border-[#17191c] shadow-xs' : 'bg-white border-[#ececec] hover:border-[#c09748]'
+            className={`p-3.5 rounded-[18px] border text-left cursor-pointer transition flex flex-col justify-between ${
+              priorityFilter === 'ALL'
+                ? 'bg-[#faf7ed] border-[#c09748] ring-1 ring-[#c09748]/30 shadow-2xs'
+                : 'bg-[#fafafb] border-[#ececec] hover:border-[#c09748]'
             }`}
           >
-            <span className="text-[10px] font-bold text-[#777b86] uppercase font-mono">Total Store Lots</span>
-            <div className="text-lg font-serif font-bold text-[#17191c] mt-1">{storeStockItems.length} Lots</div>
-            <span className="text-[10px] text-[#777b86]">All Inwarded Lots</span>
-          </div>
+            <span className="text-[10px] font-bold text-[#8a6521] uppercase font-mono tracking-wider">All Party Lots</span>
+            <div className="text-xl font-serif font-normal text-[#17191c] mt-1">{storeStockItems.length} Lots</div>
+            <span className="text-[10.5px] text-[#777b86]">GRN &amp; IQC Cleared</span>
+          </button>
 
-          <div 
+          <button
+            type="button"
             onClick={() => setPriorityFilter('P1_URGENT')}
-            className={`p-3 rounded-[16px] border cursor-pointer transition flex flex-col justify-between ${
-              priorityFilter === 'P1_URGENT' ? 'bg-rose-50 border-rose-300 shadow-xs' : 'bg-white border-[#ececec] hover:border-rose-300'
+            className={`p-3.5 rounded-[18px] border text-left cursor-pointer transition flex flex-col justify-between ${
+              priorityFilter === 'P1_URGENT'
+                ? 'bg-rose-50 border-rose-300 ring-1 ring-rose-300/40 shadow-2xs'
+                : 'bg-white border-[#ececec] hover:border-rose-300'
             }`}
           >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-rose-800 uppercase font-mono flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-rose-600 animate-ping" />
-                P1 - Urgent
+            <div className="flex items-center justify-between w-full">
+              <span className="text-[10px] font-bold text-rose-800 uppercase font-mono flex items-center gap-1.5">
+                <AlertTriangle className="w-3 h-3 text-rose-600" />
+                <span>P1 Urgent</span>
               </span>
-              <span className="text-[9px] font-bold bg-rose-100 text-rose-800 px-1.5 py-0.2 rounded">Line Risk</span>
+              <span className="text-[9.5px] font-mono font-bold bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded-full">Risk</span>
             </div>
-            <div className="text-lg font-serif font-bold text-rose-700 mt-1">{p1Count} Batches</div>
-            <span className="text-[10px] text-rose-600">Immediate Run Required</span>
-          </div>
+            <div className="text-xl font-serif font-normal text-rose-700 mt-1">{p1Count} Batches</div>
+            <span className="text-[10.5px] text-rose-700">Immediate Shift Run</span>
+          </button>
 
-          <div 
+          <button
+            type="button"
             onClick={() => setPriorityFilter('P2_HIGH')}
-            className={`p-3 rounded-[16px] border cursor-pointer transition flex flex-col justify-between ${
-              priorityFilter === 'P2_HIGH' ? 'bg-amber-50 border-amber-300 shadow-xs' : 'bg-white border-[#ececec] hover:border-amber-300'
+            className={`p-3.5 rounded-[18px] border text-left cursor-pointer transition flex flex-col justify-between ${
+              priorityFilter === 'P2_HIGH'
+                ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-300/40 shadow-2xs'
+                : 'bg-white border-[#ececec] hover:border-amber-300'
             }`}
           >
-            <span className="text-[10px] font-bold text-amber-800 uppercase font-mono">P2 - High Priority</span>
-            <div className="text-lg font-serif font-bold text-amber-800 mt-1">{p2Count} Batches</div>
-            <span className="text-[10px] text-amber-700">Next In-Line Queue</span>
-          </div>
-
-          <div 
-            onClick={() => setPriorityFilter('P3_NORMAL')}
-            className={`p-3 rounded-[16px] border cursor-pointer transition flex flex-col justify-between ${
-              priorityFilter === 'P3_NORMAL' ? 'bg-blue-50 border-blue-300 shadow-xs' : 'bg-white border-[#ececec] hover:border-blue-300'
-            }`}
-          >
-            <span className="text-[10px] font-bold text-blue-800 uppercase font-mono">P3 - Standard</span>
-            <div className="text-lg font-serif font-bold text-blue-800 mt-1">{p3Count} Batches</div>
-            <span className="text-[10px] text-blue-600">FIFO Schedule</span>
-          </div>
-
-          <div 
-            onClick={() => setPriorityFilter('UNASSIGNED')}
-            className={`p-3 rounded-[16px] border cursor-pointer transition flex flex-col justify-between ${
-              priorityFilter === 'UNASSIGNED' ? 'bg-gray-100 border-gray-400 shadow-xs' : 'bg-white border-[#ececec] hover:border-gray-400'
-            }`}
-          >
-            <span className="text-[10px] font-bold text-gray-600 uppercase font-mono">Unassigned</span>
-            <div className="text-lg font-serif font-bold text-gray-700 mt-1">{unassignedCount} Lots</div>
-            <span className="text-[10px] text-gray-500">Awaiting Priority</span>
-          </div>
-        </div>
-
-        {/* Priority Filter Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
-            <span className="text-[#777b86] font-semibold mr-1 flex items-center gap-1">
-              <Filter className="w-3.5 h-3.5 text-[#c09748]" /> Filter:
+            <span className="text-[10px] font-bold text-amber-800 uppercase font-mono flex items-center gap-1.5">
+              <Zap className="w-3 h-3 text-amber-600" />
+              <span>P2 High</span>
             </span>
-            {(['ALL', 'P1_URGENT', 'P2_HIGH', 'P3_NORMAL', 'UNASSIGNED'] as const).map(tabKey => (
-              <button
-                key={tabKey}
-                onClick={() => setPriorityFilter(tabKey)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition ${
-                  priorityFilter === tabKey 
-                    ? 'bg-[#17191c] text-[#c09748]' 
-                    : 'bg-[#fafafb] text-[#777b86] border border-[#ececec] hover:border-[#c09748]'
-                }`}
-              >
-                {tabKey === 'ALL' ? 'All Store Lots' : tabKey === 'P1_URGENT' ? '🚨 P1 Urgent' : tabKey === 'P2_HIGH' ? '⚡ P2 High' : tabKey === 'P3_NORMAL' ? '📋 P3 Standard' : '⏳ Unassigned'}
-              </button>
-            ))}
-          </div>
+            <div className="text-xl font-serif font-normal text-amber-800 mt-1">{p2Count} Batches</div>
+            <span className="text-[10.5px] text-amber-700">Next In-Line Queue</span>
+          </button>
 
-          <span className="text-[11px] text-[#777b86] font-mono">
-            Showing <strong>{filteredStoreStockItems.length}</strong> material lots in Store
-          </span>
+          <button
+            type="button"
+            onClick={() => setPriorityFilter('P3_NORMAL')}
+            className={`p-3.5 rounded-[18px] border text-left cursor-pointer transition flex flex-col justify-between ${
+              priorityFilter === 'P3_NORMAL'
+                ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-300/40 shadow-2xs'
+                : 'bg-white border-[#ececec] hover:border-blue-300'
+            }`}
+          >
+            <span className="text-[10px] font-bold text-blue-800 uppercase font-mono flex items-center gap-1.5">
+              <Layers className="w-3 h-3 text-blue-600" />
+              <span>P3 Standard</span>
+            </span>
+            <div className="text-xl font-serif font-normal text-blue-800 mt-1">{p3Count} Batches</div>
+            <span className="text-[10.5px] text-blue-700">Standard FIFO Flow</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setPriorityFilter('UNASSIGNED')}
+            className={`p-3.5 rounded-[18px] border text-left cursor-pointer transition flex flex-col justify-between ${
+              priorityFilter === 'UNASSIGNED'
+                ? 'bg-[#f2f2f3] border-[#a3a6af] ring-1 ring-[#a3a6af]/40 shadow-2xs'
+                : 'bg-white border-[#ececec] hover:border-[#c09748]'
+            }`}
+          >
+            <span className="text-[10px] font-bold text-[#777b86] uppercase font-mono flex items-center gap-1.5">
+              <Clock className="w-3 h-3 text-[#777b86]" />
+              <span>Unassigned</span>
+            </span>
+            <div className="text-xl font-serif font-normal text-[#17191c] mt-1">{unassignedCount} Lots</div>
+            <span className="text-[10.5px] text-[#777b86]">Awaiting Priority</span>
+          </button>
         </div>
 
-        {/* Desktop Table of Store Stock & Plant Head Priority */}
-        <div className="hidden md:block overflow-x-auto border border-[#ececec] rounded-[18px]">
+        {/* Unified Search & Count Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-3.5 h-3.5 text-[#777b86] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={prioritySearch}
+              onChange={e => setPrioritySearch(e.target.value)}
+              placeholder="Search party, part code, GRN, challan, or JC number..."
+              className="w-full h-9 pl-9 pr-8 rounded-full bg-[#fafafb] border border-[#dcdfe4] text-xs text-[#17191c] placeholder:text-[#a3a6af] focus:outline-none focus:border-[#c09748] focus:bg-white transition"
+            />
+            {prioritySearch && (
+              <button
+                type="button"
+                onClick={() => setPrioritySearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#777b86] hover:text-[#17191c] cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 text-[11px] font-mono text-[#777b86]">
+            {(priorityFilter !== 'ALL' || prioritySearch.trim() !== '') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPriorityFilter('ALL');
+                  setPrioritySearch('');
+                }}
+                className="px-3 py-1 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold transition cursor-pointer inline-flex items-center gap-1"
+              >
+                <X className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            )}
+            <span>
+              Showing <strong className="text-[#17191c]">{filteredStoreStockItems.length}</strong> of{' '}
+              <strong className="text-[#17191c]">{storeStockItems.length}</strong> Store lots
+            </span>
+          </div>
+        </div>
+
+        {/* Desktop 5-Column Priority Queue Table (PK-OS Standard) */}
+        <div className="hidden md:block overflow-x-auto border border-[#ececec] rounded-[20px]">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-[#fafafb] text-[#777b86] font-bold uppercase text-[11px] tracking-wider border-b border-[#ececec]">
-                <th className="py-2 px-3 whitespace-nowrap">Party / Customer</th>
-                <th className="py-2 px-3 whitespace-nowrap">Part Code & Description</th>
-                <th className="py-2 px-3 whitespace-nowrap">GRN & Challan</th>
-                <th className="py-2 px-3 text-center whitespace-nowrap">Store Balance</th>
-                <th className="py-2 px-3 whitespace-nowrap">Assigned Priority Level</th>
-                <th className="py-2 px-3">Target Date & Floor Directive</th>
-                <th className="py-2 px-3 text-right whitespace-nowrap">Plant Head Action</th>
+              <tr className="bg-[#fafafb] text-[#777b86] font-bold uppercase text-[10.5px] tracking-wider border-b border-[#ececec]">
+                <th className="py-2.5 px-4">Party &amp; Material</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">GRN &amp; Challan</th>
+                <th className="py-2.5 px-3 text-right whitespace-nowrap">Store Stock</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Priority &amp; Master Card</th>
+                <th className="py-2.5 px-4 text-right whitespace-nowrap">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#ececec] text-[#17191c]">
               {filteredStoreStockItems.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-[#777b86]">
-                    No material lots found matching the selected priority filter.
+                  <td colSpan={5} className="p-10 text-center text-[#777b86]">
+                    No IQC-cleared Party Material lots match the current filter.
                   </td>
                 </tr>
               ) : (
-                filteredStoreStockItems.map((item, idx) => {
+                filteredStoreStockItems.map(item => {
                   const prio = item.priorityRecord;
                   const isP1 = prio?.priorityLevel === 'P1_URGENT';
                   const isP2 = prio?.priorityLevel === 'P2_HIGH';
                   const isP3 = prio?.priorityLevel === 'P3_NORMAL';
-                  const isHold = prio?.priorityLevel === 'HOLD';
-                  const isJobCardCreated = prio?.status === 'Job Card Launched' || prio?.status === 'Completed';
+                  const isLaunched = Boolean(item.linkedJobCardNo);
 
                   return (
-                    <tr key={idx} className={`hover:bg-[#fafafb] transition ${isP1 ? 'bg-rose-50/15' : ''}`}>
-                      <td className="py-2.5 px-3">
-                        <div className="font-semibold text-xs sm:text-[13px] text-[#17191c] flex items-center gap-1.5">
+                    <tr key={item.grnNo} className={`hover:bg-[#fafafb] transition ${isP1 ? 'bg-rose-50/15' : ''}`}>
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-[13px] text-[#17191c] flex items-center gap-1.5">
                           <Building2 className="w-3.5 h-3.5 text-[#c09748] shrink-0" />
                           <span>{item.customer}</span>
                         </div>
-                        <div className="text-[11px] font-mono text-[#777b86] mt-0.5">Rec: {item.receivedDate}</div>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5 text-[11px] text-[#777b86]">
+                          <span className="font-mono font-bold text-[#8a6521]">{item.partCode}</span>
+                          <span>•</span>
+                          <span className="truncate max-w-[230px]" title={item.partDesc}>{item.partDesc}</span>
+                          {item.partCount > 1 && (
+                            <span className="px-1.5 py-0.2 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold">
+                              +{item.partCount - 1} more
+                            </span>
+                          )}
+                          <span>•</span>
+                          <span className="font-mono">Rec: {item.receivedDate}</span>
+                        </div>
                       </td>
 
-                      <td className="py-2.5 px-3">
-                        <div className="font-mono font-bold text-xs sm:text-[13px] text-[#8a6521]">{item.partCode}</div>
-                        <div className="text-[11px] text-[#777b86] truncate max-w-[220px]">{item.partDesc}</div>
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <div className="font-mono font-bold text-[#17191c] text-xs">{item.grnNo}</div>
+                        <div className="text-[11px] text-[#777b86] font-mono mt-0.5">Challan: {item.challanNo || '-'}</div>
                       </td>
 
-                      <td className="py-2.5 px-3 whitespace-nowrap">
-                        <div className="font-mono font-bold text-[#17191c] text-xs sm:text-[13px]">{item.grnNo}</div>
-                        <div className="text-[11px] text-[#777b86] font-mono">Challan: {item.challanNo}</div>
-                      </td>
-
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                      <td className="py-3 px-3 text-right whitespace-nowrap">
                         <span className={`font-mono font-bold text-xs px-2.5 py-0.5 rounded-full inline-block border ${
-                          item.balanceAvailable > 0 ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'
+                          item.balanceAvailable > 0
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : 'bg-[#f2f2f3] text-[#777b86] border-[#dcdfe4]'
                         }`}>
                           {item.balanceAvailable.toLocaleString('en-IN')} {item.uom}
                         </span>
-                        <div className="text-[11px] text-[#777b86] font-mono mt-0.5">Inward: {item.totalInward} {item.uom}</div>
+                        <div className="text-[10.5px] text-[#777b86] font-mono mt-0.5">
+                          Inward: {item.totalInward.toLocaleString('en-IN')} {item.uom}
+                        </div>
                       </td>
 
-                      <td className="py-2.5 px-3 whitespace-nowrap">
+                      <td className="py-3 px-3">
                         {prio ? (
                           <div className="space-y-1">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border ${
-                              isP1 
-                                ? 'bg-rose-50 text-rose-800 border-rose-300 ring-1 ring-rose-200 animate-pulse' 
-                                : isP2 
-                                  ? 'bg-amber-50 text-amber-800 border-amber-300' 
-                                  : isP3 
-                                    ? 'bg-blue-50 text-blue-800 border-blue-200' 
-                                    : 'bg-gray-100 text-gray-700 border-gray-300'
-                            }`}>
-                              <Zap className="w-3 h-3" />
-                              <span>{isP1 ? 'P1 - URGENT (Line Risk)' : isP2 ? 'P2 - HIGH PRIORITY' : isP3 ? 'P3 - STANDARD FIFO' : 'HOLD'}</span>
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-mono font-bold border ${
+                                isP1
+                                  ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                  : isP2
+                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                    : isP3
+                                      ? 'bg-blue-50 text-blue-800 border-blue-200'
+                                      : 'bg-[#f2f2f3] text-[#777b86] border-[#dcdfe4]'
+                              }`}>
+                                {isP1 ? <AlertTriangle className="w-3 h-3" /> : isP2 ? <Zap className="w-3 h-3" /> : <Layers className="w-3 h-3" />}
+                                <span>{isP1 ? 'P1 Urgent' : isP2 ? 'P2 High' : isP3 ? 'P3 Standard' : 'Hold'}</span>
+                              </span>
+                              {isLaunched && (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10.5px] font-mono font-bold">
+                                  {item.linkedJobCardNo}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-[#777b86] flex items-center gap-1.5" title={prio.plantHeadRemarks}>
+                              <Calendar className="w-3 h-3 text-[#c09748] shrink-0" />
+                              <span className="font-mono text-[#17191c] font-semibold shrink-0">{prio.targetDate}</span>
+                              {prio.plantHeadRemarks && (
+                                <span className="truncate max-w-[190px] text-[#777b86]">• {prio.plantHeadRemarks}</span>
+                              )}
+                            </div>
                           </div>
                         ) : (
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono text-gray-500 bg-gray-100 border border-dashed border-gray-300">
-                            ⏳ Unscheduled
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-mono text-[#777b86] bg-[#fafafb] border border-dashed border-[#dcdfe4]">
+                            <Clock className="w-3 h-3" />
+                            <span>Unscheduled</span>
                           </span>
                         )}
                       </td>
 
-                      <td className="py-2.5 px-3">
-                        {prio ? (
-                          <div className="space-y-0.5">
-                            <div className="text-[11px] font-semibold text-[#17191c] flex items-center gap-1">
-                              <Calendar className="w-3 h-3 text-[#c09748]" />
-                              <span>Target: {prio.targetDate}</span>
-                            </div>
-                            <div className="text-[11px] text-[#8a6521] italic bg-[#faf7ed] p-1.5 rounded-md border border-[#f4e5be] line-clamp-2">
-                              "{prio.plantHeadRemarks}"
-                            </div>
-                            <div className="text-[11px] text-[#777b86]">
-                              Status: {isJobCardCreated ? <strong className="text-emerald-700">✓ Job Card Launched ({prio.linkedJobCardNo || 'Active'})</strong> : <strong className="text-amber-700">Assigned to Vikram Patel</strong>}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-[11px] text-gray-400 italic">No directives assigned yet</span>
-                        )}
-                      </td>
-
-                      <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => handleOpenPriorityModal(item)}
-                          className="px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer transition inline-flex items-center gap-1.5 ml-auto active:scale-95 shrink-0"
+                          className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-2xs cursor-pointer transition inline-flex items-center gap-1.5 ml-auto active:scale-95 border ${
+                            prio
+                              ? 'bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border-[#dcdfe4]'
+                              : 'bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border-[#f4e5be]'
+                          }`}
                         >
                           <Flag className="w-3.5 h-3.5 text-[#c09748]" />
-                          <span>{prio ? 'Edit Priority' : '+ Assign Priority'}</span>
+                          <span>{prio ? 'Edit Priority' : '+ Set Priority'}</span>
                         </button>
                       </td>
                     </tr>
@@ -631,54 +718,71 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
           </table>
         </div>
 
-        {/* Mobile Cards for Store Stock & Priority */}
+        {/* Mobile 3-Row Cards for Store Stock & Priority */}
         <div className="grid grid-cols-1 gap-3 md:hidden">
-          {filteredStoreStockItems.map((item, idx) => {
+          {filteredStoreStockItems.map(item => {
             const prio = item.priorityRecord;
             const isP1 = prio?.priorityLevel === 'P1_URGENT';
+            const isP2 = prio?.priorityLevel === 'P2_HIGH';
             return (
-              <div 
-                key={idx}
-                className={`p-4 rounded-[18px] border bg-white space-y-3 shadow-2xs ${isP1 ? 'border-rose-200 bg-rose-50/10' : 'border-[#ececec]'}`}
+              <div
+                key={item.grnNo}
+                className={`p-3.5 rounded-[18px] border bg-[#fafafb] space-y-2.5 shadow-2xs ${
+                  isP1 ? 'border-rose-200' : 'border-[#ececec]'
+                }`}
               >
                 <div className="flex items-start justify-between gap-2 pb-2 border-b border-[#ececec]">
-                  <div>
-                    <span className="font-bold text-xs text-[#17191c]">{item.customer}</span>
-                    <div className="font-mono text-[10px] text-[#8a6521]">{item.partCode}</div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-xs text-[#17191c] truncate">{item.customer}</div>
+                    <div className="font-mono text-[10.5px] text-[#8a6521]">
+                      {item.partCode} • {item.grnNo}
+                    </div>
                   </div>
                   {prio ? (
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono ${
-                      isP1 ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono border shrink-0 ${
+                      isP1
+                        ? 'bg-rose-50 text-rose-800 border-rose-200'
+                        : isP2
+                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          : 'bg-blue-50 text-blue-800 border-blue-200'
                     }`}>
-                      {prio.priorityLevel.replace('_', ' ')}
+                      {isP1 ? 'P1 Urgent' : isP2 ? 'P2 High' : 'P3 Standard'}
                     </span>
                   ) : (
-                    <span className="text-[10px] text-gray-400 font-mono">Unassigned</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono text-[#777b86] bg-white border border-[#ececec] shrink-0">
+                      Unassigned
+                    </span>
                   )}
                 </div>
 
-                <div className="text-xs text-[#777b86]">
-                  {item.partDesc} • Store Bal: <strong className="text-[#17191c] font-mono">{item.balanceAvailable} {item.uom}</strong>
+                <div className="flex items-center justify-between gap-2 text-xs text-[#777b86]">
+                  <span className="truncate">{item.partDesc}</span>
+                  <span className="font-mono font-bold text-[#17191c] shrink-0">
+                    {item.balanceAvailable.toLocaleString('en-IN')} / {item.totalInward.toLocaleString('en-IN')} {item.uom}
+                  </span>
                 </div>
 
-                {prio && (
-                  <div className="p-2.5 rounded-[12px] bg-[#fafafb] border border-[#ececec] text-xs space-y-1">
-                    <div className="flex justify-between font-semibold text-[#17191c]">
-                      <span>Target Date: {prio.targetDate}</span>
-                      
-                    </div>
-                    <p className="text-[11px] text-[#8a6521] italic">"{prio.plantHeadRemarks}"</p>
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <div className="text-[11px] font-mono text-[#777b86]">
+                    {item.linkedJobCardNo ? (
+                      <span className="font-bold text-emerald-700">{item.linkedJobCardNo} • {prio?.targetDate}</span>
+                    ) : (
+                      <span>Challan: {item.challanNo || '-'}</span>
+                    )}
                   </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => handleOpenPriorityModal(item)}
-                  className="w-full py-2.5 rounded-full bg-[#17191c] text-[#c09748] font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-xs"
-                >
-                  <Flag className="w-3.5 h-3.5 text-[#c09748]" />
-                  <span>{prio ? 'Update Priority Order' : '+ Set Priority for Production'}</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenPriorityModal(item)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer active:scale-95 border ${
+                      prio
+                        ? 'bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border-[#dcdfe4]'
+                        : 'bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border-[#f4e5be]'
+                    }`}
+                  >
+                    <Flag className="w-3.5 h-3.5 text-[#c09748]" />
+                    <span>{prio ? 'Edit Priority' : '+ Set Priority'}</span>
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -1195,9 +1299,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
               <button
                 type="button"
                 onClick={() => setShowPriorityModal(false)}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-[#17191c] font-bold flex items-center justify-center cursor-pointer transition"
+                className="w-8 h-8 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] flex items-center justify-center cursor-pointer transition"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -1217,8 +1321,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                     }`}
                   >
                     <div className="font-bold text-rose-800 flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse" />
-                      <span>🚨 P1 - Urgent</span>
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                      <span>P1 - Urgent</span>
                     </div>
                     <p className="text-[10px] text-rose-700 mt-1">Line stoppage risk / Run first shift</p>
                   </label>
@@ -1233,7 +1337,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                   >
                     <div className="font-bold text-amber-800 flex items-center gap-1.5">
                       <Zap className="w-3.5 h-3.5 text-amber-600" />
-                      <span>⚡ P2 - High</span>
+                      <span>P2 - High</span>
                     </div>
                     <p className="text-[10px] text-amber-700 mt-1">Next in queue after urgent lot</p>
                   </label>
@@ -1247,8 +1351,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                     }`}
                   >
                     <div className="font-bold text-blue-800 flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5 text-blue-600" />
-                      <span>📋 P3 - Standard</span>
+                      <Layers className="w-3.5 h-3.5 text-blue-600" />
+                      <span>P3 - Standard</span>
                     </div>
                     <p className="text-[10px] text-blue-700 mt-1">Standard FIFO sequence batch</p>
                   </label>
@@ -1260,28 +1364,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                 <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
                   Target Completion Date *
                 </label>
-                <input
-                  type="date"
-                  required
+                <PaintkingDatePicker
                   value={targetDateInput}
-                  onChange={e => setTargetDateInput(e.target.value)}
-                  className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white text-xs font-semibold focus:border-[#c09748] focus:outline-none"
+                  onChange={setTargetDateInput}
+                  placeholder="DD-MM-YYYY"
+                  required
                 />
               </div>
 
-              
-
-              {/* Directive Notes for Production Manager */}
+              {/* Directive Notes for Production Team */}
               <div>
                 <label className="block text-[10px] font-bold text-[#777b86] uppercase mb-1 font-mono">
-                  Floor Directives for Vikram Patel (Production Manager) *
+                  Floor Directives for Production Team *
                 </label>
                 <textarea
                   required
                   rows={3}
                   value={instructionsInput}
                   onChange={e => setInstructionsInput(e.target.value)}
-                  placeholder="e.g. Tata Autocomp urgent delivery. Paint after White batch on Line 1. Confirm viscosity 18s prior to spray."
+                  placeholder="e.g. Urgent OEM delivery. Confirm shade & booth before starting shift."
                   className="w-full p-2.5 rounded-[16px] border border-[#ececec] bg-white text-xs focus:border-[#c09748] focus:outline-none resize-none leading-relaxed"
                 />
               </div>
@@ -1291,17 +1392,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
                 <button
                   type="button"
                   onClick={() => setShowPriorityModal(false)}
-                  className="px-4 py-2 rounded-full border border-[#ececec] bg-white text-[#777b86] font-medium hover:bg-gray-50 cursor-pointer"
+                  className="px-4 py-2 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] font-semibold cursor-pointer transition"
                 >
                   Cancel
                 </button>
 
                 <button
                   type="submit"
-                  className="px-6 py-2.5 rounded-full bg-[#17191c] hover:bg-black text-[#c09748] font-bold text-xs flex items-center gap-2 cursor-pointer shadow-md transition active:scale-95"
+                  className="px-5 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white font-bold text-xs flex items-center gap-2 cursor-pointer shadow-2xs transition active:scale-95"
                 >
-                  <Send className="w-3.5 h-3.5 text-[#c09748]" />
-                  <span>Lock Priority & Dispatch to Production</span>
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Lock Priority &amp; Launch Master Job Card</span>
                 </button>
               </div>
             </form>

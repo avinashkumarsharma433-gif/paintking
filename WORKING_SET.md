@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-24: Redesigned Executive Cockpit Priority Allocator UI/UX & Fixed Live Store Balance / GRN Priority Matching (`DashboardView.tsx`)
+  - Files touched:
+    - `src/portal/views/DashboardView.tsx`: Redesigned Section 2.5 (`Store Material Stock & Production Priority Allocator`) and Priority Modal per PK-OS rules — removed duplicate filter pills, emojis, hardcoded scheduler/manager names, and pitch-black buttons; added live search + 5-column desktop table + 3-row mobile cards + `PaintkingDatePicker`; synced `storeBalance` from `stockBatches` (instead of deducting `masterCard.targetQty`) and matched priorities strictly by `grnNo` so distinct GRNs never inherit another lot's Master Job Card.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-24: Removed `Actual Consumed` & `Floor Balance` Columns from Tab 1 Legacy Materials Table (`JobCardModal.tsx`)
   - Files touched:
     - `src/portal/components/JobCardModal.tsx`: Updated fallback `companyMaterials` table under `Total Materials & Chemicals Used` to show `Issued (= Consumed)`, `UOM`, and `Shade / Batch`, removing `Actual Consumed` and `Floor Balance`.
