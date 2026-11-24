@@ -7,6 +7,7 @@ import {
   GoodsReceiptNote,
   IQCInspectionRecord,
   JobCard,
+  JobCardOrderLineItem,
   FPARecord,
   PaintMixingRecord,
   IPQCRecord,
@@ -217,7 +218,11 @@ interface PortalContextType {
     logs: AssignmentMaterialLog[];
   };
   plantHeadPriorities: PlantHeadPriorityAssignment[];
-  assignProductionPriority: (assignment: Omit<PlantHeadPriorityAssignment, 'id' | 'assignedAt' | 'status'>) => void;
+  assignProductionPriority: (assignment: Omit<PlantHeadPriorityAssignment, 'id' | 'assignedAt' | 'status'>) => {
+    priority: PlantHeadPriorityAssignment;
+    jobCard: JobCard;
+  };
+  createMasterJobCardFromPriority: (priorityId: string) => JobCard | null;
   updatePriorityStatus: (priorityId: string, status: PlantHeadPriorityAssignment['status'], linkedJobCardNo?: string) => void;
 
   // Painter Workspace & Max-2 Guardrail Methods
@@ -702,17 +707,6 @@ export const PortalProvider: React.FC<{
   useEffect(() => {
     syncState('pk_plant_head_priorities', plantHeadPriorities);
   }, [plantHeadPriorities]);
-
-  const assignProductionPriority = (assignment: Omit<PlantHeadPriorityAssignment, 'id' | 'assignedAt' | 'status'>) => {
-    const nextId = `PRIO-2026-${String(plantHeadPriorities.length + 1).padStart(3, '0')}`;
-    const newRecord: PlantHeadPriorityAssignment = {
-      ...assignment,
-      id: nextId,
-      assignedAt: `${new Date().toISOString().split('T')[0]} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
-      status: 'Priority Assigned'
-    };
-    setPlantHeadPriorities(prev => [newRecord, ...prev.filter(p => !(p.grnNo === assignment.grnNo && p.partCode === assignment.partCode))]);
-  };
 
   const updatePriorityStatus = (priorityId: string, status: PlantHeadPriorityAssignment['status'], linkedJobCardNo?: string) => {
     setPlantHeadPriorities(prev => prev.map(p => {
@@ -1501,6 +1495,14 @@ export const PortalProvider: React.FC<{
     });
   });
 
+  const latestJobCardsRef = useRef<JobCard[]>(jobCards);
+  latestJobCardsRef.current = jobCards;
+  const jobCardSeqRef = useRef<number>(jobCardSeqCounter);
+  jobCardSeqRef.current = Math.max(jobCardSeqRef.current, jobCardSeqCounter);
+  useEffect(() => {
+    latestJobCardsRef.current = jobCards;
+  }, [jobCards]);
+
   const [painterAssignments, setPainterAssignments] = useState<PainterAssignment[]>(() => {
     try {
       const s = localStorage.getItem('pk_painter_assignments');
@@ -2180,9 +2182,9 @@ export const PortalProvider: React.FC<{
   };
 
   const getAllKnownJobCardNos = (): string[] => [
-    ...jobCards.map(j => j.jobCardNo),
+    ...latestJobCardsRef.current.map(j => j.jobCardNo),
     ...materialRequisitions.map(r => r.jobCardNo),
-    ...painterAssignments.map(a => a.masterJobCardNo || a.masterJobCardId || ''),
+    ...latestAssignmentsRef.current.map(a => a.masterJobCardNo || a.masterJobCardId || ''),
     ...preProductionReports.map(p => p.jobCardNo),
     ...fpaRecords.map(f => f.jobCardNo),
     ...ipqcRecords.map(i => i.jobCardNo),
@@ -2192,13 +2194,16 @@ export const PortalProvider: React.FC<{
   ].filter(Boolean);
 
   const getNextUniqueJobCardNo = (): string => {
-    return getNextJobCardNo(jobCards, jobCardSeqCounter, getAllKnownJobCardNos());
+    return getNextJobCardNo(latestJobCardsRef.current, Math.max(jobCardSeqCounter, jobCardSeqRef.current), getAllKnownJobCardNos());
   };
 
   const addJobCard = (jc: JobCard): JobCard => {
     const knownNos = getAllKnownJobCardNos();
     const usedSet = new Set(knownNos.map(n => n.trim().toLowerCase()));
-    const peakExistingSeq = knownNos.reduce((m, n) => Math.max(m, extractJobCardSeq(n)), jobCardSeqCounter);
+    const peakExistingSeq = knownNos.reduce(
+      (m, n) => Math.max(m, extractJobCardSeq(n)),
+      Math.max(jobCardSeqCounter, jobCardSeqRef.current)
+    );
     const requestedNo = (jc.jobCardNo || '').trim();
     const requestedSeq = extractJobCardSeq(requestedNo);
     const isDuplicateOrStale =
@@ -2207,10 +2212,11 @@ export const PortalProvider: React.FC<{
       (requestedSeq > 0 && requestedSeq <= peakExistingSeq);
 
     const resolvedJobCardNo = isDuplicateOrStale
-      ? getNextJobCardNo(jobCards, peakExistingSeq, knownNos)
+      ? getNextJobCardNo(latestJobCardsRef.current, peakExistingSeq, knownNos)
       : requestedNo;
 
     const finalSeq = Math.max(peakExistingSeq, extractJobCardSeq(resolvedJobCardNo));
+    jobCardSeqRef.current = finalSeq;
     setJobCardSeqCounter(finalSeq);
     try {
       localStorage.setItem('pk_jobcard_seq_counter', String(finalSeq));
@@ -2232,6 +2238,9 @@ export const PortalProvider: React.FC<{
       status: jc.status || 'Open'
     };
 
+    latestJobCardsRef.current = latestJobCardsRef.current.some(existing => existing.jobCardNo === formattedJc.jobCardNo)
+      ? latestJobCardsRef.current
+      : [formattedJc, ...latestJobCardsRef.current];
     setJobCards(prev => (prev.some(existing => existing.jobCardNo === formattedJc.jobCardNo) ? prev : [formattedJc, ...prev]));
     latestAssignmentsRef.current = latestAssignmentsRef.current.filter(
       a => a.masterJobCardNo !== formattedJc.jobCardNo && a.masterJobCardId !== formattedJc.jobCardNo
@@ -2266,10 +2275,14 @@ export const PortalProvider: React.FC<{
   };
 
   const updateJobCard = (jc: JobCard) => {
+    latestJobCardsRef.current = latestJobCardsRef.current.map(existing =>
+      existing.jobCardNo === jc.jobCardNo ? { ...existing, ...jc } : existing
+    );
     setJobCards(prev => prev.map(existing => existing.jobCardNo === jc.jobCardNo ? { ...existing, ...jc } : existing));
   };
 
   const deleteJobCard = (jobCardNo: string) => {
+    latestJobCardsRef.current = latestJobCardsRef.current.filter(existing => existing.jobCardNo !== jobCardNo);
     setJobCards(prev => {
       const next = prev.filter(existing => existing.jobCardNo !== jobCardNo);
       syncState('pk_jobcards_data', next);
@@ -2293,6 +2306,167 @@ export const PortalProvider: React.FC<{
           : p
       )
     );
+  };
+
+  // Auto-generate a System Master Job Card when Plant Head assigns priority (no manual form needed by Production)
+  const buildOrReuseMasterJobCardForPriority = (
+    priorityData: Omit<PlantHeadPriorityAssignment, 'id' | 'assignedAt' | 'status'>
+  ): JobCard => {
+    const existingMaster = latestJobCardsRef.current.find(j => {
+      if (priorityData.grnNo && j.sourceGrnNo === priorityData.grnNo) return true;
+      return (
+        j.customer.trim().toLowerCase() === priorityData.customer.trim().toLowerCase() &&
+        j.partCode.trim().toLowerCase() === priorityData.partCode.trim().toLowerCase() &&
+        (!priorityData.challanNo || !(j.woNo || j.wNo) || (j.woNo || j.wNo || '').trim().toLowerCase() === priorityData.challanNo.trim().toLowerCase())
+      );
+    });
+
+    const directiveRemark = `PLANT HEAD DIRECTIVE [${priorityData.priorityLevel.replace('_', ' ')}]: ${priorityData.plantHeadRemarks}`;
+    if (existingMaster) {
+      const updatedExisting: JobCard = {
+        ...existingMaster,
+        deadlineDate: priorityData.targetDate || existingMaster.deadlineDate,
+        headerRemark: directiveRemark
+      };
+      updateJobCard(updatedExisting);
+      return updatedExisting;
+    }
+
+    const generatedNo = getNextUniqueJobCardNo();
+    const seqSuffix = generatedNo.split('-').pop() || '001';
+    const linkedGrn = grnList.find(g => g.grnNo === priorityData.grnNo);
+    const grnOrderItems: JobCardOrderLineItem[] =
+      linkedGrn?.items && linkedGrn.items.length > 0
+        ? linkedGrn.items
+            .filter(it => (it.partCode && it.partCode.trim()) || (it.partDescription && it.partDescription.trim()))
+            .map(it => ({
+              partCode: (it.partCode || 'PART').trim(),
+              partDescription: (it.partDescription || it.partCode || 'Substrate Material').trim(),
+              targetQty: Number(it.actualReceivedQty || it.invoicedQty || 0)
+            }))
+        : [
+            {
+              partCode: priorityData.partCode || 'PART',
+              partDescription: priorityData.partDescription || priorityData.partCode || 'Substrate Material',
+              targetQty: Number(priorityData.totalOrderQty || priorityData.availableQty || 0)
+            }
+          ];
+
+    const totalOrder =
+      grnOrderItems.reduce((sum, it) => sum + Number(it.targetQty || 0), 0) ||
+      Number(priorityData.totalOrderQty || priorityData.availableQty || 0);
+    const now = new Date();
+    const todayIso = now.toISOString().split('T')[0];
+    const nowTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const targetDate = priorityData.targetDate || todayIso;
+    const deadlineTs = new Date(`${targetDate}T18:30:00`);
+    const fallbackPlant: PlantLocation = activePlant === 'ALL' ? 'Haridwar' : activePlant;
+    const cardPlant = priorityData.plant || fallbackPlant;
+
+    const newMasterCard: JobCard = {
+      jobCardType: 'master',
+      docNo: 'Doc No: 001',
+      revNo: 'Rev.No: 01',
+      revDate: todayIso,
+      jobCardNo: generatedNo,
+      woNo: priorityData.challanNo || `WO-${now.getFullYear()}-${seqSuffix}`,
+      wNo: priorityData.challanNo || `WO-${now.getFullYear()}-${seqSuffix}`,
+      sourceGrnNo: priorityData.grnNo,
+      customer: priorityData.customer,
+      partCode: grnOrderItems[0]?.partCode || priorityData.partCode,
+      partDescription: grnOrderItems[0]?.partDescription || priorityData.partDescription,
+      orderLineItems: grnOrderItems,
+      color: priorityData.color || 'Multi-Colour / Painter-Wise',
+      targetQty: totalOrder,
+      dailyTargetQty: 0,
+      dailyIssuedQty: 0,
+      allocatedQty: 0,
+      issuedRawQty: totalOrder,
+      sprayedQty: 0,
+      goodQty: 0,
+      reworkQty: 0,
+      rejectQty: 0,
+      remainingQty: totalOrder,
+      status: 'Open',
+      dept: priorityData.recommendedBooth || 'Booth #1 (Continuous Conveyor Line)',
+      boothNo: (priorityData.recommendedBooth || 'Booth #1').split('(')[0]?.trim(),
+      painterName: '',
+      assignedPainterName: '',
+      assignedPainterId: '',
+      issueDate: todayIso,
+      issueTime: nowTime,
+      slaHours: 24,
+      slaDeadline: isNaN(deadlineTs.getTime()) ? now.toISOString() : deadlineTs.toISOString(),
+      deadlineDate: targetDate,
+      deadlineTime: '18:30',
+      leadTime: '1 Day (Shift SLA)',
+      isSlaBreached: false,
+      headerRemark: directiveRemark,
+      issuedMaterials: [],
+      progressLogs: [
+        {
+          id: `LOG-PRIO-${Date.now()}`,
+          timestamp: now.toISOString(),
+          dateLabel: `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`,
+          timeLabel: nowTime,
+          actionType: 'JOB_CREATED',
+          actionTitle: `Master Job Card Auto-Created by Plant Head Priority (${generatedNo})`,
+          exactChanges: [
+            `System Job Card No: ${generatedNo}`,
+            `Customer / Party: ${priorityData.customer}`,
+            `Source GRN: ${priorityData.grnNo || 'N/A'}`,
+            `Order Qty: ${totalOrder.toLocaleString('en-IN')} Pcs`,
+            `Priority: ${priorityData.priorityLevel.replace('_', ' ')}`
+          ],
+          piecesCompleted: 0,
+          cumulativeGoodQty: 0,
+          painterName: '',
+          boothNo: (priorityData.recommendedBooth || 'Booth #1').split('(')[0]?.trim(),
+          recordedBy: priorityData.assignedBy || currentUser.name || 'Plant Head',
+          remarks: directiveRemark
+        }
+      ],
+      storeIncharge: 'Manoj Tiwari',
+      prodSupervisor: priorityData.assignedToProductionManager || 'Vikram Patel',
+      approvedBy: priorityData.assignedBy || 'Satish Sharma (Plant Head)',
+      plant: cardPlant
+    };
+
+    return addJobCard(newMasterCard);
+  };
+
+  const assignProductionPriority = (
+    assignment: Omit<PlantHeadPriorityAssignment, 'id' | 'assignedAt' | 'status'>
+  ): { priority: PlantHeadPriorityAssignment; jobCard: JobCard } => {
+    const savedCard = buildOrReuseMasterJobCardForPriority(assignment);
+    const maxPrioSeq = plantHeadPriorities.reduce((max, p) => {
+      const m = (p.id || '').match(/PRIO-\d{4}-(\d+)/i);
+      const n = m ? parseInt(m[1], 10) : 0;
+      return !isNaN(n) && n > max ? n : max;
+    }, 0);
+    const nextId = `PRIO-${new Date().getFullYear()}-${String(maxPrioSeq + 1).padStart(3, '0')}`;
+    const newRecord: PlantHeadPriorityAssignment = {
+      ...assignment,
+      id: nextId,
+      assignedAt: `${new Date().toISOString().split('T')[0]} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+      status: 'Job Card Launched',
+      linkedJobCardNo: savedCard.jobCardNo
+    };
+    setPlantHeadPriorities(prev => [
+      newRecord,
+      ...prev.filter(p => !(p.grnNo === assignment.grnNo && p.partCode === assignment.partCode))
+    ]);
+    return { priority: newRecord, jobCard: savedCard };
+  };
+
+  const createMasterJobCardFromPriority = (priorityId: string): JobCard | null => {
+    const prio = plantHeadPriorities.find(p => p.id === priorityId);
+    if (!prio) return null;
+    const savedCard = buildOrReuseMasterJobCardForPriority(prio);
+    setPlantHeadPriorities(prev =>
+      prev.map(p => (p.id === priorityId ? { ...p, status: 'Job Card Launched', linkedJobCardNo: savedCard.jobCardNo } : p))
+    );
+    return savedCard;
   };
 
   const addJobCardProgressLog = (jobCardNo: string, log: Omit<JobCardProductionProgressLog, 'id' | 'timestamp'>) => {
@@ -4650,6 +4824,7 @@ export const PortalProvider: React.FC<{
         reopenPlant,
         plantHeadPriorities,
         assignProductionPriority,
+        createMasterJobCardFromPriority,
         updatePriorityStatus,
         activeSubTab,
         setActiveSubTab,

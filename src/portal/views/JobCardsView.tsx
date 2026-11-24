@@ -228,9 +228,9 @@ const PortalFilterSelect: React.FC<{
 export const JobCardsView: React.FC = () => {
   const {
     jobCards,
-    getNextUniqueJobCardNo,
     deleteJobCard,
     plantHeadPriorities = [],
+    createMasterJobCardFromPriority,
     updatePriorityStatus, 
     universalJobs, 
     grnList,
@@ -606,11 +606,6 @@ export const JobCardsView: React.FC = () => {
     setSelectedCardForRework(null);
   };
 
-  const handleCreateNewJobCard = () => {
-    setSelectedJobCardForView(null);
-    setShowJobCardModal(true);
-  };
-
   const handleViewJobCard = (jc: JobCard) => {
     setSelectedJobCardForView(jc);
     setShowJobCardModal(true);
@@ -827,121 +822,26 @@ export const JobCardsView: React.FC = () => {
     setShowPirModal(true);
   };
 
-  // 1-Click Job Card Creation after physical material receipt on floor
-  const handleCreateJobCardFromReceivedBatch = (req: MaterialRequisitionNote) => {
-    const nextJcIndex = String(jobCards.length + 1).padStart(3, '0');
-    const newJobCardNo = `JC-2026-${nextJcIndex}`;
-    const initialJcData: Partial<JobCard> = {
-      jobCardNo: newJobCardNo,
-      woNo: req.woNo || `WO-2026-${nextJcIndex}`,
-      wNo: req.woNo || `WO-2026-${nextJcIndex}`,
-      sourceGrnNo: req.sourceGrnNo,
-      customer: req.customer,
-      partCode: req.partCode,
-      partDescription: req.partDescription,
-      color: req.colorName || 'Standard OEM Tone',
-      targetQty: req.receivedQty || req.issuedQty || req.requestedQty,
-      issuedRawQty: req.receivedQty || req.issuedQty || req.requestedQty,
-      sprayedQty: 0,
-      goodQty: 0,
-      rejectQty: 0,
-      status: 'Open',
-      jobCardType: 'master',
-      docNo: 'Doc No: 001',
-      dept: targetLineForReq,
-      boothNo: targetLineForReq,
-      painterName: 'Ramesh Kumar (P1)',
-      checkingPerson: 'Amit Verma'
-    };
+  // Production Manager 1-Click Master Job Card Open / Generation from Plant Head Priority Order
+  const handleLaunchJobCardFromPriority = (priorityOrder: PlantHeadPriorityAssignment) => {
+    const existing = jobCards.find(
+      j =>
+        (priorityOrder.linkedJobCardNo && j.jobCardNo === priorityOrder.linkedJobCardNo) ||
+        (priorityOrder.grnNo && j.sourceGrnNo === priorityOrder.grnNo)
+    );
+    if (existing) {
+      setSelectedJobCardForView(existing);
+      setShowJobCardModal(true);
+      return;
+    }
 
-    setSelectedJobCardForView(initialJcData as JobCard);
-    setShowJobCardModal(true);
-  };
-
-  
-  // Production Manager 1-Click Job Card Creation from Plant Head Priority Order
-  const handleLaunchJobCardFromPriority = (priorityOrder: PlantHeadPriorityAssignment, defaultQty?: number) => {
-    const generatedJcNo = getNextUniqueJobCardNo();
-    const nextJcIndex = generatedJcNo.split('-').pop() || '001';
-    const totalOrder = priorityOrder.totalOrderQty || (priorityOrder.id === 'PRIO-2026-001' ? 10000 : priorityOrder.availableQty);
-    const availableCount = defaultQty !== undefined ? defaultQty : (totalOrder > 0 ? totalOrder : 250);
-    const linkedGrn = grnList.find(g => g.grnNo === priorityOrder.grnNo);
-    const grnOrderItems = linkedGrn?.items && linkedGrn.items.length > 0
-      ? linkedGrn.items
-          .filter(it => (it.partCode && it.partCode.trim()) || (it.partDescription && it.partDescription.trim()))
-          .map(it => ({
-            partCode: (it.partCode || 'PART').trim(),
-            partDescription: (it.partDescription || it.partCode || 'Substrate Material').trim(),
-            targetQty: Number(it.actualReceivedQty || it.invoicedQty || 0)
-          }))
-      : undefined;
-    
-    const initialJcData: Partial<JobCard> = {
-      jobCardNo: generatedJcNo,
-      woNo: priorityOrder.challanNo || `WO-2026-${nextJcIndex}`,
-      wNo: priorityOrder.challanNo || `WO-2026-${nextJcIndex}`,
-      sourceGrnNo: priorityOrder.grnNo,
-      customer: priorityOrder.customer,
-      partCode: priorityOrder.partCode,
-      partDescription: priorityOrder.partDescription,
-      orderLineItems: grnOrderItems,
-      color: priorityOrder.color || 'Monza Red Gloss',
-      targetQty: availableCount,
-      issuedRawQty: availableCount,
-      sprayedQty: 0,
-      goodQty: 0,
-      rejectQty: 0,
-      status: 'Open',
-      jobCardType: 'master',
-      docNo: 'Doc No: 001',
-      dept: priorityOrder.recommendedBooth || 'Booth #1 (Automotive Robotic Line)',
-      boothNo: priorityOrder.recommendedBooth || 'Booth #1 (Automotive Robotic Line)',
-      painterName: '',
-      assignedPainterName: '',
-      assignedPainterId: '',
-      checkingPerson: 'Amit Verma (QA Lead)',
-      headerRemark: `PLANT HEAD DIRECTIVE [${priorityOrder.priorityLevel.replace('_', ' ')}]: ${priorityOrder.plantHeadRemarks}`,
-      issuedMaterials: []
-    };
-
-    setSelectedJobCardForView(initialJcData as JobCard);
-    setShowJobCardModal(true);
-  };
-
-  // DIRECT 1-CLICK JOB CARD CREATION & STORE MATERIAL DEMAND from Store Stock Item
-  const handleRequestFromSpecificStock = (stockItem: any) => {
-    const generatedJcNo = getNextUniqueJobCardNo();
-    const nextJcIndex = generatedJcNo.split('-').pop() || '001';
-    const availableCount = stockItem.balanceAvailable > 0 ? stockItem.balanceAvailable : 250;
-    
-    const initialJcData: Partial<JobCard> = {
-      jobCardNo: generatedJcNo,
-      woNo: stockItem.challanNo || `WO-2026-${nextJcIndex}`,
-      wNo: stockItem.challanNo || `WO-2026-${nextJcIndex}`,
-      sourceGrnNo: stockItem.grnNo,
-      customer: stockItem.customer,
-      partCode: stockItem.partCode,
-      partDescription: stockItem.partDesc,
-      color: 'Monza Red Gloss',
-      targetQty: availableCount,
-      issuedRawQty: availableCount,
-      sprayedQty: 0,
-      goodQty: 0,
-      rejectQty: 0,
-      status: 'Open',
-      jobCardType: 'master',
-      docNo: 'Doc No: 001',
-      dept: 'Booth #1 (Continuous Conveyor Line)',
-      boothNo: 'Booth #1 (Continuous Conveyor Line)',
-      painterName: '',
-      assignedPainterName: '',
-      assignedPainterId: '',
-      checkingPerson: 'Amit Verma (QA Lead)',
-      issuedMaterials: []
-    };
-
-    setSelectedJobCardForView(initialJcData as JobCard);
-    setShowJobCardModal(true);
+    const created = createMasterJobCardFromPriority(priorityOrder.id);
+    if (created) {
+      setSelectedJobCardForView(created);
+      setShowJobCardModal(true);
+      setToastMessage(`✓ Master Job Card (${created.jobCardNo}) auto-created — assign painters & daily materials inside!`);
+      setTimeout(() => setToastMessage(null), 4000);
+    }
   };
 
   // Delete confirmation handlers for Booths and Painters
@@ -1579,20 +1479,6 @@ export const JobCardsView: React.FC = () => {
             <ArrowRightLeft className="w-4 h-4 text-[#c09748]" />
             <span>+ Request Material (MRN)</span>
           </button>
-
-          <button
-            onClick={handleCreateNewJobCard}
-            disabled={isPlantDayClosed}
-            title={isPlantDayClosed ? "Floor operations locked after 18:30 EOD shutdown." : ""}
-            className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-xs font-semibold shadow-xs transition w-full md:w-auto ${
-              isPlantDayClosed
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300'
-                : 'bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] cursor-pointer'
-            }`}
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ Create Job Card</span>
-          </button>
         </div>
       </div>
 
@@ -1620,7 +1506,7 @@ export const JobCardsView: React.FC = () => {
                   )}
                 </div>
                 <p className="text-xs text-[#8a6521] mt-0.5">
-                  Satish Sharma (Plant Head) has prioritized store material batches for Vikram Patel (Production Manager). Create Job Cards as per priority sequence.
+                  Plant Head Priority Orders auto-create system Master Job Cards for Production. Open any Master Job Card to assign painters &amp; daily materials.
                 </p>
               </div>
             </div>
@@ -2088,7 +1974,10 @@ export const JobCardsView: React.FC = () => {
                             {hasJobCards ? (
                               <button
                                 type="button"
-                                onClick={() => setSelectedJobCardForView(matchingJobCards[0])}
+                                onClick={() => {
+                                  setSelectedJobCardForView(matchingJobCards[0]);
+                                  setShowJobCardModal(true);
+                                }}
                                 className="px-5 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] font-semibold text-xs shadow-2xs cursor-pointer transition flex items-center gap-1.5 active:scale-95"
                               >
                                 <CheckCircle className="w-3.5 h-3.5 text-[#c09748]" />
@@ -2097,12 +1986,12 @@ export const JobCardsView: React.FC = () => {
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => handleLaunchJobCardFromPriority(prio, totalLotQty)}
+                                onClick={() => handleLaunchJobCardFromPriority(prio)}
                                 disabled={isPlantDayClosed}
                                 className="px-5 py-2.5 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs shadow-2xs cursor-pointer transition flex items-center gap-1.5 active:scale-95"
                               >
                                 <Plus className="w-3.5 h-3.5 text-[#8a6521]" />
-                                <span>Create Master Job Card ({totalLotQty.toLocaleString('en-IN')} Pcs)</span>
+                                <span>Open / Generate Master Job Card ({totalLotQty.toLocaleString('en-IN')} Pcs)</span>
                               </button>
                             )}
                           </div>

@@ -162,7 +162,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
     e.preventDefault();
     if (!selectedStockForPriority) return;
 
-    assignProductionPriority({
+    const res = assignProductionPriority({
       grnNo: selectedStockForPriority.grnNo,
       challanNo: selectedStockForPriority.challanNo,
       customer: selectedStockForPriority.customer,
@@ -173,15 +173,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigateTab }) =
       priorityLevel: priorityLevelInput,
       targetDate: targetDateInput,
       targetShift: targetShiftInput,
-            assignedToProductionManager: 'Vikram Patel (Production Manager)',
+      assignedToProductionManager: 'Vikram Patel (Production Manager)',
       plantHeadRemarks: instructionsInput || `Run with priority by Vikram Patel.`,
       assignedBy: `${currentUser.name} (${currentUser.roleTitle})`,
-      plant: activePlant
+      plant: activePlant === 'ALL' ? (selectedStockForPriority.plant || 'Haridwar') : activePlant
     });
 
     setShowPriorityModal(false);
-    setToastMsg(`✓ Priority successfully assigned for ${selectedStockForPriority.customer} (${priorityLevelInput.replace('_', ' ')}) to Production Manager!`);
-    setTimeout(() => setToastMsg(null), 4000);
+    setToastMsg(`✓ Priority set & Master Job Card (${res.jobCard.jobCardNo}) auto-created for ${selectedStockForPriority.customer}!`);
+    setTimeout(() => setToastMsg(null), 4500);
   };
 
   const [showInwardModal, setShowInwardModal] = useState<boolean>(false);

@@ -1,5 +1,13 @@
 # WORKING SET
 
+- 2026-11-24: Plant Head Priority Auto-Generates System Master Job Card & Removed Production 4-Step Creation Form
+  - Files touched:
+    - `src/portal/context/PortalStoreContext.tsx`: Added `buildOrReuseMasterJobCardForPriority` & `createMasterJobCardFromPriority`, updated `assignProductionPriority` to automatically generate a strictly monotonic unique `JC-YYYY-NNN` Master Job Card when Plant Head sets Priority (`status: 'Job Card Launched'`, `0` premature painters/MRNs), and synced `latestJobCardsRef`/`jobCardSeqRef`.
+    - `src/portal/views/DashboardView.tsx`: Updated `handleSavePriority` toast to show the auto-generated `JC-YYYY-NNN` number for Production Team.
+    - `src/portal/views/JobCardsView.tsx`: Removed top-right `+ Create Job Card` button (`handleCreateNewJobCard`, `handleCreateJobCardFromReceivedBatch`, `handleRequestFromSpecificStock`), updated Priority Queue actions (`Open Master Job Card` + 1-click fallback via `createMasterJobCardFromPriority`), and updated priority banner wording.
+    - `src/portal/components/JobCardModal.tsx`: Removed the entire 4-step Creation Wizard UI & stepper (`VIEW MODE 2`) so Production opens existing auto-generated Master Job Cards directly (`isExistingCard` guard).
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`, 10.74s).
+
 - 2026-11-24: Guarded Party Material `+ Add Target` (Unlocked Only After Daily Target Finished) & Anytime Company Chemical Add-On Slips
   - Files touched:
     - `src/portal/context/PortalStoreContext.tsx`: Added `addTargetToPainterAssignment` enforcing `pendingShiftBalance <= 0` and Master Job Card/Part balance before incrementing `dailyTargetQty`, auditing `progressLogs`, and raising a fresh Add-On Floor Demand MRN (`MRN-YYYY-NNN`); company consumables via `requestAssignmentChemicals` remain allowed anytime and generate supplementary MRNs/MIN slips.
