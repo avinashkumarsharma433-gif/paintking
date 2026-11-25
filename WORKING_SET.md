@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-25: Converted QA Gate 4 (OQC) into Audit & QA Manager Sign-Off Register (`QAView.tsx`, `PortalStoreContext.tsx`)
+  - Files touched:
+    - `src/portal/context/PortalStoreContext.tsx`: Added `approveOqcSignOff` action and initialized `managerQASign: 'Pending QA Sign-Off'` on auto-created OQC reports from Packing.
+    - `src/portal/views/QAView.tsx`: Set Gate 4 default view to `1. OQC Sign-Off & Audit Register` (`COMPLETED`) with 1-click `Approve & Sign` buttons on rows, mobile cards, and View modal; demoted manual OQC to `2. Manual OQC Override`; and displayed real `ΔE` (`Visual OK` when 0).
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-25: Fixed Packing Rework Bounce-Back Visibility in Painter Assignment KPIs (`JobCardModal.tsx`, `PackingView.tsx`)
   - Files touched:
     - `src/portal/components/JobCardModal.tsx`: Updated `getAssignmentLiveMetrics` and `getAssignmentStageMaxAllowed` to subtract `packingReturnedRework`/`packingReturnedScrap` (`asg.rejectReworkQty`/`asg.scrapQty` beyond stage logs) from `Completed Good`, display them in `Rework (Salvage)` / `Dead Scrap`, unlock `Pending Shift Balance` for rework re-entry, and keep `liveProgressLogs` synced on store updates.

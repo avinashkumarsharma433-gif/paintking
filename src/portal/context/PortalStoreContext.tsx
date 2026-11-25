@@ -388,6 +388,7 @@ interface PortalContextType {
   submitMasterIQCReport: (report: IQCInspectionRecord) => void;
   addIPQCRecord: (ipqc: IPQCRecord) => void;
   addOQCRelease: (release: FinalQualityRelease) => void;
+  approveOqcSignOff: (releaseId: string, managerName?: string) => void;
   submitPdiClearance: (releaseId: string, pdiData: Partial<FinalQualityRelease>) => void;
   recordCheckAndPackBatch: (params: {
     jobCardNo: string;
@@ -3826,6 +3827,7 @@ export const PortalProvider: React.FC<{
       oqcDate: todayIso,
       oqcInspector: checkerName,
       qualityEngineerSign: checkerName,
+      managerQASign: 'Pending QA Sign-Off',
       totalBoxes: 0,
       packingBoxCondition: 'Pass',
       traceabilityBatchNo: 'Pass',
@@ -5490,6 +5492,22 @@ export const PortalProvider: React.FC<{
     }
   };
 
+  const approveOqcSignOff = (releaseId: string, managerName?: string) => {
+    const signer = managerName || currentUser.name || 'QA Manager';
+    setQualityReleases(prev =>
+      prev.map(rel =>
+        rel.releaseId === releaseId
+          ? {
+              ...rel,
+              managerQASign: signer,
+              oqcStatus: rel.oqcStatus || 'Accepted',
+              lotAcceptance: rel.lotAcceptance || 'Accepted'
+            }
+          : rel
+      )
+    );
+  };
+
   const submitPdiClearance = (releaseId: string, pdiData: Partial<FinalQualityRelease>) => {
     setQualityReleases(prev => prev.map(rel => {
       if (rel.releaseId === releaseId || rel.woNo === releaseId) {
@@ -5735,6 +5753,7 @@ export const PortalProvider: React.FC<{
         submitMasterIQCReport,
         addIPQCRecord,
         addOQCRelease,
+        approveOqcSignOff,
         submitPdiClearance,
         recordCheckAndPackBatch,
         recordMultiModelCheckAndPackBatch,

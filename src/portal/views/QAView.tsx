@@ -67,6 +67,7 @@ export const QAView: React.FC = () => {
     submitMasterIQCReport,
     qualityReleases,
     addOQCRelease,
+    approveOqcSignOff,
     submitPdiClearance,
     jobCards,
     grnList,
@@ -108,7 +109,7 @@ export const QAView: React.FC = () => {
   const [ipqcViewTab, setIpqcViewTab] = useState<'PENDING' | 'COMPLETED'>('PENDING');
   const [ipqcSearchQuery, setIpqcSearchQuery] = useState<string>('');
 
-  const [oqcViewTab, setOqcViewTab] = useState<'PENDING' | 'COMPLETED'>('PENDING');
+  const [oqcViewTab, setOqcViewTab] = useState<'PENDING' | 'COMPLETED'>('COMPLETED');
   const [oqcSearchQuery, setOqcSearchQuery] = useState<string>('');
 
   const [pdiViewTab, setPdiViewTab] = useState<'PENDING' | 'COMPLETED'>('PENDING');
@@ -1541,12 +1542,22 @@ export const QAView: React.FC = () => {
           }`}
         >
           <CheckCircle2 className="w-3.5 h-3.5 text-[#c09748]" />
-          <span>Gate 4: Outgoing Quality (OQC)</span>
-          <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold ${
-            oqcPendingCount > 0 ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-[#f4e5be]/60 text-[#8a6521]'
-          }`}>
-            {oqcPendingCount > 0 ? `${oqcPendingCount} Due • ${qualityReleases.filter(r => r.oqcStatus === 'Accepted').length}` : `${qualityReleases.filter(r => r.oqcStatus === 'Accepted').length} Approved`}
-          </span>
+          <span>Gate 4: OQC Sign-Off</span>
+          {(() => {
+            const awaitingSign = qualityReleases.filter(
+              r => matchesPlant(r.plant, activePlant) && (!r.managerQASign || r.managerQASign === 'Pending QA Sign-Off')
+            ).length;
+            const totalApproved = qualityReleases.filter(
+              r => matchesPlant(r.plant, activePlant) && r.oqcStatus === 'Accepted'
+            ).length;
+            return (
+              <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold ${
+                awaitingSign > 0 ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-[#f4e5be]/60 text-[#8a6521]'
+              }`}>
+                {awaitingSign > 0 ? `${awaitingSign} Sign Due • ${totalApproved}` : `${totalApproved} Signed`}
+              </span>
+            );
+          })()}
         </button>
 
         <button
@@ -3256,26 +3267,6 @@ export const QAView: React.FC = () => {
             <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar shrink-0">
               <button
                 type="button"
-                onClick={() => setOqcViewTab('PENDING')}
-                className={`px-3.5 sm:px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold cursor-pointer transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95 ${
-                  oqcViewTab === 'PENDING'
-                    ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold shadow-2xs'
-                    : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
-                }`}
-              >
-                <Clock className={`w-3.5 h-3.5 ${oqcViewTab === 'PENDING' ? 'text-[#8a6521]' : 'text-[#777b86]'}`} />
-                <span>1. Incomplete / Ready for OQC</span>
-                <span className={`px-2 py-0.2 rounded-full text-[11px] font-bold ${
-                  pendingOqcJobs.length > 0 
-                    ? (oqcViewTab === 'PENDING' ? 'bg-[#f4e5be] text-[#8a6521]' : 'bg-emerald-100 text-emerald-900 border border-emerald-300')
-                    : 'bg-[#f2f2f3] text-[#777b86]'
-                }`}>
-                  {pendingOqcJobs.length}
-                </span>
-              </button>
-
-              <button
-                type="button"
                 onClick={() => setOqcViewTab('COMPLETED')}
                 className={`px-3.5 sm:px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold cursor-pointer transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95 ${
                   oqcViewTab === 'COMPLETED'
@@ -3284,13 +3275,33 @@ export const QAView: React.FC = () => {
                 }`}
               >
                 <CheckCircle2 className={`w-3.5 h-3.5 ${oqcViewTab === 'COMPLETED' ? 'text-[#8a6521]' : 'text-[#777b86]'}`} />
-                <span>2. Completed OQC Technical Certificates</span>
+                <span>1. OQC Sign-Off &amp; Audit Register</span>
                 <span className={`px-2 py-0.2 rounded-full text-[11px] font-bold ${
                   oqcViewTab === 'COMPLETED'
                     ? 'bg-[#f4e5be] text-[#8a6521]'
                     : 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]'
                 }`}>
-                  {qualityReleases.filter(r => r.oqcStatus === 'Accepted').length}
+                  {filteredQualityReleases.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setOqcViewTab('PENDING')}
+                className={`px-3.5 sm:px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold cursor-pointer transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95 ${
+                  oqcViewTab === 'PENDING'
+                    ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold shadow-2xs'
+                    : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                }`}
+              >
+                <Clock className={`w-3.5 h-3.5 ${oqcViewTab === 'PENDING' ? 'text-[#8a6521]' : 'text-[#777b86]'}`} />
+                <span>2. Manual OQC Override</span>
+                <span className={`px-2 py-0.2 rounded-full text-[11px] font-bold ${
+                  pendingOqcJobs.length > 0 
+                    ? (oqcViewTab === 'PENDING' ? 'bg-[#f4e5be] text-[#8a6521]' : 'bg-emerald-100 text-emerald-900 border border-emerald-300')
+                    : 'bg-[#f2f2f3] text-[#777b86]'
+                }`}>
+                  {pendingOqcJobs.length}
                 </span>
               </button>
             </div>
@@ -3442,63 +3453,82 @@ export const QAView: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 4B: COMPLETED OQC RELEASES */}
+          {/* TAB 4B: OQC SIGN-OFF & AUDIT REGISTER (AUTO-CREATED FROM PACKING) */}
           {oqcViewTab === 'COMPLETED' && (
             <div className="bg-white rounded-[20px] sm:rounded-[24px] border border-[#ececec] p-4 sm:p-6 shadow-xs sm:shadow-sm space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-[#f2f2f3]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#f2f2f3]">
                 <div>
                   <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#777b86]">
-                    OQC Technical Finish Conformance Register
+                    OQC Audit &amp; QA Manager Sign-Off Register (From Packing Desk)
                   </h3>
-                  <p className="text-[11px] text-[#777b86] mt-0.5">Colorimetry Delta-E, DFT coating thickness, 5B cross-hatch adhesion & specular gloss sign-off</p>
+                  <p className="text-[11px] text-[#777b86] mt-0.5">
+                    Packing &amp; Check se auto-generate hui OQC reports (IPQC Delta-E linked) — yahan QA Manager verify aur 1-click Sign-Off kar sakte hain.
+                  </p>
                 </div>
-                <span className="text-[11px] sm:text-xs font-mono text-[#c09748] font-bold">PK-QA-OQC-001 • {filteredQualityReleases.length} Certified</span>
+                <span className="text-[11px] sm:text-xs font-mono text-[#c09748] font-bold">PK-QA-OQC-001 • {filteredQualityReleases.length} Reports</span>
               </div>
 
               {/* Mobile Touch Card List View (< 640px) */}
               <div className="block sm:hidden space-y-3">
-                {filteredQualityReleases.map(rel => (
-                  <div key={rel.releaseId} className="p-3.5 bg-[#fafafb] border border-[#ececec] rounded-[18px] space-y-2.5 text-xs">
-                    <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
-                      <div>
-                        <span className="font-mono font-bold text-[#c09748] text-xs">{rel.reportNo || rel.releaseId}</span>
-                        <div className="text-[11px] font-semibold text-[#17191c] mt-0.5">{rel.customer}</div>
+                {filteredQualityReleases.map(rel => {
+                  const isSigned = Boolean(rel.managerQASign && rel.managerQASign !== 'Pending QA Sign-Off');
+                  return (
+                    <div key={rel.releaseId} className="p-3.5 bg-[#fafafb] border border-[#ececec] rounded-[18px] space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
+                        <div>
+                          <span className="font-mono font-bold text-[#c09748] text-xs">{rel.reportNo || rel.releaseId}</span>
+                          <div className="text-[11px] font-semibold text-[#17191c] mt-0.5">{rel.customer}</div>
+                        </div>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                          isSigned
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                            : 'bg-amber-50 text-amber-900 border-amber-200'
+                        }`}>
+                          {isSigned ? `✓ Signed` : 'Sign-Off Due'}
+                        </span>
                       </div>
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        ✓ {rel.lotAcceptance || rel.oqcStatus || 'Accepted'}
-                      </span>
-                    </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-[#777b86]">
-                      <span>{rel.partCode} • {rel.color}</span>
-                      <span className="font-mono font-bold text-emerald-800">{rel.passedQty} / {rel.offeredQty} Pcs</span>
-                    </div>
+                      <div className="flex items-center justify-between text-[11px] text-[#777b86]">
+                        <span>{rel.partCode} • {rel.color}</span>
+                        <span className="font-mono font-bold text-emerald-800">{rel.passedQty} / {rel.offeredQty} Pcs</span>
+                      </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-[#ececec]">
-                      <span className="font-mono text-[11px] text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
-                        ΔE {Number(rel.deltaE || 0.38).toFixed(2)}
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedOqcToView(rel)}
-                          className="px-2.5 py-1 rounded-full bg-white hover:bg-gray-100 text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-[#777b86]" />
-                          <span>View</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => downloadStandardOqcPdf(rel)}
-                          className="px-2.5 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-semibold text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs active:scale-95"
-                        >
-                          <Download className="w-3.5 h-3.5 text-[#c09748]" />
-                          <span>PDF</span>
-                        </button>
+                      <div className="flex items-center justify-between pt-2 border-t border-[#ececec] gap-1.5 flex-wrap">
+                        <span className="font-mono text-[11px] text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
+                          {Number(rel.deltaE || 0) > 0 ? `ΔE ${Number(rel.deltaE).toFixed(2)}` : 'Visual OK'}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {!isSigned && (
+                            <button
+                              type="button"
+                              onClick={() => approveOqcSignOff(rel.releaseId, currentUser.name)}
+                              className="px-2.5 py-1 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Sign-Off</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedOqcToView(rel)}
+                            className="px-2.5 py-1 rounded-full bg-white hover:bg-gray-100 text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-[#777b86]" />
+                            <span>View</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => downloadStandardOqcPdf(rel)}
+                            className="px-2.5 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-semibold text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs active:scale-95"
+                          >
+                            <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                            <span>PDF</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Desktop Table View (>= 640px) */}
@@ -3507,67 +3537,87 @@ export const QAView: React.FC = () => {
                   <thead>
                     <tr className="border-b border-[#ececec] text-[#777b86] bg-[#fafafb]">
                       <th className="py-2.5 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Report No & WO</th>
-                      <th className="py-2.5 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Customer / OEM</th>
+                      <th className="py-2.5 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Customer & OEM</th>
                       <th className="py-2.5 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Part Code & Finish</th>
                       <th className="py-2.5 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Offered / Passed</th>
                       <th className="py-2.5 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">ΔE (Delta)</th>
-                      <th className="py-2.5 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Lot Acceptance</th>
+                      <th className="py-2.5 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">QA Manager Sign-Off</th>
                       <th className="py-2.5 px-3 font-bold text-right text-[11px] uppercase tracking-wider whitespace-nowrap">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#ececec]">
-                    {filteredQualityReleases.map(rel => (
-                      <tr key={rel.releaseId} className="hover:bg-[#fafafb] transition">
-                        <td className="py-2.5 px-3 whitespace-nowrap">
-                          <span className="font-mono font-bold text-xs sm:text-[13px] text-[#c09748]">{rel.reportNo || rel.releaseId}</span>
-                          <div className="text-[11px] text-[#777b86] font-mono mt-0.5">WO: {rel.woNo}</div>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="text-xs sm:text-[13px] font-semibold text-[#17191c]">{rel.customer}</div>
-                          <div className="text-[11px] text-[#777b86] mt-0.5">{rel.plant || 'Main Plant'}</div>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="text-xs sm:text-[13px] text-[#17191c] font-medium">{rel.partCode}</div>
-                          <div className="text-[11px] text-[#777b86] mt-0.5">Shade: <strong className="text-[#17191c]">{rel.color}</strong></div>
-                        </td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                          <div className="font-mono font-bold text-xs sm:text-[13px] text-emerald-800">{rel.passedQty} Pcs</div>
-                          <div className="text-[11px] text-[#777b86] mt-0.5">Offer: {rel.offeredQty} Pcs</div>
-                        </td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
-                            ΔE {Number(rel.deltaE || 0.38).toFixed(2)}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap inline-flex items-center bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            ✓ {rel.lotAcceptance || rel.oqcStatus || 'Accepted'}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                          <div className="inline-flex items-center justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedOqcToView(rel)}
-                              className="px-2.5 py-1 rounded-full bg-white hover:bg-[#fafafb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
-                              title="View OQC Conformance Details"
-                            >
-                              <Eye className="w-3.5 h-3.5 text-[#777b86]" />
-                              <span>View</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => downloadStandardOqcPdf(rel)}
-                              className="px-2.5 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-semibold text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs active:scale-95"
-                              title="Download Official OQC Technical Certificate PDF"
-                            >
-                              <Download className="w-3.5 h-3.5 text-[#c09748]" />
-                              <span>PDF</span>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredQualityReleases.map(rel => {
+                      const isSigned = Boolean(rel.managerQASign && rel.managerQASign !== 'Pending QA Sign-Off');
+                      return (
+                        <tr key={rel.releaseId} className="hover:bg-[#fafafb] transition">
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <span className="font-mono font-bold text-xs sm:text-[13px] text-[#c09748]">{rel.reportNo || rel.releaseId}</span>
+                            <div className="text-[11px] text-[#777b86] font-mono mt-0.5">WO: {rel.woNo}</div>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <div className="text-xs sm:text-[13px] font-semibold text-[#17191c]">{rel.customer}</div>
+                            <div className="text-[11px] text-[#777b86] mt-0.5">{rel.plant || 'Main Plant'}</div>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <div className="text-xs sm:text-[13px] text-[#17191c] font-medium">{rel.partCode}</div>
+                            <div className="text-[11px] text-[#777b86] mt-0.5">Shade: <strong className="text-[#17191c]">{rel.color}</strong></div>
+                          </td>
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            <div className="font-mono font-bold text-xs sm:text-[13px] text-emerald-800">{rel.passedQty} Pcs</div>
+                            <div className="text-[11px] text-[#777b86] mt-0.5">Offer: {rel.offeredQty} Pcs</div>
+                          </td>
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                              {Number(rel.deltaE || 0) > 0 ? `ΔE ${Number(rel.deltaE).toFixed(2)}` : 'Visual OK'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            {isSigned ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap inline-flex items-center bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                ✓ {rel.managerQASign}
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap inline-flex items-center bg-amber-50 text-amber-900 border border-amber-200">
+                                Pending QA Sign
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center justify-end gap-1.5">
+                              {!isSigned && (
+                                <button
+                                  type="button"
+                                  onClick={() => approveOqcSignOff(rel.releaseId, currentUser.name)}
+                                  className="px-3 py-1 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
+                                  title="Verify & Sign-Off OQC Report as QA Manager"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Approve &amp; Sign</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setSelectedOqcToView(rel)}
+                                className="px-2.5 py-1 rounded-full bg-white hover:bg-[#fafafb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
+                                title="View OQC Conformance Details"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-[#777b86]" />
+                                <span>View</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => downloadStandardOqcPdf(rel)}
+                                className="px-2.5 py-1 rounded-full border border-[#dcdfe4] bg-[#f2f2f3] hover:bg-[#e5e7eb] text-xs font-semibold text-[#17191c] transition cursor-pointer inline-flex items-center gap-1 shadow-2xs active:scale-95"
+                                title="Download Official OQC Technical Certificate PDF"
+                              >
+                                <Download className="w-3.5 h-3.5 text-[#c09748]" />
+                                <span>PDF</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -6235,24 +6285,39 @@ export const QAView: React.FC = () => {
                   </div>
                   <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
                     <span className="text-[9px] text-[#777b86] block">ΔE</span>
-                    <strong className="font-mono text-xs text-emerald-700">{Number(selectedOqcToView.deltaE || 0.38).toFixed(2)}</strong>
+                    <strong className="font-mono text-xs text-emerald-700">
+                      {Number(selectedOqcToView.deltaE || 0) > 0 ? Number(selectedOqcToView.deltaE).toFixed(2) : 'Visual OK'}
+                    </strong>
                   </div>
                 </div>
 
                 <div className="mt-3 p-2.5 rounded-[10px] bg-white border border-[#ececec] space-y-1 text-[11px]">
-                  <div className="flex justify-between"><span className="text-[#777b86]">Sign-off Prepared By:</span><strong className="text-[#17191c]">{selectedOqcToView.qualityEngineerSign || selectedOqcToView.inspector || 'Manoj Tiwari'}</strong></div>
-                  <div className="flex justify-between"><span className="text-[#777b86]">Approved By Manager QA:</span><strong className="text-[#17191c]">{selectedOqcToView.managerQASign || 'Rajesh Nair'}</strong></div>
-                  <div className="flex justify-between"><span className="text-[#777b86]">Production Handover:</span><strong className="text-[#17191c]">{selectedOqcToView.productionInchargeSign || 'Vikram Patel'}</strong></div>
+                  <div className="flex justify-between"><span className="text-[#777b86]">Checked / Prepared By:</span><strong className="text-[#17191c]">{selectedOqcToView.qualityEngineerSign || selectedOqcToView.inspector || 'Packing & OQC Desk'}</strong></div>
+                  <div className="flex justify-between"><span className="text-[#777b86]">Approved By Manager QA:</span><strong className={selectedOqcToView.managerQASign === 'Pending QA Sign-Off' ? 'text-amber-800' : 'text-emerald-800'}>{selectedOqcToView.managerQASign || 'Pending QA Sign-Off'}</strong></div>
+                  <div className="flex justify-between"><span className="text-[#777b86]">Production Handover:</span><strong className="text-[#17191c]">{selectedOqcToView.productionInchargeSign || 'Production Line'}</strong></div>
                 </div>
               </div>
             </div>
 
             {/* Modal Actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-[#ececec]">
+            <div className="flex items-center justify-between pt-3 border-t border-[#ececec] flex-wrap gap-2">
               <span className="text-[11px] font-mono text-[#777b86]">
                 PDI Staging Status: <strong className="text-emerald-800">{selectedOqcToView.pdiStatus || 'Ready for PDI'}</strong>
               </span>
               <div className="flex items-center gap-2">
+                {(!selectedOqcToView.managerQASign || selectedOqcToView.managerQASign === 'Pending QA Sign-Off') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      approveOqcSignOff(selectedOqcToView.releaseId, currentUser.name);
+                      setSelectedOqcToView(prev => prev ? { ...prev, managerQASign: currentUser.name } : null);
+                    }}
+                    className="px-4 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Approve &amp; Sign-Off</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => downloadStandardOqcPdf(selectedOqcToView)}
