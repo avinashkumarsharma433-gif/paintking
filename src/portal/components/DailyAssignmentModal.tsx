@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   X,
   Calendar,
@@ -15,7 +15,9 @@ import {
   Palette,
   ArrowLeft,
   ArrowRight,
-  CheckCircle2
+  CheckCircle2,
+  ChevronDown,
+  Check
 } from 'lucide-react';
 import { usePortalStore } from '../context/PortalStoreContext';
 import { matchesPlant } from '../utils/portalAuth';
@@ -32,6 +34,127 @@ import {
   resolveJobCardInwardParts,
   computeAssignmentBalance
 } from '../types/portalTypes';
+
+interface PKDropdownOption {
+  value: string;
+  label: string;
+  sublabel?: string;
+  badge?: string;
+}
+
+interface PKDropdownProps {
+  value: string;
+  onChange: (value: string) => void;
+  options: PKDropdownOption[];
+  placeholder?: string;
+  compact?: boolean;
+  triggerClassName?: string;
+}
+
+/**
+ * Custom PK-OS styled dropdown replacing native OS select popups.
+ */
+const PKDropdown: React.FC<PKDropdownProps> = ({
+  value,
+  onChange,
+  options,
+  placeholder = 'Select option...',
+  compact = false,
+  triggerClassName = ''
+}) => {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [open]);
+
+  const selected = options.find(o => o.value === value);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(prev => !prev)}
+        className={`w-full ${compact ? 'h-8 px-2.5 rounded-[10px]' : 'h-10 px-3 rounded-[14px]'} border text-left flex items-center justify-between gap-2 transition cursor-pointer shadow-2xs ${
+          open
+            ? 'border-[#c09748] bg-white ring-2 ring-[#c09748]/15'
+            : 'border-[#dcdfe4] bg-[#fafafb] hover:bg-white'
+        } ${triggerClassName}`}
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          <span className={`truncate font-semibold text-[#17191c] ${compact ? 'text-[11px]' : 'text-xs sm:text-[13px]'}`}>
+            {selected ? selected.label : placeholder}
+          </span>
+          {selected?.badge && !compact && (
+            <span className="px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold shrink-0">
+              {selected.badge}
+            </span>
+          )}
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 text-[#8a6521] shrink-0 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 mt-1.5 rounded-[16px] bg-white border border-[#ececec] shadow-xl p-1.5 z-50 max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+          {options.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-[#777b86] text-center">No options</div>
+          ) : (
+            options.map(opt => {
+              const isSelected = opt.value === value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
+                  className={`w-full px-3 py-2 rounded-[12px] text-left flex items-center justify-between gap-2 cursor-pointer transition ${
+                    isSelected
+                      ? 'bg-[#faf3e0] text-[#8a6521] font-semibold'
+                      : 'text-[#17191c] hover:bg-[#fafafb]'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold truncate">{opt.label}</div>
+                    {opt.sublabel && (
+                      <div className="text-[11px] text-[#777b86] truncate">{opt.sublabel}</div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {opt.badge && (
+                      <span className="px-2 py-0.5 rounded-full bg-white border border-[#ececec] text-[10px] font-mono font-bold text-[#777b86]">
+                        {opt.badge}
+                      </span>
+                    )}
+                    {isSelected && <Check className="w-3.5 h-3.5 text-[#c09748]" />}
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface DailyMaterialDraftRow extends PainterDailyMaterialAllocation {
   id: string;
@@ -740,17 +863,17 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                           <User className="w-3.5 h-3.5 text-[#c09748]" />
                           <span>1. Assigned Floor Painter *</span>
                         </label>
-                        <select
-                          value={selectedPainterId}
-                          onChange={e => setSelectedPainterId(e.target.value)}
-                          className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs sm:text-[13px] font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs cursor-pointer"
-                        >
-                          {safePainters.map(p => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} ({p.code || 'PTR'}) • {p.boothNo?.split('(')[0] || 'Line'}
-                            </option>
-                          ))}
-                        </select>
+                        <PKDropdown
+                          value={selectedPainterId || selectedPainter.id}
+                          onChange={val => setSelectedPainterId(val)}
+                          options={safePainters.map(p => ({
+                            value: p.id,
+                            label: p.name,
+                            sublabel: p.boothNo?.split('(')[0] || 'Floor Line',
+                            badge: p.code || 'PTR'
+                          }))}
+                          placeholder="Select Floor Painter..."
+                        />
                       </div>
 
                       <div className="space-y-1.5">
@@ -758,20 +881,26 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                           <Layers className="w-3.5 h-3.5 text-[#c09748]" />
                           <span>2. Spray Booth / Conveyor Line *</span>
                         </label>
-                        <select
+                        <PKDropdown
                           value={selectedBoothName}
-                          onChange={e => setSelectedBoothName(e.target.value)}
-                          className="w-full h-10 px-3 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs sm:text-[13px] font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs cursor-pointer"
-                        >
-                          {safeBooths.map(b => (
-                            <option key={b.id} value={b.name}>
-                              {b.name} ({b.type})
-                            </option>
-                          ))}
-                          {safeBooths.length === 0 && (
-                            <option value="Booth #1 (Continuous Conveyor Line)">Booth #1 (Continuous Conveyor Line)</option>
-                          )}
-                        </select>
+                          onChange={val => setSelectedBoothName(val)}
+                          options={
+                            safeBooths.length > 0
+                              ? safeBooths.map(b => ({
+                                  value: b.name,
+                                  label: b.name,
+                                  sublabel: b.type
+                                }))
+                              : [
+                                  {
+                                    value: 'Booth #1 (Continuous Conveyor Line)',
+                                    label: 'Booth #1 (Continuous Conveyor Line)',
+                                    sublabel: 'Conveyor Line'
+                                  }
+                                ]
+                          }
+                          placeholder="Select Booth / Line..."
+                        />
                       </div>
                     </div>
 
@@ -904,10 +1033,10 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                                 <span className="font-mono text-[11px] text-[#8a6521]">Max: {maxForRow} Pcs</span>
                               </label>
                               {partsList.length > 1 ? (
-                                <select
+                                <PKDropdown
                                   value={row.partCode}
-                                  onChange={e => {
-                                    const picked = partsList.find(p => p.partCode === e.target.value);
+                                  onChange={val => {
+                                    const picked = partsList.find(p => p.partCode === val);
                                     if (!picked) return;
                                     const nextMax = getRemainingForPartInModal(picked.partCode, row.id);
                                     setTaskRows(prev =>
@@ -926,14 +1055,14 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                                       )
                                     );
                                   }}
-                                  className="w-full h-10 px-3 rounded-[12px] border border-[#dcdfe4] bg-white text-xs sm:text-[13px] font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none cursor-pointer"
-                                >
-                                  {partsList.map(p => (
-                                    <option key={p.partCode} value={p.partCode}>
-                                      {p.partDescription} ({p.partCode}) — Bal: {getPartOrderPending(p.partCode)} Pcs
-                                    </option>
-                                  ))}
-                                </select>
+                                  options={partsList.map(p => ({
+                                    value: p.partCode,
+                                    label: p.partDescription,
+                                    sublabel: p.partCode,
+                                    badge: `${getPartOrderPending(p.partCode)} Bal`
+                                  }))}
+                                  triggerClassName="bg-white rounded-[12px]"
+                                />
                               ) : (
                                 <div className="w-full h-10 px-3 rounded-[12px] border border-[#ececec] bg-white text-xs sm:text-[13px] font-semibold text-[#17191c] flex items-center justify-between gap-2">
                                   <span className="truncate">{row.partDescription}</span>
@@ -1145,23 +1274,26 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                           >
                             <div className="col-span-2 sm:col-span-3 space-y-1">
                               <label className="text-[11px] font-semibold text-[#777b86] block">Type</label>
-                              <select
+                              <PKDropdown
                                 value={mat.materialType}
-                                onChange={e =>
+                                onChange={val =>
                                   setPlannedMaterials(prev =>
                                     prev.map((r, rIdx) =>
-                                      rIdx === idx ? { ...r, materialType: e.target.value as PainterDailyMaterialAllocation['materialType'] } : r
+                                      rIdx === idx
+                                        ? { ...r, materialType: val as PainterDailyMaterialAllocation['materialType'] }
+                                        : r
                                     )
                                   )
                                 }
-                                className="w-full h-10 px-2.5 rounded-[12px] border border-[#dcdfe4] bg-white text-xs font-semibold text-[#17191c]"
-                              >
-                                <option value="Base Paint">Base Paint</option>
-                                <option value="Topcoat">Topcoat</option>
-                                <option value="Hardener">Hardener</option>
-                                <option value="Thinner">Thinner</option>
-                                <option value="Cleaning Solvent">Cleaning Solvent</option>
-                              </select>
+                                options={[
+                                  { value: 'Base Paint', label: 'Base Paint' },
+                                  { value: 'Topcoat', label: 'Topcoat' },
+                                  { value: 'Hardener', label: 'Hardener' },
+                                  { value: 'Thinner', label: 'Thinner' },
+                                  { value: 'Cleaning Solvent', label: 'Cleaning Solvent' }
+                                ]}
+                                triggerClassName="bg-white rounded-[12px]"
+                              />
                             </div>
                             <div className="col-span-2 sm:col-span-4 space-y-1">
                               <label className="text-[11px] font-semibold text-[#777b86] block">Chemical / Paint Name *</label>
@@ -1178,22 +1310,20 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                                 className="w-full h-10 px-2.5 rounded-[12px] border border-[#dcdfe4] bg-white text-xs sm:text-[13px] font-semibold text-[#17191c]"
                               />
                               {distinctEnteredColors.length > 1 && (mat.materialType === 'Base Paint' || mat.materialType === 'Topcoat') && (
-                                <select
+                                <PKDropdown
+                                  compact
                                   value={mat.colour || ''}
-                                  onChange={e =>
+                                  onChange={val =>
                                     setPlannedMaterials(prev =>
-                                      prev.map((r, rIdx) => (rIdx === idx ? { ...r, colour: e.target.value || undefined } : r))
+                                      prev.map((r, rIdx) => (rIdx === idx ? { ...r, colour: val || undefined } : r))
                                     )
                                   }
-                                  className="w-full h-7 px-2 rounded-[8px] border border-[#f4e5be] bg-[#faf7ed] text-[11px] font-semibold text-[#8a6521]"
-                                >
-                                  <option value="">Shared across all colours</option>
-                                  {distinctEnteredColors.map(c => (
-                                    <option key={c} value={c}>
-                                      For Colour: {c}
-                                    </option>
-                                  ))}
-                                </select>
+                                  options={[
+                                    { value: '', label: 'Shared across all colours' },
+                                    ...distinctEnteredColors.map(c => ({ value: c, label: `For Colour: ${c}` }))
+                                  ]}
+                                  triggerClassName="bg-[#faf7ed] border-[#f4e5be] rounded-[8px]"
+                                />
                               )}
                             </div>
                             <div className="col-span-1 sm:col-span-2 space-y-1">
@@ -1215,19 +1345,20 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                             </div>
                             <div className="col-span-1 sm:col-span-2 space-y-1">
                               <label className="text-[11px] font-semibold text-[#777b86] block">Unit</label>
-                              <select
+                              <PKDropdown
                                 value={mat.uom}
-                                onChange={e =>
+                                onChange={val =>
                                   setPlannedMaterials(prev =>
-                                    prev.map((r, rIdx) => (rIdx === idx ? { ...r, uom: e.target.value as 'Litres' | 'Kg' | 'Pcs' } : r))
+                                    prev.map((r, rIdx) => (rIdx === idx ? { ...r, uom: val as 'Litres' | 'Kg' | 'Pcs' } : r))
                                   )
                                 }
-                                className="w-full h-10 px-2 rounded-[12px] border border-[#dcdfe4] bg-white text-xs font-mono text-[#17191c]"
-                              >
-                                <option value="Litres">Ltr</option>
-                                <option value="Kg">Kg</option>
-                                <option value="Pcs">Pcs</option>
-                              </select>
+                                options={[
+                                  { value: 'Litres', label: 'Ltr' },
+                                  { value: 'Kg', label: 'Kg' },
+                                  { value: 'Pcs', label: 'Pcs' }
+                                ]}
+                                triggerClassName="bg-white rounded-[12px]"
+                              />
                             </div>
                             <div className="col-span-2 sm:col-span-1 flex justify-end sm:pt-5">
                               <button

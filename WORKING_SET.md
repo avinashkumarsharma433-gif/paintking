@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-25: Built Custom Styled PK-OS Dropdown (`PKDropdown`) in Painter Task Allocation (`DailyAssignmentModal.tsx`)
+  - Files touched:
+    - `src/portal/components/DailyAssignmentModal.tsx`: Replaced native OS `<select>` elements across Steps 1–3 (Painter, Spray Booth, Model selector, Chemical Type, Colour tag, and Unit) with custom PK-OS `PKDropdown` featuring champagne active states, sublabels, badges, Escape/outside-click close, and zero browser-default blue menus.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-25: Simplified Step 1 to Clean Dropdowns & Normalized Form Typography (`DailyAssignmentModal.tsx`)
   - Files touched:
     - `src/portal/components/DailyAssignmentModal.tsx`: Restored clean `<select>` dropdowns for Painter & Spray Booth in Step 1 (`h-10 text-xs sm:text-[13px]`) and balanced heading/input/button typography (`text-xs` / `h-10`) across Steps 1–3 so text is comfortably readable without feeling oversized.
