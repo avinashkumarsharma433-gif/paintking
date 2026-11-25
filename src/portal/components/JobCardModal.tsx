@@ -547,7 +547,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
   const [currentRejectQty, setCurrentRejectQty] = useState<number>(initialData?.rejectQty || 0);
   const [liveProgressLogs, setLiveProgressLogs] = useState<JobCardProductionProgressLog[]>(initialData?.progressLogs || []);
 
-  const [selectedStage, setSelectedStage] = useState<CoatingProcessStage>('stage_1_primer');
+  const [selectedStage, setSelectedStage] = useState<CoatingProcessStage>('stage_3_topcoat');
+  const [appliedCoats, setAppliedCoats] = useState<{ primer: boolean; basecoat: boolean; topcoat: boolean }>({
+    primer: true,
+    basecoat: true,
+    topcoat: true
+  });
   const [showOutputLogger, setShowOutputLogger] = useState<boolean>(false);
   const [logPiecesSprayed, setLogPiecesSprayed] = useState<number>(100);
   const [logGoodPieces, setLogGoodPieces] = useState<number>(95);
@@ -1150,6 +1155,57 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     return { completedGood, rework, scrap, pending, efficiency };
   };
 
+  // Hidden Rework & Chemical Over-Consumption Audit Cross-Check (ISO 9001 Integrity)
+  const getAssignmentReworkAnomaly = (asg: PainterAssignment) => {
+    const metrics = getAssignmentLiveMetrics(asg);
+    const addOnMrns = materialRequisitions.filter(
+      r =>
+        r.jobCardNo === jobCardNo &&
+        (r.painterDemands || []).some(pd => pd.assignmentId === asg.id) &&
+        (Boolean(r.productionRemarks?.includes('Add-On')) || Boolean(r.partDescription?.includes('Extra Chemical Add-On')))
+    );
+    const chemLogs = assignmentMaterialLogs.filter(
+      l =>
+        l.assignmentId === asg.assignmentId ||
+        l.assignmentId === asg.id ||
+        ((l.masterJobCardNo === jobCardNo || (l as any).masterJobCardId === jobCardNo) &&
+          l.painterName === asg.painterName)
+    );
+    const hasHighWastage = chemLogs.some(l => l.highWastageFlag);
+    const totalConsumedChem = chemLogs.reduce((s, l) => s + Number(l.netConsumedQty || l.issuedQty || 0), 0);
+    const totalPlannedChem = (asg.plannedMaterials || []).reduce((s, m) => s + (Number(m.qty) || 0), 0);
+    const loggedPieces = metrics.completedGood + metrics.scrap;
+    const normPerPc =
+      chemLogs.find(l => Number(l.standardNormPerPiece || 0) > 0)?.standardNormPerPiece ||
+      (asg.dailyTargetQty > 0 && totalPlannedChem > 0 ? totalPlannedChem / asg.dailyTargetQty : 0.015);
+    const actualPerPc = loggedPieces > 0 && totalConsumedChem > 0 ? totalConsumedChem / loggedPieces : 0;
+    const overConsumedPct =
+      normPerPc > 0 && actualPerPc > normPerPc * 1.15 ? Math.round(((actualPerPc / normPerPc) - 1) * 100) : 0;
+
+    const reasons: string[] = [];
+    if (addOnMrns.length > 0) {
+      reasons.push(`${addOnMrns.length} Extra Add-On Chemical MRN(s)`);
+    }
+    if (overConsumedPct >= 15) {
+      reasons.push(`+${overConsumedPct}% chemical used vs standard norm`);
+    }
+    if (hasHighWastage && reasons.length === 0) {
+      reasons.push('High chemical wastage flagged on shift reconciliation');
+    }
+
+    const isFlagged =
+      metrics.rework === 0 &&
+      reasons.length > 0 &&
+      (loggedPieces > 0 || addOnMrns.length > 0);
+
+    return {
+      isFlagged,
+      reasons,
+      addOnMrnCount: addOnMrns.length,
+      overConsumedPct
+    };
+  };
+
   // Live Master Order totals aggregated directly from all painter shift assignments
   const liveStoreJc = useMemo(() => jobCards.find(j => j.jobCardNo === jobCardNo), [jobCards, jobCardNo]);
   const masterMetrics = useMemo(() => {
@@ -1276,16 +1332,11 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     if (s2HasLogs) {
       return Math.max(0, s2.good - s3.good - s3.scrap);
     }
-    if (s1HasLogs) {
-      return 0;
-    }
-    return asg.processStage === 'Topcoat / Clear Coat' ? Math.max(0, asg.dailyTargetQty - s3.good - s3.scrap) : 0;
+    // EOD Single-Entry Flow: allow direct Final Output logging up to remaining shift balance without forcing S1/S2 entry
+    return Math.max(0, asg.dailyTargetQty - s3.good - s3.scrap);
   };
 
-  // Strict Sequential Stage Handshake Logic (assignment-scoped when logging for a selected painter):
-  // - Stage 1 Input: Raw substrate parts from Stores (targetQty). Remaining = targetQty - s1Good - s1Scrap
-  // - Stage 2 Input: Good Pieces passed by Stage 1 (stageCounts.stage1.good)
-  // - Stage 3 Input: Good Pieces passed by Stage 2 (stageCounts.stage2.good)
+  // EOD Single-Entry & Backward-Compatible Stage Cap:
   const currentStageMaxAllowed = useMemo(() => {
     if (activeTab2Assignment) {
       return getAssignmentStageMaxAllowed(activeTab2Assignment, selectedStage);
@@ -1296,7 +1347,10 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     if (selectedStage === 'stage_2_basecoat') {
       return Math.max(0, stageCounts.stage1.good - stageCounts.stage2.good - stageCounts.stage2.scrap);
     }
-    return Math.max(0, stageCounts.stage2.good - stageCounts.stage3.good - stageCounts.stage3.scrap);
+    if (stageCounts.stage2.good > 0) {
+      return Math.max(0, stageCounts.stage2.good - stageCounts.stage3.good - stageCounts.stage3.scrap);
+    }
+    return Math.max(0, targetQty - stageCounts.stage3.good - stageCounts.stage3.scrap);
   }, [selectedStage, targetQty, stageCounts, activeTab2Assignment, liveProgressLogs]);
 
   // Stage-by-Stage Rejection Rates & Overall Job Rejection Rate
@@ -1316,7 +1370,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     : '0.0';
 
   const activeStageConfig = useMemo(() => {
-    return processStages.find(s => s.key === selectedStage) || processStages[0];
+    return processStages.find(s => s.key === selectedStage) || processStages[2] || processStages[0];
   }, [processStages, selectedStage]);
 
   const handleSelectStage = (stageKey: CoatingProcessStage) => {
@@ -1328,10 +1382,13 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       maxForStage = Math.max(0, targetQty - stageCounts.stage1.good - stageCounts.stage1.scrap);
     } else if (stageKey === 'stage_2_basecoat') {
       maxForStage = Math.max(0, stageCounts.stage1.good - stageCounts.stage2.good - stageCounts.stage2.scrap);
-    } else {
+    } else if (stageCounts.stage2.good > 0) {
       maxForStage = Math.max(0, stageCounts.stage2.good - stageCounts.stage3.good - stageCounts.stage3.scrap);
+    } else {
+      maxForStage = Math.max(0, targetQty - stageCounts.stage3.good - stageCounts.stage3.scrap);
     }
-    const defaultSprayed = Math.min(100, Math.max(0, maxForStage));
+    // For EOD Final Output, pre-fill the complete remaining shift balance so supervisor/QA saves in 1 click
+    const defaultSprayed = stageKey === 'stage_3_topcoat' ? Math.max(0, maxForStage) : Math.min(100, Math.max(0, maxForStage));
     setLogPiecesSprayed(defaultSprayed);
     setLogGoodPieces(defaultSprayed);
     setLogReworkPieces(0);
@@ -1641,6 +1698,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
 
   const handleSaveOutputBatch = (e: React.FormEvent) => {
     e.preventDefault();
+    if (currentUser.role === 'OPERATOR') return;
     if (logPiecesSprayed <= 0 || logPiecesSprayed > currentStageMaxAllowed) return;
 
     const now = new Date();
@@ -1648,6 +1706,12 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     const timeFormatted = logTimeInput || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 
     const isFinalStage = selectedStage === 'stage_3_topcoat';
+    const coatTags = [
+      appliedCoats.primer ? 'Primer' : null,
+      appliedCoats.basecoat ? 'Basecoat' : null,
+      appliedCoats.topcoat ? 'Topcoat' : null
+    ].filter(Boolean) as string[];
+    const coatSummary = coatTags.length > 0 ? `${coatTags.length}-Coat (${coatTags.join(' + ')})` : activeStageConfig.shortLabel;
     const newGoodTotal = isFinalStage ? (currentGoodQty + logGoodPieces) : currentGoodQty;
     const newRejectTotal = currentRejectQty + logRejectPieces;
     const newReworkTotal = isFinalStage
@@ -1669,6 +1733,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     const resolvedBoothNo = targetAssignment
       ? (targetAssignment.boothNumber || (targetAssignment as any).boothNo || 'Booth #1')
       : (dept.split('(')[0]?.trim() || 'Booth #1');
+    const qaVerifierLabel = `${currentUser.name || 'QA / Supervisor'} (${currentUser.roleTitle || currentUser.role || 'QA'})`;
 
     const newLogEntry: JobCardProductionProgressLog = {
       id: `LOG-${Date.now()}`,
@@ -1676,7 +1741,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       timeLabel: timeFormatted,
       dateLabel: dateFormatted,
       actionType: 'BATCH_OUTPUT',
-      actionTitle: `${activeStageConfig.shortLabel}: Batch of ${logPiecesSprayed} Pcs Processed`,
+      actionTitle: isFinalStage
+        ? `EOD Final Output [${coatSummary}]: ${logPiecesSprayed} Pcs (${logGoodPieces} OK, ${logReworkPieces} Rework, ${logRejectPieces} Scrap)`
+        : `${activeStageConfig.shortLabel}: Batch of ${logPiecesSprayed} Pcs Processed`,
       piecesCompleted: logPiecesSprayed,
       goodPieces: logGoodPieces,
       cumulativeGoodQty: newGoodTotal,
@@ -1686,9 +1753,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
       defectReason: (logReworkPieces > 0 || logRejectPieces > 0) ? logDefectReason.trim() : undefined,
       reworkAction: logReworkPieces > 0 ? logReworkAction.trim() : undefined,
       qaVerified: true,
-      qaVerifiedBy: currentUser.name || 'Quality Inspector',
+      qaVerifiedBy: qaVerifierLabel,
       processStage: selectedStage,
-      stageName: activeStageConfig.label,
+      stageName: isFinalStage ? coatSummary : activeStageConfig.label,
       assignmentId: targetAssignment?.id,
       painterName: resolvedPainterName,
       boothNo: resolvedBoothNo,
@@ -3792,14 +3859,14 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
                   <span className="text-[11px] font-mono font-bold text-[#8a6521] uppercase tracking-wider">
-                    Painter Operations • 3-Stage Output &amp; Company Consumables
+                    Painter Operations • EOD Final Output &amp; Company Consumables
                   </span>
                 </div>
                 <h3 className="font-serif font-normal text-lg sm:text-xl text-[#17191c] mt-0.5">
-                  Daily Painter Shifts, Stage Production &amp; Chemical Usage ({jobCardNo})
+                  Daily Painter Shifts, EOD Output &amp; Chemical Usage ({jobCardNo})
                 </h3>
                 <p className="text-xs text-[#777b86] mt-0.5">
-                  Select any painter below to inspect shift quota, update company paint usage, log Stage 1/2/3 output, and review timestamped activity.
+                  Select any painter below to inspect shift quota, log EOD Final Output (OK / Rework / Scrap), review chemical audit alerts &amp; timestamped activity.
                 </p>
               </div>
 
@@ -3994,7 +4061,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                             {metrics.completedGood.toLocaleString()} <span className="text-xs font-normal text-emerald-800">Pcs</span>
                           </span>
                           <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            {metrics.efficiency}% All-Stages OK
+                            {metrics.efficiency}% EOD Verified OK
                           </span>
                         </div>
 
@@ -4024,6 +4091,24 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                           </span>
                         </div>
                       </div>
+
+                      {(() => {
+                        const anomaly = getAssignmentReworkAnomaly(activeTab2Assignment);
+                        if (!anomaly.isFlagged) return null;
+                        return (
+                          <div className="p-3.5 rounded-[18px] bg-amber-50/90 border border-amber-300 flex items-start gap-2.5 text-xs text-amber-950">
+                            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                            <div className="space-y-0.5">
+                              <div className="font-bold text-amber-900">
+                                Audit Alert: Possible Unreported Rework ({anomaly.reasons.join(' • ')})
+                              </div>
+                              <p className="text-[11px] text-amber-800">
+                                Extra paint/chemical consumption detect hui hai jabki reported <strong>Rework = 0 Pcs</strong> hai. QA / Supervisor verify karein ki rework pieces ko Direct OK me hide toh nahi kiya gaya.
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Add-On Party Material Target Action Bar */}
                       <div className="p-3.5 rounded-[18px] bg-[#fafafb] border border-[#ececec] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -4282,265 +4367,354 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                 })()}
               </div>
 
-              {/* 2. 3-Stage Process Tracker & Stage Output Batch Logger */}
-              <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
-                      <span className="font-mono text-xs font-bold text-[#17191c] uppercase tracking-wider">
-                        3-Stage Production Output Tracker ({activeTab2Assignment.painterName.split('(')[0].trim()})
-                      </span>
-                    </div>
-                    <p className="text-xs text-[#777b86] mt-0.5">
-                      Log Stage 1 (Primer), Stage 2 (Basecoat), or Stage 3 (Clear Topcoat) pieces OK, Rework &amp; Dead Scrap for this painter.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!showOutputLogger) {
-                        handleSelectStage(selectedStage);
-                        setShowOutputLogger(true);
-                      } else {
-                        setShowOutputLogger(false);
-                      }
-                    }}
-                    className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs transition cursor-pointer flex items-center gap-1.5 self-start sm:self-auto active:scale-95 shadow-2xs"
-                  >
-                    {showOutputLogger ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                    <span>{showOutputLogger ? 'Close Logger Form' : '+ Log Stage Output'}</span>
-                  </button>
-                </div>
+              {/* 2. End-of-Day (EOD) Final Output & QA Verification */}
+              {(() => {
+                const asgMetrics = getAssignmentLiveMetrics(activeTab2Assignment);
+                const s1Legacy = getAssignmentStageSums(activeTab2Assignment, 'stage_1_primer');
+                const s2Legacy = getAssignmentStageSums(activeTab2Assignment, 'stage_2_basecoat');
+                const hasLegacyInStageLogs =
+                  s1Legacy.good + s1Legacy.rework + s1Legacy.scrap +
+                  s2Legacy.good + s2Legacy.rework + s2Legacy.scrap > 0;
+                const anomaly = getAssignmentReworkAnomaly(activeTab2Assignment);
+                const isOperatorBlocked = currentUser.role === 'OPERATOR';
+                const eodCoatTags = [
+                  appliedCoats.primer ? 'Primer' : null,
+                  appliedCoats.basecoat ? 'Basecoat' : null,
+                  appliedCoats.topcoat ? 'Topcoat' : null
+                ].filter(Boolean) as string[];
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {processStages.map((st) => {
-                    const sums = getAssignmentStageSums(activeTab2Assignment, st.key);
-                    const isStageActive = selectedStage === st.key;
-
-                    return (
-                      <div
-                        key={st.key}
-                        className={`p-4 rounded-[18px] border space-y-3 transition ${
-                          isStageActive
-                            ? 'bg-[#faf7ed] border-[#c09748]/50 shadow-2xs'
-                            : 'bg-[#fafafb] border-[#ececec]'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <span className="text-[10px] font-mono uppercase tracking-wider text-[#8a6521] font-bold block">
-                              Stage {st.num} • {st.badge}
-                            </span>
-                            <span className="font-bold text-xs text-[#17191c] block mt-0.5">{st.shortLabel}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              handleSelectStage(st.key);
-                              setShowOutputLogger(true);
-                            }}
-                            className="px-2.5 py-1 rounded-full bg-white hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10.5px] font-bold transition cursor-pointer shrink-0 active:scale-95"
-                          >
-                            + Log
-                          </button>
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-1.5 text-center text-xs">
-                          <div className="p-2 rounded-[10px] bg-emerald-50/80 border border-emerald-200">
-                            <span className="text-[9px] text-emerald-800 uppercase font-mono block">OK</span>
-                            <strong className="text-emerald-700 font-mono text-sm">{sums.good}</strong>
-                          </div>
-                          <div className="p-2 rounded-[10px] bg-amber-50/80 border border-amber-200">
-                            <span className="text-[9px] text-amber-800 uppercase font-mono block">Rework</span>
-                            <strong className="text-amber-800 font-mono text-sm">{sums.rework}</strong>
-                          </div>
-                          <div className="p-2 rounded-[10px] bg-rose-50/80 border border-rose-200">
-                            <span className="text-[9px] text-rose-800 uppercase font-mono block">Scrap</span>
-                            <strong className="text-rose-700 font-mono text-sm">{sums.scrap}</strong>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Inline Interactive Stage Output Form */}
-                {showOutputLogger && (
-                  <form
-                    onSubmit={handleSaveOutputBatch}
-                    className="p-5 rounded-[20px] bg-[#faf7ed] border border-[#f4e5be] space-y-4 animate-in fade-in duration-150"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#f4e5be]">
+                return (
+                  <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-xs space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
                       <div>
-                        <span className="text-[10px] font-mono uppercase tracking-wider text-[#8a6521] font-bold block">
-                          Logging Production Batch for {activeTab2Assignment.painterName}
-                        </span>
-                        <h4 className="font-serif text-base text-[#17191c]">
-                          {activeStageConfig.label} • Remaining Quota on Stage: {currentStageMaxAllowed.toLocaleString()} Pcs
-                        </h4>
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {processStages.map(st => (
-                          <button
-                            key={st.key}
-                            type="button"
-                            onClick={() => handleSelectStage(st.key)}
-                            className={`px-3 py-1 rounded-full text-[11px] font-bold transition cursor-pointer ${
-                              selectedStage === st.key
-                                ? 'bg-[#c09748] text-white shadow-2xs'
-                                : 'bg-white text-[#8a6521] border border-[#f4e5be]'
-                            }`}
-                          >
-                            Stage {st.num}: {st.shortLabel}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[10.5px] font-mono font-bold text-[#17191c] block">
-                          Pieces Processed *
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={Math.max(1, currentStageMaxAllowed)}
-                          value={logPiecesSprayed}
-                          onChange={e => handleSprayedPiecesChange(Number(e.target.value))}
-                          className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] font-mono text-sm font-bold text-[#17191c] focus:outline-none focus:border-[#c09748]"
-                          required
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[10.5px] font-mono font-bold text-emerald-800 block">
-                          Passed OK (Good)
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={logPiecesSprayed}
-                          value={logGoodPieces}
-                          onChange={e => handleGoodPiecesChange(Number(e.target.value))}
-                          className="w-full px-3 py-2 rounded-[14px] bg-white border border-emerald-300 font-mono text-sm font-bold text-emerald-800 focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[10.5px] font-mono font-bold text-amber-800 block">
-                          Rework (Salvage)
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={logPiecesSprayed}
-                          value={logReworkPieces}
-                          onChange={e => handleReworkPiecesChange(Number(e.target.value))}
-                          className="w-full px-3 py-2 rounded-[14px] bg-white border border-amber-300 font-mono text-sm font-bold text-amber-900 focus:outline-none focus:border-amber-500"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[10.5px] font-mono font-bold text-rose-800 block">
-                          Dead Scrap (Rej)
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={logPiecesSprayed}
-                          value={logRejectPieces}
-                          onChange={e => handleRejectPiecesChange(Number(e.target.value))}
-                          className="w-full px-3 py-2 rounded-[14px] bg-white border border-rose-300 font-mono text-sm font-bold text-rose-800 focus:outline-none focus:border-rose-500"
-                        />
-                      </div>
-                    </div>
-
-                    {(logReworkPieces > 0 || logRejectPieces > 0) && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                        <div className="space-y-1">
-                          <label className="text-[10.5px] font-mono font-bold text-rose-900 block">
-                            Defect Reason (ISO QA Code)
-                          </label>
-                          <select
-                            value={logDefectReason}
-                            onChange={e => setLogDefectReason(e.target.value)}
-                            className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] text-xs font-medium text-[#17191c] focus:outline-none focus:border-[#c09748]"
-                          >
-                            {DEFECT_PRESET_OPTIONS.map(opt => (
-                              <option key={opt} value={opt}>{opt}</option>
-                            ))}
-                          </select>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
+                          <span className="font-mono text-xs font-bold text-[#17191c] uppercase tracking-wider">
+                            EOD Final Production &amp; QA Output ({activeTab2Assignment.painterName.split('(')[0].trim()})
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-mono text-[10px] font-bold">
+                            ISO 9001 Clause 8.6
+                          </span>
                         </div>
+                        <p className="text-xs text-[#777b86] mt-0.5">
+                          Shift khatam hone par (EOD) sirf ek baar final Direct OK, Rework &amp; Dead Scrap darj karein — har stage ka alag count bharne ki zaroorat nahi.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!showOutputLogger) {
+                            handleSelectStage('stage_3_topcoat');
+                            setShowOutputLogger(true);
+                          } else {
+                            setShowOutputLogger(false);
+                          }
+                        }}
+                        className="px-4 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] font-bold text-xs transition cursor-pointer flex items-center gap-1.5 self-start sm:self-auto active:scale-95 shadow-2xs"
+                      >
+                        {showOutputLogger ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                        <span>{showOutputLogger ? 'Close EOD Form' : '+ Log EOD Final Output'}</span>
+                      </button>
+                    </div>
 
-                        {logReworkPieces > 0 && (
-                          <div className="space-y-1">
-                            <label className="text-[10.5px] font-mono font-bold text-amber-900 block">
-                              ISO 8.7 Corrective / Rework Action
-                            </label>
-                            <select
-                              value={logReworkAction}
-                              onChange={e => setLogReworkAction(e.target.value)}
-                              className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] text-xs font-medium text-[#17191c] focus:outline-none focus:border-[#c09748]"
-                            >
-                              {ISO_REWORK_ACTIONS.map(act => (
-                                <option key={act} value={act}>{act}</option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
+                    {/* Clean Single-Screen EOD Summary Row */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="p-3.5 rounded-[18px] bg-emerald-50/70 border border-emerald-200 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] font-mono uppercase text-emerald-800 font-bold block">Direct OK</span>
+                          <strong className="font-mono text-lg text-emerald-700">{asgMetrics.completedGood.toLocaleString()}</strong>
+                        </div>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      </div>
+                      <div className="p-3.5 rounded-[18px] bg-amber-50/70 border border-amber-200 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] font-mono uppercase text-amber-800 font-bold block">Rework</span>
+                          <strong className="font-mono text-lg text-amber-900">{asgMetrics.rework.toLocaleString()}</strong>
+                        </div>
+                        <RotateCcw className="w-4 h-4 text-amber-700 shrink-0" />
+                      </div>
+                      <div className="p-3.5 rounded-[18px] bg-rose-50/70 border border-rose-200 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] font-mono uppercase text-rose-800 font-bold block">Dead Scrap</span>
+                          <strong className="font-mono text-lg text-rose-700">{asgMetrics.scrap.toLocaleString()}</strong>
+                        </div>
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                      </div>
+                      <div className="p-3.5 rounded-[18px] bg-[#fafafb] border border-[#ececec] flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] font-mono uppercase text-[#777b86] font-bold block">EOD Balance</span>
+                          <strong className="font-mono text-lg text-[#17191c]">{asgMetrics.pending.toLocaleString()}</strong>
+                        </div>
+                        <Clock className="w-4 h-4 text-[#8a6521] shrink-0" />
+                      </div>
+                    </div>
+
+                    {/* Preserve Historical 3-Stage Chips Only When Legacy Stage 1/2 Logs Exist */}
+                    {hasLegacyInStageLogs && (
+                      <div className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] flex flex-wrap items-center gap-2 text-[11px] font-mono">
+                        <span className="font-bold text-[#777b86] uppercase text-[10px]">Legacy In-Process Stages:</span>
+                        {processStages.map(st => {
+                          const sums = getAssignmentStageSums(activeTab2Assignment, st.key);
+                          return (
+                            <span key={st.key} className="px-2.5 py-1 rounded-full bg-white border border-[#ececec] text-[#17191c]">
+                              S{st.num} ({st.shortLabel}): <strong className="text-emerald-700">{sums.good} OK</strong> / <strong className="text-amber-800">{sums.rework} RW</strong> / <strong className="text-rose-700">{sums.scrap} Sc</strong>
+                            </span>
+                          );
+                        })}
                       </div>
                     )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-                      <div className="space-y-1">
-                        <label className="text-[10.5px] font-mono font-bold text-[#777b86] block">
-                          Batch Log Time
-                        </label>
-                        <input
-                          type="text"
-                          value={logTimeInput}
-                          onChange={e => setLogTimeInput(e.target.value)}
-                          placeholder="e.g. 02:30 PM"
-                          className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] font-mono text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
-                        />
-                      </div>
-
-                      <div className="sm:col-span-2 space-y-1">
-                        <label className="text-[10.5px] font-mono font-bold text-[#777b86] block">
-                          Supervisor / Floor Remarks (Optional)
-                        </label>
-                        <input
-                          type="text"
-                          value={logRemarksInput}
-                          onChange={e => setLogRemarksInput(e.target.value)}
-                          placeholder="e.g. Booth #2 pressure stable, flash-off checked..."
-                          className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowOutputLogger(false)}
-                        className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition cursor-pointer"
+                    {/* Inline EOD Final Output Form */}
+                    {showOutputLogger && (
+                      <form
+                        onSubmit={handleSaveOutputBatch}
+                        className="p-5 rounded-[20px] bg-[#faf7ed] border border-[#f4e5be] space-y-4 animate-in fade-in duration-150"
                       >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={logPiecesSprayed <= 0 || currentStageMaxAllowed <= 0}
-                        className="px-5 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] disabled:opacity-50 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs active:scale-95"
-                      >
-                        <Save className="w-3.5 h-3.5" />
-                        <span>Save Stage {activeStageConfig.num} Output Batch</span>
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </div>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#f4e5be]">
+                          <div>
+                            <span className="text-[10px] font-mono uppercase tracking-wider text-[#8a6521] font-bold block">
+                              EOD Final Inspection &amp; Output • {activeTab2Assignment.painterName.split('(')[0].trim()}
+                            </span>
+                            <h4 className="font-serif text-base text-[#17191c]">
+                              Pending Balance: {currentStageMaxAllowed.toLocaleString()} Pcs
+                            </h4>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`px-3 py-1 rounded-full text-[11px] font-mono font-bold border flex items-center gap-1.5 ${
+                              isOperatorBlocked
+                                ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                : 'bg-white text-[#17191c] border-[#f4e5be]'
+                            }`}>
+                              <ShieldCheck className={`w-3.5 h-3.5 ${isOperatorBlocked ? 'text-rose-600' : 'text-[#8a6521]'}`} />
+                              <span>Verifier: {currentUser.name} ({currentUser.roleTitle || currentUser.role})</span>
+                            </span>
+                            {currentStageMaxAllowed > 0 && !isOperatorBlocked && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLogPiecesSprayed(currentStageMaxAllowed);
+                                  setLogGoodPieces(currentStageMaxAllowed);
+                                  setLogReworkPieces(0);
+                                  setLogRejectPieces(0);
+                                }}
+                                className="px-3.5 py-1.5 rounded-full bg-white hover:bg-[#faf3e0] text-[#8a6521] border border-[#c09748]/50 text-[11px] font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs active:scale-95"
+                              >
+                                <Sparkles className="w-3.5 h-3.5 text-[#c09748]" />
+                                <span>Mark All Remaining OK ({currentStageMaxAllowed} Pcs)</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {isOperatorBlocked && (
+                          <div className="p-3 rounded-[14px] bg-rose-50 border border-rose-200 flex items-center gap-2 text-xs text-rose-900">
+                            <Lock className="w-4 h-4 text-rose-600 shrink-0" />
+                            <span>
+                              <strong>Maker–Checker Lock (ISO 9001 Clause 8.6):</strong> Painter apna Final OK output khud verify nahi kar sakta. Production Supervisor ya QA Inspector login se output verify karein.
+                            </span>
+                          </div>
+                        )}
+
+                        {anomaly.isFlagged && logReworkPieces === 0 && (
+                          <div className="p-3 rounded-[14px] bg-amber-50 border border-amber-300 flex items-start gap-2 text-xs text-amber-950">
+                            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                            <span>
+                              <strong>Cross-Check Warning:</strong> Is job me extra paint/chemical use hua hai ({anomaly.reasons.join(', ')}), par aap <strong>Rework = 0</strong> save kar rahe hain. Confirm karein ki koi rework piece Direct OK me toh count nahi ho raha.
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Coating System Applied (Zero-Effort Checkboxes, No 3x Number Entry) */}
+                        <div className="p-3.5 rounded-[16px] bg-white border border-[#f4e5be] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <span className="text-[10px] font-mono uppercase tracking-wider text-[#8a6521] font-bold block">
+                              Coating Layers Completed ({eodCoatTags.length}-Coat System)
+                            </span>
+                            <span className="text-[11px] text-[#777b86]">
+                              Sirf tick karein ki kitne coat lage (1-Coat, 2-Coat, ya 3-Coat) — alag numbers bharne ki zaroorat nahi.
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {(
+                              [
+                                { key: 'primer', label: 'Primer' },
+                                { key: 'basecoat', label: 'Basecoat' },
+                                { key: 'topcoat', label: 'Clear Topcoat' }
+                              ] as const
+                            ).map(layer => {
+                              const checked = appliedCoats[layer.key];
+                              return (
+                                <button
+                                  key={layer.key}
+                                  type="button"
+                                  onClick={() =>
+                                    setAppliedCoats(prev => ({ ...prev, [layer.key]: !prev[layer.key] }))
+                                  }
+                                  className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition cursor-pointer flex items-center gap-1.5 ${
+                                    checked
+                                      ? 'bg-[#faf3e0] text-[#8a6521] border-[#c09748]'
+                                      : 'bg-[#fafafb] text-[#777b86] border-[#ececec]'
+                                  }`}
+                                >
+                                  <span
+                                    className={`w-3.5 h-3.5 rounded flex items-center justify-center border ${
+                                      checked ? 'bg-[#c09748] border-[#c09748] text-white' : 'bg-white border-[#dcdfe4]'
+                                    }`}
+                                  >
+                                    {checked && <Check className="w-2.5 h-2.5" />}
+                                  </span>
+                                  <span>{layer.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[10.5px] font-mono font-bold text-[#17191c] block">
+                              Total Finished (EOD) *
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={Math.max(1, currentStageMaxAllowed)}
+                              value={logPiecesSprayed}
+                              onChange={e => handleSprayedPiecesChange(Number(e.target.value))}
+                              className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] font-mono text-sm font-bold text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                              required
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[10.5px] font-mono font-bold text-emerald-800 block">
+                              Direct OK (Passed)
+                            </label>
+                            <input
+                              type="number"
+                              min={0}
+                              max={logPiecesSprayed}
+                              value={logGoodPieces}
+                              onChange={e => handleGoodPiecesChange(Number(e.target.value))}
+                              className="w-full px-3 py-2 rounded-[14px] bg-white border border-emerald-300 font-mono text-sm font-bold text-emerald-800 focus:outline-none focus:border-emerald-500"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[10.5px] font-mono font-bold text-amber-800 block">
+                              Rework (Re-Spray/Touch-Up)
+                            </label>
+                            <input
+                              type="number"
+                              min={0}
+                              max={logPiecesSprayed}
+                              value={logReworkPieces}
+                              onChange={e => handleReworkPiecesChange(Number(e.target.value))}
+                              className="w-full px-3 py-2 rounded-[14px] bg-white border border-amber-300 font-mono text-sm font-bold text-amber-900 focus:outline-none focus:border-amber-500"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[10.5px] font-mono font-bold text-rose-800 block">
+                              Dead Scrap (Rejected)
+                            </label>
+                            <input
+                              type="number"
+                              min={0}
+                              max={logPiecesSprayed}
+                              value={logRejectPieces}
+                              onChange={e => handleRejectPiecesChange(Number(e.target.value))}
+                              className="w-full px-3 py-2 rounded-[14px] bg-white border border-rose-300 font-mono text-sm font-bold text-rose-800 focus:outline-none focus:border-rose-500"
+                            />
+                          </div>
+                        </div>
+
+                        {(logReworkPieces > 0 || logRejectPieces > 0) && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            <div className="space-y-1">
+                              <label className="text-[10.5px] font-mono font-bold text-rose-900 block">
+                                Defect Reason (ISO QA Code)
+                              </label>
+                              <select
+                                value={logDefectReason}
+                                onChange={e => setLogDefectReason(e.target.value)}
+                                className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] text-xs font-medium text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                              >
+                                {DEFECT_PRESET_OPTIONS.map(opt => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {logReworkPieces > 0 && (
+                              <div className="space-y-1">
+                                <label className="text-[10.5px] font-mono font-bold text-amber-900 block">
+                                  ISO 8.7 Corrective / Rework Action
+                                </label>
+                                <select
+                                  value={logReworkAction}
+                                  onChange={e => setLogReworkAction(e.target.value)}
+                                  className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] text-xs font-medium text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                                >
+                                  {ISO_REWORK_ACTIONS.map(act => (
+                                    <option key={act} value={act}>{act}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                          <div className="space-y-1">
+                            <label className="text-[10.5px] font-mono font-bold text-[#777b86] block">
+                              EOD Log Time
+                            </label>
+                            <input
+                              type="text"
+                              value={logTimeInput}
+                              onChange={e => setLogTimeInput(e.target.value)}
+                              placeholder="e.g. 06:30 PM"
+                              className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] font-mono text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                            />
+                          </div>
+
+                          <div className="sm:col-span-2 space-y-1">
+                            <label className="text-[10.5px] font-mono font-bold text-[#777b86] block">
+                              QA / Supervisor Remarks (Optional)
+                            </label>
+                            <input
+                              type="text"
+                              value={logRemarksInput}
+                              onChange={e => setLogRemarksInput(e.target.value)}
+                              placeholder="e.g. Final gloss & shade matched against master sample..."
+                              className="w-full px-3 py-2 rounded-[14px] bg-white border border-[#dcdfe4] text-xs text-[#17191c] focus:outline-none focus:border-[#c09748]"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowOutputLogger(false)}
+                            className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold transition cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={isOperatorBlocked || logPiecesSprayed <= 0 || currentStageMaxAllowed <= 0}
+                            className="px-5 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] disabled:opacity-50 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs active:scale-95"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Save EOD Final Output ({logPiecesSprayed} Pcs)</span>
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* 3. Company Paints, Thinners & Consumables (Issue + Live Usage Update) */}
               {(() => {
@@ -4947,6 +5121,16 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                               <span className="text-rose-700 font-mono">Scrap: <strong>{metrics.scrap}</strong> pcs</span>
                             )}
                             <span className="text-amber-800 font-mono font-bold">Efficiency: {metrics.efficiency}%</span>
+                            {(() => {
+                              const anomaly = getAssignmentReworkAnomaly(asg);
+                              if (!anomaly.isFlagged) return null;
+                              return (
+                                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-mono text-[10px] font-bold flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3 text-amber-700" />
+                                  <span>Audit: Extra Paint Used (0 Rework)</span>
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
 
@@ -5033,13 +5217,13 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
                   <div className="flex items-center gap-2">
                     <History className="w-4 h-4 text-[#c09748]" />
                     <h4 className="font-serif font-normal text-base text-[#17191c]">
-                      All Painter Activity &amp; Stage Output Logs ({liveProgressLogs.length})
+                      All Painter Activity &amp; EOD Output Logs ({liveProgressLogs.length})
                     </h4>
                   </div>
                 </div>
                 {liveProgressLogs.length === 0 ? (
                   <div className="p-6 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[16px] border border-dashed border-[#ececec]">
-                    No production batch logs recorded yet. Select any painter above to log 3-stage output.
+                    No EOD production output logs recorded yet. Select any painter above to log EOD Final Output.
                   </div>
                 ) : (
                   <div className="space-y-2">

@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-25: Converted Painter Output Tracker to EOD Single Final Output + Maker-Checker QA & Hidden Rework Chemical Audit (`JobCardModal.tsx`)
+  - Files touched:
+    - `src/portal/components/JobCardModal.tsx`: Replaced forced 3-stage sequential output logging with single EOD Final Production & QA Output (`selectedStage` default `'stage_3_topcoat'`, `appliedCoats` Primer/Basecoat/Topcoat layer checkboxes, 1-click `Mark All Remaining OK` button, unlocked `getAssignmentStageMaxAllowed` for direct EOD entry,Maker-Checker `OPERATOR` self-verify lock per ISO 9001 Clause 8.6), and added `getAssignmentReworkAnomaly` chemical cross-check alerting on Extra Add-On MRNs / >115% norm consumption with 0 Rework (`Audit Alert` banner + summary badge).
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-25: Deduplicated Painter Filter Pills & Added Model Selector Dropdown (`JobCardModal.tsx`, `PKDropdown.tsx`)
   - Files touched:
     - `src/portal/components/PKDropdown.tsx` & `src/portal/components/DailyAssignmentModal.tsx`: Extracted shared `PKDropdown` component.
