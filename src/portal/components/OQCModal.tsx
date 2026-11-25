@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePortalStore } from '../context/PortalStoreContext';
-import { JobCard, FinalQualityRelease } from '../types/portalTypes';
+import { JobCard, FinalQualityRelease, IPQCSlotObservation } from '../types/portalTypes';
 import { 
   CheckCircle2, 
   X, 
@@ -54,7 +54,7 @@ export const OQCModal: React.FC<OQCModalProps> = ({
   jobCard,
   onSuccess
 }) => {
-  const { addOQCRelease, activePlant, currentUser, fpaRecords } = usePortalStore();
+  const { addOQCRelease, activePlant, currentUser, fpaRecords, ipqcRecords } = usePortalStore();
 
   // Multi-step: Step 1 (Visual Checks & Delta-E) | Step 2 (Sampling Counts & Dual Sign-off)
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
@@ -126,10 +126,39 @@ export const OQCModal: React.FC<OQCModalProps> = ({
       setSampledQty(Math.max(5, Math.ceil(offer * 0.1))); // 10% sampling rule or min 5
     }
 
-    // Lookup matching FPA record for Master LAB benchmark
+    // Lookup matching IPQC (preferred for live shift Delta-E) or FPA record for Master LAB benchmark
     const jcNo = jobCard?.jobCardNo;
+    const matchIpqc = ipqcRecords.find(
+      ip => (jcNo && ip.jobCardNo === jcNo) || (jobCard?.woNo && ip.woNo === jobCard.woNo)
+    );
     const matchFpa = fpaRecords.find(f => (jcNo && f.jobCardNo === jcNo) || (jobCard?.woNo && f.woNo === jobCard.woNo));
-    if (matchFpa) {
+    if (matchIpqc) {
+      const mL = matchIpqc.masterL ?? matchFpa?.masterLab?.masterL ?? matchFpa?.masterL ?? 42.00;
+      const mA = matchIpqc.masterA ?? matchFpa?.masterLab?.masterA ?? matchFpa?.masterA ?? 54.00;
+      const mB = matchIpqc.masterB ?? matchFpa?.masterLab?.masterB ?? matchFpa?.masterB ?? 28.00;
+      setMasterL(mL);
+      setMasterA(mA);
+      setMasterB(mB);
+
+      const rawSlots = Object.values(matchIpqc.timeSlots || {}) as Array<IPQCSlotObservation | undefined>;
+      const slots = rawSlots.filter((s): s is IPQCSlotObservation => Boolean(s && s.deltaE !== '' && s.deltaE !== undefined));
+      const getSlot = (idx: number) => {
+        const s = slots[idx];
+        return {
+          L: s?.L ?? matchIpqc.L ?? mL,
+          a: s?.a ?? matchIpqc.a ?? mA,
+          b: s?.b ?? matchIpqc.b ?? mB,
+          deltaE: s?.deltaE ?? matchIpqc.deltaE ?? 0.38
+        };
+      };
+      setSampleSpectro({
+        s1: getSlot(0),
+        s2: getSlot(1),
+        s3: getSlot(2),
+        s4: getSlot(3),
+        s5: getSlot(4)
+      });
+    } else if (matchFpa) {
       const mL = matchFpa.masterLab?.masterL || matchFpa.masterL || 42.00;
       const mA = matchFpa.masterLab?.masterA || matchFpa.masterA || 54.00;
       const mB = matchFpa.masterLab?.masterB || matchFpa.masterB || 28.00;
@@ -150,7 +179,7 @@ export const OQCModal: React.FC<OQCModalProps> = ({
         s5: { L: Number((baseL - 0.01).toFixed(2)), a: Number((baseA - 0.01).toFixed(2)), b: Number((baseB - 0.01).toFixed(2)), deltaE: Number(fpaDelta.toFixed(2)) }
       });
     }
-  }, [jobCard, fpaRecords]);
+  }, [jobCard, fpaRecords, ipqcRecords]);
 
   if (!isOpen) return null;
 

@@ -28,7 +28,7 @@ export const PDIModal: React.FC<PDIModalProps> = ({
   release,
   onSuccess
 }) => {
-  const { submitPdiClearance, currentUser, fpaRecords, qualityReleases, billingInvoices } = usePortalStore();
+  const { submitPdiClearance, currentUser, fpaRecords, ipqcRecords, qualityReleases, billingInvoices } = usePortalStore();
 
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
 
@@ -103,25 +103,40 @@ export const PDIModal: React.FC<PDIModalProps> = ({
       setBoxQty(bQty);
       setCheckedSamplePdi(Math.max(5, Math.ceil(totalPcs * 0.05)));
 
-      // Inherit Master LAB from OQC release or FPA
-      if (release.masterL) setMasterL(release.masterL);
-      if (release.masterA) setMasterA(release.masterA);
-      if (release.masterB) setMasterB(release.masterB);
-      if (release.L) setL(release.L);
-      if (release.a) setA(release.a);
-      if (release.b) setB(release.b);
-      if (release.deltaE !== undefined) setDeltaE(release.deltaE);
+      // Inherit Master LAB & Delta-E from OQC release -> IPQC -> FPA
+      const matchIpqc = ipqcRecords.find(
+        ip => (release.jobCardNo && ip.jobCardNo === release.jobCardNo) || ip.woNo === release.woNo || ip.partCode === release.partCode
+      );
+      if (release.masterL && release.masterL !== '-') setMasterL(release.masterL);
+      else if (matchIpqc?.masterL) setMasterL(matchIpqc.masterL);
+      if (release.masterA && release.masterA !== '-') setMasterA(release.masterA);
+      else if (matchIpqc?.masterA) setMasterA(matchIpqc.masterA);
+      if (release.masterB && release.masterB !== '-') setMasterB(release.masterB);
+      else if (matchIpqc?.masterB) setMasterB(matchIpqc.masterB);
+      if (release.L !== undefined) setL(release.L);
+      else if (matchIpqc?.L !== undefined) setL(matchIpqc.L);
+      if (release.a !== undefined) setA(release.a);
+      else if (matchIpqc?.a !== undefined) setA(matchIpqc.a);
+      if (release.b !== undefined) setB(release.b);
+      else if (matchIpqc?.b !== undefined) setB(matchIpqc.b);
+      if (release.deltaE !== undefined && Number(release.deltaE) > 0) setDeltaE(release.deltaE);
+      else if (matchIpqc?.deltaE !== undefined) setDeltaE(matchIpqc.deltaE);
 
       // Try looking up FPA for paint batches
       const matchFpa = fpaRecords.find(f => f.woNo === release.woNo || f.partCode === release.partCode);
-      if (matchFpa) {
+      if (matchIpqc) {
+        if (matchIpqc.paintBatchNumber || matchIpqc.paintBatch) setPaintBatchNumber(matchIpqc.paintBatchNumber || matchIpqc.paintBatch || '');
+        if (matchIpqc.paintDescription) setPaintDescription(matchIpqc.paintDescription);
+        if (matchIpqc.paintViscosity || matchIpqc.viscositySec) setPaintViscosity(`${matchIpqc.paintViscosity || matchIpqc.viscositySec}s (Ford-4)`);
+        if (matchIpqc.family) setFamily(matchIpqc.family);
+      } else if (matchFpa) {
         if (matchFpa.paintBatch) setPaintBatchNumber(matchFpa.paintBatch);
         if (matchFpa.paintDescription) setPaintDescription(matchFpa.paintDescription);
         if (matchFpa.viscositySec) setPaintViscosity(`${matchFpa.viscositySec}s (Ford-4)`);
         if (matchFpa.family) setFamily(matchFpa.family);
       }
     }
-  }, [release, fpaRecords]);
+  }, [release, fpaRecords, ipqcRecords]);
 
   if (!isOpen) return null;
 

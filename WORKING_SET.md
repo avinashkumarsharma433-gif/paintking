@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-25: Redesigned Packing Queue into Party & Multi-Model List + IPQC Delta-E Inheritance + Post-Report Box Label Modal (`PackingView.tsx`, `PortalStoreContext.tsx`, `OQCModal.tsx`, `PDIModal.tsx`)
+  - Files touched:
+    - `src/portal/types/portalTypes.ts` & `src/portal/context/PortalStoreContext.tsx`: Added `resolveColorimetryFromIpqcOrFpa` (auto-inherits live IPQC Delta-E into Auto-OQC), `recordMultiModelCheckAndPackBatch` (1 Combined Auto-OQC + per-model FG slips + assignment/JobCard Rework/Scrap bounce-back), and `updatePackingSlipBoxes`.
+    - `src/portal/components/OQCModal.tsx` & `src/portal/components/PDIModal.tsx`: Wired `ipqcRecords` Delta-E & Master LAB lookup before FPA fallback.
+    - `src/portal/views/PackingView.tsx`: Removed top dropdown + permanent sticker mockup; Tab 1 now lists every Party & Model with OK output from Production (all 10+ models visible at once) with inline `Packing OK / Rework / Rejection` + `Save Model` or `Save All & Create 1 OQC Report`; Tab 2 provides `Generate Box Labels` modal (A4/Thermal stickers) on each created report alongside `OQC PDF`, `PDI`, and `Dispatch`.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-25: Implemented Unified Check & Pack -> Auto-OQC -> Auto-FG Stock -> PDI Flow (`PackingView.tsx`, `PortalStoreContext.tsx`, `portalTypes.ts`)
   - Files touched:
     - `src/portal/types/portalTypes.ts`: Added `jobCardNo`, `offeredQty`, `packedOkQty`, `reworkReturnedQty`, `scrapQty`, `defectReason`, `pcsPerBox`, `totalBoxes`, `oqcReleaseId`, `dispatchedQty`, `fgStatus` on `PackingSlipRecord`, and `jobCardNo` on `FinalQualityRelease`.

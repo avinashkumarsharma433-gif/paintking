@@ -1278,6 +1278,8 @@ export interface PackingSlipRecord {
   customer: string;
   woNo: string;
   jobCardNo?: string;
+  assignmentId?: string;
+  batchReportGroupId?: string;
   partCode: string;
   partDescription?: string;
   model: string;
@@ -1319,6 +1321,8 @@ export interface FinalQualityRelease {
   releaseId: string;
   reportNo?: string;          // e.g. "PK-OQC-2026-081"
   jobCardNo?: string;
+  packedModelsCount?: number;
+  deltaSource?: 'IPQC' | 'FPA' | 'Visual';
   date: string;
   plant: PlantLocation;
   woNo: string;
