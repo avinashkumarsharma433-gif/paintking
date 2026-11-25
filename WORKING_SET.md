@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-25: Deduplicated Painter Filter Pills & Added Model Selector Dropdown (`JobCardModal.tsx`, `PKDropdown.tsx`)
+  - Files touched:
+    - `src/portal/components/PKDropdown.tsx` & `src/portal/components/DailyAssignmentModal.tsx`: Extracted shared `PKDropdown` component.
+    - `src/portal/components/JobCardModal.tsx`: Grouped `PAINTER FILTER:` pills by unique Painter (`uniquePainterGroups`, e.g. `All Painters (2)`, `Kailash Yadav • 8 Models`, `Avinash Sharma • 2 Models`) and added a clean `PKDropdown` underneath to switch between a selected painter's assigned models/colours.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-25: Built Custom Styled PK-OS Dropdown (`PKDropdown`) in Painter Task Allocation (`DailyAssignmentModal.tsx`)
   - Files touched:
     - `src/portal/components/DailyAssignmentModal.tsx`: Replaced native OS `<select>` elements across Steps 1–3 (Painter, Spray Booth, Model selector, Chemical Type, Colour tag, and Unit) with custom PK-OS `PKDropdown` featuring champagne active states, sublabels, badges, Escape/outside-click close, and zero browser-default blue menus.

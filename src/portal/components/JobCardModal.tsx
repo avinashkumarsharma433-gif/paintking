@@ -71,6 +71,7 @@ import { PreProductionInspectionModal } from './PreProductionInspectionModal';
 import { FPAModal } from './FPAModal';
 import { IPQCModal } from './IPQCModal';
 import { DailyAssignmentModal } from './DailyAssignmentModal';
+import { PKDropdown } from './PKDropdown';
 
 interface JobCardModalProps {
   isOpen: boolean;
@@ -688,6 +689,48 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     if (selectedAssignmentId === 'ALL' || !selectedAssignmentId) return null;
     return currentJcAssignments.find(a => a.id === selectedAssignmentId || a.assignmentId === selectedAssignmentId) || null;
   }, [currentJcAssignments, selectedAssignmentId]);
+
+  const uniquePainterGroups = useMemo(() => {
+    const map = new Map<string, {
+      painterKey: string;
+      displayName: string;
+      assignments: PainterAssignment[];
+      hasActive: boolean;
+    }>();
+
+    currentJcAssignments.forEach(asg => {
+      const displayName = (asg.painterName || 'Painter').split('(')[0].trim() || 'Painter';
+      const painterKey = (asg.painterId && asg.painterId !== 'unknown'
+        ? asg.painterId
+        : displayName
+      ).trim().toLowerCase();
+
+      if (!map.has(painterKey)) {
+        map.set(painterKey, {
+          painterKey,
+          displayName,
+          assignments: [],
+          hasActive: false
+        });
+      }
+      const grp = map.get(painterKey)!;
+      grp.assignments.push(asg);
+      if (!asg.status.startsWith('Closed')) {
+        grp.hasActive = true;
+      }
+    });
+
+    return Array.from(map.values());
+  }, [currentJcAssignments]);
+
+  const selectedPainterGroup = useMemo(() => {
+    if (!activeTab2Assignment) return null;
+    return (
+      uniquePainterGroups.find(grp =>
+        grp.assignments.some(a => a.id === activeTab2Assignment.id || a.assignmentId === activeTab2Assignment.id)
+      ) || null
+    );
+  }, [uniquePainterGroups, activeTab2Assignment]);
 
   const jcPainters = useMemo(() => {
     const set = new Set<string>();
@@ -3771,62 +3814,84 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
             </div>
 
             {currentJcAssignments.length > 0 && (
-              <div className="flex items-center gap-2 flex-wrap pt-3 border-t border-[#ececec]">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[#777b86] font-bold mr-1">
-                  Painter Filter:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedAssignmentId('ALL');
-                    setShowOutputLogger(false);
-                    setShowIssueChemDrawer(false);
-                  }}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                    selectedAssignmentId === 'ALL'
-                      ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] ring-1 ring-[#c09748]/30 shadow-2xs'
-                      : 'bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4]'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5 text-[#8a6521]" />
-                  <span>All Painters ({currentJcAssignments.length})</span>
-                </button>
+              <div className="space-y-3 pt-3 border-t border-[#ececec]">
+                {/* Row 1: Unique Painters Only */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-[#777b86] font-bold mr-1">
+                    Painter Filter:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedAssignmentId('ALL');
+                      setShowOutputLogger(false);
+                      setShowIssueChemDrawer(false);
+                    }}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                      selectedAssignmentId === 'ALL'
+                        ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] ring-1 ring-[#c09748]/30 shadow-2xs'
+                        : 'bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4]'
+                    }`}
+                  >
+                    <Users className="w-3.5 h-3.5 text-[#8a6521]" />
+                    <span>All Painters ({uniquePainterGroups.length})</span>
+                  </button>
 
-                {currentJcAssignments.map(asg => {
-                  const isSelected = activeTab2Assignment?.id === asg.id;
-                  const isClosed = asg.status.startsWith('Closed');
-                  return (
-                    <button
-                      key={asg.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedAssignmentId(asg.id);
-                        setShowOutputLogger(false);
-                        setShowIssueChemDrawer(false);
-                        setShowAddTargetDrawer(false);
-                      }}
-                      className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-2 ${
-                        isSelected
-                          ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] ring-1 ring-[#c09748]/30 font-bold shadow-2xs'
-                          : 'bg-white hover:bg-[#fafafb] text-[#17191c] border border-[#ececec]'
-                      }`}
-                    >
-                      <span className={`w-2 h-2 rounded-full ${isClosed ? 'bg-emerald-500' : 'bg-[#c09748]'}`} />
-                      <span>{asg.painterName.split('(')[0].trim()}</span>
-                      <span className="text-[10px] font-mono text-[#777b86]">• {asg.assignmentDate}</span>
-                      {(asg.partDescription || asg.partCode) && (
-                        <span className="px-2 py-0.2 rounded-full text-[10px] font-mono bg-[#f2f2f3] text-[#17191c] border border-[#dcdfe4]">
-                          {asg.partDescription || asg.partCode}
+                  {uniquePainterGroups.map(grp => {
+                    const isSelected = selectedPainterGroup?.painterKey === grp.painterKey;
+                    return (
+                      <button
+                        key={grp.painterKey}
+                        type="button"
+                        onClick={() => {
+                          const targetAsg =
+                            (isSelected && activeTab2Assignment) ? activeTab2Assignment : grp.assignments[0];
+                          setSelectedAssignmentId(targetAsg.id);
+                          setShowOutputLogger(false);
+                          setShowIssueChemDrawer(false);
+                          setShowAddTargetDrawer(false);
+                        }}
+                        className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer flex items-center gap-2 ${
+                          isSelected
+                            ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] ring-1 ring-[#c09748]/30 font-bold shadow-2xs'
+                            : 'bg-white hover:bg-[#fafafb] text-[#17191c] border border-[#ececec]'
+                        }`}
+                      >
+                        <span className={`w-2 h-2 rounded-full ${grp.hasActive ? 'bg-[#c09748]' : 'bg-emerald-500'}`} />
+                        <span>{grp.displayName}</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-[#f2f2f3] text-[#777b86] border border-[#dcdfe4]">
+                          {grp.assignments.length} Model{grp.assignments.length !== 1 ? 's' : ''}
                         </span>
-                      )}
-                      {asg.colorShade && (
-                        <span className="px-2 py-0.2 rounded-full text-[10px] font-mono bg-[#faf7ed] text-[#8a6521] border border-[#f4e5be]">
-                          {asg.colorShade}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Row 2: Model / Task Selector Dropdown for the Selected Painter */}
+                {selectedPainterGroup && (
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 pt-2.5 border-t border-[#f2f2f3]">
+                    <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#8a6521] shrink-0">
+                      Select Model for {selectedPainterGroup.displayName} ({selectedPainterGroup.assignments.length}):
+                    </span>
+                    <div className="flex-1 max-w-xl">
+                      <PKDropdown
+                        value={activeTab2Assignment?.id || selectedPainterGroup.assignments[0]?.id || ''}
+                        onChange={val => {
+                          setSelectedAssignmentId(val);
+                          setShowOutputLogger(false);
+                          setShowIssueChemDrawer(false);
+                          setShowAddTargetDrawer(false);
+                        }}
+                        options={selectedPainterGroup.assignments.map(asg => ({
+                          value: asg.id,
+                          label: `${asg.partDescription || asg.partCode || 'Substrate'} (${asg.colorShade || 'Standard'})`,
+                          sublabel: `${asg.assignmentId || asg.id} • ${asg.assignmentDate} • ${asg.status}`,
+                          badge: `${Number(asg.dailyTargetQty || 0).toLocaleString('en-IN')} Pcs`
+                        }))}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
