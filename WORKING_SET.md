@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-25: Simplified Step 1 to Clean Dropdowns & Normalized Form Typography (`DailyAssignmentModal.tsx`)
+  - Files touched:
+    - `src/portal/components/DailyAssignmentModal.tsx`: Restored clean `<select>` dropdowns for Painter & Spray Booth in Step 1 (`h-10 text-xs sm:text-[13px]`) and balanced heading/input/button typography (`text-xs` / `h-10`) across Steps 1–3 so text is comfortably readable without feeling oversized.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-25: Redesigned Full-Screen 2-Column Painter Task Allocation UI/UX (`DailyAssignmentModal.tsx`)
   - Files touched:
     - `src/portal/components/DailyAssignmentModal.tsx`: Upgraded to balanced `max-w-7xl` two-column full-screen workspace (`lg:col-span-8` main step canvas + sticky `lg:col-span-4` Live Allocation Ledger panel), clickable Painter & Booth selection cards in Step 1, larger typography (`>=12px` labels, `14px` `h-11` inputs), progress bar, and instant step edit shortcuts.
