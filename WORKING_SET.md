@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-25: Fixed Packing Header Layout & Tab Pill Alignment (`PackingView.tsx`)
+  - Files touched:
+    - `src/portal/views/PackingView.tsx`: Separated top metric badges (`Queue`, `FG Stock`) cleanly on the top-right and placed `1. Production OK List` / `2. Packing Reports & Box Labels` tabs into a dedicated single-line `whitespace-nowrap` pill bar below the header divider so button labels never wrap awkwardly.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors).
+
 - 2026-11-25: Redesigned Packing Queue into Party & Multi-Model List + IPQC Delta-E Inheritance + Post-Report Box Label Modal (`PackingView.tsx`, `PortalStoreContext.tsx`, `OQCModal.tsx`, `PDIModal.tsx`)
   - Files touched:
     - `src/portal/types/portalTypes.ts` & `src/portal/context/PortalStoreContext.tsx`: Added `resolveColorimetryFromIpqcOrFpa` (auto-inherits live IPQC Delta-E into Auto-OQC), `recordMultiModelCheckAndPackBatch` (1 Combined Auto-OQC + per-model FG slips + assignment/JobCard Rework/Scrap bounce-back), and `updatePackingSlipBoxes`.

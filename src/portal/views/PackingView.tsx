@@ -572,55 +572,56 @@ export const PackingView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Header & Tab Switcher */}
-      <div className="bg-white rounded-[24px] p-6 border border-[#ececec] shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
+      {/* Top Header & Dedicated Single-Line Tab Switcher */}
+      <div className="bg-white rounded-[24px] p-5 sm:p-6 border border-[#ececec] shadow-2xs space-y-4">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
+          <div className="space-y-1">
+            <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-widest font-bold">
               PK-STR-PKG-001 • PACKING &amp; OQC DESK
             </span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold">
-              {totalModelsReadyCount} Models Ready ({totalPiecesReadyCount.toLocaleString('en-IN')} Pcs)
+            <h1 className="text-2xl sm:text-3xl font-serif font-normal text-[#17191c] tracking-tight">
+              Packing Queue, OQC &amp; Box Labels
+            </h1>
+            <p className="text-xs text-[#777b86]">
+              Har model par OK / Rework / Rejection enter karein, aur report banne ke baad uspar Box Labels generate karein.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <span className="px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold whitespace-nowrap">
+              Queue: {totalModelsReadyCount} Models ({totalPiecesReadyCount.toLocaleString('en-IN')} Pcs)
             </span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#fafafb] text-[#17191c] border border-[#ececec] font-mono font-semibold">
+            <span className="px-3.5 py-1.5 rounded-full bg-[#fafafb] text-[#17191c] border border-[#ececec] text-xs font-mono font-semibold whitespace-nowrap">
               FG Stock: {fgMetrics.inFgBalance.toLocaleString('en-IN')} Pcs
             </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-serif font-normal text-[#17191c] tracking-tight">
-            Packing Queue, OQC Reports &amp; Box Labels
-          </h1>
-          <p className="text-xs text-[#777b86] mt-1">
-            Step 1: Production se OK hokar aaye har Party &amp; Model par OK / Rework / Rejection enter karein • Step 2: Report banne ke baad uspar Box Labels generate karein.
-          </p>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="inline-flex p-1 rounded-full bg-[#fafafb] border border-[#ececec]">
-            <button
-              type="button"
-              onClick={() => setActiveSubTab('ready_queue')}
-              className={`px-4 py-2 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                activeSubTab === 'ready_queue'
-                  ? 'bg-[#c09748] text-white shadow-xs'
-                  : 'text-[#777b86] hover:text-[#17191c]'
-              }`}
-            >
-              <Package size={14} />
-              <span>1. Production OK List ({totalModelsReadyCount})</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSubTab('reports_fg')}
-              className={`px-4 py-2 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                activeSubTab === 'reports_fg'
-                  ? 'bg-[#c09748] text-white shadow-xs'
-                  : 'text-[#777b86] hover:text-[#17191c]'
-              }`}
-            >
-              <ClipboardCheck size={14} />
-              <span>2. Packing / OQC &amp; Box Labels ({fgRecords.length})</span>
-            </button>
-          </div>
+        <div className="pt-3 border-t border-[#ececec] flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('ready_queue')}
+            className={`px-4 py-2 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              activeSubTab === 'ready_queue'
+                ? 'bg-[#c09748] text-white shadow-xs'
+                : 'bg-[#fafafb] text-[#777b86] border border-[#ececec] hover:text-[#17191c]'
+            }`}
+          >
+            <Package size={14} className="shrink-0" />
+            <span>1. Production OK List ({totalModelsReadyCount})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('reports_fg')}
+            className={`px-4 py-2 rounded-full text-xs font-bold transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+              activeSubTab === 'reports_fg'
+                ? 'bg-[#c09748] text-white shadow-xs'
+                : 'bg-[#fafafb] text-[#777b86] border border-[#ececec] hover:text-[#17191c]'
+            }`}
+          >
+            <ClipboardCheck size={14} className="shrink-0" />
+            <span>2. Packing Reports &amp; Box Labels ({fgRecords.length})</span>
+          </button>
         </div>
       </div>
 
