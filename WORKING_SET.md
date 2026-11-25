@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-25: Upgraded Painter Task Allocation for Multi-Model & Same-Model Colour Splits (`DailyAssignmentModal.tsx`, `PortalStoreContext.tsx`)
+  - Files touched:
+    - `src/portal/types/portalTypes.ts`: Added `PainterBatchTaskLine` and `allocationBatchId` on `PainterAssignment`.
+    - `src/portal/context/PortalStoreContext.tsx`: Added `createPainterAssignmentsBatch` with atomic per-part/master balance validation, colour-aware proportional chemical distribution (`distributeBatchMaterials`), single consolidated MRN upsert (`upsertPendingFloorDemand`), and colour-aware chemical grouping key in `buildConsolidatedFloorDemand`.
+    - `src/portal/components/DailyAssignmentModal.tsx`, `src/portal/views/JobCardsView.tsx`, `src/portal/components/JobCardModal.tsx`: Replaced single model/qty/colour inputs with multi-row task builder supporting quick inward model pills, `+ Select All Pending`, 1-click `Split` colour splitting, quick colour fill chips, and colour-aware `Auto-Estimate`.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-25: Added Monthly Lot Sequence, Box Quantity Input & Challan Details on Party Stock Ledger Cards (`GatePassView.tsx`, `PortalStoreContext.tsx`, `BatchLedger.tsx`)
   - Files touched:
     - `src/portal/types/portalTypes.ts` & `src/portal/utils/stockEngine.ts`: Added `challanNo`, `challanDate`, `totalBoxes`, `monthlyLotNo`, `monthlyLotMonth` fields plus `extractYearMonthKey`, `toComparableDateKey`, and `formatOrdinalLot` helpers.

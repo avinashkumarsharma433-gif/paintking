@@ -273,7 +273,7 @@ export const JobCardsView: React.FC = () => {
     requestNextDayTarget,
     painterAssignments,
     assignmentMaterialLogs,
-    createPainterAssignment,
+    createPainterAssignmentsBatch,
     closePainterAssignment,
     getPainterConsumablesLedger
   } = usePortalStore();
@@ -4451,10 +4451,13 @@ export const JobCardsView: React.FC = () => {
           )}
           painters={filteredPainters}
           booths={filteredBooths}
-          onAssign={(assignmentData) => {
-            const res = createPainterAssignment(assignmentData, selectedMasterForAssign);
+          onAssignBatch={(batchData) => {
+            const res = createPainterAssignmentsBatch(batchData, selectedMasterForAssign);
             if (res?.success) {
-              setToastMessage(`✓ Daily Party & Company materials assigned to ${assignmentData.painterName} — Floor Demand (${res.assignment?.storeDemandMrnNo || 'MRN'}) sent to Store!`);
+              const totalPcs = batchData.taskLines.reduce((s, t) => s + Number(t.dailyTargetQty || 0), 0);
+              setToastMessage(
+                `✓ ${batchData.taskLines.length} Task${batchData.taskLines.length > 1 ? 's' : ''} (${totalPcs.toLocaleString('en-IN')} Pcs) assigned to ${batchData.painterName} — Floor Demand (${res.mrnNo || 'MRN'}) sent to Store!`
+              );
               setTimeout(() => setToastMessage(null), 4000);
             }
             return res;

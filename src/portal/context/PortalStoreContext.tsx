@@ -65,7 +65,10 @@ import {
   PainterFloorDemandEntry,
   AssignmentMaterialLog,
   AssignmentStatus,
+  AssignmentProcessStage,
+  AssignmentShiftType,
   MasterJobCard,
+  PainterBatchTaskLine,
   resolveJobCardInwardParts,
   computeAssignmentBalance,
   isLegacyDemoJobCard,
@@ -156,6 +159,21 @@ interface PortalContextType {
     assignmentData: Omit<PainterAssignment, 'id' | 'status' | 'actualCompletedQty' | 'rejectReworkQty' | 'scrapQty' | 'stageOkQty' | 'stageReworkQty' | 'stageScrapQty'>,
     masterJobCardOverride?: JobCard
   ) => { success: boolean; error?: string; assignment?: PainterAssignment };
+  createPainterAssignmentsBatch: (
+    batchData: {
+      masterJobCardNo: string;
+      assignmentDate: string;
+      shift: AssignmentShiftType | string;
+      painterId: string;
+      painterName: string;
+      boothNumber: string;
+      processStage: AssignmentProcessStage;
+      taskLines: PainterBatchTaskLine[];
+      plannedMaterials?: PainterDailyMaterialAllocation[];
+      remarks?: string;
+    },
+    masterJobCardOverride?: JobCard
+  ) => { success: boolean; error?: string; assignments?: PainterAssignment[]; mrnNo?: string };
   closePainterAssignment: (
     assignmentId: string,
     completionData: {
@@ -3566,7 +3584,7 @@ export const PortalProvider: React.FC<{
 
       (pd.companyMaterials || []).forEach((cm, cIdx) => {
         if (!cm.materialName.trim() || Number(cm.qty) <= 0) return;
-        const cKey = `${cm.materialName.trim().toLowerCase()}__${cm.materialType}__${cm.uom}`;
+        const cKey = `${cm.materialName.trim().toLowerCase()}__${cm.materialType}__${cm.uom}__${(cm.colour || '').trim().toLowerCase()}`;
         const existingChem = chemMap.get(cKey);
         if (existingChem) {
           existingChem.requestedQty = Number((existingChem.requestedQty + Number(cm.qty)).toFixed(2));
@@ -3711,113 +3729,258 @@ export const PortalProvider: React.FC<{
     return mrnNo;
   };
 
-  const createPainterAssignment = (
-    assignmentData: Omit<PainterAssignment, 'id' | 'status' | 'actualCompletedQty' | 'rejectReworkQty' | 'scrapQty' | 'stageOkQty' | 'stageReworkQty' | 'stageScrapQty'>,
+  const distributeBatchMaterials = (
+    taskLines: PainterBatchTaskLine[],
+    cleanedMaterials: PainterDailyMaterialAllocation[]
+  ): PainterDailyMaterialAllocation[][] => {
+    const perRow: PainterDailyMaterialAllocation[][] = taskLines.map(() => []);
+    if (taskLines.length === 0 || cleanedMaterials.length === 0) return perRow;
+    if (taskLines.length === 1) {
+      perRow[0] = cleanedMaterials.map(m => ({
+        ...m,
+        colour: m.colour || taskLines[0].colorShade
+      }));
+      return perRow;
+    }
+
+    cleanedMaterials.forEach(mat => {
+      const matColourKey = (mat.colour || '').trim().toLowerCase();
+      let matchedIndices = matColourKey
+        ? taskLines
+            .map((t, idx) => ((t.colorShade || '').trim().toLowerCase() === matColourKey ? idx : -1))
+            .filter(idx => idx !== -1)
+        : [];
+      if (matchedIndices.length === 0) {
+        matchedIndices = taskLines.map((_, idx) => idx);
+      }
+
+      const totalMatchedPcs = matchedIndices.reduce((s, idx) => s + Number(taskLines[idx].dailyTargetQty || 0), 0);
+      if (totalMatchedPcs <= 0) return;
+
+      const totalQty = Number(mat.qty);
+      let runningAllocated = 0;
+      const shares = matchedIndices.map((rowIdx, pos) => {
+        if (pos === matchedIndices.length - 1) {
+          return Number(Math.max(0, totalQty - runningAllocated).toFixed(2));
+        }
+        const share = Number(((totalQty * Number(taskLines[rowIdx].dailyTargetQty || 0)) / totalMatchedPcs).toFixed(2));
+        runningAllocated = Number((runningAllocated + share).toFixed(2));
+        return share;
+      });
+
+      matchedIndices.forEach((rowIdx, pos) => {
+        const q = shares[pos];
+        if (q > 0) {
+          perRow[rowIdx].push({
+            ...mat,
+            qty: q,
+            colour: mat.colour || taskLines[rowIdx].colorShade
+          });
+        }
+      });
+    });
+
+    return perRow;
+  };
+
+  const createPainterAssignmentsBatch = (
+    batchData: {
+      masterJobCardNo: string;
+      assignmentDate: string;
+      shift: AssignmentShiftType | string;
+      painterId: string;
+      painterName: string;
+      boothNumber: string;
+      processStage: AssignmentProcessStage;
+      taskLines: PainterBatchTaskLine[];
+      plannedMaterials?: PainterDailyMaterialAllocation[];
+      remarks?: string;
+    },
     masterJobCardOverride?: JobCard
-  ): { success: boolean; error?: string; assignment?: PainterAssignment } => {
+  ): { success: boolean; error?: string; assignments?: PainterAssignment[]; mrnNo?: string } => {
     const parentJob =
       masterJobCardOverride ||
-      latestJobCardsRef.current.find(j => j.jobCardNo === assignmentData.masterJobCardNo);
+      latestJobCardsRef.current.find(j => j.jobCardNo === batchData.masterJobCardNo);
     if (!parentJob) {
-      return { success: false, error: `Master Job Card ${assignmentData.masterJobCardNo} not found.` };
+      return { success: false, error: `Master Job Card ${batchData.masterJobCardNo} not found.` };
+    }
+
+    const validLines = (batchData.taskLines || []).filter(l => Number(l.dailyTargetQty) > 0);
+    if (validLines.length === 0) {
+      return { success: false, error: 'Kam se kam ek Model aur Daily Target Qty (> 0) enter karein.' };
+    }
+    if (validLines.some(l => !l.colorShade || !l.colorShade.trim())) {
+      return { success: false, error: 'Har selected model / split row ke liye Colour / Shade mention karein.' };
     }
 
     const currentAssignments = latestAssignmentsRef.current;
-
-    // Calculate committed & completed pieces (per-part when multiple inward parts exist, plus overall master balance)
     const inwardParts = resolveJobCardInwardParts(parentJob, grnList);
-    const {
-      balancePending,
-      isPartScoped,
-      selectedPart
-    } = computeAssignmentBalance(
-      parentJob,
-      currentAssignments,
-      inwardParts,
-      assignmentData.partCode || assignmentData.partDescription
-    );
-    const availableToAssign = balancePending;
+    const masterBalInfo = computeAssignmentBalance(parentJob, currentAssignments, inwardParts);
+    const totalRequestedQty = validLines.reduce((sum, l) => sum + Number(l.dailyTargetQty || 0), 0);
 
-    if (assignmentData.dailyTargetQty > availableToAssign) {
+    if (totalRequestedQty > masterBalInfo.masterBalancePending) {
       return {
         success: false,
-        error: isPartScoped && selectedPart
-          ? `Daily Target Qty (${assignmentData.dailyTargetQty} pcs) exceeds remaining balance (${availableToAssign} pcs) for ${selectedPart.partDescription} (${selectedPart.partCode}).`
-          : `Daily Target Qty (${assignmentData.dailyTargetQty} pcs) exceeds remaining unallocated balance (${availableToAssign} pcs). Master Pending: ${balancePending} pcs.`
+        error: `Total Daily Target (${totalRequestedQty} pcs) exceeds remaining Master Balance (${masterBalInfo.masterBalancePending} pcs).`
       };
     }
 
-    const resolvedPartCode = assignmentData.partCode || selectedPart?.partCode || parentJob.partCode;
-    const resolvedPartDescription = assignmentData.partDescription || selectedPart?.partDescription || parentJob.partDescription;
+    // Aggregate per-part quantities across colour splits and validate each part's pending balance
+    if (inwardParts.length > 1) {
+      const requestedByPart = new Map<string, { label: string; qty: number }>();
+      validLines.forEach(line => {
+        const key = (line.partCode || line.partDescription || '').trim().toLowerCase();
+        const prev = requestedByPart.get(key);
+        if (prev) {
+          prev.qty += Number(line.dailyTargetQty || 0);
+        } else {
+          requestedByPart.set(key, {
+            label: `${line.partDescription} (${line.partCode})`,
+            qty: Number(line.dailyTargetQty || 0)
+          });
+        }
+      });
+
+      for (const [partKey, reqEntry] of requestedByPart.entries()) {
+        const partBal = computeAssignmentBalance(parentJob, currentAssignments, inwardParts, partKey);
+        if (reqEntry.qty > partBal.balancePending) {
+          return {
+            success: false,
+            error: `Daily Target (${reqEntry.qty} pcs) exceeds remaining balance (${partBal.balancePending} pcs) for ${reqEntry.label}.`
+          };
+        }
+      }
+    }
+
+    const cleanedPlannedMaterials = (batchData.plannedMaterials || []).filter(
+      m => m.materialName.trim() && Number(m.qty) > 0
+    );
+    const distributedMaterials = distributeBatchMaterials(validLines, cleanedPlannedMaterials);
 
     const maxAsgSeq = currentAssignments.reduce((max, a) => {
       const m = (a.id || '').match(/ASG-\d{4}-(\d+)/i);
       const n = m ? parseInt(m[1], 10) : 0;
       return !isNaN(n) && n > max ? n : max;
     }, 0);
-    asgSeqRef.current = Math.max(asgSeqRef.current, maxAsgSeq) + 1;
-    const nextId = `ASG-${new Date().getFullYear()}-${String(asgSeqRef.current).padStart(4, '0')}`;
-    const cleanedPlannedMaterials = (assignmentData.plannedMaterials || []).filter(
-      m => m.materialName.trim() && Number(m.qty) > 0
-    );
+    asgSeqRef.current = Math.max(asgSeqRef.current, maxAsgSeq);
 
-    const newAssignment: PainterAssignment = {
-      ...assignmentData,
-      partCode: resolvedPartCode,
-      partDescription: resolvedPartDescription,
-      plannedMaterials: cleanedPlannedMaterials,
-      storeTransferStatus: 'Pending Store Transfer',
-      id: nextId,
-      assignmentId: nextId,
-      masterJobCardNo: assignmentData.masterJobCardNo,
-      masterJobCardId: assignmentData.masterJobCardNo,
-      status: 'Active',
-      actualCompletedQty: 0,
-      rejectReworkQty: 0,
-      scrapQty: 0,
-      stageOkQty: 0,
-      stageReworkQty: 0,
-      stageScrapQty: 0,
-      efficiencyPercent: 0,
-      efficiency: 0,
-      startedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
+    const year = new Date().getFullYear();
+    const allocationBatchId = validLines.length > 1 ? `ABATCH-${Date.now().toString().slice(-6)}` : undefined;
+    const startedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const nextAllAssignments = [newAssignment, ...currentAssignments];
+    const createdAssignments: PainterAssignment[] = validLines.map((line, idx) => {
+      asgSeqRef.current += 1;
+      const nextId = `ASG-${year}-${String(asgSeqRef.current).padStart(4, '0')}`;
+      const balInfo = computeAssignmentBalance(
+        parentJob,
+        currentAssignments,
+        inwardParts,
+        line.partCode || line.partDescription
+      );
+      const resolvedPartCode = line.partCode || balInfo.selectedPart?.partCode || parentJob.partCode;
+      const resolvedPartDescription = line.partDescription || balInfo.selectedPart?.partDescription || parentJob.partDescription;
+
+      return {
+        id: nextId,
+        assignmentId: nextId,
+        allocationBatchId,
+        masterJobCardNo: batchData.masterJobCardNo,
+        masterJobCardId: batchData.masterJobCardNo,
+        assignmentDate: batchData.assignmentDate,
+        shift: batchData.shift,
+        painterId: batchData.painterId,
+        painterName: batchData.painterName,
+        boothNumber: batchData.boothNumber,
+        processStage: batchData.processStage,
+        partCode: resolvedPartCode,
+        partDescription: resolvedPartDescription,
+        colorShade: line.colorShade.trim(),
+        dailyTargetQty: Number(line.dailyTargetQty),
+        plannedMaterials: distributedMaterials[idx] || [],
+        storeTransferStatus: 'Pending Store Transfer',
+        status: 'Active',
+        actualCompletedQty: 0,
+        rejectReworkQty: 0,
+        scrapQty: 0,
+        stageOkQty: 0,
+        stageReworkQty: 0,
+        stageScrapQty: 0,
+        efficiencyPercent: 0,
+        efficiency: 0,
+        startedAt: startedTime,
+        remarks: batchData.remarks
+      };
+    });
+
+    const nextAllAssignments = [...createdAssignments.slice().reverse(), ...currentAssignments];
     const jobCardAssignmentsAfter = nextAllAssignments.filter(
       a => a.masterJobCardNo === parentJob.jobCardNo || a.masterJobCardId === parentJob.jobCardNo
     );
 
-    // Raise or update exact Store Floor Demand (MRN) with all pending painters + their Party & Company materials
-    const mrnNo = upsertPendingFloorDemand(parentJob, jobCardAssignmentsAfter, assignmentData.assignmentDate);
-    newAssignment.storeDemandMrnNo = mrnNo;
+    // Raise or update exact consolidated Store Floor Demand (MRN) once for all newly added lines
+    const mrnNo = upsertPendingFloorDemand(parentJob, jobCardAssignmentsAfter, batchData.assignmentDate);
+    createdAssignments.forEach(a => { a.storeDemandMrnNo = mrnNo; });
 
+    const newIds = new Set(createdAssignments.map(a => a.id));
     const coveredIds = new Set(jobCardAssignmentsAfter.map(a => a.id));
     latestAssignmentsRef.current = nextAllAssignments.map(a =>
-      a.id === newAssignment.id || (coveredIds.has(a.id) && !a.storeMinNo && a.assignmentDate === assignmentData.assignmentDate)
+      newIds.has(a.id) || (coveredIds.has(a.id) && !a.storeMinNo && a.assignmentDate === batchData.assignmentDate)
         ? { ...a, storeDemandMrnNo: mrnNo }
         : a
     );
     setPainterAssignments(latestAssignmentsRef.current);
 
-    // Update Master Job Card status & assigned painter metadata
     const totalAllocatedForCard = jobCardAssignmentsAfter.reduce((sum, a) => sum + Number(a.dailyTargetQty || 0), 0);
     setJobCards(prev => prev.map(jc => {
-      if (jc.jobCardNo !== assignmentData.masterJobCardNo) return jc;
+      if (jc.jobCardNo !== batchData.masterJobCardNo) return jc;
       const currentList = jc.assignments || [];
       return {
         ...jc,
         status: jc.status === 'Open' ? 'In Process' : jc.status,
         painterJobStatus: 'Assigned',
-        assignedPainterName: jc.assignedPainterName || newAssignment.painterName,
-        painterName: jc.painterName || newAssignment.painterName,
+        assignedPainterName: jc.assignedPainterName || batchData.painterName,
+        painterName: jc.painterName || batchData.painterName,
         allocatedQty: totalAllocatedForCard,
         dailyTargetQty: totalAllocatedForCard,
-        assignments: [newAssignment, ...currentList]
+        assignments: [...createdAssignments, ...currentList]
       };
     }));
 
-    return { success: true, assignment: newAssignment };
+    return { success: true, assignments: createdAssignments, mrnNo };
+  };
+
+  const createPainterAssignment = (
+    assignmentData: Omit<PainterAssignment, 'id' | 'status' | 'actualCompletedQty' | 'rejectReworkQty' | 'scrapQty' | 'stageOkQty' | 'stageReworkQty' | 'stageScrapQty'>,
+    masterJobCardOverride?: JobCard
+  ): { success: boolean; error?: string; assignment?: PainterAssignment } => {
+    const res = createPainterAssignmentsBatch(
+      {
+        masterJobCardNo: assignmentData.masterJobCardNo,
+        assignmentDate: assignmentData.assignmentDate,
+        shift: assignmentData.shift,
+        painterId: assignmentData.painterId,
+        painterName: assignmentData.painterName,
+        boothNumber: assignmentData.boothNumber,
+        processStage: assignmentData.processStage,
+        taskLines: [
+          {
+            partCode: assignmentData.partCode || masterJobCardOverride?.partCode || '',
+            partDescription: assignmentData.partDescription || masterJobCardOverride?.partDescription || '',
+            colorShade: assignmentData.colorShade || masterJobCardOverride?.color || 'Standard',
+            dailyTargetQty: Number(assignmentData.dailyTargetQty || 0)
+          }
+        ],
+        plannedMaterials: assignmentData.plannedMaterials,
+        remarks: assignmentData.remarks
+      },
+      masterJobCardOverride
+    );
+
+    return {
+      success: res.success,
+      error: res.error,
+      assignment: res.assignments?.[0]
+    };
   };
 
   const requestAssignmentChemicals = (
@@ -5228,6 +5391,7 @@ export const PortalProvider: React.FC<{
         painterAssignments,
         assignmentMaterialLogs,
         createPainterAssignment,
+        createPainterAssignmentsBatch,
         closePainterAssignment,
         issueAssignmentMaterials,
         requestAssignmentChemicals,

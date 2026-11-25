@@ -708,9 +708,17 @@ export interface AssignmentMaterialLog {
   loggedAt?: string;
 }
 
+export interface PainterBatchTaskLine {
+  partCode: string;
+  partDescription: string;
+  colorShade: string;
+  dailyTargetQty: number;
+}
+
 export interface PainterAssignment {
   id: string;                          // e.g. "ASG-2026-001"
   assignmentId?: string;               // Compatibility alias
+  allocationBatchId?: string;          // Shared batch id when multiple models/colours assigned together
   masterJobCardNo: string;             // FK -> MasterJobCard.jobCardNo
   masterJobCardId?: string;            // Compatibility alias
   assignmentDate: string;              // Single Date YYYY-MM-DD

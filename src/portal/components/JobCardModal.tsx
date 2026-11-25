@@ -265,6 +265,7 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     materialRequisitions,
     deleteJobCard,
     createPainterAssignment,
+    createPainterAssignmentsBatch,
     requestAssignmentChemicals,
     addTargetToPainterAssignment,
     recordAssignmentStageOutput
@@ -5637,6 +5638,17 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
           existingAssignments={currentJcAssignments}
           painters={painters.filter(p => matchesPlant(p.plant, activePlant))}
           booths={paintingBooths.filter(b => matchesPlant(b.plant, activePlant))}
+          onAssignBatch={(batchData) => {
+            const res = createPainterAssignmentsBatch(batchData, currentJcForModals);
+            if (res?.success) {
+              const totalPcs = batchData.taskLines.reduce((s, t) => s + Number(t.dailyTargetQty || 0), 0);
+              setToastMessage(
+                `✓ ${batchData.taskLines.length} Task${batchData.taskLines.length > 1 ? 's' : ''} (${totalPcs.toLocaleString('en-IN')} Pcs) assigned to ${batchData.painterName} — Floor Demand (${res.mrnNo || 'MRN'}) sent to Store!`
+              );
+              setTimeout(() => setToastMessage(null), 4000);
+            }
+            return res;
+          }}
           onAssign={(assignmentData) => {
             const res = createPainterAssignment(assignmentData, currentJcForModals);
             if (res?.success) {
