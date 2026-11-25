@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-25: Converted Painter Task Allocation into 3-Step Wizard (`DailyAssignmentModal.tsx`)
+  - Files touched:
+    - `src/portal/components/DailyAssignmentModal.tsx`: Split full-screen modal into 3 connected pill-stepper stages: Step 1 (Job Details, Painter, Booth & Remarks), Step 2 (Multi-Model Qty & Colour Splits), Step 3 (Internal Company Materials & Auto-Estimate), with per-step validation and contextual step summaries.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-25: Made Painter Task Allocation Full-Screen & Mobile Responsive (`DailyAssignmentModal.tsx`)
   - Files touched:
     - `src/portal/components/DailyAssignmentModal.tsx`: Converted modal to full-screen (`w-screen h-dvh`) with sticky top header, centered `max-w-6xl` scrollable body, sticky bottom action bar, and 2-column mobile grid layouts (`grid-cols-2 sm:grid-cols-12`) for model split rows & chemical rows.
