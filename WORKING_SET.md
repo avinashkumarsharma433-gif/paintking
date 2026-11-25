@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-25: Made Painter Task Allocation Full-Screen & Mobile Responsive (`DailyAssignmentModal.tsx`)
+  - Files touched:
+    - `src/portal/components/DailyAssignmentModal.tsx`: Converted modal to full-screen (`w-screen h-dvh`) with sticky top header, centered `max-w-6xl` scrollable body, sticky bottom action bar, and 2-column mobile grid layouts (`grid-cols-2 sm:grid-cols-12`) for model split rows & chemical rows.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-25: Upgraded Painter Task Allocation for Multi-Model & Same-Model Colour Splits (`DailyAssignmentModal.tsx`, `PortalStoreContext.tsx`)
   - Files touched:
     - `src/portal/types/portalTypes.ts`: Added `PainterBatchTaskLine` and `allocationBatchId` on `PainterAssignment`.

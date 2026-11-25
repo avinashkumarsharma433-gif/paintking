@@ -531,21 +531,21 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
-      <div className="bg-white rounded-[24px] max-w-3xl w-full p-6 sm:p-7 shadow-2xl border border-[#ececec] space-y-5 text-xs relative max-h-[92vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3.5 border-b border-[#ececec]">
-          <div>
+    <div className="fixed inset-0 z-50 bg-[#fafafb] flex flex-col w-screen h-dvh overflow-hidden text-xs animate-in fade-in duration-150">
+      {/* Sticky Full-Screen Top Header */}
+      <header className="shrink-0 bg-white border-b border-[#ececec] px-4 sm:px-8 py-3 sm:py-4 shadow-2xs">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#c09748]" />
-              <span className="text-[10.5px] font-mono font-bold text-[#8a6521] uppercase tracking-wider">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#c09748] shrink-0" />
+              <span className="text-[10px] sm:text-[10.5px] font-mono font-bold text-[#8a6521] uppercase tracking-wider truncate">
                 TIER-2 DAILY TASK ALLOCATION
               </span>
             </div>
-            <h3 className="text-xl font-serif font-normal text-[#17191c] tracking-tight mt-0.5">
+            <h3 className="text-lg sm:text-2xl font-serif font-normal text-[#17191c] tracking-tight mt-0.5 truncate">
               Assign Daily Target to Painter
             </h3>
-            <p className="text-xs text-[#777b86] mt-0.5">
+            <p className="text-[11px] sm:text-xs text-[#777b86] mt-0.5 truncate">
               Master Order: <strong className="text-[#17191c]">{masterJobCard.jobCardNo}</strong> • {masterJobCard.customer} (
               {partsList.length > 1
                 ? `${partsList.length} Material Types`
@@ -557,61 +557,66 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] flex items-center justify-center cursor-pointer transition shadow-2xs"
+            aria-label="Close"
+            className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition shadow-2xs shrink-0 active:scale-95"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
+      </header>
 
-        {/* Balance Status Card */}
-        <div className="p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-1.5">
-          <div className="grid grid-cols-3 gap-2.5 text-center">
-            <div>
-              <span className="text-[10px] text-[#777b86] block uppercase font-mono">Total Master Order</span>
-              <strong className="text-sm font-bold text-[#17191c] font-mono">
-                {masterBalance.totalOrder.toLocaleString('en-IN')} Pcs
-              </strong>
+      {/* Form wrapping Scrollable Body + Sticky Bottom Footer */}
+      <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 overflow-y-auto px-3 sm:px-8 py-4 sm:py-6">
+          <div className="max-w-6xl mx-auto space-y-4">
+            {/* Balance Status Card */}
+            <div className="p-3 sm:p-4 rounded-[20px] bg-white border border-[#ececec] shadow-2xs space-y-2">
+              <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
+                <div>
+                  <span className="text-[9.5px] sm:text-[10px] text-[#777b86] block uppercase font-mono">Total Master Order</span>
+                  <strong className="text-xs sm:text-base font-bold text-[#17191c] font-mono">
+                    {masterBalance.totalOrder.toLocaleString('en-IN')} Pcs
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-[9.5px] sm:text-[10px] text-emerald-700 block uppercase font-mono">Completed OK</span>
+                  <strong className="text-xs sm:text-base font-bold text-emerald-800 font-mono">
+                    {masterBalance.completedOk.toLocaleString('en-IN')} Pcs
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-[9.5px] sm:text-[10px] text-amber-700 block uppercase font-mono">Master Pending</span>
+                  <strong className="text-xs sm:text-base font-bold text-amber-900 font-mono">
+                    {masterBalance.masterBalancePending.toLocaleString('en-IN')} Pcs
+                  </strong>
+                </div>
+              </div>
+              <div className="text-[10px] sm:text-[11px] text-[#777b86] font-mono text-center pt-1.5 border-t border-[#f2f2f3] flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+                <span>
+                  Selected Now: <strong className="text-[#17191c]">{totalBatchQty.toLocaleString('en-IN')} Pcs</strong> ({distinctSelectedModels} Model{distinctSelectedModels !== 1 ? 's' : ''}, {taskRows.length} Task{taskRows.length !== 1 ? 's' : ''})
+                </span>
+                <span className="hidden sm:inline">•</span>
+                <span>
+                  Remaining After Assign: <strong className="text-[#8a6521]">{remainingMasterAfterBatch.toLocaleString('en-IN')} Pcs</strong>
+                </span>
+              </div>
             </div>
-            <div>
-              <span className="text-[10px] text-emerald-700 block uppercase font-mono">Completed OK</span>
-              <strong className="text-sm font-bold text-emerald-800 font-mono">
-                {masterBalance.completedOk.toLocaleString('en-IN')} Pcs
-              </strong>
-            </div>
-            <div>
-              <span className="text-[10px] text-amber-700 block uppercase font-mono">Master Pending</span>
-              <strong className="text-sm font-bold text-amber-900 font-mono">
-                {masterBalance.masterBalancePending.toLocaleString('en-IN')} Pcs
-              </strong>
-            </div>
-          </div>
-          <div className="text-[10.5px] text-[#777b86] font-mono text-center pt-1.5 border-t border-[#ececec] flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-            <span>
-              Selected Now: <strong className="text-[#17191c]">{totalBatchQty.toLocaleString('en-IN')} Pcs</strong> ({distinctSelectedModels} Model{distinctSelectedModels !== 1 ? 's' : ''}, {taskRows.length} Task{taskRows.length !== 1 ? 's' : ''})
-            </span>
-            <span>•</span>
-            <span>
-              Remaining After Assign: <strong className="text-[#8a6521]">{remainingMasterAfterBatch.toLocaleString('en-IN')} Pcs</strong>
-            </span>
-          </div>
-        </div>
 
-        {errorMsg && (
-          <div className="p-3 rounded-[14px] bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span>{errorMsg}</span>
-          </div>
-        )}
+            {errorMsg && (
+              <div className="p-3 rounded-[14px] bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Auto-Registered Today Date Pill */}
-          <div className="flex items-center justify-between px-3.5 py-2 rounded-[14px] bg-[#faf7ed] border border-[#f4e5be] text-[11px] font-mono">
-            <span className="flex items-center gap-1.5 font-bold text-[#8a6521]">
-              <Calendar className="w-3.5 h-3.5 text-[#c09748]" />
-              <span>Working Date: {todayDateStr} (Auto-Today)</span>
-            </span>
-            <span className="text-[#777b86]">Single Day Shift • All 3 Stages</span>
-          </div>
+            {/* Auto-Registered Today Date Pill */}
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-[14px] bg-[#faf7ed] border border-[#f4e5be] text-[10.5px] sm:text-[11px] font-mono">
+              <span className="flex items-center gap-1.5 font-bold text-[#8a6521]">
+                <Calendar className="w-3.5 h-3.5 text-[#c09748] shrink-0" />
+                <span>Working Date: {todayDateStr} (Auto-Today)</span>
+              </span>
+              <span className="text-[#777b86]">Single Day Shift • All 3 Stages</span>
+            </div>
 
           {/* Row 1: Painter & Booth */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -747,10 +752,10 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                 return (
                   <div
                     key={row.id}
-                    className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end bg-white p-3 rounded-[16px] border border-[#ececec] shadow-2xs"
+                    className="grid grid-cols-2 sm:grid-cols-12 gap-2.5 items-end bg-white p-3 rounded-[16px] border border-[#ececec] shadow-2xs"
                   >
                     {/* Model Picker */}
-                    <div className="sm:col-span-5 space-y-1">
+                    <div className="col-span-2 sm:col-span-5 space-y-1">
                       <label className="text-[10px] font-mono font-bold text-[#777b86] uppercase flex items-center justify-between">
                         <span>Model #{idx + 1}</span>
                         <span className="text-[9.5px] text-[#8a6521]">Max: {maxForRow} Pcs</span>
@@ -795,7 +800,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                     </div>
 
                     {/* Qty Input */}
-                    <div className="sm:col-span-2 space-y-1">
+                    <div className="col-span-1 sm:col-span-2 space-y-1">
                       <label className="text-[10px] font-mono font-bold text-[#777b86] uppercase block">
                         Qty (Pcs) *
                       </label>
@@ -823,7 +828,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                     </div>
 
                     {/* Colour / Shade Input */}
-                    <div className="sm:col-span-3 space-y-1">
+                    <div className="col-span-1 sm:col-span-3 space-y-1">
                       <label className="text-[10px] font-mono font-bold text-[#777b86] uppercase block">
                         Colour / Shade *
                       </label>
@@ -836,13 +841,13 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                             prev.map(r => (r.id === row.id ? { ...r, colorShade: e.target.value } : r))
                           )
                         }
-                        placeholder="e.g. Piano Black / Red"
+                        placeholder="e.g. Black / Red"
                         className="w-full h-9 px-2.5 rounded-[12px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
                       />
                     </div>
 
                     {/* Row Actions: Split Colour + Delete */}
-                    <div className="sm:col-span-2 flex items-center justify-end gap-1.5">
+                    <div className="col-span-2 sm:col-span-2 flex items-center justify-end gap-1.5">
                       <button
                         type="button"
                         disabled={!canSplit}
@@ -983,9 +988,9 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                 {plannedMaterials.map((mat, idx) => (
                   <div
                     key={mat.id}
-                    className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-white p-2.5 rounded-[14px] border border-[#ececec]"
+                    className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-center bg-white p-2.5 rounded-[14px] border border-[#ececec]"
                   >
-                    <div className="sm:col-span-3">
+                    <div className="col-span-2 sm:col-span-3">
                       <select
                         value={mat.materialType}
                         onChange={e =>
@@ -1004,7 +1009,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                         <option value="Cleaning Solvent">Cleaning Solvent</option>
                       </select>
                     </div>
-                    <div className="sm:col-span-4 space-y-1">
+                    <div className="col-span-2 sm:col-span-4 space-y-1">
                       <input
                         type="text"
                         required
@@ -1036,7 +1041,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                         </select>
                       )}
                     </div>
-                    <div className="sm:col-span-2">
+                    <div className="col-span-1 sm:col-span-2">
                       <input
                         type="number"
                         required
@@ -1052,7 +1057,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                         className="w-full h-9 px-2.5 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] text-xs font-mono font-bold text-[#17191c]"
                       />
                     </div>
-                    <div className="sm:col-span-2">
+                    <div className="col-span-1 sm:col-span-2">
                       <select
                         value={mat.uom}
                         onChange={e =>
@@ -1067,7 +1072,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                         <option value="Pcs">Pcs</option>
                       </select>
                     </div>
-                    <div className="sm:col-span-1 flex justify-end">
+                    <div className="col-span-2 sm:col-span-1 flex justify-end">
                       <button
                         type="button"
                         onClick={() => setPlannedMaterials(prev => prev.filter((_, rIdx) => rIdx !== idx))}
@@ -1084,7 +1089,7 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
           </div>
 
           {/* Section 5: Remarks */}
-          <div className="space-y-1">
+          <div className="p-4 rounded-[20px] bg-white border border-[#ececec] shadow-2xs space-y-1.5">
             <label className="text-[11px] font-bold text-[#17191c] font-mono">
               5. Remarks / Floor Instructions (Optional)
             </label>
@@ -1096,34 +1101,37 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
               className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
             />
           </div>
+          </div>
+        </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-[#ececec]">
-            <span className="text-[10.5px] font-mono text-[#777b86]">
+        {/* Sticky Bottom Action Bar */}
+        <footer className="shrink-0 bg-white border-t border-[#ececec] px-4 sm:px-8 py-3 sm:py-3.5 shadow-xs">
+          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <span className="hidden sm:inline text-[10.5px] font-mono text-[#777b86]">
               Exact Store Floor Demand auto-generated on save
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold cursor-pointer shadow-2xs"
+                className="px-4 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold cursor-pointer shadow-2xs active:scale-95"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={masterBalance.masterBalancePending <= 0 || totalBatchQty <= 0 || totalBatchQty > masterBalance.masterBalancePending}
-                className="px-5 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] disabled:opacity-50 text-white text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1.5 active:scale-95"
+                className="flex-1 sm:flex-initial justify-center px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] disabled:opacity-50 text-white text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1.5 active:scale-95"
               >
-                <Target className="w-3.5 h-3.5" />
-                <span>
+                <Target className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">
                   Assign {taskRows.length} Task{taskRows.length !== 1 ? 's' : ''} ({totalBatchQty.toLocaleString('en-IN')} Pcs) &amp; Send Floor Demand
                 </span>
               </button>
             </div>
           </div>
-        </form>
-      </div>
+        </footer>
+      </form>
     </div>
   );
 };
