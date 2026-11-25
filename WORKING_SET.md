@@ -1,5 +1,13 @@
 # WORKING SET
 
+- 2026-11-25: Added Monthly Lot Sequence, Box Quantity Input & Challan Details on Party Stock Ledger Cards (`GatePassView.tsx`, `PortalStoreContext.tsx`, `BatchLedger.tsx`)
+  - Files touched:
+    - `src/portal/types/portalTypes.ts` & `src/portal/utils/stockEngine.ts`: Added `challanNo`, `challanDate`, `totalBoxes`, `monthlyLotNo`, `monthlyLotMonth` fields plus `extractYearMonthKey`, `toComparableDateKey`, and `formatOrdinalLot` helpers.
+    - `src/portal/views/GatePassView.tsx`: Added `7. Box Quantity (Cartons / Boxes)` field (`inwardHeader.totalBoxes`) in Inward Step 1 and surfaced Box Qty / Monthly Lot No in the Gate Inward Details modal.
+    - `src/portal/context/PortalStoreContext.tsx` & `src/portal/components/CreateGRNModal.tsx`: Auto-calculated per-party calendar-month `monthlyLotNo` (`1st`, `2nd`, ..., resetting on new month) in `addMaterialInwardRecord` and `addGRN`, propagating `challanNo`, `challanDate`, `totalBoxes`, and `monthlyLotNo` into `StockBatch` records.
+    - `src/portal/components/BatchLedger.tsx`: Grouped Party Stock cards per Party + Inward Lot/GRN (`PARTY_LOT_`) and displayed `Lot No.`, `Box Qty`, `Challan No.`, `Challan Date`, and `Total Inward` directly on every main Party Card (with dynamic fallback lookup from `grnList` & `materialInwardLogs`).
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-25: Simplified Party Stock Ledger View (`BatchLedger.tsx`)
   - Files touched:
     - `src/portal/components/BatchLedger.tsx`: Moved `Inward Date` onto the main Party Card summary row (`inwardDatesLabel`) and stripped repetitive per-model Inward Date, GRN, Batch No., FIFO badges, and empty deduction boxes from `PARTY_MATERIAL` models — leaving a clean single-row model summary (`Model`, `Part Code`, `Inward`, `Issued`, `Balance`, plus expandable Job Card deductions only when issued > 0).

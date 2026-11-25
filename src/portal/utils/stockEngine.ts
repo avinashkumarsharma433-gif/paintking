@@ -620,3 +620,51 @@ export function applyReturn(
     };
   });
 }
+
+/**
+ * Extracts a normalized "YYYY-MM" month key from YYYY-MM-DD or DD-MM-YYYY date strings.
+ */
+export function extractYearMonthKey(dateStr?: string): string {
+  const clean = (dateStr || '').trim();
+  const ymdMatch = clean.match(/^(\d{4})-(\d{1,2})-/);
+  if (ymdMatch) {
+    return `${ymdMatch[1]}-${ymdMatch[2].padStart(2, '0')}`;
+  }
+  const dmyMatch = clean.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (dmyMatch) {
+    return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}`;
+  }
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Converts YYYY-MM-DD or DD-MM-YYYY date strings to comparable YYYY-MM-DD format for sorting.
+ */
+export function toComparableDateKey(dateStr?: string): string {
+  const clean = (dateStr || '').trim();
+  const ymdMatch = clean.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (ymdMatch) {
+    return `${ymdMatch[1]}-${ymdMatch[2].padStart(2, '0')}-${ymdMatch[3].padStart(2, '0')}`;
+  }
+  const dmyMatch = clean.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (dmyMatch) {
+    return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
+  }
+  return clean || '0000-00-00';
+}
+
+/**
+ * Formats a positive integer into an English ordinal label ("1st", "2nd", "3rd", "4th", ...).
+ */
+export function formatOrdinalLot(seq: number): string {
+  const n = Math.max(1, Math.floor(seq || 1));
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1: return `${n}st`;
+    case 2: return `${n}nd`;
+    case 3: return `${n}rd`;
+    default: return `${n}th`;
+  }
+}

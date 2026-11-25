@@ -76,7 +76,9 @@ import {
   applyIssueToBatches,
   validateIssue,
   applyReturn,
-  isChemicalConsumable
+  isChemicalConsumable,
+  extractYearMonthKey,
+  formatOrdinalLot
 } from '../utils/stockEngine';
 import {
   INITIAL_UNIVERSAL_JOBS,
@@ -2446,9 +2448,24 @@ export const PortalProvider: React.FC<{
 
   const addMaterialInwardRecord = (record: MaterialInwardRecord) => {
     const fallbackPlant: PlantLocation = activePlant === 'ALL' ? 'Haridwar' : activePlant;
+    const resolvedPlant = record.plant || fallbackPlant;
+    const monthKey = record.monthlyLotMonth || extractYearMonthKey(record.receivingDate || record.challanDate || record.date);
+    const normalizedParty = (record.partyName || '').trim().toLowerCase();
+
+    const samePartyMonthCount = materialInwardLogs.filter(inw => {
+      if (!matchesPlant(inw.plant, resolvedPlant)) return false;
+      if ((inw.partyName || '').trim().toLowerCase() !== normalizedParty) return false;
+      const inwMonth = inw.monthlyLotMonth || extractYearMonthKey(inw.receivingDate || inw.challanDate || inw.date);
+      return inwMonth === monthKey;
+    }).length;
+
+    const computedLotNo = record.monthlyLotNo || formatOrdinalLot(samePartyMonthCount + 1);
+
     const recordWithDefaults: MaterialInwardRecord = {
       ...record,
-      plant: record.plant || fallbackPlant,
+      plant: resolvedPlant,
+      monthlyLotMonth: monthKey,
+      monthlyLotNo: computedLotNo,
       iqcStatus: record.iqcStatus || 'Pending',
       status: record.status || 'Pending IQC Inspection'
     };
@@ -3018,8 +3035,37 @@ export const PortalProvider: React.FC<{
       };
     }
 
-    latestGrnListRef.current = [grn, ...latestGrnListRef.current];
-    setGrnList(prev => [grn, ...prev]);
+    const matchedInward = materialInwardLogs.find(inw =>
+      (grn.sourceIqcReportNo && inw.iqcReportNo === grn.sourceIqcReportNo) ||
+      (grn.invoiceChallanNo && inw.challanNo === grn.invoiceChallanNo &&
+        (inw.partyName || '').trim().toLowerCase() === normalizedCustomer)
+    );
+
+    const resolvedChallanNo = (grn.invoiceChallanNo || matchedInward?.challanNo || '').trim();
+    const resolvedChallanDate = grn.invoiceDate || matchedInward?.challanDate || grn.receivedDate || grn.date;
+    const resolvedBoxes = grn.totalBoxes || matchedInward?.totalBoxes || undefined;
+    const lotMonthKey = grn.monthlyLotMonth || matchedInward?.monthlyLotMonth || extractYearMonthKey(grn.receivedDate || grn.date || resolvedChallanDate);
+
+    const samePartyMonthGrnCount = latestGrnListRef.current.filter(g => {
+      if (!matchesPlant(g.plant, grn.plant)) return false;
+      if ((g.supplierCustomer || '').trim().toLowerCase() !== normalizedCustomer) return false;
+      const gMonth = g.monthlyLotMonth || extractYearMonthKey(g.receivedDate || g.date || g.invoiceDate);
+      return gMonth === lotMonthKey;
+    }).length;
+
+    const resolvedMonthlyLotNo = grn.monthlyLotNo || matchedInward?.monthlyLotNo || formatOrdinalLot(samePartyMonthGrnCount + 1);
+
+    const enrichedGrn: GoodsReceiptNote = {
+      ...grn,
+      invoiceChallanNo: resolvedChallanNo || grn.invoiceChallanNo,
+      invoiceDate: resolvedChallanDate,
+      totalBoxes: resolvedBoxes,
+      monthlyLotMonth: lotMonthKey,
+      monthlyLotNo: resolvedMonthlyLotNo
+    };
+
+    latestGrnListRef.current = [enrichedGrn, ...latestGrnListRef.current];
+    setGrnList(prev => [enrichedGrn, ...prev]);
 
     // Auto-create StockBatch records from GRN lines (Store Role Stock Inward)
     const newStockBatches: StockBatch[] = [];
@@ -3049,6 +3095,11 @@ export const PortalProvider: React.FC<{
           customer: grn.supplierCustomer,
           partCode: item.partCode,
           receivedDate: grn.receivedDate || grn.date,
+          challanNo: resolvedChallanNo || undefined,
+          challanDate: resolvedChallanDate || undefined,
+          totalBoxes: resolvedBoxes,
+          monthlyLotNo: resolvedMonthlyLotNo,
+          monthlyLotMonth: lotMonthKey,
           mfgDate: item.mfgDate || grn.mfgDate,
           expiryDate: item.expiryDate || grn.expiryDate,
           uom: item.uom || (item.partDescription?.toLowerCase().includes('paint') || item.partDescription?.toLowerCase().includes('litre') ? 'Litres' : 'Pcs'),
@@ -3074,6 +3125,11 @@ export const PortalProvider: React.FC<{
         customer: grn.supplierCustomer,
         partCode: grn.partCode,
         receivedDate: grn.receivedDate || grn.date,
+        challanNo: resolvedChallanNo || undefined,
+        challanDate: resolvedChallanDate || undefined,
+        totalBoxes: resolvedBoxes,
+        monthlyLotNo: resolvedMonthlyLotNo,
+        monthlyLotMonth: lotMonthKey,
         mfgDate: grn.mfgDate,
         expiryDate: grn.expiryDate,
         uom: (grn as any).uom || (isChemical ? 'Litres' : 'Pcs'),

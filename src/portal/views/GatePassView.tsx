@@ -1774,7 +1774,9 @@ export const GatePassView: React.FC = () => {
                       <span className="text-[10px] font-semibold text-[#777b86] uppercase tracking-wider block">Total Recorded Qty</span>
                       <div className="font-mono font-bold text-xs text-emerald-800">{breakdown.displayTotal}</div>
                       <div className="text-[11px] text-[#777b86]">
-                        {selectedInward.items?.length || 1} Line Item(s) Intake
+                        {selectedInward.items?.length || 1} Line Item(s)
+                        {selectedInward.totalBoxes ? ` • ${selectedInward.totalBoxes}` : ''}
+                        {selectedInward.monthlyLotNo ? ` • Lot No. ${selectedInward.monthlyLotNo}` : ''}
                       </div>
                     </div>
 
@@ -2663,6 +2665,24 @@ export const GatePassView: React.FC = () => {
                           }}
                           placeholder="e.g. MH-04-AB-1234"
                           className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white font-mono font-bold text-xs text-[#17191c] uppercase focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 3: Box Quantity */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#17191c] uppercase tracking-wider font-mono">
+                          <PackageCheck className="w-3.5 h-3.5 text-[#c09748]" />
+                          <span>7. Box Quantity</span>
+                          <span className="text-[#777b86] font-normal text-[10px]">(Cartons / Boxes)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={inwardHeader.totalBoxes}
+                          onChange={e => setInwardHeader({ ...inwardHeader, totalBoxes: e.target.value })}
+                          placeholder="e.g. 12 Boxes"
+                          className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white font-mono font-semibold text-xs text-[#17191c] focus:border-[#c09748] focus:ring-2 focus:ring-[#c09748]/15 focus:outline-none transition-all shadow-2xs"
                         />
                       </div>
                     </div>

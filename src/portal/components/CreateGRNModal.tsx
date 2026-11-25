@@ -230,7 +230,10 @@ export const CreateGRNModal: React.FC<CreateGRNModalProps> = ({ isOpen, onClose,
     mfgDate: items[0]?.mfgDate || '',
     expiryDate: items[0]?.expiryDate || '',
     invoicedQty: totalInvoicedQty,
-    actualReceivedQty: totalActualReceivedQty
+    actualReceivedQty: totalActualReceivedQty,
+    totalBoxes: pendingJob?.inwardRecord?.totalBoxes || latestGateInward?.totalBoxes || undefined,
+    monthlyLotNo: pendingJob?.inwardRecord?.monthlyLotNo || latestGateInward?.monthlyLotNo || undefined,
+    monthlyLotMonth: pendingJob?.inwardRecord?.monthlyLotMonth || latestGateInward?.monthlyLotMonth || undefined
   };
 
   const handleAcceptAndGenerateGRN = (e: React.FormEvent) => {

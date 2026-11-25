@@ -86,6 +86,11 @@ export interface StockBatch {
   colour?: string;
   // Dates & Quantities:
   receivedDate: string; // YYYY-MM-DD
+  challanNo?: string;
+  challanDate?: string;
+  totalBoxes?: string;
+  monthlyLotNo?: string;
+  monthlyLotMonth?: string;
   mfgDate?: string;      // YYYY-MM-DD (optional)
   expiryDate?: string;   // YYYY-MM-DD (required for company consumables)
   uom: string;
@@ -401,6 +406,9 @@ export interface GoodsReceiptNote {
   actualReceivedQty?: number;
   colorSplits?: OrderColorSplit[];
   sourceIqcReportNo?: string;
+  totalBoxes?: string;
+  monthlyLotNo?: string;
+  monthlyLotMonth?: string;
 }
 
 // 1.5 Material Requisition & Store-to-Production Handshake (PK-PRD-MRN-001 / Doc No: 002)
@@ -1498,6 +1506,8 @@ export interface MaterialInwardRecord {
   ewayBillNo?: string;      // Optional GST E-Way Bill Number
   poNumber?: string;        // Optional Customer Purchase Order / Ref
   totalBoxes?: string;      // Optional Box / Package count (e.g. "5 Cartons")
+  monthlyLotNo?: string;    // Auto-assigned per-party monthly lot ordinal ("1st", "2nd", ...)
+  monthlyLotMonth?: string; // Calendar month key YYYY-MM for monthly lot sequence reset
   receivedBy: string;
   securitySignature: string;
   remarks?: string;

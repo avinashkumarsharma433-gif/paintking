@@ -4,7 +4,10 @@ import { StockBatch, StockCategory, StockMaterialType } from '../types/portalTyp
 import { 
   calculateBatchShelfLife, 
   getEligibleSortedBatches,
-  isChemicalConsumable
+  isChemicalConsumable,
+  extractYearMonthKey,
+  toComparableDateKey,
+  formatOrdinalLot
 } from '../utils/stockEngine';
 import { 
   Search, 
@@ -66,6 +69,12 @@ interface BatchGroupItem {
   totalIssued: number;
   distinctItemsCount: number;
   inwardDatesLabel?: string;
+  inwardDate?: string;
+  challanNo?: string;
+  challanDate?: string;
+  totalBoxes?: string;
+  monthlyLotNo?: string;
+  monthlyLotMonth?: string;
   nearExpiryCount: number;
   expiredCount: number;
   firstToIssueBatchId?: string;
@@ -75,7 +84,7 @@ interface BatchGroupItem {
 }
 
 export const BatchLedger: React.FC = () => {
-  const { stockBatches, activePlant, jobCards, materialRequisitions } = usePortalStore();
+  const { stockBatches, activePlant, jobCards, materialRequisitions, grnList, materialInwardLogs } = usePortalStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | StockCategory>('ALL');
@@ -284,8 +293,94 @@ export const BatchLedger: React.FC = () => {
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [plantBatches]);
 
-  // Aggregate items into Classification-First (Company) & Party-First (Party Material) Groups
+  // Aggregate items into Classification-First (Company) & Party-Lot (Party Material) Groups
   const groupedItems = useMemo<BatchGroupItem[]>(() => {
+    const grnByNo = new Map<string, (typeof grnList)[number]>();
+    grnList.forEach(g => {
+      if (g.grnNo) grnByNo.set(g.grnNo, g);
+    });
+
+    const inwardByGrn = new Map<string, (typeof materialInwardLogs)[number]>();
+    const inwardByPartyChallan = new Map<string, (typeof materialInwardLogs)[number]>();
+    materialInwardLogs.forEach(inw => {
+      if (inw.grnNo && inw.grnNo !== 'Pending Store GRN') {
+        inwardByGrn.set(inw.grnNo, inw);
+      }
+      const pKey = (inw.partyName || '').trim().toLowerCase();
+      const cKey = (inw.challanNo || '').trim().toLowerCase();
+      if (pKey && cKey) {
+        inwardByPartyChallan.set(`${pKey}::${cKey}`, inw);
+      }
+    });
+
+    const resolveBatchMetadata = (batch: StockBatch) => {
+      const partyLabel = (batch.customer || '').trim() || 'General Party Stock';
+      const partyKey = partyLabel.toLowerCase();
+      const matchedGrn = batch.grnNo ? grnByNo.get(batch.grnNo) : undefined;
+      const challanGuess = (batch.challanNo || matchedGrn?.invoiceChallanNo || '').trim();
+      const matchedInward =
+        (batch.grnNo ? inwardByGrn.get(batch.grnNo) : undefined) ||
+        (challanGuess ? inwardByPartyChallan.get(`${partyKey}::${challanGuess.toLowerCase()}`) : undefined);
+
+      const challanNo = (batch.challanNo || matchedGrn?.invoiceChallanNo || matchedInward?.challanNo || '').trim();
+      const challanDate = (batch.challanDate || matchedGrn?.invoiceDate || matchedInward?.challanDate || '').trim();
+      const inwardDate = (batch.receivedDate || matchedGrn?.receivedDate || matchedInward?.receivingDate || matchedInward?.date || '').trim();
+      const totalBoxes = (batch.totalBoxes || matchedGrn?.totalBoxes || matchedInward?.totalBoxes || '').trim();
+      const monthlyLotMonth =
+        batch.monthlyLotMonth ||
+        matchedGrn?.monthlyLotMonth ||
+        matchedInward?.monthlyLotMonth ||
+        extractYearMonthKey(inwardDate || challanDate);
+      const storedMonthlyLotNo = (batch.monthlyLotNo || matchedGrn?.monthlyLotNo || matchedInward?.monthlyLotNo || '').trim();
+      const lotIdentity = (batch.grnNo || matchedGrn?.grnNo || challanNo || inwardDate || 'LOT').trim().toLowerCase();
+      const partyLotKey = `PARTY_LOT_${partyKey}::${lotIdentity}`;
+
+      return {
+        partyLabel,
+        partyKey,
+        challanNo,
+        challanDate,
+        inwardDate,
+        totalBoxes,
+        monthlyLotMonth,
+        storedMonthlyLotNo,
+        partyLotKey
+      };
+    };
+
+    // Pre-compute Monthly Lot Sequence across ALL plant Party Lots (resets to 1st each new month)
+    const lotMetaByKey = new Map<string, { partyKey: string; monthKey: string; sortDate: string; storedLot: string }>();
+    plantBatches.forEach(b => {
+      if (b.category !== 'PARTY_MATERIAL') return;
+      const meta = resolveBatchMetadata(b);
+      if (!lotMetaByKey.has(meta.partyLotKey)) {
+        lotMetaByKey.set(meta.partyLotKey, {
+          partyKey: meta.partyKey,
+          monthKey: meta.monthlyLotMonth,
+          sortDate: toComparableDateKey(meta.inwardDate || meta.challanDate),
+          storedLot: meta.storedMonthlyLotNo
+        });
+      }
+    });
+
+    const monthBuckets = new Map<string, Array<{ groupKey: string; sortDate: string; storedLot: string }>>();
+    lotMetaByKey.forEach((val, groupKey) => {
+      const bucketKey = `${val.partyKey}::${val.monthKey}`;
+      if (!monthBuckets.has(bucketKey)) monthBuckets.set(bucketKey, []);
+      monthBuckets.get(bucketKey)!.push({ groupKey, sortDate: val.sortDate, storedLot: val.storedLot });
+    });
+
+    const monthlyLotByGroupKey = new Map<string, string>();
+    monthBuckets.forEach(entries => {
+      entries.sort((a, b) => {
+        if (a.sortDate !== b.sortDate) return a.sortDate.localeCompare(b.sortDate);
+        return a.groupKey.localeCompare(b.groupKey);
+      });
+      entries.forEach((entry, idx) => {
+        monthlyLotByGroupKey.set(entry.groupKey, entry.storedLot || formatOrdinalLot(idx + 1));
+      });
+    });
+
     const map = new Map<string, {
       itemKey: string;
       groupType: 'CLASSIFICATION' | 'SUBSTRATE';
@@ -294,6 +389,12 @@ export const BatchLedger: React.FC = () => {
       subtitle: string;
       category: StockCategory;
       uom: string;
+      inwardDate?: string;
+      challanNo?: string;
+      challanDate?: string;
+      totalBoxes?: string;
+      monthlyLotNo?: string;
+      monthlyLotMonth?: string;
       batches: StockBatch[];
     }>();
 
@@ -308,23 +409,22 @@ export const BatchLedger: React.FC = () => {
     batchesForGrouping.forEach(batch => {
       const isCompany = batch.category === 'COMPANY_CONSUMABLE';
       const mType = resolveMaterialType(batch);
+      const meta = resolveBatchMetadata(batch);
 
       // For Company Consumables, group STRICTLY by Classification Type
-      // For Party Material, consolidate all models/inwards under 1 Party Card
-      const partyLabel = (batch.customer || '').trim() || 'General Party Stock';
-      const partyKey = partyLabel.toLowerCase();
+      // For Party Material, group by Party + Monthly Inward Lot (GRN / Challan)
       const groupKey = isCompany
         ? `CLASSIFICATION_${mType}`
-        : `PARTY_${partyKey}`;
+        : meta.partyLotKey;
 
       if (!map.has(groupKey)) {
         const title = isCompany
           ? getClassificationTitle(mType)
-          : partyLabel;
+          : meta.partyLabel;
 
         const subtitle = isCompany
           ? 'Internal Company Consumable (FEFO & FIFO Controlled)'
-          : 'Party Material Stock • Collapsible Model & GRN Breakdown';
+          : 'Party Material Stock • Collapsible Model Breakdown';
 
         map.set(groupKey, {
           itemKey: groupKey,
@@ -334,8 +434,20 @@ export const BatchLedger: React.FC = () => {
           subtitle,
           category: batch.category,
           uom: batch.uom || (isCompany ? 'Litres' : 'Pcs'),
+          inwardDate: meta.inwardDate || undefined,
+          challanNo: meta.challanNo || undefined,
+          challanDate: meta.challanDate || undefined,
+          totalBoxes: meta.totalBoxes || undefined,
+          monthlyLotNo: isCompany ? undefined : monthlyLotByGroupKey.get(groupKey),
+          monthlyLotMonth: isCompany ? undefined : meta.monthlyLotMonth,
           batches: []
         });
+      } else if (!isCompany) {
+        const existing = map.get(groupKey)!;
+        if (!existing.challanNo && meta.challanNo) existing.challanNo = meta.challanNo;
+        if (!existing.challanDate && meta.challanDate) existing.challanDate = meta.challanDate;
+        if (!existing.totalBoxes && meta.totalBoxes) existing.totalBoxes = meta.totalBoxes;
+        if (!existing.inwardDate && meta.inwardDate) existing.inwardDate = meta.inwardDate;
       }
 
       map.get(groupKey)!.batches.push(batch);
@@ -463,6 +575,10 @@ export const BatchLedger: React.FC = () => {
         return (
           g.title.toLowerCase().includes(q) ||
           g.subtitle.toLowerCase().includes(q) ||
+          (g.challanNo && g.challanNo.toLowerCase().includes(q)) ||
+          (g.challanDate && g.challanDate.toLowerCase().includes(q)) ||
+          (g.monthlyLotNo && `lot no. ${g.monthlyLotNo}`.toLowerCase().includes(q)) ||
+          (g.totalBoxes && g.totalBoxes.toLowerCase().includes(q)) ||
           g.batches.some(b =>
             b.itemName.toLowerCase().includes(q) ||
             (b.partCode && b.partCode.toLowerCase().includes(q)) ||
@@ -493,9 +609,13 @@ export const BatchLedger: React.FC = () => {
       const pA = orderPriority[a.materialType] || 10;
       const pB = orderPriority[b.materialType] || 10;
       if (pA !== pB) return pA - pB;
-      return a.title.localeCompare(b.title);
+      const titleCmp = a.title.localeCompare(b.title);
+      if (titleCmp !== 0) return titleCmp;
+      return toComparableDateKey(b.inwardDate || b.challanDate).localeCompare(
+        toComparableDateKey(a.inwardDate || a.challanDate)
+      );
     });
-  }, [plantBatches, activePlant, categoryFilter, partyFilter, statusFilter, searchQuery, jobCards, materialRequisitions]);
+  }, [plantBatches, activePlant, categoryFilter, partyFilter, statusFilter, searchQuery, jobCards, materialRequisitions, grnList, materialInwardLogs]);
 
   // Overall KPI stats
   const kpiStats = useMemo(() => {
@@ -930,6 +1050,11 @@ export const BatchLedger: React.FC = () => {
                         <h4 className="text-base font-bold text-[#17191c] font-sans">
                           {group.title}
                         </h4>
+                        {!isChemical && group.monthlyLotNo && (
+                          <span className="text-[10.5px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                            Lot No. {group.monthlyLotNo}
+                          </span>
+                        )}
                         <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border ${
                           isChemical
                             ? 'bg-[#faf7ed] text-[#8a6521] border-[#f4e5be]'
@@ -939,7 +1064,7 @@ export const BatchLedger: React.FC = () => {
                         </span>
                       </div>
 
-                      <div className="text-xs text-[#777b86] mt-1 flex flex-wrap items-center gap-3">
+                      <div className="text-xs text-[#777b86] mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
                         {isChemical ? (
                           <>
                             <span className="font-medium text-[#17191c]">
@@ -956,18 +1081,47 @@ export const BatchLedger: React.FC = () => {
                             <span className="font-medium text-[#17191c]">
                               {group.distinctItemsCount} Model{group.distinctItemsCount !== 1 ? 's' : ''}
                             </span>
-                            {group.inwardDatesLabel && (
+                            <span>•</span>
+                            <span>
+                              Box Qty:{' '}
+                              <strong className="text-[#17191c]">
+                                {group.totalBoxes
+                                  ? /\bbox|carton/i.test(group.totalBoxes)
+                                    ? group.totalBoxes
+                                    : `${group.totalBoxes} Boxes`
+                                  : '—'}
+                              </strong>
+                            </span>
+                            <span>•</span>
+                            <span>
+                              Challan No:{' '}
+                              <strong className="font-mono text-[#17191c]">{group.challanNo || '—'}</strong>
+                            </span>
+                            <span>•</span>
+                            <span>
+                              Challan Date:{' '}
+                              <strong className="text-[#17191c]">
+                                {group.challanDate || group.inwardDatesLabel || '—'}
+                              </strong>
+                            </span>
+                            {group.inwardDatesLabel && group.challanDate && group.inwardDatesLabel !== group.challanDate && (
                               <>
                                 <span>•</span>
-                                <span className="font-medium text-[#17191c]">
-                                  Inward Date: {group.inwardDatesLabel}
+                                <span>
+                                  Inward Date:{' '}
+                                  <strong className="text-[#17191c]">{group.inwardDatesLabel}</strong>
                                 </span>
                               </>
                             )}
                             <span>•</span>
                           </>
                         )}
-                        <span>Total Inward: {group.totalReceived.toLocaleString('en-IN')} {group.uom}</span>
+                        <span>
+                          Total Inward:{' '}
+                          <strong className="text-[#17191c]">
+                            {group.totalReceived.toLocaleString('en-IN')} {group.uom}
+                          </strong>
+                        </span>
                         {group.totalIssued > 0 && (
                           <>
                             <span>•</span>
