@@ -1132,21 +1132,39 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     };
   };
 
+  // Keep liveProgressLogs synced whenever Job Card store updates (e.g. Packing Rework bounce-back)
+  useEffect(() => {
+    if (!isOpen || !jobCardNo) return;
+    const storeJc = jobCards.find(j => j.jobCardNo === jobCardNo);
+    if (storeJc?.progressLogs) {
+      setLiveProgressLogs(storeJc.progressLogs);
+    }
+  }, [jobCards, jobCardNo, isOpen]);
+
   // Live metrics for a painter assignment:
-  // Completed Good = ONLY Stage 3 (Clear Topcoat) OK pieces (passed all 3 stages)
-  // Rework & Dead Scrap = summed cleanly across all 3 stages so neither is conflated
+  // Combines EOD/stage logs + Packing Check bounce-back rework/rejection stored on asg
   const getAssignmentLiveMetrics = (asg: PainterAssignment) => {
     const s1 = getAssignmentStageSums(asg, 'stage_1_primer');
     const s2 = getAssignmentStageSums(asg, 'stage_2_basecoat');
     const s3 = getAssignmentStageSums(asg, 'stage_3_topcoat');
+    const totalLogRework = s1.rework + s2.rework + s3.rework;
+    const totalLogScrap = s1.scrap + s2.scrap + s3.scrap;
     const hasStageLogs =
-      s1.good + s1.rework + s1.scrap +
-      s2.good + s2.rework + s2.scrap +
-      s3.good + s3.rework + s3.scrap > 0;
+      s1.good + s2.good + s3.good + totalLogRework + totalLogScrap > 0;
 
-    const completedGood = hasStageLogs ? s3.good : (asg.actualCompletedQty || 0);
-    const rework = hasStageLogs ? (s1.rework + s2.rework + s3.rework) : (asg.rejectReworkQty || 0);
-    const scrap = hasStageLogs ? (s1.scrap + s2.scrap + s3.scrap) : (asg.scrapQty || 0);
+    // Include Rework/Scrap bounced back from Packing Check & Pack gate
+    const packingReturnedRework = Math.max(0, (asg.rejectReworkQty || 0) - totalLogRework);
+    const packingReturnedScrap = Math.max(0, (asg.scrapQty || 0) - totalLogScrap);
+
+    const completedGood = hasStageLogs
+      ? Math.max(0, s3.good - packingReturnedRework - packingReturnedScrap)
+      : (asg.actualCompletedQty || 0);
+    const rework = hasStageLogs
+      ? totalLogRework + packingReturnedRework
+      : (asg.rejectReworkQty || 0);
+    const scrap = hasStageLogs
+      ? totalLogScrap + packingReturnedScrap
+      : (asg.scrapQty || 0);
     const pending = Math.max(0, (asg.dailyTargetQty || 0) - completedGood - scrap);
     const efficiency = (asg.dailyTargetQty || 0) > 0
       ? Math.min(100, Math.round((completedGood / asg.dailyTargetQty) * 100))
@@ -1332,8 +1350,9 @@ export const JobCardModal: React.FC<JobCardModalProps> = ({ isOpen, onClose, ini
     if (s2HasLogs) {
       return Math.max(0, s2.good - s3.good - s3.scrap);
     }
-    // EOD Single-Entry Flow: allow direct Final Output logging up to remaining shift balance without forcing S1/S2 entry
-    return Math.max(0, asg.dailyTargetQty - s3.good - s3.scrap);
+    // EOD Single-Entry Flow: allow logging remaining pending balance (including any Packing-returned Rework!)
+    const live = getAssignmentLiveMetrics(asg);
+    return Math.max(0, asg.dailyTargetQty - live.completedGood - live.scrap);
   };
 
   // EOD Single-Entry & Backward-Compatible Stage Cap:

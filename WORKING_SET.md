@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-25: Fixed Packing Rework Bounce-Back Visibility in Painter Assignment KPIs (`JobCardModal.tsx`, `PackingView.tsx`)
+  - Files touched:
+    - `src/portal/components/JobCardModal.tsx`: Updated `getAssignmentLiveMetrics` and `getAssignmentStageMaxAllowed` to subtract `packingReturnedRework`/`packingReturnedScrap` (`asg.rejectReworkQty`/`asg.scrapQty` beyond stage logs) from `Completed Good`, display them in `Rework (Salvage)` / `Dead Scrap`, unlock `Pending Shift Balance` for rework re-entry, and keep `liveProgressLogs` synced on store updates.
+    - `src/portal/views/PackingView.tsx`: Deducted only `packedOkQty + scrapQty` (excluding `reworkReturnedQty`) from `prodOkQty` so reworked pieces reappear in Packing once Production finishes them again.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-25: Fixed Packing Header Layout & Tab Pill Alignment (`PackingView.tsx`)
   - Files touched:
     - `src/portal/views/PackingView.tsx`: Separated top metric badges (`Queue`, `FG Stock`) cleanly on the top-right and placed `1. Production OK List` / `2. Packing Reports & Box Labels` tabs into a dedicated single-line `whitespace-nowrap` pill bar below the header divider so button labels never wrap awkwardly.

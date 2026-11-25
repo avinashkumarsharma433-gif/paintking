@@ -142,8 +142,9 @@ export const PackingView: React.FC = () => {
                 l.actionType !== 'BATCH_OUTPUT'
             );
             const _sumLogs = stage3Logs.reduce((s, l) => s + (l.goodPieces || 0), 0);
-            const prodOkQty = Math.max(asg.actualCompletedQty || 0, _sumLogs);
+            const prodOkQty = asg.actualCompletedQty ?? _sumLogs;
 
+            // Deduct only pieces permanently packed into FG or scrapped (NOT Rework returned to Production!)
             const alreadyCheckedQty = plantSlips
               .filter(
                 s =>
@@ -153,7 +154,7 @@ export const PackingView: React.FC = () => {
                     s.partCode === (asg.partCode || jc.partCode) &&
                     s.color === (asg.colorShade || jc.color))
               )
-              .reduce((sum, s) => sum + (s.offeredQty ?? s.packedOkQty ?? s.packedQty ?? 0), 0);
+              .reduce((sum, s) => sum + (s.packedOkQty ?? s.packedQty ?? 0) + (s.scrapQty || 0), 0);
 
             const readyQty = Math.max(0, prodOkQty - alreadyCheckedQty);
             rows.push({
