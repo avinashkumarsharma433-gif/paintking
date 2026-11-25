@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-25: Redesigned Full-Screen 2-Column Painter Task Allocation UI/UX (`DailyAssignmentModal.tsx`)
+  - Files touched:
+    - `src/portal/components/DailyAssignmentModal.tsx`: Upgraded to balanced `max-w-7xl` two-column full-screen workspace (`lg:col-span-8` main step canvas + sticky `lg:col-span-4` Live Allocation Ledger panel), clickable Painter & Booth selection cards in Step 1, larger typography (`>=12px` labels, `14px` `h-11` inputs), progress bar, and instant step edit shortcuts.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-25: Converted Painter Task Allocation into 3-Step Wizard (`DailyAssignmentModal.tsx`)
   - Files touched:
     - `src/portal/components/DailyAssignmentModal.tsx`: Split full-screen modal into 3 connected pill-stepper stages: Step 1 (Job Details, Painter, Booth & Remarks), Step 2 (Multi-Model Qty & Colour Splits), Step 3 (Internal Company Materials & Auto-Estimate), with per-step validation and contextual step summaries.

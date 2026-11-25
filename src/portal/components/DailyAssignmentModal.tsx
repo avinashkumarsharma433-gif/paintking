@@ -573,23 +573,30 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
     }
   };
 
+  const allocatedPercent =
+    masterBalance.totalOrder > 0
+      ? Math.min(100, Math.round(((masterBalance.completedOk + totalBatchQty) / masterBalance.totalOrder) * 100))
+      : 0;
+  const activeTaskRows = taskRows.filter(r => Number(r.dailyTargetQty) > 0);
+  const totalChemicalQty = plannedMaterials.reduce((s, m) => s + Number(m.qty || 0), 0);
+
   return (
-    <div className="fixed inset-0 z-50 bg-[#fafafb] flex flex-col w-screen h-dvh overflow-hidden text-xs animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 bg-[#fafafb] flex flex-col w-screen h-dvh overflow-hidden text-sm animate-in fade-in duration-150">
       {/* Sticky Full-Screen Top Header + Connected 3-Step Pill Stepper */}
-      <header className="shrink-0 bg-white border-b border-[#ececec] px-4 sm:px-8 py-3 sm:py-4 shadow-2xs">
-        <div className="max-w-6xl mx-auto space-y-3">
-          <div className="flex items-center justify-between gap-3">
+      <header className="shrink-0 bg-white border-b border-[#ececec] px-4 sm:px-8 lg:px-10 py-3.5 sm:py-4 shadow-2xs">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
+          <div className="flex items-start justify-between gap-3 min-w-0">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#c09748] shrink-0" />
-                <span className="text-[10px] sm:text-[10.5px] font-mono font-bold text-[#8a6521] uppercase tracking-wider truncate">
+                <span className="text-xs font-mono font-bold text-[#8a6521] uppercase tracking-wider truncate">
                   TIER-2 DAILY TASK ALLOCATION • STEP {currentStep} OF 3
                 </span>
               </div>
-              <h3 className="text-lg sm:text-2xl font-serif font-normal text-[#17191c] tracking-tight mt-0.5 truncate">
+              <h3 className="text-xl sm:text-2xl font-serif font-normal text-[#17191c] tracking-tight mt-0.5 truncate">
                 Assign Daily Target to Painter
               </h3>
-              <p className="text-[11px] sm:text-xs text-[#777b86] mt-0.5 truncate">
+              <p className="text-xs sm:text-sm text-[#777b86] mt-0.5 truncate">
                 Master Order: <strong className="text-[#17191c]">{masterJobCard.jobCardNo}</strong> • {masterJobCard.customer} (
                 {partsList.length > 1
                   ? `${partsList.length} Material Types`
@@ -602,146 +609,163 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="w-9 h-9 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition shadow-2xs shrink-0 active:scale-95"
+              className="lg:hidden w-10 h-10 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] flex items-center justify-center cursor-pointer transition shadow-2xs shrink-0 active:scale-95"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Connected Pill Stepper */}
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pt-0.5">
-            {[
-              { step: 1 as const, label: '1. Job Details & Painter' },
-              { step: 2 as const, label: '2. Material & Colour' },
-              { step: 3 as const, label: '3. Company Materials' }
-            ].map((item, idx) => {
-              const isActive = currentStep === item.step;
-              const isDone = currentStep > item.step;
+          {/* Connected Pill Stepper + Desktop Close */}
+          <div className="flex items-center justify-between lg:justify-end gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar">
+              {[
+                { step: 1 as const, label: '1. Job & Painter' },
+                { step: 2 as const, label: '2. Material & Colour' },
+                { step: 3 as const, label: '3. Company Materials' }
+              ].map((item, idx) => {
+                const isActive = currentStep === item.step;
+                const isDone = currentStep > item.step;
 
-              return (
-                <React.Fragment key={item.step}>
-                  {idx > 0 && (
-                    <div
-                      className={`h-[1.5px] flex-1 min-w-3 max-w-12 rounded-full ${
-                        isDone || isActive ? 'bg-[#c09748]' : 'bg-[#ececec]'
+                return (
+                  <React.Fragment key={item.step}>
+                    {idx > 0 && (
+                      <div
+                        className={`h-[2px] w-3 sm:w-6 rounded-full shrink-0 ${
+                          isDone || isActive ? 'bg-[#c09748]' : 'bg-[#ececec]'
+                        }`}
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => goToStep(item.step)}
+                      className={`px-3.5 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-semibold cursor-pointer transition flex items-center gap-1.5 shrink-0 border ${
+                        isActive
+                          ? 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be] font-bold shadow-2xs'
+                          : isDone
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : 'bg-[#f2f2f3] text-[#777b86] border-[#dcdfe4] hover:bg-white'
                       }`}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => goToStep(item.step)}
-                    className={`px-3 sm:px-4 py-1.5 rounded-full text-[11px] sm:text-xs font-semibold cursor-pointer transition flex items-center gap-1.5 shrink-0 border ${
-                      isActive
-                        ? 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be] font-bold shadow-2xs'
-                        : isDone
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                          : 'bg-[#f2f2f3] text-[#777b86] border-[#dcdfe4] hover:bg-white'
-                    }`}
-                  >
-                    {isDone && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
-                    <span>{item.label}</span>
-                  </button>
-                </React.Fragment>
-              );
-            })}
+                    >
+                      {isDone && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                      <span>{item.label}</span>
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="hidden lg:flex w-10 h-10 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] items-center justify-center cursor-pointer transition shadow-2xs shrink-0 active:scale-95"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Form wrapping Scrollable Body + Sticky Bottom Footer */}
+      {/* Form wrapping Two-Column Full-Screen Workspace + Sticky Bottom Footer */}
       <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
-        <div className="flex-1 overflow-y-auto px-3 sm:px-8 py-4 sm:py-6">
-          <div className="max-w-6xl mx-auto space-y-4">
-            {errorMsg && (
-              <div className="p-3 rounded-[14px] bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>{errorMsg}</span>
-              </div>
-            )}
+        <div className="flex-1 overflow-y-auto px-4 sm:px-8 lg:px-10 py-5 sm:py-6">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* LEFT 8-COLUMN MAIN STEP CANVAS */}
+            <div className="lg:col-span-8 space-y-5">
+              {errorMsg && (
+                <div className="p-3.5 rounded-[16px] bg-rose-50 border border-rose-200 text-rose-800 text-xs sm:text-sm font-semibold flex items-center gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
 
-            {/* ============================================================== */}
-            {/* PART 1: JOB DETAILS + PAINTER & BOOTH SELECTION                */}
-            {/* ============================================================== */}
-            {currentStep === 1 && (
-              <div className="space-y-4 animate-in fade-in duration-150">
-                {/* Master Order Balance & Inward Overview Card */}
-                <div className="p-4 sm:p-5 rounded-[20px] bg-white border border-[#ececec] shadow-2xs space-y-3.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[#f2f2f3]">
-                    <div>
-                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#8a6521] block">
-                        Master Job Card Overview
+              {/* ============================================================ */}
+              {/* PART 1: JOB DETAILS + PAINTER & BOOTH CARDS                  */}
+              {/* ============================================================ */}
+              {currentStep === 1 && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  {/* Job Context + Date Strip */}
+                  <div className="p-5 sm:p-6 rounded-[24px] bg-white border border-[#ececec] shadow-2xs space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#f2f2f3]">
+                      <div>
+                        <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#8a6521] block">
+                          Step 1 • Master Job Card &amp; Shift Details
+                        </span>
+                        <h4 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal mt-0.5">
+                          {masterJobCard.customer} • {masterJobCard.jobCardNo}
+                        </h4>
+                      </div>
+                      <span className="px-3.5 py-1.5 rounded-full bg-[#faf7ed] border border-[#f4e5be] text-xs font-mono font-bold text-[#8a6521] flex items-center gap-1.5">
+                        <Calendar className="w-4 h-4 text-[#c09748]" />
+                        <span>{todayDateStr} (Auto-Today) • Single Day Shift</span>
                       </span>
-                      <h4 className="text-base font-serif text-[#17191c] font-normal">
-                        {masterJobCard.customer} • {masterJobCard.jobCardNo}
-                      </h4>
                     </div>
-                    <span className="px-3 py-1 rounded-full bg-[#faf7ed] border border-[#f4e5be] text-[10.5px] font-mono font-bold text-[#8a6521] flex items-center gap-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-[#c09748]" />
-                      <span>Working Date: {todayDateStr} (Auto-Today)</span>
-                    </span>
-                  </div>
 
-                  <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec]">
-                    <div>
-                      <span className="text-[9.5px] sm:text-[10px] text-[#777b86] block uppercase font-mono">Total Order Qty</span>
-                      <strong className="text-xs sm:text-base font-bold text-[#17191c] font-mono">
-                        {masterBalance.totalOrder.toLocaleString('en-IN')} Pcs
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-[9.5px] sm:text-[10px] text-emerald-700 block uppercase font-mono">Completed OK</span>
-                      <strong className="text-xs sm:text-base font-bold text-emerald-800 font-mono">
-                        {masterBalance.completedOk.toLocaleString('en-IN')} Pcs
-                      </strong>
-                    </div>
-                    <div>
-                      <span className="text-[9.5px] sm:text-[10px] text-amber-700 block uppercase font-mono">Master Pending</span>
-                      <strong className="text-xs sm:text-base font-bold text-amber-900 font-mono">
-                        {masterBalance.masterBalancePending.toLocaleString('en-IN')} Pcs
-                      </strong>
-                    </div>
-                  </div>
-
-                  {partsList.length > 0 && (
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] font-mono font-bold uppercase text-[#777b86] block">
-                        Inward Models in this Order ({partsList.length})
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {partsList.map(p => (
-                          <span
-                            key={p.partCode}
-                            className="px-2.5 py-1 rounded-full bg-[#fafafb] border border-[#ececec] text-[10.5px] text-[#17191c] font-medium"
-                          >
-                            {p.partDescription} • <strong className="font-mono text-[#8a6521]">{getPartOrderPending(p.partCode)} Bal</strong>
-                          </span>
-                        ))}
+                    <div className="grid grid-cols-3 gap-3 sm:gap-4 text-center">
+                      <div className="p-3.5 rounded-[18px] bg-[#fafafb] border border-[#ececec]">
+                        <span className="text-xs text-[#777b86] block font-medium">Total Order</span>
+                        <strong className="text-base sm:text-xl font-serif font-bold text-[#17191c] mt-0.5 block">
+                          {masterBalance.totalOrder.toLocaleString('en-IN')} Pcs
+                        </strong>
+                      </div>
+                      <div className="p-3.5 rounded-[18px] bg-emerald-50/60 border border-emerald-200/80">
+                        <span className="text-xs text-emerald-700 block font-medium">Completed OK</span>
+                        <strong className="text-base sm:text-xl font-serif font-bold text-emerald-800 mt-0.5 block">
+                          {masterBalance.completedOk.toLocaleString('en-IN')} Pcs
+                        </strong>
+                      </div>
+                      <div className="p-3.5 rounded-[18px] bg-[#faf7ed] border border-[#f4e5be]">
+                        <span className="text-xs text-[#8a6521] block font-medium">Balance Pending</span>
+                        <strong className="text-base sm:text-xl font-serif font-bold text-[#8a6521] mt-0.5 block">
+                          {masterBalance.masterBalancePending.toLocaleString('en-IN')} Pcs
+                        </strong>
                       </div>
                     </div>
-                  )}
-                </div>
-
-                {/* Painter & Booth Selection */}
-                <div className="p-4 sm:p-5 rounded-[20px] bg-white border border-[#ececec] shadow-2xs space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#f2f2f3]">
-                    <span className="text-[11px] font-bold text-[#17191c] font-mono uppercase">
-                      Painter &amp; Spray Booth Assignment
-                    </span>
-                    <span className="text-[10.5px] font-mono text-[#777b86]">
-                      Single Day Shift • All 3 Stages
-                    </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-[#17191c] flex items-center gap-1.5 font-mono">
-                        <User className="w-3.5 h-3.5 text-[#c09748]" />
-                        <span>1. Assigned Floor Painter *</span>
+                  {/* Visual Painter Selection Grid */}
+                  <div className="p-5 sm:p-6 rounded-[24px] bg-white border border-[#ececec] shadow-2xs space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[#f2f2f3]">
+                      <label className="text-sm font-bold text-[#17191c] flex items-center gap-2">
+                        <User className="w-4 h-4 text-[#c09748]" />
+                        <span>1. Select Floor Painter *</span>
                       </label>
+                      <span className="text-xs text-[#777b86]">
+                        {safePainters.length} Active Painter{safePainters.length !== 1 ? 's' : ''} in Plant
+                      </span>
+                    </div>
+
+                    {safePainters.length <= 9 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {safePainters.map(p => {
+                          const isSelected = selectedPainter.id === p.id;
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => setSelectedPainterId(p.id)}
+                              className={`p-3.5 rounded-[18px] border text-left cursor-pointer transition flex items-start justify-between gap-2 ${
+                                isSelected
+                                  ? 'bg-[#faf7ed] border-[#c09748] ring-2 ring-[#c09748]/20 shadow-2xs'
+                                  : 'bg-[#fafafb] hover:bg-white border-[#ececec] hover:border-[#dcdfe4]'
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <div className="font-semibold text-sm text-[#17191c] truncate">{p.name}</div>
+                                <div className="text-xs text-[#777b86] mt-0.5 truncate">
+                                  {p.code || 'PTR'} • {p.boothNo?.split('(')[0] || 'Floor Line'}
+                                </div>
+                              </div>
+                              {isSelected && <CheckCircle2 className="w-4 h-4 text-[#c09748] shrink-0 mt-0.5" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
                       <select
                         value={selectedPainterId}
                         onChange={e => setSelectedPainterId(e.target.value)}
-                        className="w-full h-11 px-3 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
+                        className="w-full h-12 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-sm font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
                       >
                         {safePainters.map(p => (
                           <option key={p.id} value={p.id}>
@@ -749,547 +773,656 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                           </option>
                         ))}
                       </select>
-                    </div>
+                    )}
 
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-[#17191c] flex items-center gap-1.5 font-mono">
-                        <Layers className="w-3.5 h-3.5 text-[#c09748]" />
-                        <span>2. Spray Booth / Conveyor Line *</span>
+                    {/* Booth Selector */}
+                    <div className="pt-2 space-y-2.5">
+                      <label className="text-sm font-bold text-[#17191c] flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-[#c09748]" />
+                        <span>2. Select Spray Booth / Conveyor Line *</span>
                       </label>
-                      <select
-                        value={selectedBoothName}
-                        onChange={e => setSelectedBoothName(e.target.value)}
-                        className="w-full h-11 px-3 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
-                      >
-                        {safeBooths.map(b => (
-                          <option key={b.id} value={b.name}>
-                            {b.name} ({b.type})
-                          </option>
-                        ))}
-                        {safeBooths.length === 0 && (
-                          <option value="Booth #1 (Continuous Conveyor Line)">Booth #1 (Continuous Conveyor Line)</option>
-                        )}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5 pt-1">
-                    <label className="text-[11px] font-bold text-[#17191c] font-mono block">
-                      3. Floor Instructions / Remarks (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={remarks}
-                      onChange={e => setRemarks(e.target.value)}
-                      placeholder="e.g. Day 1 target, maintain 25 microns DFT"
-                      className="w-full h-10 px-3.5 rounded-[14px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-xs text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ============================================================== */}
-            {/* PART 2: MATERIAL & COLOUR CONFIGURATION                        */}
-            {/* ============================================================== */}
-            {currentStep === 2 && (
-              <div className="space-y-4 animate-in fade-in duration-150">
-                {/* Context Strip */}
-                <div className="px-4 py-2.5 rounded-[16px] bg-white border border-[#ececec] shadow-2xs flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
-                  <div className="flex flex-wrap items-center gap-2 text-[#17191c]">
-                    <span className="font-bold">{selectedPainter.name}</span>
-                    <span className="text-[#777b86]">•</span>
-                    <span className="text-[#777b86]">{selectedBoothName}</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span>
-                      Selected Now: <strong className="text-[#17191c]">{totalBatchQty.toLocaleString('en-IN')} Pcs</strong> ({distinctSelectedModels} Model{distinctSelectedModels !== 1 ? 's' : ''})
-                    </span>
-                    <span className="text-[#777b86]">•</span>
-                    <span>
-                      Master Balance Left: <strong className="text-[#8a6521]">{remainingMasterAfterBatch.toLocaleString('en-IN')} Pcs</strong>
-                    </span>
-                  </div>
-                </div>
-
-                {/* Multi-Model & Colour Split Task Builder */}
-                <div className="p-4 sm:p-5 rounded-[20px] bg-white border border-[#ececec] shadow-2xs space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[#f2f2f3]">
-                    <div>
-                      <label className="text-[11px] font-bold text-[#17191c] flex items-center gap-1.5 font-mono uppercase">
-                        <PackageCheck className="w-3.5 h-3.5 text-[#c09748]" />
-                        <span>Models, Daily Target Qty &amp; Colour Splits *</span>
-                      </label>
-                      <p className="text-[10.5px] text-[#777b86] mt-0.5">
-                        Ek saath multiple models add karein, ya <strong>&quot;Split&quot;</strong> button se ek hi model ko alag colours me divide karein.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {partsList.length > 1 && remainingMasterAfterBatch > 0 && (
-                        <button
-                          type="button"
-                          onClick={handleSelectAllAvailableModels}
-                          className="px-2.5 py-1 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-[10px] font-bold cursor-pointer flex items-center gap-1 transition shadow-2xs active:scale-95"
+                      {safeBooths.length > 0 && safeBooths.length <= 6 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {safeBooths.map(b => {
+                            const isBoothActive = selectedBoothName === b.name;
+                            return (
+                              <button
+                                key={b.id}
+                                type="button"
+                                onClick={() => setSelectedBoothName(b.name)}
+                                className={`p-3.5 rounded-[18px] border text-left cursor-pointer transition flex items-center justify-between gap-2 ${
+                                  isBoothActive
+                                    ? 'bg-[#faf7ed] border-[#c09748] ring-2 ring-[#c09748]/20'
+                                    : 'bg-[#fafafb] hover:bg-white border-[#ececec] hover:border-[#dcdfe4]'
+                                }`}
+                              >
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-sm text-[#17191c] truncate">{b.name}</div>
+                                  <div className="text-xs text-[#777b86] truncate">{b.type}</div>
+                                </div>
+                                {isBoothActive && <CheckCircle2 className="w-4 h-4 text-[#c09748] shrink-0" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <select
+                          value={selectedBoothName}
+                          onChange={e => setSelectedBoothName(e.target.value)}
+                          className="w-full h-12 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-sm font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
                         >
-                          <Sparkles className="w-3 h-3 text-[#c09748]" />
-                          <span>+ Select All Pending ({partsList.length})</span>
-                        </button>
+                          {safeBooths.map(b => (
+                            <option key={b.id} value={b.name}>
+                              {b.name} ({b.type})
+                            </option>
+                          ))}
+                          {safeBooths.length === 0 && (
+                            <option value="Booth #1 (Continuous Conveyor Line)">Booth #1 (Continuous Conveyor Line)</option>
+                          )}
+                        </select>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => handleAddModelRow()}
-                        disabled={remainingMasterAfterBatch <= 0}
-                        className="px-2.5 py-1 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] disabled:opacity-45 text-[#17191c] border border-[#dcdfe4] text-[10px] font-semibold cursor-pointer flex items-center gap-1 transition shadow-2xs active:scale-95"
-                      >
-                        <Plus className="w-3 h-3 text-[#c09748]" />
-                        <span>Add Model Row</span>
-                      </button>
+                    </div>
+
+                    {/* Optional Instructions */}
+                    <div className="pt-2 space-y-1.5">
+                      <label className="text-xs sm:text-sm font-semibold text-[#17191c] block">
+                        3. Floor Instructions / Remarks (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={remarks}
+                        onChange={e => setRemarks(e.target.value)}
+                        placeholder="e.g. Day 1 target, maintain 25 microns DFT, double coat on edges"
+                        className="w-full h-11 px-4 rounded-[16px] border border-[#dcdfe4] bg-[#fafafb] hover:bg-white focus:bg-white text-sm text-[#17191c] focus:border-[#c09748] focus:outline-none shadow-2xs"
+                      />
                     </div>
                   </div>
+                </div>
+              )}
 
-                  {/* Quick Click Model Chips (when multiple inward parts exist) */}
-                  {partsList.length > 1 && (
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {partsList.map(part => {
-                        const avail = getRemainingForPartInModal(part.partCode);
-                        return (
+              {/* ============================================================ */}
+              {/* PART 2: MATERIAL & COLOUR CONFIGURATION                      */}
+              {/* ============================================================ */}
+              {currentStep === 2 && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  <div className="p-5 sm:p-6 rounded-[24px] bg-white border border-[#ececec] shadow-2xs space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#f2f2f3]">
+                      <div>
+                        <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#8a6521] block">
+                          Step 2 • Model, Quantity &amp; Colour Allocation
+                        </span>
+                        <h4 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal mt-0.5 flex items-center gap-2">
+                          <PackageCheck className="w-5 h-5 text-[#c09748]" />
+                          <span>Select Inward Models &amp; Colour Splits</span>
+                        </h4>
+                        <p className="text-xs sm:text-sm text-[#777b86] mt-0.5">
+                          Multiple models add karein, ya <strong>&quot;Split Colour&quot;</strong> se ek hi model ko alag colours (jaise Black + Red) me divide karein.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {partsList.length > 1 && remainingMasterAfterBatch > 0 && (
                           <button
-                            key={part.partCode}
                             type="button"
-                            disabled={avail <= 0}
-                            onClick={() => handleAddModelRow(part)}
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold border transition flex items-center gap-1 ${
-                              avail > 0
-                                ? 'bg-[#fafafb] hover:bg-[#faf3e0] text-[#17191c] border-[#dcdfe4] hover:border-[#f4e5be] cursor-pointer'
-                                : 'bg-[#f2f2f3] text-[#777b86] border-[#ececec] opacity-75 cursor-default'
-                            }`}
+                            onClick={handleSelectAllAvailableModels}
+                            className="px-3.5 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs sm:text-sm font-bold cursor-pointer flex items-center gap-1.5 transition shadow-2xs active:scale-95"
                           >
-                            <span>{avail > 0 ? `+ ${part.partDescription}` : `✓ ${part.partDescription}`}</span>
-                            <span className="font-mono text-[9.5px] text-[#8a6521]">
-                              {avail > 0 ? `(${avail} Bal)` : '(Full)'}
-                            </span>
+                            <Sparkles className="w-4 h-4 text-[#c09748]" />
+                            <span>+ Select All Pending ({partsList.length})</span>
                           </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Quick Colour Reuse Strip */}
-                  {taskRows.length > 1 && distinctEnteredColors.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                      <span className="text-[10px] font-mono font-bold text-[#777b86] flex items-center gap-1">
-                        <Palette className="w-3 h-3 text-[#c09748]" />
-                        <span>Quick Apply Colour to Empty Rows:</span>
-                      </span>
-                      {distinctEnteredColors.map(clr => (
+                        )}
                         <button
-                          key={clr}
                           type="button"
-                          onClick={() => handleApplyColorToEmptyRows(clr)}
-                          className="px-2 py-0.5 rounded-full bg-[#faf7ed] hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-semibold cursor-pointer transition"
+                          onClick={() => handleAddModelRow()}
+                          disabled={remainingMasterAfterBatch <= 0}
+                          className="px-3.5 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] disabled:opacity-45 text-[#17191c] border border-[#dcdfe4] text-xs sm:text-sm font-semibold cursor-pointer flex items-center gap-1.5 transition shadow-2xs active:scale-95"
                         >
-                          Fill Empty: {clr}
+                          <Plus className="w-4 h-4 text-[#c09748]" />
+                          <span>Add Model Row</span>
                         </button>
-                      ))}
+                      </div>
                     </div>
-                  )}
 
-                  {/* Dynamic Task Rows */}
-                  <div className="space-y-2 p-1">
-                    {taskRows.map((row, idx) => {
-                      const maxForRow = getRemainingForPartInModal(row.partCode, row.id);
-                      const canSplit =
-                        getRemainingForPartInModal(row.partCode) > 0 || Number(row.dailyTargetQty) > 1;
+                    {/* Readable Model Chips Grid */}
+                    {partsList.length > 1 && (
+                      <div className="space-y-2">
+                        <span className="text-xs font-semibold text-[#777b86] block">
+                          Quick Add from Inward Models ({partsList.length} Types):
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {partsList.map(part => {
+                            const avail = getRemainingForPartInModal(part.partCode);
+                            return (
+                              <button
+                                key={part.partCode}
+                                type="button"
+                                disabled={avail <= 0}
+                                onClick={() => handleAddModelRow(part)}
+                                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition flex items-center gap-1.5 ${
+                                  avail > 0
+                                    ? 'bg-[#fafafb] hover:bg-[#faf3e0] text-[#17191c] border-[#dcdfe4] hover:border-[#f4e5be] cursor-pointer'
+                                    : 'bg-[#f2f2f3] text-[#777b86] border-[#ececec] opacity-75 cursor-default'
+                                }`}
+                              >
+                                <span>{avail > 0 ? `+ ${part.partDescription}` : `✓ ${part.partDescription}`}</span>
+                                <span className="font-mono text-xs text-[#8a6521]">
+                                  {avail > 0 ? `(${avail} Bal)` : '(Full)'}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
-                      return (
-                        <div
-                          key={row.id}
-                          className="grid grid-cols-2 sm:grid-cols-12 gap-2.5 items-end bg-[#fafafb] p-3 rounded-[16px] border border-[#ececec]"
-                        >
-                          {/* Model Picker */}
-                          <div className="col-span-2 sm:col-span-5 space-y-1">
-                            <label className="text-[10px] font-mono font-bold text-[#777b86] uppercase flex items-center justify-between">
-                              <span>Model #{idx + 1}</span>
-                              <span className="text-[9.5px] text-[#8a6521]">Max: {maxForRow} Pcs</span>
-                            </label>
-                            {partsList.length > 1 ? (
-                              <select
-                                value={row.partCode}
+                    {/* Quick Colour Reuse Strip */}
+                    {taskRows.length > 1 && distinctEnteredColors.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <span className="text-xs font-semibold text-[#777b86] flex items-center gap-1.5">
+                          <Palette className="w-4 h-4 text-[#c09748]" />
+                          <span>Quick Fill Empty Colour Rows:</span>
+                        </span>
+                        {distinctEnteredColors.map(clr => (
+                          <button
+                            key={clr}
+                            type="button"
+                            onClick={() => handleApplyColorToEmptyRows(clr)}
+                            className="px-3 py-1 rounded-full bg-[#faf7ed] hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-xs font-semibold cursor-pointer transition"
+                          >
+                            Apply &quot;{clr}&quot;
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Spacious Dynamic Task Rows */}
+                    <div className="space-y-3 p-1">
+                      {taskRows.map((row, idx) => {
+                        const maxForRow = getRemainingForPartInModal(row.partCode, row.id);
+                        const canSplit =
+                          getRemainingForPartInModal(row.partCode) > 0 || Number(row.dailyTargetQty) > 1;
+
+                        return (
+                          <div
+                            key={row.id}
+                            className="grid grid-cols-2 sm:grid-cols-12 gap-3 items-end bg-[#fafafb] p-4 rounded-[18px] border border-[#ececec]"
+                          >
+                            {/* Model Picker */}
+                            <div className="col-span-2 sm:col-span-5 space-y-1.5">
+                              <label className="text-xs font-semibold text-[#17191c] flex items-center justify-between">
+                                <span>Model #{idx + 1}</span>
+                                <span className="font-mono text-xs text-[#8a6521]">Max: {maxForRow} Pcs</span>
+                              </label>
+                              {partsList.length > 1 ? (
+                                <select
+                                  value={row.partCode}
+                                  onChange={e => {
+                                    const picked = partsList.find(p => p.partCode === e.target.value);
+                                    if (!picked) return;
+                                    const nextMax = getRemainingForPartInModal(picked.partCode, row.id);
+                                    setTaskRows(prev =>
+                                      prev.map(r =>
+                                        r.id === row.id
+                                          ? {
+                                              ...r,
+                                              partCode: picked.partCode,
+                                              partDescription: picked.partDescription,
+                                              dailyTargetQty:
+                                                r.dailyTargetQty > 0
+                                                  ? Math.min(r.dailyTargetQty, nextMax)
+                                                  : nextMax
+                                            }
+                                          : r
+                                      )
+                                    );
+                                  }}
+                                  className="w-full h-11 px-3 rounded-[14px] border border-[#dcdfe4] bg-white text-sm font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                                >
+                                  {partsList.map(p => (
+                                    <option key={p.partCode} value={p.partCode}>
+                                      {p.partDescription} ({p.partCode}) — Bal: {getPartOrderPending(p.partCode)} Pcs
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <div className="w-full h-11 px-3.5 rounded-[14px] border border-[#ececec] bg-white text-sm font-semibold text-[#17191c] flex items-center justify-between gap-2">
+                                  <span className="truncate">{row.partDescription}</span>
+                                  <span className="font-mono text-xs text-[#777b86] shrink-0">{row.partCode}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Qty Input */}
+                            <div className="col-span-1 sm:col-span-2 space-y-1.5">
+                              <label className="text-xs font-semibold text-[#17191c] block">Qty (Pcs) *</label>
+                              <input
+                                type="number"
+                                required
+                                min={1}
+                                max={Math.max(1, maxForRow)}
+                                value={row.dailyTargetQty === 0 ? '' : row.dailyTargetQty}
                                 onChange={e => {
-                                  const picked = partsList.find(p => p.partCode === e.target.value);
-                                  if (!picked) return;
-                                  const nextMax = getRemainingForPartInModal(picked.partCode, row.id);
+                                  const raw = e.target.value;
+                                  if (raw === '') {
+                                    setTaskRows(prev => prev.map(r => (r.id === row.id ? { ...r, dailyTargetQty: 0 } : r)));
+                                    return;
+                                  }
+                                  const parsed = Math.max(0, Math.floor(Number(raw) || 0));
                                   setTaskRows(prev =>
                                     prev.map(r =>
-                                      r.id === row.id
-                                        ? {
-                                            ...r,
-                                            partCode: picked.partCode,
-                                            partDescription: picked.partDescription,
-                                            dailyTargetQty:
-                                              r.dailyTargetQty > 0
-                                                ? Math.min(r.dailyTargetQty, nextMax)
-                                                : nextMax
-                                          }
-                                        : r
+                                      r.id === row.id ? { ...r, dailyTargetQty: Math.min(maxForRow, parsed) } : r
                                     )
                                   );
                                 }}
-                                className="w-full h-9 px-2.5 rounded-[12px] border border-[#dcdfe4] bg-white text-xs font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                              >
-                                {partsList.map(p => (
-                                  <option key={p.partCode} value={p.partCode}>
-                                    {p.partDescription} ({p.partCode}) — Bal: {getPartOrderPending(p.partCode)}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <div className="w-full h-9 px-2.5 rounded-[12px] border border-[#ececec] bg-white text-xs font-semibold text-[#17191c] flex items-center justify-between gap-2">
-                                <span className="truncate">{row.partDescription}</span>
-                                <span className="font-mono text-[10px] text-[#777b86] shrink-0">{row.partCode}</span>
-                              </div>
-                            )}
-                          </div>
+                                className="w-full h-11 px-3 rounded-[14px] border border-[#dcdfe4] bg-white text-sm font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                              />
+                            </div>
 
-                          {/* Qty Input */}
-                          <div className="col-span-1 sm:col-span-2 space-y-1">
-                            <label className="text-[10px] font-mono font-bold text-[#777b86] uppercase block">
-                              Qty (Pcs) *
-                            </label>
-                            <input
-                              type="number"
-                              required
-                              min={1}
-                              max={Math.max(1, maxForRow)}
-                              value={row.dailyTargetQty === 0 ? '' : row.dailyTargetQty}
-                              onChange={e => {
-                                const raw = e.target.value;
-                                if (raw === '') {
-                                  setTaskRows(prev => prev.map(r => (r.id === row.id ? { ...r, dailyTargetQty: 0 } : r)));
-                                  return;
-                                }
-                                const parsed = Math.max(0, Math.floor(Number(raw) || 0));
-                                setTaskRows(prev =>
-                                  prev.map(r =>
-                                    r.id === row.id ? { ...r, dailyTargetQty: Math.min(maxForRow, parsed) } : r
+                            {/* Colour / Shade Input */}
+                            <div className="col-span-1 sm:col-span-3 space-y-1.5">
+                              <label className="text-xs font-semibold text-[#17191c] block">Colour / Shade *</label>
+                              <input
+                                type="text"
+                                required
+                                value={row.colorShade}
+                                onChange={e =>
+                                  setTaskRows(prev =>
+                                    prev.map(r => (r.id === row.id ? { ...r, colorShade: e.target.value } : r))
                                   )
-                                );
-                              }}
-                              className="w-full h-9 px-2.5 rounded-[12px] border border-[#dcdfe4] bg-white text-xs font-mono font-bold text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                            />
-                          </div>
+                                }
+                                placeholder="e.g. Black / Red"
+                                className="w-full h-11 px-3 rounded-[14px] border border-[#dcdfe4] bg-white text-sm font-medium text-[#17191c] focus:border-[#c09748] focus:outline-none"
+                              />
+                            </div>
 
-                          {/* Colour / Shade Input */}
-                          <div className="col-span-1 sm:col-span-3 space-y-1">
-                            <label className="text-[10px] font-mono font-bold text-[#777b86] uppercase block">
-                              Colour / Shade *
-                            </label>
-                            <input
-                              type="text"
-                              required
-                              value={row.colorShade}
-                              onChange={e =>
-                                setTaskRows(prev =>
-                                  prev.map(r => (r.id === row.id ? { ...r, colorShade: e.target.value } : r))
-                                )
-                              }
-                              placeholder="e.g. Black / Red"
-                              className="w-full h-9 px-2.5 rounded-[12px] border border-[#dcdfe4] bg-white text-xs font-semibold text-[#17191c] focus:border-[#c09748] focus:outline-none"
-                            />
-                          </div>
-
-                          {/* Row Actions: Split Colour + Delete */}
-                          <div className="col-span-2 sm:col-span-2 flex items-center justify-end gap-1.5">
-                            <button
-                              type="button"
-                              disabled={!canSplit}
-                              onClick={() => handleSplitRowColour(row)}
-                              title="Split this model into another colour row"
-                              className="h-9 px-2.5 rounded-full bg-[#faf7ed] hover:bg-[#faf3e0] disabled:opacity-40 text-[#8a6521] border border-[#f4e5be] text-[10.5px] font-bold cursor-pointer flex items-center gap-1 transition"
-                            >
-                              <Split className="w-3 h-3 text-[#c09748]" />
-                              <span>Split</span>
-                            </button>
-
-                            {taskRows.length > 1 && (
+                            {/* Row Actions: Split Colour + Delete */}
+                            <div className="col-span-2 sm:col-span-2 flex items-center justify-end gap-2">
                               <button
                                 type="button"
-                                onClick={() => setTaskRows(prev => prev.filter(r => r.id !== row.id))}
-                                title="Remove row"
-                                className="w-9 h-9 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center cursor-pointer transition shrink-0"
+                                disabled={!canSplit}
+                                onClick={() => handleSplitRowColour(row)}
+                                title="Split this model into another colour row"
+                                className="h-11 px-3 rounded-full bg-[#faf7ed] hover:bg-[#faf3e0] disabled:opacity-40 text-[#8a6521] border border-[#f4e5be] text-xs font-bold cursor-pointer flex items-center gap-1.5 transition"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Split className="w-3.5 h-3.5 text-[#c09748]" />
+                                <span>Split</span>
                               </button>
-                            )}
+
+                              {taskRows.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setTaskRows(prev => prev.filter(r => r.id !== row.id))}
+                                  title="Remove row"
+                                  className="w-11 h-11 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center cursor-pointer transition shrink-0"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* ============================================================== */}
-            {/* PART 3: INTERNAL COMPANY MATERIALS                             */}
-            {/* ============================================================== */}
-            {currentStep === 3 && (
-              <div className="space-y-4 animate-in fade-in duration-150">
-                {/* Summary Strip of Step 1 & Step 2 */}
-                <div className="p-3.5 rounded-[18px] bg-white border border-[#ececec] shadow-2xs space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
-                    <span className="text-[#17191c]">
-                      <strong>{selectedPainter.name}</strong> • {selectedBoothName}
-                    </span>
-                    <span className="text-[#8a6521] font-bold">
-                      Total: {totalBatchQty.toLocaleString('en-IN')} Pcs ({taskRows.filter(r => r.dailyTargetQty > 0).length} Tasks)
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {taskRows
-                      .filter(r => Number(r.dailyTargetQty) > 0)
-                      .map(r => (
-                        <span
-                          key={r.id}
-                          className="px-2.5 py-1 rounded-full bg-[#fafafb] border border-[#ececec] text-[10.5px] text-[#17191c]"
-                        >
-                          {r.partDescription} • <strong className="font-mono">{r.dailyTargetQty} Pcs</strong> •{' '}
-                          <span className="font-semibold text-[#8a6521]">{r.colorShade}</span>
+              {/* ============================================================ */}
+              {/* PART 3: INTERNAL COMPANY MATERIALS                           */}
+              {/* ============================================================ */}
+              {currentStep === 3 && (
+                <div className="space-y-5 animate-in fade-in duration-150">
+                  <div className="p-5 sm:p-6 rounded-[24px] bg-white border border-[#ececec] shadow-2xs space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#f2f2f3]">
+                      <div>
+                        <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#8a6521] block">
+                          Step 3 • Store Material Demand (Today&apos;s Basis Only)
                         </span>
-                      ))}
-                  </div>
-                </div>
-
-                {/* Daily Company Materials (Today's Basis Only) */}
-                <div className="p-4 sm:p-5 rounded-[20px] bg-[#faf7ed]/70 border border-[#f4e5be] space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#f4e5be]">
-                    <div>
-                      <label className="text-[11px] font-bold text-[#8a6521] flex items-center gap-1.5 font-mono uppercase">
-                        <FlaskConical className="w-3.5 h-3.5 text-[#c09748]" />
-                        <span>Daily Company Materials (Today&apos;s Basis Only) *</span>
-                      </label>
-                      <p className="text-[10.5px] text-[#777b86] mt-0.5">
-                        Aaj ke {totalBatchQty || 0} Pcs ({distinctEnteredColors.length || 1} colour) ke liye Paints, Thinners &amp; Hardeners — Store ko Floor Demand jayegi.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={handleAutoEstimateMaterials}
-                        className="px-2.5 py-1 rounded-full bg-white hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-bold cursor-pointer flex items-center gap-1 transition shadow-2xs active:scale-95"
-                      >
-                        <Sparkles className="w-3 h-3 text-[#c09748]" />
-                        <span>Auto-Estimate ({totalBatchQty || 0} Pcs)</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleAddDailyMaterial()}
-                        className="px-2.5 py-1 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[10px] font-semibold cursor-pointer flex items-center gap-1 transition shadow-2xs active:scale-95"
-                      >
-                        <Plus className="w-3 h-3 text-[#c09748]" />
-                        <span>Add Item</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Quick Presets + Available Store Stock Pickers */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {[
-                      {
-                        label: '+ Basecoat PU Paint',
-                        materialName: distinctEnteredColors[0] ? `Basecoat 2K PU Paint (${distinctEnteredColors[0]})` : 'Basecoat 2K PU Paint',
-                        materialType: 'Base Paint' as const,
-                        qty: Math.max(0.5, Number(((totalBatchQty || 100) * 0.012).toFixed(2))),
-                        uom: 'Litres' as const,
-                        colour: distinctEnteredColors[0]
-                      },
-                      {
-                        label: '+ 2K PU Hardener',
-                        materialName: '2K PU Hardener',
-                        materialType: 'Hardener' as const,
-                        qty: Math.max(0.25, Number(((totalBatchQty || 100) * 0.003).toFixed(2))),
-                        uom: 'Litres' as const
-                      },
-                      {
-                        label: '+ PU Thinner 400',
-                        materialName: 'PU Thinner 400 Solvent',
-                        materialType: 'Thinner' as const,
-                        qty: Math.max(0.25, Number(((totalBatchQty || 100) * 0.004).toFixed(2))),
-                        uom: 'Litres' as const
-                      },
-                      {
-                        label: '+ 2K Clear Coat',
-                        materialName: '2K Clear Lacquer Topcoat',
-                        materialType: 'Topcoat' as const,
-                        qty: Math.max(0.5, Number(((totalBatchQty || 100) * 0.01).toFixed(2))),
-                        uom: 'Litres' as const
-                      }
-                    ].map(preset => (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => handleAddDailyMaterial(preset)}
-                        className="px-2.5 py-0.5 rounded-full bg-white hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-semibold cursor-pointer transition"
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
-                    {availableCompanyBatches.slice(0, 4).map(batch => (
-                      <button
-                        key={batch.batchId}
-                        type="button"
-                        onClick={() =>
-                          handleAddDailyMaterial({
-                            materialName: batch.itemName,
-                            materialType:
-                              batch.materialType === 'hardener'
-                                ? 'Hardener'
-                                : batch.materialType === 'thinner'
-                                  ? 'Thinner'
-                                  : batch.materialType === 'clear_coat'
-                                    ? 'Topcoat'
-                                    : 'Base Paint',
-                            qty: Math.min(batch.balanceQty, Math.max(0.5, Number(((totalBatchQty || 100) * 0.01).toFixed(2)))),
-                            uom: batch.uom === 'Kg' || batch.uom === 'Pcs' ? batch.uom : 'Litres',
-                            stockBatchId: batch.batchId,
-                            batchNumber: batch.supplierBatchNo
-                          })
-                        }
-                        className="px-2.5 py-0.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-mono font-semibold cursor-pointer transition"
-                        title={`Store Avail: ${batch.balanceQty} ${batch.uom} (${batch.supplierBatchNo})`}
-                      >
-                        Store: {batch.itemName} ({batch.balanceQty} {batch.uom})
-                      </button>
-                    ))}
-                  </div>
-
-                  {plannedMaterials.length === 0 ? (
-                    <div className="p-4 rounded-[14px] bg-white border border-dashed border-[#f4e5be] text-center text-[11px] text-[#777b86]">
-                      Upar se quick presets ya <strong>&quot;Auto-Estimate&quot;</strong> click karein, ya <strong>&quot;Add Item&quot;</strong> se aaj ka exact chemical quantity add karein.
-                    </div>
-                  ) : (
-                    <div className="space-y-2 p-1">
-                      {plannedMaterials.map((mat, idx) => (
-                        <div
-                          key={mat.id}
-                          className="grid grid-cols-2 sm:grid-cols-12 gap-2 items-center bg-white p-2.5 rounded-[14px] border border-[#ececec]"
+                        <h4 className="text-lg sm:text-xl font-serif text-[#17191c] font-normal mt-0.5 flex items-center gap-2">
+                          <FlaskConical className="w-5 h-5 text-[#c09748]" />
+                          <span>Assign Internal Company Materials *</span>
+                        </h4>
+                        <p className="text-xs sm:text-sm text-[#777b86] mt-0.5">
+                          Aaj ke {totalBatchQty || 0} Pcs ({distinctEnteredColors.length || 1} colour) ke liye Paints, Thinners &amp; Hardeners — Store ko Floor Demand jayegi.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleAutoEstimateMaterials}
+                          className="px-3.5 py-2 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-xs sm:text-sm font-bold cursor-pointer flex items-center gap-1.5 transition shadow-2xs active:scale-95"
                         >
-                          <div className="col-span-2 sm:col-span-3">
-                            <select
-                              value={mat.materialType}
-                              onChange={e =>
-                                setPlannedMaterials(prev =>
-                                  prev.map((r, rIdx) =>
-                                    rIdx === idx ? { ...r, materialType: e.target.value as PainterDailyMaterialAllocation['materialType'] } : r
-                                  )
-                                )
-                              }
-                              className="w-full h-9 px-2 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] text-[11px] font-semibold text-[#17191c]"
-                            >
-                              <option value="Base Paint">Base Paint</option>
-                              <option value="Topcoat">Topcoat</option>
-                              <option value="Hardener">Hardener</option>
-                              <option value="Thinner">Thinner</option>
-                              <option value="Cleaning Solvent">Cleaning Solvent</option>
-                            </select>
-                          </div>
-                          <div className="col-span-2 sm:col-span-4 space-y-1">
-                            <input
-                              type="text"
-                              required
-                              value={mat.materialName}
-                              onChange={e =>
-                                setPlannedMaterials(prev =>
-                                  prev.map((r, rIdx) => (rIdx === idx ? { ...r, materialName: e.target.value } : r))
-                                )
-                              }
-                              placeholder="Chemical / Paint Name *"
-                              className="w-full h-9 px-2.5 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] text-xs font-semibold text-[#17191c]"
-                            />
-                            {distinctEnteredColors.length > 1 && (mat.materialType === 'Base Paint' || mat.materialType === 'Topcoat') && (
+                          <Sparkles className="w-4 h-4 text-[#c09748]" />
+                          <span>Auto-Estimate ({totalBatchQty || 0} Pcs)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddDailyMaterial()}
+                          className="px-3.5 py-2 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs sm:text-sm font-semibold cursor-pointer flex items-center gap-1.5 transition shadow-2xs active:scale-95"
+                        >
+                          <Plus className="w-4 h-4 text-[#c09748]" />
+                          <span>Add Item</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Quick Presets + Available Store Stock Pickers */}
+                    <div className="space-y-2">
+                      <span className="text-xs font-semibold text-[#777b86] block">
+                        Quick Chemical Presets &amp; Store Batches:
+                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {[
+                          {
+                            label: '+ Basecoat PU Paint',
+                            materialName: distinctEnteredColors[0] ? `Basecoat 2K PU Paint (${distinctEnteredColors[0]})` : 'Basecoat 2K PU Paint',
+                            materialType: 'Base Paint' as const,
+                            qty: Math.max(0.5, Number(((totalBatchQty || 100) * 0.012).toFixed(2))),
+                            uom: 'Litres' as const,
+                            colour: distinctEnteredColors[0]
+                          },
+                          {
+                            label: '+ 2K PU Hardener',
+                            materialName: '2K PU Hardener',
+                            materialType: 'Hardener' as const,
+                            qty: Math.max(0.25, Number(((totalBatchQty || 100) * 0.003).toFixed(2))),
+                            uom: 'Litres' as const
+                          },
+                          {
+                            label: '+ PU Thinner 400',
+                            materialName: 'PU Thinner 400 Solvent',
+                            materialType: 'Thinner' as const,
+                            qty: Math.max(0.25, Number(((totalBatchQty || 100) * 0.004).toFixed(2))),
+                            uom: 'Litres' as const
+                          },
+                          {
+                            label: '+ 2K Clear Coat',
+                            materialName: '2K Clear Lacquer Topcoat',
+                            materialType: 'Topcoat' as const,
+                            qty: Math.max(0.5, Number(((totalBatchQty || 100) * 0.01).toFixed(2))),
+                            uom: 'Litres' as const
+                          }
+                        ].map(preset => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => handleAddDailyMaterial(preset)}
+                            className="px-3 py-1.5 rounded-full bg-[#faf7ed] hover:bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-xs font-semibold cursor-pointer transition"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                        {availableCompanyBatches.slice(0, 4).map(batch => (
+                          <button
+                            key={batch.batchId}
+                            type="button"
+                            onClick={() =>
+                              handleAddDailyMaterial({
+                                materialName: batch.itemName,
+                                materialType:
+                                  batch.materialType === 'hardener'
+                                    ? 'Hardener'
+                                    : batch.materialType === 'thinner'
+                                      ? 'Thinner'
+                                      : batch.materialType === 'clear_coat'
+                                        ? 'Topcoat'
+                                        : 'Base Paint',
+                                qty: Math.min(batch.balanceQty, Math.max(0.5, Number(((totalBatchQty || 100) * 0.01).toFixed(2)))),
+                                uom: batch.uom === 'Kg' || batch.uom === 'Pcs' ? batch.uom : 'Litres',
+                                stockBatchId: batch.batchId,
+                                batchNumber: batch.supplierBatchNo
+                              })
+                            }
+                            className="px-3 py-1.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-mono font-semibold cursor-pointer transition"
+                            title={`Store Avail: ${batch.balanceQty} ${batch.uom} (${batch.supplierBatchNo})`}
+                          >
+                            Store: {batch.itemName} ({batch.balanceQty} {batch.uom})
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {plannedMaterials.length === 0 ? (
+                      <div className="p-6 rounded-[18px] bg-[#fafafb] border border-dashed border-[#dcdfe4] text-center text-sm text-[#777b86]">
+                        Upar se <strong>&quot;Auto-Estimate&quot;</strong> click karein (sabhi colours ke hisaab se auto-calculate ho jayega) ya <strong>&quot;Add Item&quot;</strong> se chemicals add karein.
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5 p-1">
+                        {plannedMaterials.map((mat, idx) => (
+                          <div
+                            key={mat.id}
+                            className="grid grid-cols-2 sm:grid-cols-12 gap-2.5 items-start bg-[#fafafb] p-3.5 rounded-[18px] border border-[#ececec]"
+                          >
+                            <div className="col-span-2 sm:col-span-3 space-y-1">
+                              <label className="text-xs font-semibold text-[#777b86] block">Type</label>
                               <select
-                                value={mat.colour || ''}
+                                value={mat.materialType}
                                 onChange={e =>
                                   setPlannedMaterials(prev =>
-                                    prev.map((r, rIdx) => (rIdx === idx ? { ...r, colour: e.target.value || undefined } : r))
+                                    prev.map((r, rIdx) =>
+                                      rIdx === idx ? { ...r, materialType: e.target.value as PainterDailyMaterialAllocation['materialType'] } : r
+                                    )
                                   )
                                 }
-                                className="w-full h-7 px-2 rounded-[8px] border border-[#f4e5be] bg-[#faf7ed] text-[10px] font-semibold text-[#8a6521]"
+                                className="w-full h-11 px-3 rounded-[12px] border border-[#dcdfe4] bg-white text-xs sm:text-sm font-semibold text-[#17191c]"
                               >
-                                <option value="">Shared across all colours</option>
-                                {distinctEnteredColors.map(c => (
-                                  <option key={c} value={c}>
-                                    For Colour: {c}
-                                  </option>
-                                ))}
+                                <option value="Base Paint">Base Paint</option>
+                                <option value="Topcoat">Topcoat</option>
+                                <option value="Hardener">Hardener</option>
+                                <option value="Thinner">Thinner</option>
+                                <option value="Cleaning Solvent">Cleaning Solvent</option>
                               </select>
-                            )}
+                            </div>
+                            <div className="col-span-2 sm:col-span-4 space-y-1.5">
+                              <label className="text-xs font-semibold text-[#777b86] block">Chemical / Paint Name *</label>
+                              <input
+                                type="text"
+                                required
+                                value={mat.materialName}
+                                onChange={e =>
+                                  setPlannedMaterials(prev =>
+                                    prev.map((r, rIdx) => (rIdx === idx ? { ...r, materialName: e.target.value } : r))
+                                  )
+                                }
+                                placeholder="Chemical / Paint Name *"
+                                className="w-full h-11 px-3 rounded-[12px] border border-[#dcdfe4] bg-white text-sm font-semibold text-[#17191c]"
+                              />
+                              {distinctEnteredColors.length > 1 && (mat.materialType === 'Base Paint' || mat.materialType === 'Topcoat') && (
+                                <select
+                                  value={mat.colour || ''}
+                                  onChange={e =>
+                                    setPlannedMaterials(prev =>
+                                      prev.map((r, rIdx) => (rIdx === idx ? { ...r, colour: e.target.value || undefined } : r))
+                                    )
+                                  }
+                                  className="w-full h-8 px-2.5 rounded-[10px] border border-[#f4e5be] bg-[#faf7ed] text-xs font-semibold text-[#8a6521]"
+                                >
+                                  <option value="">Shared across all colours</option>
+                                  {distinctEnteredColors.map(c => (
+                                    <option key={c} value={c}>
+                                      For Colour: {c}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
+                            <div className="col-span-1 sm:col-span-2 space-y-1">
+                              <label className="text-xs font-semibold text-[#777b86] block">Qty *</label>
+                              <input
+                                type="number"
+                                required
+                                min="0.1"
+                                step="0.1"
+                                value={mat.qty}
+                                onChange={e =>
+                                  setPlannedMaterials(prev =>
+                                    prev.map((r, rIdx) => (rIdx === idx ? { ...r, qty: Math.max(0, Number(e.target.value)) } : r))
+                                  )
+                                }
+                                placeholder="Qty"
+                                className="w-full h-11 px-3 rounded-[12px] border border-[#dcdfe4] bg-white text-sm font-mono font-bold text-[#17191c]"
+                              />
+                            </div>
+                            <div className="col-span-1 sm:col-span-2 space-y-1">
+                              <label className="text-xs font-semibold text-[#777b86] block">Unit</label>
+                              <select
+                                value={mat.uom}
+                                onChange={e =>
+                                  setPlannedMaterials(prev =>
+                                    prev.map((r, rIdx) => (rIdx === idx ? { ...r, uom: e.target.value as 'Litres' | 'Kg' | 'Pcs' } : r))
+                                  )
+                                }
+                                className="w-full h-11 px-2.5 rounded-[12px] border border-[#dcdfe4] bg-white text-sm font-mono text-[#17191c]"
+                              >
+                                <option value="Litres">Ltr</option>
+                                <option value="Kg">Kg</option>
+                                <option value="Pcs">Pcs</option>
+                              </select>
+                            </div>
+                            <div className="col-span-2 sm:col-span-1 flex justify-end sm:pt-6">
+                              <button
+                                type="button"
+                                onClick={() => setPlannedMaterials(prev => prev.filter((_, rIdx) => rIdx !== idx))}
+                                className="w-10 h-10 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center cursor-pointer transition"
+                                title="Remove Chemical"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
-                          <div className="col-span-1 sm:col-span-2">
-                            <input
-                              type="number"
-                              required
-                              min="0.1"
-                              step="0.1"
-                              value={mat.qty}
-                              onChange={e =>
-                                setPlannedMaterials(prev =>
-                                  prev.map((r, rIdx) => (rIdx === idx ? { ...r, qty: Math.max(0, Number(e.target.value)) } : r))
-                                )
-                              }
-                              placeholder="Qty"
-                              className="w-full h-9 px-2.5 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] text-xs font-mono font-bold text-[#17191c]"
-                            />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* RIGHT 4-COLUMN LIVE ALLOCATION SUMMARY PANEL */}
+            <aside className="lg:col-span-4 lg:sticky lg:top-0 space-y-4">
+              <div className="p-5 rounded-[24px] bg-white border border-[#ececec] shadow-2xs space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-[#f2f2f3]">
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#8a6521]">
+                    Live Allocation Ledger
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-xs font-mono font-bold">
+                    {allocatedPercent}% Plan
+                  </span>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[#777b86]">Selected This Shift</span>
+                    <strong className="font-mono text-sm text-[#17191c]">{totalBatchQty.toLocaleString('en-IN')} Pcs</strong>
+                  </div>
+                  <div className="w-full h-2.5 rounded-full bg-[#f2f2f3] overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-[#c09748] transition-all duration-300"
+                      style={{ width: `${allocatedPercent}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-[#777b86]">
+                    <span>Remaining Balance After Save</span>
+                    <strong className="font-mono text-[#8a6521]">{remainingMasterAfterBatch.toLocaleString('en-IN')} Pcs</strong>
+                  </div>
+                </div>
+
+                {/* Step 1 Summary */}
+                <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-[#777b86]">Painter &amp; Line</span>
+                    {currentStep !== 1 && (
+                      <button
+                        type="button"
+                        onClick={() => goToStep(1)}
+                        className="text-xs font-semibold text-[#8a6521] hover:underline cursor-pointer"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-sm font-semibold text-[#17191c]">{selectedPainter.name}</div>
+                  <div className="text-xs text-[#777b86]">{selectedBoothName}</div>
+                  {remarks.trim() && (
+                    <div className="text-xs text-[#8a6521] pt-1 border-t border-[#ececec] truncate">
+                      Note: {remarks.trim()}
+                    </div>
+                  )}
+                </div>
+
+                {/* Step 2 Summary */}
+                <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-[#777b86]">
+                      Models &amp; Colours ({activeTaskRows.length})
+                    </span>
+                    {currentStep !== 2 && (
+                      <button
+                        type="button"
+                        onClick={() => goToStep(2)}
+                        className="text-xs font-semibold text-[#8a6521] hover:underline cursor-pointer"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                  {activeTaskRows.length === 0 ? (
+                    <div className="text-xs text-[#777b86]">No models allocated yet.</div>
+                  ) : (
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                      {activeTaskRows.map(r => (
+                        <div
+                          key={r.id}
+                          className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-[12px] bg-white border border-[#ececec] text-xs"
+                        >
+                          <div className="min-w-0">
+                            <div className="font-semibold text-[#17191c] truncate">{r.partDescription}</div>
+                            <div className="text-xs text-[#8a6521] truncate">
+                              {r.colorShade.trim() || 'Colour pending'}
+                            </div>
                           </div>
-                          <div className="col-span-1 sm:col-span-2">
-                            <select
-                              value={mat.uom}
-                              onChange={e =>
-                                setPlannedMaterials(prev =>
-                                  prev.map((r, rIdx) => (rIdx === idx ? { ...r, uom: e.target.value as 'Litres' | 'Kg' | 'Pcs' } : r))
-                                )
-                              }
-                              className="w-full h-9 px-2 rounded-[10px] border border-[#dcdfe4] bg-[#fafafb] text-xs font-mono text-[#17191c]"
-                            >
-                              <option value="Litres">Ltr</option>
-                              <option value="Kg">Kg</option>
-                              <option value="Pcs">Pcs</option>
-                            </select>
-                          </div>
-                          <div className="col-span-2 sm:col-span-1 flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => setPlannedMaterials(prev => prev.filter((_, rIdx) => rIdx !== idx))}
-                              className="w-8 h-8 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center cursor-pointer transition"
-                              title="Remove Chemical"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                          <strong className="font-mono text-[#17191c] shrink-0">
+                            {Number(r.dailyTargetQty).toLocaleString('en-IN')} Pcs
+                          </strong>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
+
+                {/* Step 3 Summary */}
+                <div className="p-3.5 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be] space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-[#8a6521]">Store Floor Demand (MRN)</span>
+                    <span className="font-mono font-bold text-[#8a6521]">
+                      {plannedMaterials.length} Chemical{plannedMaterials.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="text-xs text-[#777b86]">
+                    {plannedMaterials.length > 0
+                      ? `Total Chemicals: ${totalChemicalQty.toFixed(2)} Ltr/Kg across ${distinctEnteredColors.length || 1} colour(s)`
+                      : 'Step 3 me Paints & Thinners assign honge.'}
+                  </div>
+                </div>
               </div>
-            )}
+            </aside>
           </div>
         </div>
 
         {/* Sticky Bottom Action Bar */}
-        <footer className="shrink-0 bg-white border-t border-[#ececec] px-4 sm:px-8 py-3 sm:py-3.5 shadow-xs">
-          <div className="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <span className="hidden sm:inline text-[10.5px] font-mono text-[#777b86]">
-              {currentStep === 1 && 'Step 1 of 3 • Review job balance & select Painter / Booth'}
-              {currentStep === 2 && 'Step 2 of 3 • Select models, quantities & colour splits'}
-              {currentStep === 3 && 'Step 3 of 3 • Exact Store Floor Demand auto-generated on save'}
+        <footer className="shrink-0 bg-white border-t border-[#ececec] px-4 sm:px-8 lg:px-10 py-3.5 shadow-xs">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <span className="hidden sm:inline text-xs font-mono text-[#777b86]">
+              {currentStep === 1 && 'Step 1 of 3 • Review order balance & select Painter / Booth'}
+              {currentStep === 2 && 'Step 2 of 3 • Configure inward models, quantities & colour splits'}
+              {currentStep === 3 && 'Step 3 of 3 • Consolidated Store Floor Demand (MRN) auto-generated on save'}
             </span>
-            <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+            <div className="flex items-center justify-between sm:justify-end gap-2.5 w-full sm:w-auto">
               {currentStep === 1 ? (
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold cursor-pointer shadow-2xs active:scale-95"
+                  className="px-5 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs sm:text-sm font-semibold cursor-pointer shadow-2xs active:scale-95"
                 >
                   Cancel
                 </button>
@@ -1297,9 +1430,9 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                 <button
                   type="button"
                   onClick={() => goToStep((currentStep - 1) as 1 | 2)}
-                  className="px-4 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold cursor-pointer shadow-2xs flex items-center gap-1.5 active:scale-95"
+                  className="px-5 py-2.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs sm:text-sm font-semibold cursor-pointer shadow-2xs flex items-center gap-1.5 active:scale-95"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <ArrowLeft className="w-4 h-4" />
                   <span>Back</span>
                 </button>
               )}
@@ -1309,10 +1442,10 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                   type="button"
                   onClick={() => goToStep(2)}
                   disabled={masterBalance.masterBalancePending <= 0}
-                  className="flex-1 sm:flex-initial justify-center px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] disabled:opacity-50 text-white text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1.5 active:scale-95"
+                  className="flex-1 sm:flex-initial justify-center px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] disabled:opacity-50 text-white text-xs sm:text-sm font-bold transition cursor-pointer shadow-2xs flex items-center gap-2 active:scale-95"
                 >
                   <span>Next: Material &amp; Colour</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               )}
 
@@ -1320,10 +1453,10 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                 <button
                   type="button"
                   onClick={() => goToStep(3)}
-                  className="flex-1 sm:flex-initial justify-center px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1.5 active:scale-95"
+                  className="flex-1 sm:flex-initial justify-center px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs sm:text-sm font-bold transition cursor-pointer shadow-2xs flex items-center gap-2 active:scale-95"
                 >
                   <span>Next: Company Materials</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               )}
 
@@ -1331,11 +1464,11 @@ export const DailyAssignmentModal: React.FC<DailyAssignmentModalProps> = ({
                 <button
                   type="submit"
                   disabled={masterBalance.masterBalancePending <= 0 || totalBatchQty <= 0 || totalBatchQty > masterBalance.masterBalancePending}
-                  className="flex-1 sm:flex-initial justify-center px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] disabled:opacity-50 text-white text-xs font-bold transition cursor-pointer shadow-2xs flex items-center gap-1.5 active:scale-95"
+                  className="flex-1 sm:flex-initial justify-center px-6 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] disabled:opacity-50 text-white text-xs sm:text-sm font-bold transition cursor-pointer shadow-2xs flex items-center gap-2 active:scale-95"
                 >
-                  <Target className="w-3.5 h-3.5 shrink-0" />
+                  <Target className="w-4 h-4 shrink-0" />
                   <span className="truncate">
-                    Assign {taskRows.filter(r => r.dailyTargetQty > 0).length} Task{taskRows.filter(r => r.dailyTargetQty > 0).length !== 1 ? 's' : ''} ({totalBatchQty.toLocaleString('en-IN')} Pcs) &amp; Send Floor Demand
+                    Assign {activeTaskRows.length} Task{activeTaskRows.length !== 1 ? 's' : ''} ({totalBatchQty.toLocaleString('en-IN')} Pcs) &amp; Send Floor Demand
                   </span>
                 </button>
               )}
