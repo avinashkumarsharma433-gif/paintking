@@ -388,6 +388,28 @@ interface PortalContextType {
   addIPQCRecord: (ipqc: IPQCRecord) => void;
   addOQCRelease: (release: FinalQualityRelease) => void;
   submitPdiClearance: (releaseId: string, pdiData: Partial<FinalQualityRelease>) => void;
+  recordCheckAndPackBatch: (params: {
+    jobCardNo: string;
+    woNo?: string;
+    customer: string;
+    partCode: string;
+    partDescription: string;
+    color: string;
+    plant?: PlantLocation;
+    offeredQty: number;
+    packedOkQty: number;
+    reworkReturnedQty: number;
+    scrapQty: number;
+    defectReason?: string;
+    pcsPerBox: number;
+    totalBoxes: number;
+    boxSerialRange: string;
+    painter?: string;
+    paintBatch?: string;
+    packedBy?: string;
+    existingReleaseId?: string;
+  }) => { slip: PackingSlipRecord; release: FinalQualityRelease };
+  dispatchFgStockFromPacking: (slipNo: string, dispatchQty: number) => void;
   getNextUniqueJobCardNo: () => string;
   addJobCard: (jc: JobCard) => JobCard;
   deleteJobCard: (jobCardNo: string) => void;
@@ -3531,6 +3553,195 @@ export const PortalProvider: React.FC<{
     setPackingSlips(prev => [slip, ...prev]);
   };
 
+  // Unified Check & Pack -> Auto-OQC + Auto-FG Stock + Production Rework Loop
+  const recordCheckAndPackBatch = (params: {
+    jobCardNo: string;
+    woNo?: string;
+    customer: string;
+    partCode: string;
+    partDescription: string;
+    color: string;
+    plant?: PlantLocation;
+    offeredQty: number;
+    packedOkQty: number;
+    reworkReturnedQty: number;
+    scrapQty: number;
+    defectReason?: string;
+    pcsPerBox: number;
+    totalBoxes: number;
+    boxSerialRange: string;
+    painter?: string;
+    paintBatch?: string;
+    packedBy?: string;
+    existingReleaseId?: string;
+  }): { slip: PackingSlipRecord; release: FinalQualityRelease } => {
+    const resolvedPlant: PlantLocation = params.plant || (activePlant === 'ALL' ? 'Haridwar' : activePlant);
+    const todayIso = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const dateDDMMYYYY = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+    const timeLabel = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    const checkerName = params.packedBy || currentUser.name || 'Packing & OQC Desk';
+    const woRef = params.woNo || params.jobCardNo;
+
+    // 1. Auto-OQC Release (Find existing or create clean FinalQualityRelease)
+    const matchedExisting = params.existingReleaseId
+      ? qualityReleases.find(r => r.releaseId === params.existingReleaseId)
+      : undefined;
+
+    const releaseId = matchedExisting?.releaseId || `REL-${Date.now()}`;
+    const autoOqcRelease: FinalQualityRelease = matchedExisting
+      ? {
+          ...matchedExisting,
+          offeredQty: params.offeredQty,
+          sampledQty: params.offeredQty,
+          passedQty: params.packedOkQty,
+          rejectedQty: params.reworkReturnedQty + params.scrapQty,
+          totalBoxes: params.totalBoxes,
+          oqcStatus: params.packedOkQty > 0 ? 'Accepted' : 'Hold',
+          lotAcceptance: params.packedOkQty > 0 ? 'Accepted' : 'Rejected',
+          oqcDate: todayIso,
+          oqcInspector: checkerName,
+          qualityEngineerSign: checkerName,
+          physicalInspection: params.reworkReturnedQty + params.scrapQty === 0 ? 'Pass' : 'Pass',
+          packingBoxCondition: 'Pass',
+          traceabilityBatchNo: 'Pass',
+          quantityMatch: 'Pass'
+        }
+      : {
+          releaseId,
+          reportNo: `PK-OQC-${now.getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+          jobCardNo: params.jobCardNo,
+          date: todayIso,
+          plant: resolvedPlant,
+          woNo: woRef,
+          customer: params.customer,
+          partCode: params.partCode,
+          partDescription: params.partDescription,
+          model: params.partDescription,
+          batchNo: params.paintBatch || 'BAT-STD',
+          color: params.color,
+          offeredQty: params.offeredQty,
+          sampledQty: params.offeredQty,
+          passedQty: params.packedOkQty,
+          rejectedQty: params.reworkReturnedQty + params.scrapQty,
+          deltaE: 0.4,
+          lotAcceptance: params.packedOkQty > 0 ? 'Accepted' : 'Rejected',
+          physicalInspection: 'Pass',
+          conductivity: 'N/A',
+          adhesion: 'Pass',
+          oqcStatus: params.packedOkQty > 0 ? 'Accepted' : 'Hold',
+          oqcDate: todayIso,
+          oqcInspector: checkerName,
+          qualityEngineerSign: checkerName,
+          totalBoxes: params.totalBoxes,
+          packingBoxCondition: 'Pass',
+          traceabilityBatchNo: 'Pass',
+          quantityMatch: 'Pass',
+          pdiStatus: 'Awaiting PDI',
+          inspector: checkerName,
+          plantHeadSign: 'Pending PDI / Dispatch',
+          generatedTimestamp: now.toISOString(),
+          createdAt: now.toISOString()
+        };
+
+    if (matchedExisting) {
+      setQualityReleases(prev => prev.map(r => (r.releaseId === releaseId ? autoOqcRelease : r)));
+    } else {
+      setQualityReleases(prev => [autoOqcRelease, ...prev]);
+    }
+
+    // 2. Packing Slip + Auto-FG Stock Ledger Entry
+    const newSlip: PackingSlipRecord = {
+      slipNo: `PK-PKG-${now.getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      date: todayIso,
+      plant: resolvedPlant,
+      customer: params.customer,
+      woNo: woRef,
+      jobCardNo: params.jobCardNo,
+      partCode: params.partCode,
+      partDescription: params.partDescription,
+      model: params.partDescription,
+      color: params.color,
+      boxNo: params.boxSerialRange,
+      packedQty: params.packedOkQty,
+      offeredQty: params.offeredQty,
+      packedOkQty: params.packedOkQty,
+      reworkReturnedQty: params.reworkReturnedQty,
+      scrapQty: params.scrapQty,
+      defectReason: params.defectReason,
+      pcsPerBox: params.pcsPerBox,
+      totalBoxes: params.totalBoxes,
+      oqcReleaseId: releaseId,
+      dispatchedQty: 0,
+      fgStatus: params.packedOkQty > 0 ? 'In FG Store' : 'Dispatched',
+      painter: params.painter || 'Production Line',
+      paintBatch: params.paintBatch || 'BAT-STD',
+      packedBy: checkerName,
+      qcVerified: true
+    };
+    setPackingSlips(prev => [newSlip, ...prev]);
+
+    // 3. Production Bounce-Back: record Packed OK, Rework returned & Scrap back on JobCard
+    if (params.jobCardNo) {
+      setJobCards(prev =>
+        prev.map(jc => {
+          if (jc.jobCardNo !== params.jobCardNo && jc.woNo !== woRef) return jc;
+          const prevLogs = jc.progressLogs || [];
+          const adjustedGood =
+            params.reworkReturnedQty + params.scrapQty > 0
+              ? Math.max(0, (jc.goodQty || 0) - params.reworkReturnedQty - params.scrapQty)
+              : (jc.goodQty || 0);
+          const logEntry: JobCardProductionProgressLog = {
+            id: `LOG-PKG-${Date.now()}`,
+            timestamp: now.toISOString(),
+            timeLabel,
+            dateLabel: dateDDMMYYYY,
+            actionType: 'BATCH_OUTPUT',
+            actionTitle: `Check & Pack Gate: ${params.packedOkQty} OK → FG Store${params.reworkReturnedQty > 0 ? ` • ${params.reworkReturnedQty} Rework Returned` : ''}${params.scrapQty > 0 ? ` • ${params.scrapQty} Scrap` : ''}`,
+            piecesCompleted: params.offeredQty,
+            goodPieces: params.packedOkQty,
+            cumulativeGoodQty: adjustedGood,
+            reworkPieces: params.reworkReturnedQty,
+            scrapPieces: params.scrapQty,
+            defectReason: params.reworkReturnedQty + params.scrapQty > 0 ? (params.defectReason || 'Missed Defect at Packing') : undefined,
+            qaVerified: true,
+            qaVerifiedBy: checkerName,
+            painterName: params.painter || jc.painterName || 'Production Floor',
+            recordedBy: checkerName,
+            remarks: `Slip ${newSlip.slipNo} • OQC ${autoOqcRelease.reportNo || releaseId}`
+          };
+          return {
+            ...jc,
+            goodQty: adjustedGood,
+            reworkQty: (jc.reworkQty || 0) + params.reworkReturnedQty,
+            rejectQty: (jc.rejectQty || 0) + params.scrapQty,
+            progressLogs: [logEntry, ...prevLogs]
+          };
+        })
+      );
+    }
+
+    return { slip: newSlip, release: autoOqcRelease };
+  };
+
+  const dispatchFgStockFromPacking = (slipNo: string, dispatchQty: number) => {
+    const qtyToDispatch = Math.max(0, Number(dispatchQty) || 0);
+    if (qtyToDispatch <= 0) return;
+    setPackingSlips(prev =>
+      prev.map(slip => {
+        if (slip.slipNo !== slipNo) return slip;
+        const okTotal = slip.packedOkQty ?? slip.packedQty ?? 0;
+        const nextDispatched = Math.min(okTotal, (slip.dispatchedQty || 0) + qtyToDispatch);
+        const remaining = Math.max(0, okTotal - nextDispatched);
+        return {
+          ...slip,
+          dispatchedQty: nextDispatched,
+          fgStatus: remaining <= 0 ? 'Dispatched' : 'Partially Dispatched'
+        };
+      })
+    );
+  };
+
   // ======================================================================
   // 3-TIER SPRAY PAINTING JOB CARD & CONSUMABLES ENGINE (PK-OS 2026)
   // ======================================================================
@@ -5306,6 +5517,8 @@ export const PortalProvider: React.FC<{
         addIPQCRecord,
         addOQCRelease,
         submitPdiClearance,
+        recordCheckAndPackBatch,
+        dispatchFgStockFromPacking,
         getNextUniqueJobCardNo,
         addJobCard,
         deleteJobCard,

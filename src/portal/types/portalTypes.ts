@@ -1277,11 +1277,23 @@ export interface PackingSlipRecord {
   plant: PlantLocation;
   customer: string;
   woNo: string;
+  jobCardNo?: string;
   partCode: string;
+  partDescription?: string;
   model: string;
   color: string;
   boxNo: string;
   packedQty: number;
+  offeredQty?: number;
+  packedOkQty?: number;
+  reworkReturnedQty?: number;
+  scrapQty?: number;
+  defectReason?: string;
+  pcsPerBox?: number;
+  totalBoxes?: number;
+  oqcReleaseId?: string;
+  dispatchedQty?: number;
+  fgStatus?: 'In FG Store' | 'Partially Dispatched' | 'Dispatched';
   painter: string;
   paintBatch: string;
   packedBy: string;
@@ -1306,6 +1318,7 @@ export interface OQCSampleObservationItem {
 export interface FinalQualityRelease {
   releaseId: string;
   reportNo?: string;          // e.g. "PK-OQC-2026-081"
+  jobCardNo?: string;
   date: string;
   plant: PlantLocation;
   woNo: string;

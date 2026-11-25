@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-25: Implemented Unified Check & Pack -> Auto-OQC -> Auto-FG Stock -> PDI Flow (`PackingView.tsx`, `PortalStoreContext.tsx`, `portalTypes.ts`)
+  - Files touched:
+    - `src/portal/types/portalTypes.ts`: Added `jobCardNo`, `offeredQty`, `packedOkQty`, `reworkReturnedQty`, `scrapQty`, `defectReason`, `pcsPerBox`, `totalBoxes`, `oqcReleaseId`, `dispatchedQty`, `fgStatus` on `PackingSlipRecord`, and `jobCardNo` on `FinalQualityRelease`.
+    - `src/portal/context/PortalStoreContext.tsx`: Added `recordCheckAndPackBatch` (atomically creates/links `FinalQualityRelease` Auto-OQC + `PackingSlipRecord` FG Stock + bounces missed defects back to `JobCard` Rework/Scrap & progress logs) and `dispatchFgStockFromPacking`.
+    - `src/portal/views/PackingView.tsx`: Upgraded to 2-tab workflow: (1) Unified Check & Pack + Box Labels (`PKDropdown` Job Card selector, `Checked / Packed OK / Return Rework / Dead Scrap` split, Auto-OQC + FG save + A4/Thermal box stickers) and (2) Live FG Stock & PDI Report (KPI strip, 4-column desktop table + mobile cards, OQC PDF, inline `<PDIModal />`, and `Dispatch FG` deduction).
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-25: Converted Painter Output Tracker to EOD Single Final Output + Maker-Checker QA & Hidden Rework Chemical Audit (`JobCardModal.tsx`)
   - Files touched:
     - `src/portal/components/JobCardModal.tsx`: Replaced forced 3-stage sequential output logging with single EOD Final Production & QA Output (`selectedStage` default `'stage_3_topcoat'`, `appliedCoats` Primer/Basecoat/Topcoat layer checkboxes, 1-click `Mark All Remaining OK` button, unlocked `getAssignmentStageMaxAllowed` for direct EOD entry,Maker-Checker `OPERATOR` self-verify lock per ISO 9001 Clause 8.6), and added `getAssignmentReworkAnomaly` chemical cross-check alerting on Extra Add-On MRNs / >115% norm consumption with 0 Rework (`Audit Alert` banner + summary badge).
