@@ -41,6 +41,19 @@ interface JobCardDeduction {
   status?: string;
 }
 
+interface PartyModelGroup {
+  modelKey: string;
+  itemName: string;
+  partCode: string;
+  uom: string;
+  totalReceived: number;
+  totalIssued: number;
+  totalBalance: number;
+  nearExpiryCount: number;
+  expiredCount: number;
+  batches: StockBatch[];
+}
+
 interface BatchGroupItem {
   itemKey: string;
   groupType: 'CLASSIFICATION' | 'SUBSTRATE';
@@ -58,6 +71,7 @@ interface BatchGroupItem {
   firstToIssueBatchId?: string;
   strategy: string;
   batches: StockBatch[];
+  partyModels?: PartyModelGroup[];
 }
 
 export const BatchLedger: React.FC = () => {
@@ -65,22 +79,40 @@ export const BatchLedger: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | StockCategory>('ALL');
+  const [partyFilter, setPartyFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'AVAILABLE' | 'NEAR_EXPIRY' | 'EXPIRED' | 'HOLD' | 'EXHAUSTED'>('ALL');
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+  const [expandedModels, setExpandedModels] = useState<Record<string, boolean>>({});
 
   // Toggle item expansion
   const toggleExpand = (itemKey: string) => {
     setExpandedItems(prev => ({ ...prev, [itemKey]: !prev[itemKey] }));
   };
 
+  // Toggle model expansion inside a Party card
+  const toggleModelExpand = (modelKey: string, defaultOpen: boolean) => {
+    setExpandedModels(prev => ({
+      ...prev,
+      [modelKey]: !(prev[modelKey] ?? defaultOpen)
+    }));
+  };
+
   const expandAll = () => {
     const allExpanded: Record<string, boolean> = {};
-    groupedItems.forEach(g => { allExpanded[g.itemKey] = true; });
+    const allModelsExpanded: Record<string, boolean> = {};
+    groupedItems.forEach(g => {
+      allExpanded[g.itemKey] = true;
+      g.partyModels?.forEach(m => {
+        allModelsExpanded[m.modelKey] = true;
+      });
+    });
     setExpandedItems(allExpanded);
+    setExpandedModels(allModelsExpanded);
   };
 
   const collapseAll = () => {
     setExpandedItems({});
+    setExpandedModels({});
   };
 
   // Helper to resolve material classification type
@@ -225,7 +257,34 @@ export const BatchLedger: React.FC = () => {
     return stockBatches.filter(b => !activePlant || b.plant.toLowerCase() === activePlant.toLowerCase());
   }, [stockBatches, activePlant]);
 
-  // Aggregate items into Classification-First Groups (PK-OS Industrial Hierarchy)
+  // Unique Party options for Party-wise dropdown filter
+  const partyOptions = useMemo(() => {
+    const partyMap = new Map<string, { key: string; label: string; models: Set<string>; batchCount: number }>();
+
+    plantBatches.forEach(b => {
+      if (b.category !== 'PARTY_MATERIAL') return;
+      const label = (b.customer || '').trim() || 'General Party Stock';
+      const key = label.toLowerCase();
+      if (!partyMap.has(key)) {
+        partyMap.set(key, { key, label, models: new Set<string>(), batchCount: 0 });
+      }
+      const entry = partyMap.get(key)!;
+      const modelId = `${(b.partCode || b.itemCode || '').trim().toLowerCase()}::${(b.itemName || 'Substrate').trim().toLowerCase()}`;
+      entry.models.add(modelId);
+      entry.batchCount += 1;
+    });
+
+    return Array.from(partyMap.values())
+      .map(p => ({
+        key: p.key,
+        label: p.label,
+        modelsCount: p.models.size,
+        batchCount: p.batchCount
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [plantBatches]);
+
+  // Aggregate items into Classification-First (Company) & Party-First (Party Material) Groups
   const groupedItems = useMemo<BatchGroupItem[]>(() => {
     const map = new Map<string, {
       itemKey: string;
@@ -238,24 +297,34 @@ export const BatchLedger: React.FC = () => {
       batches: StockBatch[];
     }>();
 
-    plantBatches.forEach(batch => {
+    const batchesForGrouping = partyFilter === 'ALL'
+      ? plantBatches
+      : plantBatches.filter(b => {
+          if (b.category !== 'PARTY_MATERIAL') return false;
+          const label = (b.customer || '').trim() || 'General Party Stock';
+          return label.toLowerCase() === partyFilter;
+        });
+
+    batchesForGrouping.forEach(batch => {
       const isCompany = batch.category === 'COMPANY_CONSUMABLE';
       const mType = resolveMaterialType(batch);
 
-      // For Company Consumables, group STRICTLY by Classification Type requested in forms
-      // For Party Material, group by Customer & Substrate Component
-      const groupKey = isCompany 
-        ? `CLASSIFICATION_${mType}` 
-        : `SUBSTRATE_${batch.itemCode || batch.itemName}_${batch.customer || 'GENERAL'}`;
+      // For Company Consumables, group STRICTLY by Classification Type
+      // For Party Material, consolidate all models/inwards under 1 Party Card
+      const partyLabel = (batch.customer || '').trim() || 'General Party Stock';
+      const partyKey = partyLabel.toLowerCase();
+      const groupKey = isCompany
+        ? `CLASSIFICATION_${mType}`
+        : `PARTY_${partyKey}`;
 
       if (!map.has(groupKey)) {
-        const title = isCompany 
+        const title = isCompany
           ? getClassificationTitle(mType)
-          : (batch.customer ? `${batch.customer} — ${batch.itemName}` : batch.itemName);
+          : partyLabel;
 
         const subtitle = isCompany
           ? 'Internal Company Consumable (FEFO & FIFO Controlled)'
-          : `Customer Substrate • Code: ${batch.itemCode || batch.partCode || 'SUB-01'}`;
+          : 'Party Material Stock • Collapsible Model & GRN Breakdown';
 
         map.set(groupKey, {
           itemKey: groupKey,
@@ -295,6 +364,47 @@ export const BatchLedger: React.FC = () => {
       const totalReceived = group.batches.reduce((sum, b) => sum + Number(b.receivedQty || 0), 0);
       const totalIssued = Math.max(0, totalReceived - totalBalance);
 
+      let partyModels: PartyModelGroup[] | undefined;
+      if (group.category === 'PARTY_MATERIAL') {
+        const modelMap = new Map<string, PartyModelGroup>();
+        group.batches.forEach(b => {
+          const code = (b.partCode || b.itemCode || '').trim();
+          const name = (b.itemName || 'Substrate Component').trim();
+          const modelKey = `${group.itemKey}::${code.toLowerCase()}::${name.toLowerCase()}`;
+          if (!modelMap.has(modelKey)) {
+            modelMap.set(modelKey, {
+              modelKey,
+              itemName: name,
+              partCode: code,
+              uom: b.uom || group.uom,
+              totalReceived: 0,
+              totalIssued: 0,
+              totalBalance: 0,
+              nearExpiryCount: 0,
+              expiredCount: 0,
+              batches: []
+            });
+          }
+          const m = modelMap.get(modelKey)!;
+          const rec = Number(b.receivedQty || 0);
+          const bal = Number(b.balanceQty || 0);
+          m.totalReceived += rec;
+          m.totalBalance += bal;
+          m.totalIssued = Math.max(0, m.totalReceived - m.totalBalance);
+          const info = calculateBatchShelfLife(b);
+          if (info.isExpired && bal > 0) m.expiredCount += 1;
+          else if (info.isNearExpiry && bal > 0) m.nearExpiryCount += 1;
+          m.batches.push(b);
+        });
+
+        partyModels = Array.from(modelMap.values()).sort((a, b) => {
+          if ((b.totalBalance > 0 ? 1 : 0) !== (a.totalBalance > 0 ? 1 : 0)) {
+            return (b.totalBalance > 0 ? 1 : 0) - (a.totalBalance > 0 ? 1 : 0);
+          }
+          return a.itemName.localeCompare(b.itemName);
+        });
+      }
+
       const distinctItems = new Set(group.batches.map(b => b.itemName));
 
       const nearExpiryCount = group.batches.filter(b => {
@@ -312,11 +422,12 @@ export const BatchLedger: React.FC = () => {
         totalBalance,
         totalReceived,
         totalIssued,
-        distinctItemsCount: distinctItems.size,
+        distinctItemsCount: partyModels ? partyModels.length : distinctItems.size,
         nearExpiryCount,
         expiredCount,
         firstToIssueBatchId,
-        strategy: eligible.strategy
+        strategy: eligible.strategy,
+        partyModels
       };
     });
 
@@ -345,9 +456,11 @@ export const BatchLedger: React.FC = () => {
         return (
           g.title.toLowerCase().includes(q) ||
           g.subtitle.toLowerCase().includes(q) ||
-          g.batches.some(b => 
+          g.batches.some(b =>
             b.itemName.toLowerCase().includes(q) ||
-            b.supplierBatchNo.toLowerCase().includes(q) || 
+            (b.partCode && b.partCode.toLowerCase().includes(q)) ||
+            (b.itemCode && b.itemCode.toLowerCase().includes(q)) ||
+            b.supplierBatchNo.toLowerCase().includes(q) ||
             b.grnNo.toLowerCase().includes(q) ||
             (b.customer && b.customer.toLowerCase().includes(q)) ||
             (b.storageLocation && b.storageLocation.toLowerCase().includes(q))
@@ -372,9 +485,10 @@ export const BatchLedger: React.FC = () => {
     return list.sort((a, b) => {
       const pA = orderPriority[a.materialType] || 10;
       const pB = orderPriority[b.materialType] || 10;
-      return pA - pB;
+      if (pA !== pB) return pA - pB;
+      return a.title.localeCompare(b.title);
     });
-  }, [plantBatches, activePlant, categoryFilter, statusFilter, searchQuery]);
+  }, [plantBatches, activePlant, categoryFilter, partyFilter, statusFilter, searchQuery]);
 
   // Overall KPI stats
   const kpiStats = useMemo(() => {
@@ -399,6 +513,163 @@ export const BatchLedger: React.FC = () => {
       totalGroups: groupedItems.length
     };
   }, [plantBatches, groupedItems]);
+
+  const renderBatchLotCard = (batch: StockBatch, group: BatchGroupItem) => {
+    const shelf = calculateBatchShelfLife(batch);
+    const isFirstToIssue = batch.batchId === group.firstToIssueBatchId && batch.balanceQty > 0;
+    const deductions = getBatchDeductions(batch);
+    const totalDeducted = deductions.reduce((acc, d) => acc + d.issuedQty, 0);
+
+    return (
+      <div
+        key={batch.batchId}
+        className={`p-4 rounded-[20px] border transition shadow-2xs space-y-3.5 ${
+          isFirstToIssue
+            ? 'bg-[#faf7ed]/70 border-[#f4e5be]'
+            : 'bg-white border-[#ececec]'
+        }`}
+      >
+        {/* GRN Lot Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-[#f2f2f3]">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-mono font-bold text-xs">
+              GRN: {batch.grnNo}
+            </span>
+            <h5 className="font-semibold text-xs sm:text-sm text-[#17191c]">
+              {batch.itemName}
+            </h5>
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-[#f2f2f3] text-[#777b86] border border-[#e5e7eb]">
+              Batch: <strong>{batch.supplierBatchNo || batch.batchId}</strong>
+            </span>
+            {isFirstToIssue && (
+              <span className="px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold text-[9.5px] flex items-center gap-1 animate-pulse">
+                <Sparkles className="w-2.5 h-2.5 text-[#c09748]" />
+                <span>Issue First ({group.strategy})</span>
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 text-xs">
+            {batch.storageLocation && (
+              <span className="text-[11px] text-[#777b86] font-mono flex items-center gap-1">
+                <Warehouse className="w-3 h-3 text-[#c09748]" />
+                <span>{batch.storageLocation}</span>
+              </span>
+            )}
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+              shelf.isExpired || batch.status === 'Expired'
+                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                : batch.status === 'QC Hold'
+                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                : batch.balanceQty === 0
+                ? 'bg-[#f2f2f3] text-[#777b86] border-[#dcdfe4]'
+                : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+            }`}>
+              {shelf.isExpired ? 'Expired' : batch.status}
+            </span>
+          </div>
+        </div>
+
+        {/* 4 Inward Key Metrics */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-xs">
+          <div>
+            <span className="text-[10px] font-mono uppercase text-[#777b86] block">Kab Aaya (Inward Date)</span>
+            <span className="font-mono font-semibold text-[#17191c] text-xs">
+              {batch.receivedDate}
+            </span>
+            <span className="text-[10px] text-[#777b86] block">({shelf.daysSinceReceived}d in store)</span>
+          </div>
+
+          <div>
+            <span className="text-[10px] font-mono uppercase text-[#777b86] block">Kitna Aaya Tha (Inward Qty)</span>
+            <span className="font-mono font-bold text-[#17191c] text-xs">
+              {Number(batch.receivedQty).toLocaleString('en-IN')} {batch.uom}
+            </span>
+            <span className="text-[10px] text-[#777b86] block">Supplier Challan</span>
+          </div>
+
+          <div>
+            <span className="text-[10px] font-mono uppercase text-[#777b86] block">Job Cards Me Diya Gya</span>
+            <span className="font-mono font-bold text-[#8a6521] text-xs">
+              {totalDeducted.toLocaleString('en-IN')} {batch.uom}
+            </span>
+            <span className="text-[10px] text-[#777b86] block">{deductions.length} Job Card Allocation{deductions.length !== 1 ? 's' : ''}</span>
+          </div>
+
+          <div>
+            <span className="text-[10px] font-mono uppercase text-[#777b86] block">Available Store Balance</span>
+            <span className="font-serif font-bold text-sm text-emerald-800">
+              {Number(batch.balanceQty).toLocaleString('en-IN')} {batch.uom}
+            </span>
+            <span className="text-[10px] text-emerald-700 block font-medium">Ready for Issue</span>
+          </div>
+        </div>
+
+        {/* Job Card Allocation Trail */}
+        <div className="space-y-2 pt-1">
+          <div className="flex items-center justify-between text-[11px] font-mono font-bold text-[#17191c] uppercase tracking-wider">
+            <span className="flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 text-[#c09748]" />
+              <span>Job Card Deductions from this GRN ({deductions.length})</span>
+            </span>
+            <span className="text-[10px] text-[#777b86] font-normal font-sans">
+              Digital Chain-of-Custody Tracing
+            </span>
+          </div>
+
+          {deductions.length === 0 ? (
+            <div className="p-3 rounded-[14px] bg-white border border-[#ececec] text-center text-xs text-[#777b86] flex items-center justify-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Full Inward Quantity Available • No Job Card deductions made yet from this GRN.</span>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {deductions.map((ded, dIdx) => (
+                <div
+                  key={dIdx}
+                  className="p-2.5 sm:p-3 rounded-[14px] bg-white border border-[#ececec] hover:border-[#dcdfe4] text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition"
+                >
+                  {/* Left: Job Card No & Customer */}
+                  <div className="flex items-center gap-2.5">
+                    <div className="px-2.5 py-1 rounded-full bg-[#faf7ed] border border-[#f4e5be] font-mono font-bold text-xs text-[#8a6521]">
+                      {ded.jobCardNo}
+                    </div>
+                    <div>
+                      <div className="font-semibold text-[#17191c]">
+                        {ded.customer || 'Production Work Order'}
+                      </div>
+                      <div className="text-[10.5px] text-[#777b86] flex items-center gap-2">
+                        {ded.woNo && <span>WO: {ded.woNo}</span>}
+                        {ded.minNo && <span>• Slip: {ded.minNo}</span>}
+                        <span>• Date: {ded.date}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Issued Quantity & Painter */}
+                  <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-1.5 sm:pt-0 border-[#f2f2f3]">
+                    <div className="flex items-center gap-1.5 text-[11px] text-[#777b86]">
+                      <User className="w-3.5 h-3.5 text-[#c09748]" />
+                      <span>{ded.painterName} ({ded.boothNo})</span>
+                    </div>
+
+                    <div className="text-right">
+                      <div className="font-mono font-bold text-xs sm:text-sm text-rose-700">
+                        - {ded.issuedQty} {ded.uom}
+                      </div>
+                      <div className="text-[9.5px] font-mono text-[#777b86]">
+                        Issued &amp; Deducted
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -507,21 +778,24 @@ export const BatchLedger: React.FC = () => {
           <button
             type="button"
             onClick={() => setCategoryFilter('ALL')}
-            className={`px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition ${
+            className={`px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition border ${
               categoryFilter === 'ALL'
-                ? 'bg-[#17191c] text-[#c09748]'
-                : 'bg-[#fafafb] text-[#777b86] hover:bg-[#f2f2f3] border border-[#ececec]'
+                ? 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be]'
+                : 'bg-[#fafafb] text-[#777b86] hover:bg-[#f2f2f3] border-[#ececec]'
             }`}
           >
             All Materials
           </button>
           <button
             type="button"
-            onClick={() => setCategoryFilter('COMPANY_CONSUMABLE')}
-            className={`px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition flex items-center gap-1.5 ${
+            onClick={() => {
+              setCategoryFilter('COMPANY_CONSUMABLE');
+              setPartyFilter('ALL');
+            }}
+            className={`px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition flex items-center gap-1.5 border ${
               categoryFilter === 'COMPANY_CONSUMABLE'
-                ? 'bg-[#17191c] text-[#c09748]'
-                : 'bg-[#fafafb] text-[#777b86] hover:bg-[#f2f2f3] border border-[#ececec]'
+                ? 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be]'
+                : 'bg-[#fafafb] text-[#777b86] hover:bg-[#f2f2f3] border-[#ececec]'
             }`}
           >
             <Flame className="w-3 h-3 text-[#c09748]" />
@@ -530,46 +804,73 @@ export const BatchLedger: React.FC = () => {
           <button
             type="button"
             onClick={() => setCategoryFilter('PARTY_MATERIAL')}
-            className={`px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition flex items-center gap-1.5 ${
+            className={`px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition flex items-center gap-1.5 border ${
               categoryFilter === 'PARTY_MATERIAL'
-                ? 'bg-[#17191c] text-[#c09748]'
-                : 'bg-[#fafafb] text-[#777b86] hover:bg-[#f2f2f3] border border-[#ececec]'
+                ? 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be]'
+                : 'bg-[#fafafb] text-[#777b86] hover:bg-[#f2f2f3] border-[#ececec]'
             }`}
           >
-            <Boxes className="w-3 h-3 text-[#777b86]" />
+            <Boxes className="w-3 h-3 text-[#c09748]" />
             <span>Party Material (Substrates)</span>
           </button>
 
-          {/* Status Filter Dropdown */}
-          <div className="ml-auto flex items-center gap-1.5">
-            <span className="text-[10px] font-mono font-bold text-[#777b86] uppercase tracking-wider">
-              Status:
-            </span>
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value as any)}
-              className="h-8 px-2.5 rounded-full border border-[#dcdfe4] text-xs font-semibold text-[#17191c] bg-white focus:outline-none focus:border-[#c09748] cursor-pointer"
-            >
-              <option value="ALL">All Batches</option>
-              <option value="AVAILABLE">Available Only (&gt;0)</option>
-              <option value="NEAR_EXPIRY">Near Expiry (&lt;30d)</option>
-              <option value="EXPIRED">Expired Batches</option>
-              <option value="HOLD">QC Hold / Quarantine</option>
-              <option value="EXHAUSTED">Exhausted (0 Bal)</option>
-            </select>
+          {/* Party & Status Filter Dropdowns */}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-[#c09748]" />
+              <span className="text-[10px] font-mono font-bold text-[#777b86] uppercase tracking-wider">
+                Party:
+              </span>
+              <select
+                value={partyFilter}
+                onChange={e => {
+                  const val = e.target.value;
+                  setPartyFilter(val);
+                  if (val !== 'ALL' && categoryFilter === 'COMPANY_CONSUMABLE') {
+                    setCategoryFilter('ALL');
+                  }
+                }}
+                className="h-8 px-2.5 rounded-full border border-[#dcdfe4] text-xs font-semibold text-[#17191c] bg-white focus:outline-none focus:border-[#c09748] cursor-pointer max-w-[220px]"
+              >
+                <option value="ALL">All Parties ({partyOptions.length})</option>
+                {partyOptions.map(p => (
+                  <option key={p.key} value={p.key}>
+                    {p.label} ({p.modelsCount} Model{p.modelsCount !== 1 ? 's' : ''})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono font-bold text-[#777b86] uppercase tracking-wider">
+                Status:
+              </span>
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value as 'ALL' | 'AVAILABLE' | 'NEAR_EXPIRY' | 'EXPIRED' | 'HOLD' | 'EXHAUSTED')}
+                className="h-8 px-2.5 rounded-full border border-[#dcdfe4] text-xs font-semibold text-[#17191c] bg-white focus:outline-none focus:border-[#c09748] cursor-pointer"
+              >
+                <option value="ALL">All Batches</option>
+                <option value="AVAILABLE">Available Only (&gt;0)</option>
+                <option value="NEAR_EXPIRY">Near Expiry (&lt;30d)</option>
+                <option value="EXPIRED">Expired Batches</option>
+                <option value="HOLD">QC Hold / Quarantine</option>
+                <option value="EXHAUSTED">Exhausted (0 Bal)</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* 3. CLASSIFICATION & BATCH ACCORDION LIST                                  */}
+      {/* 3. CLASSIFICATION & PARTY ACCORDION LIST                                  */}
       {/* ========================================================================= */}
       {groupedItems.length === 0 ? (
         <div className="p-8 text-center bg-white rounded-[24px] border border-[#ececec] space-y-2">
           <Boxes className="w-8 h-8 text-[#979799] mx-auto" />
           <h4 className="text-base font-serif font-normal text-[#17191c]">No Material Records Found</h4>
           <p className="text-xs text-[#777b86]">
-            Try adjusting your search criteria, category filters or active plant location.
+            Try adjusting your search criteria, party filter, category filters or active plant location.
           </p>
         </div>
       ) : (
@@ -583,7 +884,7 @@ export const BatchLedger: React.FC = () => {
                 key={group.itemKey}
                 className="bg-white rounded-[24px] border border-[#ececec] shadow-2xs overflow-hidden transition hover:border-[#dcdfe4]"
               >
-                {/* Accordion Group Header (Summary Row: Classification / Material Level) */}
+                {/* Accordion Group Header (Classification / Party Level) */}
                 <div
                   onClick={() => toggleExpand(group.itemKey)}
                   className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none bg-white hover:bg-[#fafafb] transition"
@@ -598,6 +899,8 @@ export const BatchLedger: React.FC = () => {
                         ? 'bg-amber-50 text-amber-800 border-amber-200'
                         : group.materialType === 'clear_coat'
                         ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        : group.materialType === 'substrate'
+                        ? 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be]'
                         : 'bg-[#f2f2f3] text-[#17191c] border-[#dcdfe4]'
                     }`}>
                       {group.materialType === 'paint' ? (
@@ -608,6 +911,8 @@ export const BatchLedger: React.FC = () => {
                         <ShieldAlert className="w-5 h-5 text-amber-600" />
                       ) : group.materialType === 'clear_coat' ? (
                         <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                      ) : group.materialType === 'substrate' ? (
+                        <Building2 className="w-5 h-5 text-[#c09748]" />
                       ) : (
                         <Boxes className="w-5 h-5 text-[#777b86]" />
                       )}
@@ -623,7 +928,7 @@ export const BatchLedger: React.FC = () => {
                             ? 'bg-[#faf7ed] text-[#8a6521] border-[#f4e5be]'
                             : 'bg-[#fafafb] text-[#777b86] border-[#ececec]'
                         }`}>
-                          {isChemical ? 'Internal Company Material' : 'Party Substrate'}
+                          {isChemical ? 'Internal Company Material' : 'Party Material Stock'}
                         </span>
                       </div>
 
@@ -632,12 +937,11 @@ export const BatchLedger: React.FC = () => {
                           {group.batches.length} GRN Batch{group.batches.length !== 1 ? 'es' : ''} on record
                         </span>
                         <span>•</span>
-                        {isChemical && (
-                          <>
-                            <span>{group.distinctItemsCount} Chemical Shade{group.distinctItemsCount !== 1 ? 's' : ''}</span>
-                            <span>•</span>
-                          </>
-                        )}
+                        <span>
+                          {group.distinctItemsCount} {isChemical ? 'Chemical Shade' : 'Model / Material'}
+                          {group.distinctItemsCount !== 1 ? 's' : ''}
+                        </span>
+                        <span>•</span>
                         <span>Total Inward: {group.totalReceived.toLocaleString('en-IN')} {group.uom}</span>
                         {group.totalIssued > 0 && (
                           <>
@@ -676,178 +980,105 @@ export const BatchLedger: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Expanded Batches & Job Card Issuance Breakdown */}
+                {/* Expanded Batches / Collapsible Party Models Window */}
                 {isExpanded && (
                   <div className="border-t border-[#ececec] bg-[#fafafb]/60 p-4 sm:p-5 space-y-4">
-                    <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#ececec]">
                       <div className="text-xs font-bold text-[#17191c] flex items-center gap-2 font-mono">
                         <Layers className="w-4 h-4 text-[#c09748]" />
-                        <span>GRN Inward Lots &amp; Job Card Deductions Breakdown ({group.batches.length} Lots)</span>
+                        {isChemical || !group.partyModels ? (
+                          <span>GRN Inward Lots &amp; Job Card Deductions Breakdown ({group.batches.length} Lots)</span>
+                        ) : (
+                          <span>
+                            Party Models &amp; Inward Materials ({group.partyModels.length} Model{group.partyModels.length !== 1 ? 's' : ''} • {group.batches.length} GRN Lots)
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] text-[#777b86] font-mono">
-                        Inventory Issuance Rule: <strong className="text-[#8a6521]">{group.strategy}</strong>
+                        {isChemical ? (
+                          <>Inventory Issuance Rule: <strong className="text-[#8a6521]">{group.strategy}</strong></>
+                        ) : (
+                          <span>Click a model below to inspect GRN lots &amp; Job Card deductions</span>
+                        )}
                       </div>
                     </div>
 
-                    {/* Batches Cards with Nested Job Card Issuance Trail */}
-                    <div className="space-y-3.5">
-                      {group.batches.map(batch => {
-                        const shelf = calculateBatchShelfLife(batch);
-                        const isFirstToIssue = batch.batchId === group.firstToIssueBatchId && batch.balanceQty > 0;
-                        const deductions = getBatchDeductions(batch);
-                        const totalDeducted = deductions.reduce((acc, d) => acc + d.issuedQty, 0);
+                    {isChemical || !group.partyModels ? (
+                      <div className="space-y-3.5">
+                        {group.batches.map(batch => renderBatchLotCard(batch, group))}
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {group.partyModels.map((model, mIdx) => {
+                          const defaultOpen = group.partyModels!.length === 1;
+                          const isModelExpanded = expandedModels[model.modelKey] ?? defaultOpen;
 
-                        return (
-                          <div
-                            key={batch.batchId}
-                            className={`p-4 rounded-[20px] border transition shadow-2xs space-y-3.5 ${
-                              isFirstToIssue 
-                                ? 'bg-[#faf7ed]/70 border-[#f4e5be]' 
-                                : 'bg-white border-[#ececec]'
-                            }`}
-                          >
-                            {/* GRN Lot Header */}
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-[#f2f2f3]">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-mono font-bold text-xs">
-                                  GRN: {batch.grnNo}
-                                </span>
-                                <h5 className="font-semibold text-xs sm:text-sm text-[#17191c]">
-                                  {batch.itemName}
-                                </h5>
-                                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-[#f2f2f3] text-[#777b86] border border-[#e5e7eb]">
-                                  Batch: <strong>{batch.supplierBatchNo || batch.batchId}</strong>
-                                </span>
-                                {isFirstToIssue && (
-                                  <span className="px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold text-[9.5px] flex items-center gap-1 animate-pulse">
-                                    <Sparkles className="w-2.5 h-2.5 text-[#c09748]" />
-                                    <span>Issue First ({group.strategy})</span>
+                          return (
+                            <div
+                              key={model.modelKey}
+                              className="rounded-[20px] border border-[#ececec] bg-white shadow-2xs overflow-hidden transition hover:border-[#dcdfe4]"
+                            >
+                              {/* Collapsible Model Header Row */}
+                              <button
+                                type="button"
+                                onClick={() => toggleModelExpand(model.modelKey, defaultOpen)}
+                                className="w-full p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left cursor-pointer bg-white hover:bg-[#fafafb] transition"
+                              >
+                                <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+                                  <span className="w-6 h-6 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
+                                    {mIdx + 1}
                                   </span>
-                                )}
-                              </div>
-
-                              <div className="flex items-center gap-3 text-xs">
-                                {batch.storageLocation && (
-                                  <span className="text-[11px] text-[#777b86] font-mono flex items-center gap-1">
-                                    <Warehouse className="w-3 h-3 text-[#c09748]" />
-                                    <span>{batch.storageLocation}</span>
-                                  </span>
-                                )}
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                                  shelf.isExpired || batch.status === 'Expired'
-                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                    : batch.status === 'QC Hold'
-                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
-                                    : batch.balanceQty === 0
-                                    ? 'bg-[#f2f2f3] text-[#777b86] border-[#dcdfe4]'
-                                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                }`}>
-                                  {shelf.isExpired ? 'Expired' : batch.status}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* 4 Inward Key Metrics */}
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-[16px] bg-[#fafafb] border border-[#ececec] text-xs">
-                              <div>
-                                <span className="text-[10px] font-mono uppercase text-[#777b86] block">Kab Aaya (Inward Date)</span>
-                                <span className="font-mono font-semibold text-[#17191c] text-xs">
-                                  {batch.receivedDate}
-                                </span>
-                                <span className="text-[10px] text-[#777b86] block">({shelf.daysSinceReceived}d in store)</span>
-                              </div>
-
-                              <div>
-                                <span className="text-[10px] font-mono uppercase text-[#777b86] block">Kitna Aaya Tha (Inward Qty)</span>
-                                <span className="font-mono font-bold text-[#17191c] text-xs">
-                                  {Number(batch.receivedQty).toLocaleString('en-IN')} {batch.uom}
-                                </span>
-                                <span className="text-[10px] text-[#777b86] block">Supplier Challan</span>
-                              </div>
-
-                              <div>
-                                <span className="text-[10px] font-mono uppercase text-[#777b86] block">Job Cards Me Diya Gya</span>
-                                <span className="font-mono font-bold text-[#8a6521] text-xs">
-                                  {totalDeducted.toLocaleString('en-IN')} {batch.uom}
-                                </span>
-                                <span className="text-[10px] text-[#777b86] block">{deductions.length} Job Card Allocation{deductions.length !== 1 ? 's' : ''}</span>
-                              </div>
-
-                              <div>
-                                <span className="text-[10px] font-mono uppercase text-[#777b86] block">Available Store Balance</span>
-                                <span className="font-serif font-bold text-sm text-emerald-800">
-                                  {Number(batch.balanceQty).toLocaleString('en-IN')} {batch.uom}
-                                </span>
-                                <span className="text-[10px] text-emerald-700 block font-medium">Ready for Issue</span>
-                              </div>
-                            </div>
-
-                            {/* Job Card Allocation Trail ("kon se GRN ke paint me se uss chiz ko kon se job card ke number ke against me kitna diya gya hai") */}
-                            <div className="space-y-2 pt-1">
-                              <div className="flex items-center justify-between text-[11px] font-mono font-bold text-[#17191c] uppercase tracking-wider">
-                                <span className="flex items-center gap-1.5">
-                                  <FileText className="w-3.5 h-3.5 text-[#c09748]" />
-                                  <span>Job Card Deductions from this GRN ({deductions.length})</span>
-                                </span>
-                                <span className="text-[10px] text-[#777b86] font-normal font-sans">
-                                  Digital Chain-of-Custody Tracing
-                                </span>
-                              </div>
-
-                              {deductions.length === 0 ? (
-                                <div className="p-3 rounded-[14px] bg-white border border-[#ececec] text-center text-xs text-[#777b86] flex items-center justify-center gap-2">
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                                  <span>Full Inward Quantity Available • No Job Card deductions made yet from this GRN.</span>
-                                </div>
-                              ) : (
-                                <div className="space-y-1.5">
-                                  {deductions.map((ded, dIdx) => (
-                                    <div
-                                      key={dIdx}
-                                      className="p-2.5 sm:p-3 rounded-[14px] bg-white border border-[#ececec] hover:border-[#dcdfe4] text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition"
-                                    >
-                                      {/* Left: Job Card No & Customer */}
-                                      <div className="flex items-center gap-2.5">
-                                        <div className="px-2.5 py-1 rounded-full bg-[#faf7ed] border border-[#f4e5be] font-mono font-bold text-xs text-[#8a6521]">
-                                          {ded.jobCardNo}
-                                        </div>
-                                        <div>
-                                          <div className="font-semibold text-[#17191c]">
-                                            {ded.customer || 'Production Work Order'}
-                                          </div>
-                                          <div className="text-[10.5px] text-[#777b86] flex items-center gap-2">
-                                            {ded.woNo && <span>WO: {ded.woNo}</span>}
-                                            {ded.minNo && <span>• Slip: {ded.minNo}</span>}
-                                            <span>• Date: {ded.date}</span>
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      {/* Right: Issued Quantity & Painter */}
-                                      <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-1.5 sm:pt-0 border-[#f2f2f3]">
-                                        <div className="flex items-center gap-1.5 text-[11px] text-[#777b86]">
-                                          <User className="w-3.5 h-3.5 text-[#c09748]" />
-                                          <span>{ded.painterName} ({ded.boothNo})</span>
-                                        </div>
-
-                                        <div className="text-right">
-                                          <div className="font-mono font-bold text-xs sm:text-sm text-rose-700">
-                                            - {ded.issuedQty} {ded.uom}
-                                          </div>
-                                          <div className="text-[9.5px] font-mono text-[#777b86]">
-                                            Issued &amp; Deducted
-                                          </div>
-                                        </div>
-                                      </div>
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="font-semibold text-sm text-[#17191c]">
+                                        {model.itemName}
+                                      </span>
+                                      {model.partCode && (
+                                        <span className="text-[10.5px] font-mono px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
+                                          {model.partCode}
+                                        </span>
+                                      )}
+                                      <span className="text-[10.5px] font-mono px-2 py-0.5 rounded-full bg-[#f2f2f3] text-[#777b86] border border-[#e5e7eb]">
+                                        {model.batches.length} GRN{model.batches.length !== 1 ? 's' : ''}
+                                      </span>
                                     </div>
-                                  ))}
+                                    <div className="text-[11px] text-[#777b86] mt-0.5 flex flex-wrap items-center gap-2.5">
+                                      <span>Inward: {model.totalReceived.toLocaleString('en-IN')} {model.uom}</span>
+                                      {model.totalIssued > 0 && (
+                                        <span className="text-[#8a6521] font-medium">
+                                          • Issued: {model.totalIssued.toLocaleString('en-IN')} {model.uom}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#f2f2f3]">
+                                  <div className="text-left sm:text-right">
+                                    <div className="text-[10px] font-mono uppercase text-[#777b86]">Model Balance</div>
+                                    <div className={`font-serif font-bold text-sm sm:text-base ${
+                                      model.totalBalance > 0 ? 'text-emerald-800' : 'text-[#777b86]'
+                                    }`}>
+                                      {model.totalBalance.toLocaleString('en-IN')} <span className="text-[11px] font-sans font-normal text-[#777b86]">{model.uom}</span>
+                                    </div>
+                                  </div>
+                                  <div className="w-7 h-7 rounded-full bg-[#fafafb] border border-[#ececec] flex items-center justify-center text-[#777b86]">
+                                    {isModelExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                  </div>
+                                </div>
+                              </button>
+
+                              {/* Nested GRN Batches & Job Card Deductions for this Model */}
+                              {isModelExpanded && (
+                                <div className="border-t border-[#f2f2f3] bg-[#fafafb]/70 p-3 sm:p-4 space-y-3">
+                                  {model.batches.map(batch => renderBatchLotCard(batch, group))}
                                 </div>
                               )}
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

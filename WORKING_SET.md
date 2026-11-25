@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-25: Added Party-Wise Filter & 1-Party-1-Card Collapsible Model Grouping in Stock Ledger (`BatchLedger.tsx`)
+  - Files touched:
+    - `src/portal/components/BatchLedger.tsx`: Added `partyFilter` dropdown and grouped `PARTY_MATERIAL` stock batches by customer (`PARTY_${partyKey}`) with nested collapsible `PartyModelGroup` rows (`expandedModels`) inside each Party card so multi-model inflows (e.g. 10 Kolors models) stay under one Party card; updated filter bar active chips to PK-OS champagne style.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-24: Built Finalised Vendor Catalog & Auto-Learned Party/Material Suggestion System (`GatePassView.tsx`, `PortalStoreContext.tsx`)
   - Files touched:
     - `src/portal/types/portalTypes.ts`: Added `FinalisedVendor`, `FinalisedVendorMaterial`, `LearnedPartyDirectoryEntry`, `LearnedPartyMaterial`.
