@@ -49,9 +49,8 @@ interface PartyModelGroup {
   totalReceived: number;
   totalIssued: number;
   totalBalance: number;
-  nearExpiryCount: number;
-  expiredCount: number;
   batches: StockBatch[];
+  deductions: JobCardDeduction[];
 }
 
 interface BatchGroupItem {
@@ -66,6 +65,7 @@ interface BatchGroupItem {
   totalReceived: number;
   totalIssued: number;
   distinctItemsCount: number;
+  inwardDatesLabel?: string;
   nearExpiryCount: number;
   expiredCount: number;
   firstToIssueBatchId?: string;
@@ -89,11 +89,11 @@ export const BatchLedger: React.FC = () => {
     setExpandedItems(prev => ({ ...prev, [itemKey]: !prev[itemKey] }));
   };
 
-  // Toggle model expansion inside a Party card
-  const toggleModelExpand = (modelKey: string, defaultOpen: boolean) => {
+  // Toggle Job Card deductions expansion for a Party model
+  const toggleModelExpand = (modelKey: string) => {
     setExpandedModels(prev => ({
       ...prev,
-      [modelKey]: !(prev[modelKey] ?? defaultOpen)
+      [modelKey]: !prev[modelKey]
     }));
   };
 
@@ -380,9 +380,8 @@ export const BatchLedger: React.FC = () => {
               totalReceived: 0,
               totalIssued: 0,
               totalBalance: 0,
-              nearExpiryCount: 0,
-              expiredCount: 0,
-              batches: []
+              batches: [],
+              deductions: []
             });
           }
           const m = modelMap.get(modelKey)!;
@@ -391,10 +390,8 @@ export const BatchLedger: React.FC = () => {
           m.totalReceived += rec;
           m.totalBalance += bal;
           m.totalIssued = Math.max(0, m.totalReceived - m.totalBalance);
-          const info = calculateBatchShelfLife(b);
-          if (info.isExpired && bal > 0) m.expiredCount += 1;
-          else if (info.isNearExpiry && bal > 0) m.nearExpiryCount += 1;
           m.batches.push(b);
+          m.deductions.push(...getBatchDeductions(b));
         });
 
         partyModels = Array.from(modelMap.values()).sort((a, b) => {
@@ -404,6 +401,15 @@ export const BatchLedger: React.FC = () => {
           return a.itemName.localeCompare(b.itemName);
         });
       }
+
+      const uniqueDates = Array.from(
+        new Set(group.batches.map(b => (b.receivedDate || '').trim()).filter(Boolean))
+      ).sort((a, b) => b.localeCompare(a));
+      const inwardDatesLabel = uniqueDates.length === 0
+        ? undefined
+        : uniqueDates.length <= 2
+        ? uniqueDates.join(', ')
+        : `${uniqueDates[0]} (+${uniqueDates.length - 1} dates)`;
 
       const distinctItems = new Set(group.batches.map(b => b.itemName));
 
@@ -423,6 +429,7 @@ export const BatchLedger: React.FC = () => {
         totalReceived,
         totalIssued,
         distinctItemsCount: partyModels ? partyModels.length : distinctItems.size,
+        inwardDatesLabel,
         nearExpiryCount,
         expiredCount,
         firstToIssueBatchId,
@@ -488,7 +495,7 @@ export const BatchLedger: React.FC = () => {
       if (pA !== pB) return pA - pB;
       return a.title.localeCompare(b.title);
     });
-  }, [plantBatches, activePlant, categoryFilter, partyFilter, statusFilter, searchQuery]);
+  }, [plantBatches, activePlant, categoryFilter, partyFilter, statusFilter, searchQuery, jobCards, materialRequisitions]);
 
   // Overall KPI stats
   const kpiStats = useMemo(() => {
@@ -933,15 +940,33 @@ export const BatchLedger: React.FC = () => {
                       </div>
 
                       <div className="text-xs text-[#777b86] mt-1 flex flex-wrap items-center gap-3">
-                        <span className="font-medium text-[#17191c]">
-                          {group.batches.length} GRN Batch{group.batches.length !== 1 ? 'es' : ''} on record
-                        </span>
-                        <span>•</span>
-                        <span>
-                          {group.distinctItemsCount} {isChemical ? 'Chemical Shade' : 'Model / Material'}
-                          {group.distinctItemsCount !== 1 ? 's' : ''}
-                        </span>
-                        <span>•</span>
+                        {isChemical ? (
+                          <>
+                            <span className="font-medium text-[#17191c]">
+                              {group.batches.length} GRN Batch{group.batches.length !== 1 ? 'es' : ''} on record
+                            </span>
+                            <span>•</span>
+                            <span>
+                              {group.distinctItemsCount} Chemical Shade{group.distinctItemsCount !== 1 ? 's' : ''}
+                            </span>
+                            <span>•</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="font-medium text-[#17191c]">
+                              {group.distinctItemsCount} Model{group.distinctItemsCount !== 1 ? 's' : ''}
+                            </span>
+                            {group.inwardDatesLabel && (
+                              <>
+                                <span>•</span>
+                                <span className="font-medium text-[#17191c]">
+                                  Inward Date: {group.inwardDatesLabel}
+                                </span>
+                              </>
+                            )}
+                            <span>•</span>
+                          </>
+                        )}
                         <span>Total Inward: {group.totalReceived.toLocaleString('en-IN')} {group.uom}</span>
                         {group.totalIssued > 0 && (
                           <>
@@ -980,98 +1005,113 @@ export const BatchLedger: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Expanded Batches / Collapsible Party Models Window */}
+                {/* Expanded Batches / Minimal Party Models List */}
                 {isExpanded && (
-                  <div className="border-t border-[#ececec] bg-[#fafafb]/60 p-4 sm:p-5 space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#ececec]">
-                      <div className="text-xs font-bold text-[#17191c] flex items-center gap-2 font-mono">
-                        <Layers className="w-4 h-4 text-[#c09748]" />
-                        {isChemical || !group.partyModels ? (
-                          <span>GRN Inward Lots &amp; Job Card Deductions Breakdown ({group.batches.length} Lots)</span>
-                        ) : (
-                          <span>
-                            Party Models &amp; Inward Materials ({group.partyModels.length} Model{group.partyModels.length !== 1 ? 's' : ''} • {group.batches.length} GRN Lots)
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-[#777b86] font-mono">
-                        {isChemical ? (
-                          <>Inventory Issuance Rule: <strong className="text-[#8a6521]">{group.strategy}</strong></>
-                        ) : (
-                          <span>Click a model below to inspect GRN lots &amp; Job Card deductions</span>
-                        )}
-                      </div>
-                    </div>
-
+                  <div className="border-t border-[#ececec] bg-[#fafafb]/60 p-4 sm:p-5 space-y-3">
                     {isChemical || !group.partyModels ? (
-                      <div className="space-y-3.5">
-                        {group.batches.map(batch => renderBatchLotCard(batch, group))}
-                      </div>
+                      <>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#ececec]">
+                          <div className="text-xs font-bold text-[#17191c] flex items-center gap-2 font-mono">
+                            <Layers className="w-4 h-4 text-[#c09748]" />
+                            <span>GRN Inward Lots &amp; Job Card Deductions Breakdown ({group.batches.length} Lots)</span>
+                          </div>
+                          <div className="text-[11px] text-[#777b86] font-mono">
+                            Inventory Issuance Rule: <strong className="text-[#8a6521]">{group.strategy}</strong>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3.5">
+                          {group.batches.map(batch => renderBatchLotCard(batch, group))}
+                        </div>
+                      </>
                     ) : (
-                      <div className="space-y-2.5">
+                      <div className="space-y-2">
                         {group.partyModels.map((model, mIdx) => {
-                          const defaultOpen = group.partyModels!.length === 1;
-                          const isModelExpanded = expandedModels[model.modelKey] ?? defaultOpen;
+                          const hasDeductions = model.deductions.length > 0;
+                          const isModelExpanded = !!expandedModels[model.modelKey];
 
                           return (
                             <div
                               key={model.modelKey}
-                              className="rounded-[20px] border border-[#ececec] bg-white shadow-2xs overflow-hidden transition hover:border-[#dcdfe4]"
+                              className="rounded-[18px] border border-[#ececec] bg-white shadow-2xs overflow-hidden transition hover:border-[#dcdfe4]"
                             >
-                              {/* Collapsible Model Header Row */}
-                              <button
-                                type="button"
-                                onClick={() => toggleModelExpand(model.modelKey, defaultOpen)}
-                                className="w-full p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left cursor-pointer bg-white hover:bg-[#fafafb] transition"
+                              {/* Minimal Single-Row Model Summary */}
+                              <div
+                                onClick={hasDeductions ? () => toggleModelExpand(model.modelKey) : undefined}
+                                className={`px-3.5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                                  hasDeductions ? 'cursor-pointer hover:bg-[#fafafb] transition' : ''
+                                }`}
                               >
-                                <div className="flex items-start sm:items-center gap-2.5 min-w-0">
+                                <div className="flex items-center gap-2.5 min-w-0">
                                   <span className="w-6 h-6 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10px] font-mono font-bold flex items-center justify-center shrink-0">
                                     {mIdx + 1}
                                   </span>
-                                  <div className="min-w-0">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <span className="font-semibold text-sm text-[#17191c]">
-                                        {model.itemName}
-                                      </span>
-                                      {model.partCode && (
-                                        <span className="text-[10.5px] font-mono px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
-                                          {model.partCode}
-                                        </span>
-                                      )}
-                                      <span className="text-[10.5px] font-mono px-2 py-0.5 rounded-full bg-[#f2f2f3] text-[#777b86] border border-[#e5e7eb]">
-                                        {model.batches.length} GRN{model.batches.length !== 1 ? 's' : ''}
-                                      </span>
-                                    </div>
-                                    <div className="text-[11px] text-[#777b86] mt-0.5 flex flex-wrap items-center gap-2.5">
-                                      <span>Inward: {model.totalReceived.toLocaleString('en-IN')} {model.uom}</span>
-                                      {model.totalIssued > 0 && (
-                                        <span className="text-[#8a6521] font-medium">
-                                          • Issued: {model.totalIssued.toLocaleString('en-IN')} {model.uom}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
+                                  <span className="font-semibold text-sm text-[#17191c] truncate">
+                                    {model.itemName}
+                                  </span>
+                                  {model.partCode && (
+                                    <span className="text-[10.5px] font-mono px-2 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] shrink-0">
+                                      {model.partCode}
+                                    </span>
+                                  )}
                                 </div>
 
-                                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#f2f2f3]">
-                                  <div className="text-left sm:text-right">
-                                    <div className="text-[10px] font-mono uppercase text-[#777b86]">Model Balance</div>
-                                    <div className={`font-serif font-bold text-sm sm:text-base ${
-                                      model.totalBalance > 0 ? 'text-emerald-800' : 'text-[#777b86]'
-                                    }`}>
-                                      {model.totalBalance.toLocaleString('en-IN')} <span className="text-[11px] font-sans font-normal text-[#777b86]">{model.uom}</span>
+                                <div className="flex flex-wrap items-center justify-between sm:justify-end gap-4 sm:gap-5 text-xs shrink-0 pl-8 sm:pl-0">
+                                  <div className="flex items-center gap-4">
+                                    <div>
+                                      <span className="text-[10px] font-mono uppercase text-[#777b86] mr-1">Inward:</span>
+                                      <span className="font-mono font-semibold text-[#17191c]">
+                                        {model.totalReceived.toLocaleString('en-IN')}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] font-mono uppercase text-[#777b86] mr-1">Issued:</span>
+                                      <span className={`font-mono font-semibold ${model.totalIssued > 0 ? 'text-[#8a6521]' : 'text-[#777b86]'}`}>
+                                        {model.totalIssued.toLocaleString('en-IN')}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] font-mono uppercase text-[#777b86] mr-1">Balance:</span>
+                                      <span className={`font-serif font-bold text-sm ${
+                                        model.totalBalance > 0 ? 'text-emerald-800' : 'text-[#777b86]'
+                                      }`}>
+                                        {model.totalBalance.toLocaleString('en-IN')} {model.uom}
+                                      </span>
                                     </div>
                                   </div>
-                                  <div className="w-7 h-7 rounded-full bg-[#fafafb] border border-[#ececec] flex items-center justify-center text-[#777b86]">
-                                    {isModelExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                                  </div>
-                                </div>
-                              </button>
 
-                              {/* Nested GRN Batches & Job Card Deductions for this Model */}
-                              {isModelExpanded && (
-                                <div className="border-t border-[#f2f2f3] bg-[#fafafb]/70 p-3 sm:p-4 space-y-3">
-                                  {model.batches.map(batch => renderBatchLotCard(batch, group))}
+                                  {hasDeductions && (
+                                    <span className="px-2.5 py-1 rounded-full bg-[#faf7ed] border border-[#f4e5be] text-[10.5px] font-mono font-bold text-[#8a6521] flex items-center gap-1">
+                                      <span>{model.deductions.length} Job Card{model.deductions.length !== 1 ? 's' : ''}</span>
+                                      {isModelExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Optional Compact Job Card Deductions (shown ONLY when issued & clicked) */}
+                              {hasDeductions && isModelExpanded && (
+                                <div className="border-t border-[#f2f2f3] bg-[#fafafb]/70 px-3.5 py-2.5 space-y-1.5">
+                                  {model.deductions.map((ded, dIdx) => (
+                                    <div
+                                      key={dIdx}
+                                      className="px-3 py-2 rounded-[12px] bg-white border border-[#ececec] text-xs flex flex-wrap items-center justify-between gap-2"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <span className="px-2 py-0.5 rounded-full bg-[#faf7ed] border border-[#f4e5be] font-mono font-bold text-[11px] text-[#8a6521]">
+                                          {ded.jobCardNo}
+                                        </span>
+                                        <span className="text-[11px] text-[#777b86] flex items-center gap-1">
+                                          <User className="w-3 h-3 text-[#c09748]" />
+                                          {ded.painterName} ({ded.boothNo})
+                                        </span>
+                                        <span className="text-[10.5px] text-[#979799]">• {ded.date}</span>
+                                      </div>
+                                      <span className="font-mono font-bold text-rose-700">
+                                        - {ded.issuedQty.toLocaleString('en-IN')} {ded.uom}
+                                      </span>
+                                    </div>
+                                  ))}
                                 </div>
                               )}
                             </div>

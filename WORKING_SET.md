@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-25: Simplified Party Stock Ledger View (`BatchLedger.tsx`)
+  - Files touched:
+    - `src/portal/components/BatchLedger.tsx`: Moved `Inward Date` onto the main Party Card summary row (`inwardDatesLabel`) and stripped repetitive per-model Inward Date, GRN, Batch No., FIFO badges, and empty deduction boxes from `PARTY_MATERIAL` models — leaving a clean single-row model summary (`Model`, `Part Code`, `Inward`, `Issued`, `Balance`, plus expandable Job Card deductions only when issued > 0).
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-25: Added Party-Wise Filter & 1-Party-1-Card Collapsible Model Grouping in Stock Ledger (`BatchLedger.tsx`)
   - Files touched:
     - `src/portal/components/BatchLedger.tsx`: Added `partyFilter` dropdown and grouped `PARTY_MATERIAL` stock batches by customer (`PARTY_${partyKey}`) with nested collapsible `PartyModelGroup` rows (`expandedModels`) inside each Party card so multi-model inflows (e.g. 10 Kolors models) stay under one Party card; updated filter bar active chips to PK-OS champagne style.
