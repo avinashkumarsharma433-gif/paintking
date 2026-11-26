@@ -1317,11 +1317,26 @@ export interface OQCSampleObservationItem {
   overallFinishing: 'Pass' | 'Fail';
 }
 
+export interface OQCCheckedModelItem {
+  assignmentId?: string;
+  partCode: string;
+  partDescription: string;
+  color: string;
+  painter?: string;
+  paintBatch?: string;
+  offeredQty: number;
+  passedOkQty: number;
+  reworkQty: number;
+  scrapQty: number;
+  defectReason?: string;
+}
+
 export interface FinalQualityRelease {
   releaseId: string;
   reportNo?: string;          // e.g. "PK-OQC-2026-081"
   jobCardNo?: string;
   packedModelsCount?: number;
+  oqcCheckedItems?: OQCCheckedModelItem[];
   deltaSource?: 'IPQC' | 'FPA' | 'Visual';
   date: string;
   plant: PlantLocation;

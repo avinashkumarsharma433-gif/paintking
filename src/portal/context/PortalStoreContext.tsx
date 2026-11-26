@@ -440,6 +440,51 @@ interface PortalContextType {
     }>;
   }) => { slips: PackingSlipRecord[]; release: FinalQualityRelease };
   updatePackingSlipBoxes: (slipNo: string, boxNo: string, pcsPerBox: number, totalBoxes: number) => void;
+  recordQcOqcBatch: (params: {
+    jobCardNo: string;
+    woNo?: string;
+    customer: string;
+    plant?: PlantLocation;
+    checkedBy?: string;
+    visualChecks?: {
+      dustSpot?: 'Pass' | 'Fail';
+      scratch?: 'Pass' | 'Fail';
+      paintMissing?: 'Pass' | 'Fail';
+      bubbleOverPaint?: 'Pass' | 'Fail';
+      colourShade?: 'Pass' | 'Fail';
+    };
+    items: Array<{
+      assignmentId?: string;
+      partCode: string;
+      partDescription: string;
+      color: string;
+      painter?: string;
+      paintBatch?: string;
+      offeredQty: number;
+      passedOkQty: number;
+      reworkQty: number;
+      scrapQty: number;
+      defectReason?: string;
+    }>;
+  }) => FinalQualityRelease;
+  packOqcClearedItem: (params: {
+    releaseId: string;
+    jobCardNo: string;
+    woNo?: string;
+    assignmentId?: string;
+    customer: string;
+    partCode: string;
+    partDescription: string;
+    color: string;
+    plant?: PlantLocation;
+    packQty: number;
+    pcsPerBox: number;
+    totalBoxes: number;
+    boxSerialRange: string;
+    painter?: string;
+    paintBatch?: string;
+    packedBy?: string;
+  }) => PackingSlipRecord;
   dispatchFgStockFromPacking: (slipNo: string, dispatchQty: number) => void;
   getNextUniqueJobCardNo: () => string;
   addJobCard: (jc: JobCard) => JobCard;
@@ -3945,6 +3990,247 @@ export const PortalProvider: React.FC<{
     );
   };
 
+  // Haridwar / Universal Flow: QC Manager creates Official OQC Report (OK / Rework / Reject) BEFORE Packing
+  const recordQcOqcBatch = (params: {
+    jobCardNo: string;
+    woNo?: string;
+    customer: string;
+    plant?: PlantLocation;
+    checkedBy?: string;
+    visualChecks?: {
+      dustSpot?: 'Pass' | 'Fail';
+      scratch?: 'Pass' | 'Fail';
+      paintMissing?: 'Pass' | 'Fail';
+      bubbleOverPaint?: 'Pass' | 'Fail';
+      colourShade?: 'Pass' | 'Fail';
+    };
+    items: Array<{
+      assignmentId?: string;
+      partCode: string;
+      partDescription: string;
+      color: string;
+      painter?: string;
+      paintBatch?: string;
+      offeredQty: number;
+      passedOkQty: number;
+      reworkQty: number;
+      scrapQty: number;
+      defectReason?: string;
+    }>;
+  }): FinalQualityRelease => {
+    const resolvedPlant: PlantLocation = params.plant || (activePlant === 'ALL' ? 'Haridwar' : activePlant);
+    const todayIso = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const dateDDMMYYYY = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+    const timeLabel = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    const qcOfficerName = params.checkedBy || currentUser.name || 'QC Manager';
+    const woRef = params.woNo || params.jobCardNo;
+
+    const totalOffered = params.items.reduce((s, i) => s + i.offeredQty, 0);
+    const totalOk = params.items.reduce((s, i) => s + i.passedOkQty, 0);
+    const totalRework = params.items.reduce((s, i) => s + i.reworkQty, 0);
+    const totalScrap = params.items.reduce((s, i) => s + i.scrapQty, 0);
+    const firstItem = params.items[0];
+    const colorimetry = resolveColorimetryFromIpqcOrFpa(
+      params.jobCardNo,
+      woRef,
+      firstItem?.partCode,
+      firstItem?.color
+    );
+
+    const releaseId = `REL-${Date.now()}`;
+    const reportNo = `PK-OQC-${now.getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const partSummaryTitle =
+      params.items.length > 1
+        ? `${firstItem?.partDescription || firstItem?.partCode} + ${params.items.length - 1} More Models`
+        : firstItem?.partDescription || 'Painted Component';
+    const partCodeSummary =
+      params.items.length > 1
+        ? `${firstItem?.partCode || 'MULTI'} (+${params.items.length - 1})`
+        : firstItem?.partCode || 'PART';
+
+    const newRelease: FinalQualityRelease = {
+      releaseId,
+      reportNo,
+      jobCardNo: params.jobCardNo,
+      packedModelsCount: params.items.length,
+      oqcCheckedItems: params.items,
+      deltaSource: colorimetry.source,
+      date: todayIso,
+      plant: resolvedPlant,
+      woNo: woRef,
+      customer: params.customer,
+      partCode: partCodeSummary,
+      partDescription: partSummaryTitle,
+      model: partSummaryTitle,
+      batchNo: firstItem?.paintBatch || colorimetry.paintBatch || 'BAT-STD',
+      color: params.items.length > 1 ? Array.from(new Set(params.items.map(i => i.color))).join(', ') : (firstItem?.color || 'Standard'),
+      offeredQty: totalOffered,
+      sampledQty: totalOffered,
+      passedQty: totalOk,
+      rejectedQty: totalRework + totalScrap,
+      masterL: colorimetry.masterL,
+      masterA: colorimetry.masterA,
+      masterB: colorimetry.masterB,
+      L: colorimetry.L,
+      a: colorimetry.a,
+      b: colorimetry.b,
+      deltaE: colorimetry.deltaE,
+      sampleSpectro: colorimetry.sampleSpectro,
+      lotAcceptance: totalOk > 0 ? 'Accepted' : 'Rejected',
+      physicalInspection: params.visualChecks?.scratch === 'Fail' ? 'Fail' : 'Pass',
+      conductivity: 'N/A',
+      adhesion: 'Pass',
+      oqcStatus: totalOk > 0 ? 'Accepted' : 'Hold',
+      oqcDate: todayIso,
+      oqcInspector: qcOfficerName,
+      qualityEngineerSign: qcOfficerName,
+      managerQASign: qcOfficerName,
+      totalBoxes: 0,
+      packingBoxCondition: 'Pass',
+      traceabilityBatchNo: 'Pass',
+      quantityMatch: 'Pass',
+      pdiStatus: 'Awaiting PDI',
+      inspector: qcOfficerName,
+      plantHeadSign: 'Pending PDI / Dispatch',
+      generatedTimestamp: now.toISOString(),
+      createdAt: now.toISOString()
+    };
+
+    setQualityReleases(prev => [newRelease, ...prev]);
+
+    // Bounce back OQC-caught Rework & Scrap onto PainterAssignments & JobCard
+    if (totalRework > 0 || totalScrap > 0) {
+      setPainterAssignments(prev =>
+        prev.map(asg => {
+          const matchedItem = params.items.find(
+            it =>
+              (it.assignmentId && asg.id === it.assignmentId) ||
+              (asg.masterJobCardNo === params.jobCardNo &&
+                (asg.partCode === it.partCode || asg.partDescription === it.partDescription) &&
+                (!asg.colorShade || asg.colorShade === it.color))
+          );
+          if (!matchedItem || (matchedItem.reworkQty === 0 && matchedItem.scrapQty === 0)) return asg;
+          const nextGood = Math.max(0, (asg.actualCompletedQty || 0) - matchedItem.reworkQty - matchedItem.scrapQty);
+          return {
+            ...asg,
+            actualCompletedQty: nextGood,
+            rejectReworkQty: (asg.rejectReworkQty || 0) + matchedItem.reworkQty,
+            scrapQty: (asg.scrapQty || 0) + matchedItem.scrapQty
+          };
+        })
+      );
+    }
+
+    if (params.jobCardNo) {
+      setJobCards(prev =>
+        prev.map(jc => {
+          if (jc.jobCardNo !== params.jobCardNo && jc.woNo !== woRef) return jc;
+          const prevLogs = jc.progressLogs || [];
+          const adjustedGood =
+            totalRework + totalScrap > 0
+              ? Math.max(0, (jc.goodQty || 0) - totalRework - totalScrap)
+              : (jc.goodQty || 0);
+          const logEntry: JobCardProductionProgressLog = {
+            id: `LOG-OQC-${Date.now()}`,
+            timestamp: now.toISOString(),
+            timeLabel,
+            dateLabel: dateDDMMYYYY,
+            actionType: 'BATCH_OUTPUT',
+            actionTitle: `QC OQC Report (${reportNo}): ${totalOk} OK → Packing${totalRework > 0 ? ` • ${totalRework} Rework Returned` : ''}${totalScrap > 0 ? ` • ${totalScrap} Rejected` : ''}`,
+            piecesCompleted: totalOffered,
+            goodPieces: totalOk,
+            cumulativeGoodQty: adjustedGood,
+            reworkPieces: totalRework,
+            scrapPieces: totalScrap,
+            defectReason: totalRework + totalScrap > 0 ? (params.items.find(i => i.defectReason)?.defectReason || 'OQC Visual Inspection Defect') : undefined,
+            qaVerified: true,
+            qaVerifiedBy: qcOfficerName,
+            painterName: firstItem?.painter || jc.painterName || 'Production Floor',
+            recordedBy: qcOfficerName,
+            remarks: `${params.items.length} Model(s)${colorimetry.source === 'IPQC' ? ` • IPQC ΔE ${colorimetry.deltaE}` : ''}`
+          };
+          return {
+            ...jc,
+            goodQty: adjustedGood,
+            reworkQty: (jc.reworkQty || 0) + totalRework,
+            rejectQty: (jc.rejectQty || 0) + totalScrap,
+            progressLogs: [logEntry, ...prevLogs]
+          };
+        })
+      );
+    }
+
+    return newRelease;
+  };
+
+  // Packing Team Flow: Zero inspection — pack OQC-passed pieces, print Box Labels & move to FG Store
+  const packOqcClearedItem = (params: {
+    releaseId: string;
+    jobCardNo: string;
+    woNo?: string;
+    assignmentId?: string;
+    customer: string;
+    partCode: string;
+    partDescription: string;
+    color: string;
+    plant?: PlantLocation;
+    packQty: number;
+    pcsPerBox: number;
+    totalBoxes: number;
+    boxSerialRange: string;
+    painter?: string;
+    paintBatch?: string;
+    packedBy?: string;
+  }): PackingSlipRecord => {
+    const resolvedPlant: PlantLocation = params.plant || (activePlant === 'ALL' ? 'Haridwar' : activePlant);
+    const todayIso = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const packerName = params.packedBy || currentUser.name || 'Packing Team';
+
+    const newSlip: PackingSlipRecord = {
+      slipNo: `PK-PKG-${now.getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      date: todayIso,
+      plant: resolvedPlant,
+      customer: params.customer,
+      woNo: params.woNo || params.jobCardNo,
+      jobCardNo: params.jobCardNo,
+      assignmentId: params.assignmentId,
+      partCode: params.partCode,
+      partDescription: params.partDescription,
+      model: params.partDescription,
+      color: params.color,
+      boxNo: params.boxSerialRange,
+      packedQty: params.packQty,
+      offeredQty: params.packQty,
+      packedOkQty: params.packQty,
+      reworkReturnedQty: 0,
+      scrapQty: 0,
+      pcsPerBox: params.pcsPerBox,
+      totalBoxes: params.totalBoxes,
+      oqcReleaseId: params.releaseId,
+      dispatchedQty: 0,
+      fgStatus: 'In FG Store',
+      painter: params.painter || 'Production Line',
+      paintBatch: params.paintBatch || 'BAT-STD',
+      packedBy: packerName,
+      qcVerified: true
+    };
+
+    setPackingSlips(prev => [newSlip, ...prev]);
+
+    // Update totalBoxes on linked OQC Release
+    setQualityReleases(prev =>
+      prev.map(r =>
+        r.releaseId === params.releaseId
+          ? { ...r, totalBoxes: (r.totalBoxes || 0) + params.totalBoxes }
+          : r
+      )
+    );
+
+    return newSlip;
+  };
+
   const dispatchFgStockFromPacking = (slipNo: string, dispatchQty: number) => {
     const qtyToDispatch = Math.max(0, Number(dispatchQty) || 0);
     if (qtyToDispatch <= 0) return;
@@ -5758,6 +6044,8 @@ export const PortalProvider: React.FC<{
         recordCheckAndPackBatch,
         recordMultiModelCheckAndPackBatch,
         updatePackingSlipBoxes,
+        recordQcOqcBatch,
+        packOqcClearedItem,
         dispatchFgStockFromPacking,
         getNextUniqueJobCardNo,
         addJobCard,

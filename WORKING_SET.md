@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-26: Separated OQC (QC Manager) BEFORE Fast Packing & Box Labels (`QAView.tsx`, `PackingView.tsx`, `PortalStoreContext.tsx`, `portalTypes.ts`)
+  - Files touched:
+    - `src/portal/types/portalTypes.ts` & `src/portal/context/PortalStoreContext.tsx`: Added `OQCCheckedModelItem` on `FinalQualityRelease`, `recordQcOqcBatch` (QC Manager creates OQC reports with IPQC Delta-E & bounces Rework/Scrap back to Production BEFORE Packing), and `packOqcClearedItem` (Packing packs only OQC-passed pieces into FG Store with Box Labels).
+    - `src/portal/views/QAView.tsx`: Gate 4 Tab 1 (`1. Create OQC Report`) now lists all Production-finished models per Party/JobCard (supports multi-model OK/Rework/Rejection entry — works for both Haridwar direct QC & Mumbai Packing-reported OQC), bouncing defects back to Production; Tab 2 lists Certified OQC Reports.
+    - `src/portal/views/PackingView.tsx`: Removed OQC checking / Rework / Rejection inputs from Packing completely; Tab 1 (`1. OQC Passed — Print Box Labels`) shows only OQC-approved models ready for `Pack Qty + Pcs/Box -> Generate Box Labels & Add to FG`; Tab 2 manages FG Stock & Label Reprints.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-25: Converted QA Gate 4 (OQC) into Audit & QA Manager Sign-Off Register (`QAView.tsx`, `PortalStoreContext.tsx`)
   - Files touched:
     - `src/portal/context/PortalStoreContext.tsx`: Added `approveOqcSignOff` action and initialized `managerQASign: 'Pending QA Sign-Off'` on auto-created OQC reports from Packing.

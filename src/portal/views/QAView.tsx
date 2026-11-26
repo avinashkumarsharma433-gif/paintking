@@ -39,9 +39,11 @@ import {
   PreProductionInspectionRecord, 
   FinalQualityRelease, 
   MaterialInwardRecord, 
-  JobCard
+  JobCard,
+  resolveJobCardInwardParts
 } from '../types/portalTypes';
 import { CustomSelect } from '../components/CustomSelect';
+import { PKDropdown } from '../components/PKDropdown';
 import { PaintkingDatePicker } from '../components/PaintkingDatePicker';
 import { downloadStandardIQCPdf, downloadStandardIPQCPdf, downloadStandardPreProductionPdf, downloadStandardFPAPdf, downloadStandardOqcPdf, downloadStandardPdiPdf, formatDateDDMMYYYY } from '../utils/pdfStandardHeader';
 import { UniversalEmailModal } from '../components/UniversalEmailModal';
@@ -68,8 +70,10 @@ export const QAView: React.FC = () => {
     qualityReleases,
     addOQCRelease,
     approveOqcSignOff,
+    recordQcOqcBatch,
     submitPdiClearance,
     jobCards,
+    painterAssignments,
     grnList,
     universalJobs,
     materialInwardLogs,
@@ -109,8 +113,24 @@ export const QAView: React.FC = () => {
   const [ipqcViewTab, setIpqcViewTab] = useState<'PENDING' | 'COMPLETED'>('PENDING');
   const [ipqcSearchQuery, setIpqcSearchQuery] = useState<string>('');
 
-  const [oqcViewTab, setOqcViewTab] = useState<'PENDING' | 'COMPLETED'>('COMPLETED');
+  const [oqcViewTab, setOqcViewTab] = useState<'PENDING' | 'COMPLETED'>('PENDING');
   const [oqcSearchQuery, setOqcSearchQuery] = useState<string>('');
+  const [oqcEdits, setOqcEdits] = useState<
+    Record<string, { okQty: number; reworkQty: number; scrapQty: number; defectReason: string }>
+  >({});
+  const [oqcVisualChecks, setOqcVisualChecks] = useState<
+    Record<
+      string,
+      {
+        dustSpot: 'Pass' | 'Fail';
+        scratch: 'Pass' | 'Fail';
+        paintMissing: 'Pass' | 'Fail';
+        bubbleOverPaint: 'Pass' | 'Fail';
+        colourShade: 'Pass' | 'Fail';
+      }
+    >
+  >({});
+  const [oqcToastMsg, setOqcToastMsg] = useState<string | null>(null);
 
   const [pdiViewTab, setPdiViewTab] = useState<'PENDING' | 'COMPLETED'>('PENDING');
   const [pdiSearchQuery, setPdiSearchQuery] = useState<string>('');
@@ -220,6 +240,205 @@ export const QAView: React.FC = () => {
     });
   }, [jobCards, activePlant]);
 
+  const OQC_DEFECT_REASONS = [
+    'Dust Spot / Air Lint',
+    'Scratch / Handling Scuff',
+    'Paint Missing / Thin Coat',
+    'Over Paint / Run / Sagging',
+    'Bubble / Pinhole',
+    'Shade Variation vs Master',
+    'Mould / Substrate Damage (Scrap)'
+  ];
+
+  // Expand every Production-completed Model ready for QC Manager OQC (Haridwar direct + Mumbai reported)
+  const readyOqcModelRows = React.useMemo(() => {
+    const plantReleases = qualityReleases.filter(r => matchesPlant(r.plant, activePlant));
+    const rows: Array<{
+      rowKey: string;
+      jobCardNo: string;
+      woNo: string;
+      customer: string;
+      assignmentId?: string;
+      partCode: string;
+      partDescription: string;
+      color: string;
+      painter: string;
+      paintBatch: string;
+      prodOkQty: number;
+      alreadyOqcQty: number;
+      readyForOqcQty: number;
+      jobCardRef: JobCard;
+    }> = [];
+
+    jobCards
+      .filter(jc => matchesPlant(jc.plant, activePlant))
+      .forEach(jc => {
+        const jcAssignments = painterAssignments.filter(
+          a => a.masterJobCardNo === jc.jobCardNo || a.masterJobCardId === jc.jobCardNo
+        );
+
+        const getAlreadyCheckedForPart = (asgId?: string, pCode?: string, shade?: string) => {
+          let total = 0;
+          plantReleases.forEach(r => {
+            if (r.jobCardNo !== jc.jobCardNo && r.woNo !== jc.woNo && r.woNo !== jc.jobCardNo) return;
+            if (r.oqcCheckedItems && r.oqcCheckedItems.length > 0) {
+              r.oqcCheckedItems.forEach(it => {
+                const matchAsg = asgId && it.assignmentId ? it.assignmentId === asgId : it.partCode === pCode && (!shade || it.color === shade);
+                if (matchAsg) total += (it.passedOkQty || 0) + (it.scrapQty || 0);
+              });
+            } else if (r.partCode === pCode && (!shade || r.color === shade)) {
+              total += (r.passedQty || 0) + (r.rejectedQty || 0);
+            }
+          });
+          return total;
+        };
+
+        if (jcAssignments.length > 0) {
+          jcAssignments.forEach(asg => {
+            const prodOkQty = asg.actualCompletedQty || 0;
+            const pCode = asg.partCode || jc.partCode || 'PART';
+            const shade = asg.colorShade || jc.color || 'Standard Shade';
+            const alreadyOqcQty = getAlreadyCheckedForPart(asg.id, pCode, shade);
+            const readyForOqcQty = Math.max(0, prodOkQty - alreadyOqcQty);
+            if (readyForOqcQty > 0) {
+              rows.push({
+                rowKey: `OQC:ASG:${asg.id}`,
+                jobCardNo: jc.jobCardNo,
+                woNo: jc.woNo || jc.jobCardNo,
+                customer: jc.customer,
+                assignmentId: asg.id,
+                partCode: pCode,
+                partDescription: asg.partDescription || jc.partDescription || pCode,
+                color: shade,
+                painter: asg.painterName,
+                paintBatch:
+                  ipqcRecords.find(ip => ip.jobCardNo === jc.jobCardNo || ip.woNo === jc.woNo)?.paintBatchNumber ||
+                  fpaRecords.find(f => f.jobCardNo === jc.jobCardNo || f.woNo === jc.woNo)?.paintBatch ||
+                  'BAT-STD',
+                prodOkQty,
+                alreadyOqcQty,
+                readyForOqcQty,
+                jobCardRef: jc
+              });
+            }
+          });
+        } else if ((jc.goodQty || 0) > 0) {
+          const parts = resolveJobCardInwardParts(jc, materialInwardLogs);
+          const list = parts.length > 0 ? parts : [{ partCode: jc.partCode || 'PART', partDescription: jc.partDescription || 'Painted Component', targetQty: jc.goodQty || 0 }];
+          list.forEach((p, idx) => {
+            const partOk = list.length === 1 ? (jc.goodQty || 0) : Math.min(jc.goodQty || 0, p.targetQty);
+            const alreadyOqcQty = getAlreadyCheckedForPart(undefined, p.partCode, jc.color);
+            const readyForOqcQty = Math.max(0, partOk - alreadyOqcQty);
+            if (readyForOqcQty > 0) {
+              rows.push({
+                rowKey: `OQC:JC:${jc.jobCardNo}:${idx}:${p.partCode}`,
+                jobCardNo: jc.jobCardNo,
+                woNo: jc.woNo || jc.jobCardNo,
+                customer: jc.customer,
+                partCode: p.partCode,
+                partDescription: p.partDescription,
+                color: jc.color || 'Standard Shade',
+                painter: jc.assignedPainterName || jc.painterName || 'Production Floor',
+                paintBatch: 'BAT-STD',
+                prodOkQty: partOk,
+                alreadyOqcQty,
+                readyForOqcQty,
+                jobCardRef: jc
+              });
+            }
+          });
+        }
+      });
+
+    return rows;
+  }, [jobCards, painterAssignments, qualityReleases, materialInwardLogs, ipqcRecords, fpaRecords, activePlant]);
+
+  const filteredReadyOqcModelRows = React.useMemo(() => {
+    if (!oqcSearchQuery.trim()) return readyOqcModelRows;
+    const q = oqcSearchQuery.toLowerCase();
+    return readyOqcModelRows.filter(
+      r =>
+        r.jobCardNo.toLowerCase().includes(q) ||
+        r.customer.toLowerCase().includes(q) ||
+        r.partDescription.toLowerCase().includes(q) ||
+        r.partCode.toLowerCase().includes(q) ||
+        r.color.toLowerCase().includes(q)
+    );
+  }, [readyOqcModelRows, oqcSearchQuery]);
+
+  const groupedReadyOqcByJobCard = React.useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        jobCardNo: string;
+        woNo: string;
+        customer: string;
+        jobCardRef: JobCard;
+        rows: typeof filteredReadyOqcModelRows;
+        totalReady: number;
+      }
+    >();
+    filteredReadyOqcModelRows.forEach(r => {
+      const existing = map.get(r.jobCardNo);
+      if (existing) {
+        existing.rows.push(r);
+        existing.totalReady += r.readyForOqcQty;
+      } else {
+        map.set(r.jobCardNo, {
+          jobCardNo: r.jobCardNo,
+          woNo: r.woNo,
+          customer: r.customer,
+          jobCardRef: r.jobCardRef,
+          rows: [r],
+          totalReady: r.readyForOqcQty
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [filteredReadyOqcModelRows]);
+
+  const getOqcRowEdit = (r: { rowKey: string; readyForOqcQty: number }) => {
+    return (
+      oqcEdits[r.rowKey] || {
+        okQty: r.readyForOqcQty,
+        reworkQty: 0,
+        scrapQty: 0,
+        defectReason: OQC_DEFECT_REASONS[0]
+      }
+    );
+  };
+
+  const updateOqcRowCounts = (
+    r: { rowKey: string; readyForOqcQty: number },
+    field: 'ok' | 'rework' | 'scrap',
+    rawVal: number
+  ) => {
+    const val = Math.max(0, isNaN(rawVal) ? 0 : rawVal);
+    const maxCap = r.readyForOqcQty;
+    const prev = getOqcRowEdit(r);
+    let okQty = prev.okQty;
+    let reworkQty = prev.reworkQty;
+    let scrapQty = prev.scrapQty;
+    if (field === 'ok') {
+      okQty = Math.min(maxCap, val);
+      const rem = Math.max(0, maxCap - okQty);
+      scrapQty = Math.min(prev.scrapQty, rem);
+      reworkQty = Math.max(0, rem - scrapQty);
+    } else if (field === 'rework') {
+      const maxRw = Math.max(0, maxCap - prev.scrapQty);
+      reworkQty = Math.min(maxRw, val);
+      okQty = Math.max(0, maxCap - reworkQty - prev.scrapQty);
+    } else {
+      const maxSc = Math.max(0, maxCap - prev.reworkQty);
+      scrapQty = Math.min(maxSc, val);
+      okQty = Math.max(0, maxCap - prev.reworkQty - scrapQty);
+    }
+    setOqcEdits(curr => ({
+      ...curr,
+      [r.rowKey]: { okQty, reworkQty, scrapQty, defectReason: prev.defectReason }
+    }));
+  };
+
   const pendingOqcJobs = React.useMemo(() => {
     return jobCards.filter(j => {
       if (!matchesPlant(j.plant, activePlant)) return false;
@@ -228,7 +447,7 @@ export const QAView: React.FC = () => {
       return hasGoodOutput && !isAlreadyOqc;
     });
   }, [jobCards, qualityReleases, activePlant]);
-  const oqcPendingCount = pendingOqcJobs.length;
+  const oqcPendingCount = readyOqcModelRows.length > 0 ? readyOqcModelRows.length : pendingOqcJobs.length;
 
   const pendingPdiReleases = React.useMemo(() => {
     return qualityReleases.filter(r => matchesPlant(r.plant, activePlant) && r.oqcStatus === 'Accepted' && r.pdiStatus !== 'Cleared for Invoicing');
@@ -1542,19 +1761,16 @@ export const QAView: React.FC = () => {
           }`}
         >
           <CheckCircle2 className="w-3.5 h-3.5 text-[#c09748]" />
-          <span>Gate 4: OQC Sign-Off</span>
+          <span>Gate 4: OQC Inspection &amp; Reports</span>
           {(() => {
-            const awaitingSign = qualityReleases.filter(
-              r => matchesPlant(r.plant, activePlant) && (!r.managerQASign || r.managerQASign === 'Pending QA Sign-Off')
-            ).length;
             const totalApproved = qualityReleases.filter(
               r => matchesPlant(r.plant, activePlant) && r.oqcStatus === 'Accepted'
             ).length;
             return (
               <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold ${
-                awaitingSign > 0 ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-[#f4e5be]/60 text-[#8a6521]'
+                readyOqcModelRows.length > 0 ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-[#f4e5be]/60 text-[#8a6521]'
               }`}>
-                {awaitingSign > 0 ? `${awaitingSign} Sign Due • ${totalApproved}` : `${totalApproved} Signed`}
+                {readyOqcModelRows.length > 0 ? `${readyOqcModelRows.length} Due • ${totalApproved}` : `${totalApproved} Reports`}
               </span>
             );
           })()}
@@ -3261,47 +3477,63 @@ export const QAView: React.FC = () => {
       {/* TAB 4: OUTGOING QUALITY CONTROL (OQC / GATE 4) */}
       {activeSubTab === 'OQC' && (
         <div className="space-y-4 sm:space-y-6">
+          {oqcToastMsg && (
+            <div className="p-3.5 rounded-[16px] bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{oqcToastMsg}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOqcViewTab('COMPLETED')}
+                className="px-3 py-1 rounded-full bg-white border border-emerald-300 text-emerald-800 text-[11px] font-bold cursor-pointer"
+              >
+                View Certified OQC Reports →
+              </button>
+            </div>
+          )}
+
           {/* Dedicated OQC Tab Switcher & Inline Search Bar */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-white p-2 sm:p-2.5 rounded-[16px] border border-[#ececec]">
             {/* SubTab Switcher Buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar shrink-0">
               <button
                 type="button"
-                onClick={() => setOqcViewTab('COMPLETED')}
-                className={`px-3.5 sm:px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold cursor-pointer transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95 ${
-                  oqcViewTab === 'COMPLETED'
-                    ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold shadow-2xs'
-                    : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
-                }`}
-              >
-                <CheckCircle2 className={`w-3.5 h-3.5 ${oqcViewTab === 'COMPLETED' ? 'text-[#8a6521]' : 'text-[#777b86]'}`} />
-                <span>1. OQC Sign-Off &amp; Audit Register</span>
-                <span className={`px-2 py-0.2 rounded-full text-[11px] font-bold ${
-                  oqcViewTab === 'COMPLETED'
-                    ? 'bg-[#f4e5be] text-[#8a6521]'
-                    : 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]'
-                }`}>
-                  {filteredQualityReleases.length}
-                </span>
-              </button>
-
-              <button
-                type="button"
                 onClick={() => setOqcViewTab('PENDING')}
-                className={`px-3.5 sm:px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold cursor-pointer transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95 ${
+                className={`px-3.5 sm:px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold cursor-pointer transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95 whitespace-nowrap ${
                   oqcViewTab === 'PENDING'
                     ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold shadow-2xs'
                     : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
                 }`}
               >
                 <Clock className={`w-3.5 h-3.5 ${oqcViewTab === 'PENDING' ? 'text-[#8a6521]' : 'text-[#777b86]'}`} />
-                <span>2. Manual OQC Override</span>
+                <span>1. Create OQC Report (From Production)</span>
                 <span className={`px-2 py-0.2 rounded-full text-[11px] font-bold ${
-                  pendingOqcJobs.length > 0 
-                    ? (oqcViewTab === 'PENDING' ? 'bg-[#f4e5be] text-[#8a6521]' : 'bg-emerald-100 text-emerald-900 border border-emerald-300')
+                  readyOqcModelRows.length > 0
+                    ? (oqcViewTab === 'PENDING' ? 'bg-[#f4e5be] text-[#8a6521]' : 'bg-amber-100 text-amber-900 border border-amber-300')
                     : 'bg-[#f2f2f3] text-[#777b86]'
                 }`}>
-                  {pendingOqcJobs.length}
+                  {readyOqcModelRows.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setOqcViewTab('COMPLETED')}
+                className={`px-3.5 sm:px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold cursor-pointer transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95 whitespace-nowrap ${
+                  oqcViewTab === 'COMPLETED'
+                    ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold shadow-2xs'
+                    : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+                }`}
+              >
+                <CheckCircle2 className={`w-3.5 h-3.5 ${oqcViewTab === 'COMPLETED' ? 'text-[#8a6521]' : 'text-[#777b86]'}`} />
+                <span>2. Certified OQC Reports</span>
+                <span className={`px-2 py-0.2 rounded-full text-[11px] font-bold ${
+                  oqcViewTab === 'COMPLETED'
+                    ? 'bg-[#f4e5be] text-[#8a6521]'
+                    : 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]'
+                }`}>
+                  {filteredQualityReleases.length}
                 </span>
               </button>
             </div>
@@ -3317,8 +3549,8 @@ export const QAView: React.FC = () => {
                 onChange={e => setOqcSearchQuery(e.target.value)}
                 placeholder={
                   oqcViewTab === 'PENDING'
-                    ? 'Search Finished Lot, Job Card, Customer...'
-                    : 'Search OQC Release ID, Customer, WO...'
+                    ? 'Search Party, Model, Colour, Job Card...'
+                    : 'Search OQC Report No, Customer, WO...'
                 }
                 style={{ paddingLeft: '32px' }}
                 className="w-full h-8.5 pr-8 rounded-full bg-[#fafafb] border border-[#dcdfe4] text-xs text-[#17191c] placeholder:text-[#a3a6af] focus:outline-none focus:border-[#17191c] focus:bg-white transition"
@@ -3335,121 +3567,313 @@ export const QAView: React.FC = () => {
             </div>
           </div>
 
-          {/* TAB 4A: PENDING OQC TECHNICAL LOTS */}
+          {/* TAB 4A: QC MANAGER MULTI-MODEL OQC CREATION QUEUE */}
           {oqcViewTab === 'PENDING' && (
-            <div className="bg-white rounded-[20px] sm:rounded-[24px] border border-[#ececec] p-4 sm:p-6 shadow-xs sm:shadow-sm space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#f2f2f3]">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-mono uppercase font-bold tracking-wider">
-                      GATE 4 • PENDING OUTGOING TECHNICAL INSPECTION (OQC)
+            <div className="space-y-4">
+              <div className="bg-white rounded-[20px] sm:rounded-[24px] border border-[#ececec] p-4 sm:p-6 shadow-xs space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#f2f2f3]">
+                  <div>
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[10.5px] font-mono uppercase font-bold tracking-wider">
+                      GATE 4 • QC MANAGER OQC INSPECTION (BEFORE PACKING)
                     </span>
-                    <span className="text-xs text-[#777b86]">
-                      Finished parts off the line awaiting spectrophotometer Delta-E, DFT, 5B adhesion & gloss verification
-                    </span>
+                    <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c] mt-1">
+                      Production Finished Models Awaiting OQC Report ({filteredReadyOqcModelRows.length} Models)
+                    </h3>
+                    <p className="text-[11px] text-[#777b86]">
+                      Har model par OK / Rework / Rejection enter karein (IPQC Delta-E khud link hoga) — OQC Report create hote hi sirf OK pieces Packing ko Box Labels ke liye jayenge aur Rework Production par wapas jayega.
+                    </p>
                   </div>
-                  <h3 className="text-sm sm:text-base font-serif font-normal text-[#17191c]">
-                    Finished Production Lots Awaiting Technical OQC ({filteredPendingOqcJobs.length})
-                  </h3>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                    {filteredPendingOqcJobs.length} Lots Ready for OQC
-                  </span>
-                </div>
-              </div>
 
-              {filteredPendingOqcJobs.length === 0 ? (
-                <div className="p-10 text-center space-y-3 bg-[#fafafb] rounded-[18px] border border-dashed border-[#ececec]">
-                  <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
-                    <CheckCircle2 className="w-6 h-6" />
+                {groupedReadyOqcByJobCard.length === 0 ? (
+                  <div className="p-10 text-center space-y-3 bg-[#fafafb] rounded-[18px] border border-dashed border-[#ececec]">
+                    <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <h4 className="font-serif text-base text-[#17191c]">Abhi koi Production Output OQC ke liye pending nahi hai</h4>
+                    <p className="text-xs text-[#777b86]">
+                      Jab Production team Job Card me Painter EOD Final OK save karegi, sabhi models yahan OQC Report banane ke liye aa jayenge.
+                    </p>
                   </div>
-                  <h4 className="font-serif text-base text-[#17191c]">All Finished Lots OQC Approved</h4>
-                  <p className="text-xs text-[#777b86]">All production parts have passed technical coating inspection and are cleared for the Packing Bay.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* Mobile Touch Cards (< 640px) */}
-                  <div className="block sm:hidden space-y-3">
-                    {filteredPendingOqcJobs.map(job => (
-                      <div key={job.jobCardNo} className="p-3.5 bg-[#fafafb] border border-[#ececec] rounded-[18px] space-y-2.5 text-xs">
-                        <div className="flex items-center justify-between pb-2 border-b border-[#ececec]">
-                          <span className="font-mono font-bold text-[#c09748]">{job.jobCardNo}</span>
-                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                            Ready for OQC
-                          </span>
-                        </div>
-                        <div className="text-sm font-serif font-normal text-[#17191c]">{job.customer}</div>
-                        <div className="text-[#777b86] text-[11px]">{job.partDescription || job.partCode} • Shade: <strong>{job.color}</strong></div>
-                        <div className="flex items-center justify-between pt-1 border-t border-[#ececec]">
-                          <span className="font-mono text-[11px] text-emerald-800 font-bold">Good: {job.goodQty} Pcs</span>
-                          <button
-                            type="button"
-                            onClick={() => { setSelectedJcForOqc(job); setShowOqcModal(true); }}
-                            className="px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs cursor-pointer flex items-center gap-1 active:scale-95"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Perform OQC &rarr;</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {groupedReadyOqcByJobCard.map(group => {
+                      const ipqcMatch = ipqcRecords.find(ip => ip.jobCardNo === group.jobCardNo || ip.woNo === group.woNo);
+                      const visual = oqcVisualChecks[group.jobCardNo] || {
+                        dustSpot: 'Pass' as const,
+                        scratch: 'Pass' as const,
+                        paintMissing: 'Pass' as const,
+                        bubbleOverPaint: 'Pass' as const,
+                        colourShade: 'Pass' as const
+                      };
 
-                  {/* Desktop Table (>= 640px) */}
-                  <div className="hidden sm:block overflow-x-auto">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="border-b border-[#ececec] text-[#777b86] bg-[#fafafb]">
-                          <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Job Card & Work Order</th>
-                          <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Customer & Destination</th>
-                          <th className="py-2 px-3 font-bold text-[11px] uppercase tracking-wider whitespace-nowrap">Part Description & Shade</th>
-                          <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Good Finished Qty</th>
-                          <th className="py-2 px-3 font-bold text-center text-[11px] uppercase tracking-wider whitespace-nowrap">Technical Status</th>
-                          <th className="py-2 px-3 font-bold text-right text-[11px] uppercase tracking-wider whitespace-nowrap">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#ececec]">
-                        {filteredPendingOqcJobs.map(job => (
-                          <tr key={job.jobCardNo} className="hover:bg-[#fafafb] transition">
-                            <td className="py-2.5 px-3 whitespace-nowrap">
-                              <span className="font-mono font-bold text-[#c09748] text-xs sm:text-[13px]">{job.jobCardNo}</span>
-                              <div className="text-[11px] text-[#777b86] font-mono mt-0.5">{job.woNo}</div>
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <div className="text-xs sm:text-[13px] font-semibold text-[#17191c]">{job.customer}</div>
-                              <div className="text-[11px] text-[#777b86] mt-0.5">OEM Coated Substrate</div>
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <div className="text-xs sm:text-[13px] text-[#17191c] font-normal">{job.partDescription || job.partCode}</div>
-                              <div className="text-[11px] text-[#777b86] mt-0.5">Shade: <strong className="text-[#17191c]">{job.color}</strong></div>
-                            </td>
-                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                              <div className="font-mono font-bold text-xs sm:text-[13px] text-emerald-800">{job.goodQty} Pcs</div>
-                              <div className="text-[11px] text-[#777b86] mt-0.5">Target: {job.targetQty} Pcs</div>
-                            </td>
-                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 whitespace-nowrap inline-flex items-center">
-                                OQC Inspection Due
+                      const handleSubmitGroupOqc = () => {
+                        const items = group.rows.map(r => {
+                          const v = getOqcRowEdit(r);
+                          return {
+                            assignmentId: r.assignmentId,
+                            partCode: r.partCode,
+                            partDescription: r.partDescription,
+                            color: r.color,
+                            painter: r.painter,
+                            paintBatch: r.paintBatch,
+                            offeredQty: v.okQty + v.reworkQty + v.scrapQty,
+                            passedOkQty: v.okQty,
+                            reworkQty: v.reworkQty,
+                            scrapQty: v.scrapQty,
+                            defectReason: v.reworkQty + v.scrapQty > 0 ? v.defectReason : undefined
+                          };
+                        }).filter(it => it.offeredQty > 0);
+                        if (items.length === 0) return;
+
+                        const rel = recordQcOqcBatch({
+                          jobCardNo: group.jobCardNo,
+                          woNo: group.woNo,
+                          customer: group.customer,
+                          plant: activePlant === 'ALL' ? 'Haridwar' : activePlant,
+                          checkedBy: currentUser.name,
+                          visualChecks: visual,
+                          items
+                        });
+                        setOqcEdits(curr => {
+                          const next = { ...curr };
+                          group.rows.forEach(r => delete next[r.rowKey]);
+                          return next;
+                        });
+                        setOqcToastMsg(
+                          `✓ OQC Report ${rel.reportNo} Created! ${rel.passedQty} Pcs OK Packing Team ko bheje gaye${rel.rejectedQty > 0 ? ` • ${rel.rejectedQty} Rework/Scrap Production ko wapas bheja gaya` : ''}.`
+                        );
+                        setTimeout(() => setOqcToastMsg(null), 5000);
+                      };
+
+                      return (
+                        <div key={group.jobCardNo} className="p-4 sm:p-5 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-3">
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-mono text-[11px] font-bold">
+                                {group.jobCardNo}
                               </span>
-                            </td>
-                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <span className="font-serif text-base sm:text-lg text-[#17191c]">{group.customer}</span>
+                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono text-[11px] font-bold">
+                                {group.rows.length} Model{group.rows.length > 1 ? 's' : ''} • {group.totalReady} Pcs From Production
+                              </span>
+                              {ipqcMatch ? (
+                                <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 font-mono text-[10.5px] font-bold">
+                                  IPQC ΔE {Number(ipqcMatch.deltaE || 0).toFixed(2)} Linked
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-0.5 rounded-full bg-white text-[#777b86] border border-[#ececec] font-mono text-[10.5px]">
+                                  Visual Sample Match
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap">
                               <button
                                 type="button"
-                                onClick={() => { setSelectedJcForOqc(job); setShowOqcModal(true); }}
-                                className="px-3 py-1.5 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-xs font-semibold shadow-2xs transition cursor-pointer inline-flex items-center gap-1 active:scale-95 whitespace-nowrap shrink-0"
+                                onClick={() => { setSelectedJcForOqc(group.jobCardRef); setShowOqcModal(true); }}
+                                className="px-3 py-1.5 rounded-full bg-white hover:bg-[#f2f2f3] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold cursor-pointer"
                               >
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Perform OQC &rarr;</span>
+                                Full 11-Point Form
                               </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                              <button
+                                type="button"
+                                onClick={handleSubmitGroupOqc}
+                                className="px-4 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Create 1 OQC Report ({group.rows.length} Model{group.rows.length > 1 ? 's' : ''})</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* 5-Point Visual Check Toggles */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10.5px] font-mono font-bold uppercase text-[#8a6521] mr-1">OQC Visual:</span>
+                            {(
+                              [
+                                { key: 'dustSpot', label: 'Dust Free' },
+                                { key: 'scratch', label: 'Scratch Free' },
+                                { key: 'paintMissing', label: 'No Paint Missing' },
+                                { key: 'bubbleOverPaint', label: 'No Bubble / Run' },
+                                { key: 'colourShade', label: 'Shade OK' }
+                              ] as const
+                            ).map(chk => {
+                              const isPass = visual[chk.key] === 'Pass';
+                              return (
+                                <button
+                                  key={chk.key}
+                                  type="button"
+                                  onClick={() =>
+                                    setOqcVisualChecks(prev => ({
+                                      ...prev,
+                                      [group.jobCardNo]: {
+                                        ...visual,
+                                        [chk.key]: isPass ? 'Fail' : 'Pass'
+                                      }
+                                    }))
+                                  }
+                                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition cursor-pointer flex items-center gap-1 ${
+                                    isPass ? 'bg-white text-emerald-800 border-emerald-300' : 'bg-rose-50 text-rose-800 border-rose-300'
+                                  }`}
+                                >
+                                  {isPass ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                                  <span>{chk.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Model Rows Table (Desktop) */}
+                          <div className="hidden md:block overflow-x-auto bg-white rounded-[16px] border border-[#ececec]">
+                            <table className="w-full text-left text-xs">
+                              <thead>
+                                <tr className="border-b border-[#ececec] text-[10px] font-semibold uppercase text-[#777b86]">
+                                  <th className="py-2.5 px-3">Model &amp; Colour</th>
+                                  <th className="py-2.5 px-3 text-center">From Prod</th>
+                                  <th className="py-2.5 px-3 w-28">OQC Passed OK</th>
+                                  <th className="py-2.5 px-3 w-28">Rework</th>
+                                  <th className="py-2.5 px-3 w-28">Rejection</th>
+                                  <th className="py-2.5 px-3">Defect Reason</th>
+                                  <th className="py-2.5 px-3 text-right">Action</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-[#ececec]/70">
+                                {group.rows.map(r => {
+                                  const v = getOqcRowEdit(r);
+                                  const hasDefects = v.reworkQty > 0 || v.scrapQty > 0;
+                                  return (
+                                    <tr key={r.rowKey} className="hover:bg-[#fafafb]">
+                                      <td className="py-2.5 px-3">
+                                        <div className="font-semibold text-[#17191c]">{r.partDescription}</div>
+                                        <div className="text-[11px] text-[#777b86]">
+                                          {r.partCode} • <strong className="text-[#8a6521]">{r.color}</strong> • {r.painter.split('(')[0].trim()}
+                                        </div>
+                                      </td>
+                                      <td className="py-2.5 px-3 text-center font-mono font-bold text-emerald-800">
+                                        {r.readyForOqcQty} Pcs
+                                      </td>
+                                      <td className="py-2.5 px-2">
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          max={r.readyForOqcQty}
+                                          value={v.okQty}
+                                          onChange={e => updateOqcRowCounts(r, 'ok', Number(e.target.value))}
+                                          className="w-full px-2.5 py-1.5 rounded-[10px] bg-white border border-emerald-300 font-mono text-xs font-bold text-emerald-800"
+                                        />
+                                      </td>
+                                      <td className="py-2.5 px-2">
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          max={r.readyForOqcQty}
+                                          value={v.reworkQty}
+                                          onChange={e => updateOqcRowCounts(r, 'rework', Number(e.target.value))}
+                                          className="w-full px-2.5 py-1.5 rounded-[10px] bg-white border border-amber-300 font-mono text-xs font-bold text-amber-900"
+                                        />
+                                      </td>
+                                      <td className="py-2.5 px-2">
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          max={r.readyForOqcQty}
+                                          value={v.scrapQty}
+                                          onChange={e => updateOqcRowCounts(r, 'scrap', Number(e.target.value))}
+                                          className="w-full px-2.5 py-1.5 rounded-[10px] bg-white border border-rose-300 font-mono text-xs font-bold text-rose-800"
+                                        />
+                                      </td>
+                                      <td className="py-2.5 px-2 min-w-[170px]">
+                                        {hasDefects ? (
+                                          <PKDropdown
+                                            compact
+                                            value={v.defectReason}
+                                            onChange={val =>
+                                              setOqcEdits(curr => ({
+                                                ...curr,
+                                                [r.rowKey]: { ...getOqcRowEdit(r), defectReason: val }
+                                              }))
+                                            }
+                                            options={OQC_DEFECT_REASONS.map(d => ({ value: d, label: d }))}
+                                          />
+                                        ) : (
+                                          <span className="text-[11px] text-[#979799] font-mono">—</span>
+                                        )}
+                                      </td>
+                                      <td className="py-2.5 px-3 text-right">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const rel = recordQcOqcBatch({
+                                              jobCardNo: r.jobCardNo,
+                                              woNo: r.woNo,
+                                              customer: r.customer,
+                                              plant: activePlant === 'ALL' ? 'Haridwar' : activePlant,
+                                              checkedBy: currentUser.name,
+                                              visualChecks: visual,
+                                              items: [
+                                                {
+                                                  assignmentId: r.assignmentId,
+                                                  partCode: r.partCode,
+                                                  partDescription: r.partDescription,
+                                                  color: r.color,
+                                                  painter: r.painter,
+                                                  paintBatch: r.paintBatch,
+                                                  offeredQty: v.okQty + v.reworkQty + v.scrapQty,
+                                                  passedOkQty: v.okQty,
+                                                  reworkQty: v.reworkQty,
+                                                  scrapQty: v.scrapQty,
+                                                  defectReason: hasDefects ? v.defectReason : undefined
+                                                }
+                                              ]
+                                            });
+                                            setOqcEdits(curr => {
+                                              const next = { ...curr };
+                                              delete next[r.rowKey];
+                                              return next;
+                                            });
+                                            setOqcToastMsg(
+                                              `✓ ${r.partDescription} OQC (${rel.reportNo}) Created! ${v.okQty} OK Packing queue me bheje gaye.`
+                                            );
+                                            setTimeout(() => setOqcToastMsg(null), 5000);
+                                          }}
+                                          className="px-3 py-1 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold cursor-pointer"
+                                        >
+                                          Create OQC
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Mobile Cards */}
+                          <div className="md:hidden space-y-2.5">
+                            {group.rows.map(r => {
+                              const v = getOqcRowEdit(r);
+                              return (
+                                <div key={r.rowKey} className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-2 text-xs">
+                                  <div className="flex justify-between">
+                                    <strong>{r.partDescription} ({r.color})</strong>
+                                    <span className="font-mono font-bold text-emerald-800">{r.readyForOqcQty} Pcs</span>
+                                  </div>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <input type="number" min={0} max={r.readyForOqcQty} value={v.okQty} onChange={e => updateOqcRowCounts(r, 'ok', Number(e.target.value))} className="px-2 py-1 rounded border border-emerald-300 font-mono text-xs font-bold" placeholder="OK" />
+                                    <input type="number" min={0} max={r.readyForOqcQty} value={v.reworkQty} onChange={e => updateOqcRowCounts(r, 'rework', Number(e.target.value))} className="px-2 py-1 rounded border border-amber-300 font-mono text-xs font-bold" placeholder="RW" />
+                                    <input type="number" min={0} max={r.readyForOqcQty} value={v.scrapQty} onChange={e => updateOqcRowCounts(r, 'scrap', Number(e.target.value))} className="px-2 py-1 rounded border border-rose-300 font-mono text-xs font-bold" placeholder="Rej" />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
 
