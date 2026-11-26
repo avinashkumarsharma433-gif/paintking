@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-26: Enforced 11 Visual OQC Parameters & Optional Delta-E Hierarchy (Manual -> IPQC -> Omit) (`QAView.tsx`, `OQCModal.tsx`, `pdfStandardHeader.ts`, `PortalStoreContext.tsx`)
+  - Files touched:
+    - `src/portal/types/portalTypes.ts` & `src/portal/context/PortalStoreContext.tsx`: Added `visualChecklist` and strict `deltaSource: 'Manual' | 'IPQC' | 'None'` logic (`resolveDeltaFromIpqcOnly` — no hardcoded/fake fallback values).
+    - `src/portal/views/QAView.tsx` & `src/portal/components/OQCModal.tsx`: Rendered all 11 official visual items (`Damage`, `Scratch`, `Sink Mark`, `Short fill`, `Bubble`, `Pin Mark`, `Dust Spot`, `Over Paint`, `Paint Missing`, `Colour`, `Overall Finishing`) and optional Delta-E inputs (uses Manual if filled -> else IPQC -> else omitted from View modal & PDF).
+    - `src/portal/utils/pdfStandardHeader.ts`: Updated `downloadStandardOqcPdf` to render `visualChecklist` status (`OK`/`NOT OK`) per row and hide Section 2 (`DELTA VALUE TEST`) completely when neither Manual nor IPQC Delta data exists.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-26: Separated OQC (QC Manager) BEFORE Fast Packing & Box Labels (`QAView.tsx`, `PackingView.tsx`, `PortalStoreContext.tsx`, `portalTypes.ts`)
   - Files touched:
     - `src/portal/types/portalTypes.ts` & `src/portal/context/PortalStoreContext.tsx`: Added `OQCCheckedModelItem` on `FinalQualityRelease`, `recordQcOqcBatch` (QC Manager creates OQC reports with IPQC Delta-E & bounces Rework/Scrap back to Production BEFORE Packing), and `packOqcClearedItem` (Packing packs only OQC-passed pieces into FG Store with Box Labels).

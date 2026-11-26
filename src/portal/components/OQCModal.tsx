@@ -72,6 +72,8 @@ export const OQCModal: React.FC<OQCModalProps> = ({
   const [sampledQty, setSampledQty] = useState<number>(0);
   const [rejectedQty, setRejectedQty] = useState<number>(0);
   const [lotAcceptance, setLotAcceptance] = useState<'Accepted' | 'Rejected' | 'Hold'>('Accepted');
+  const [includeDeltaReport, setIncludeDeltaReport] = useState<boolean>(false);
+  const [deltaOrigin, setDeltaOrigin] = useState<'Manual' | 'IPQC' | 'None'>('None');
 
   // Spectrometer Values (Master benchmarks + 5 Samples S1 to S5)
   const [masterL, setMasterL] = useState<number | string>(42.00);
@@ -126,60 +128,49 @@ export const OQCModal: React.FC<OQCModalProps> = ({
       setSampledQty(Math.max(5, Math.ceil(offer * 0.1))); // 10% sampling rule or min 5
     }
 
-    // Lookup matching IPQC (preferred for live shift Delta-E) or FPA record for Master LAB benchmark
+    // Strict Delta Hierarchy: 1) IPQC auto-fills if present; otherwise stays optional/off unless manually enabled
     const jcNo = jobCard?.jobCardNo;
     const matchIpqc = ipqcRecords.find(
       ip => (jcNo && ip.jobCardNo === jcNo) || (jobCard?.woNo && ip.woNo === jobCard.woNo)
     );
-    const matchFpa = fpaRecords.find(f => (jcNo && f.jobCardNo === jcNo) || (jobCard?.woNo && f.woNo === jobCard.woNo));
     if (matchIpqc) {
-      const mL = matchIpqc.masterL ?? matchFpa?.masterLab?.masterL ?? matchFpa?.masterL ?? 42.00;
-      const mA = matchIpqc.masterA ?? matchFpa?.masterLab?.masterA ?? matchFpa?.masterA ?? 54.00;
-      const mB = matchIpqc.masterB ?? matchFpa?.masterLab?.masterB ?? matchFpa?.masterB ?? 28.00;
+      const mL = matchIpqc.masterL ?? 42.00;
+      const mA = matchIpqc.masterA ?? 54.00;
+      const mB = matchIpqc.masterB ?? 28.00;
       setMasterL(mL);
       setMasterA(mA);
       setMasterB(mB);
 
       const rawSlots = Object.values(matchIpqc.timeSlots || {}) as Array<IPQCSlotObservation | undefined>;
-      const slots = rawSlots.filter((s): s is IPQCSlotObservation => Boolean(s && s.deltaE !== '' && s.deltaE !== undefined));
-      const getSlot = (idx: number) => {
-        const s = slots[idx];
-        return {
-          L: s?.L ?? matchIpqc.L ?? mL,
-          a: s?.a ?? matchIpqc.a ?? mA,
-          b: s?.b ?? matchIpqc.b ?? mB,
-          deltaE: s?.deltaE ?? matchIpqc.deltaE ?? 0.38
+      const slots = rawSlots.filter((s): s is IPQCSlotObservation => Boolean(s && s.deltaE !== '' && s.deltaE !== undefined && Number(s.deltaE) > 0));
+      if (slots.length > 0 || Number(matchIpqc.deltaE || 0) > 0) {
+        setIncludeDeltaReport(true);
+        setDeltaOrigin('IPQC');
+        const getSlot = (idx: number) => {
+          const s = slots[idx] || slots[0];
+          return {
+            L: s?.L ?? matchIpqc.L ?? mL,
+            a: s?.a ?? matchIpqc.a ?? mA,
+            b: s?.b ?? matchIpqc.b ?? mB,
+            deltaE: s?.deltaE ?? matchIpqc.deltaE ?? 0.38
+          };
         };
-      };
-      setSampleSpectro({
-        s1: getSlot(0),
-        s2: getSlot(1),
-        s3: getSlot(2),
-        s4: getSlot(3),
-        s5: getSlot(4)
-      });
-    } else if (matchFpa) {
-      const mL = matchFpa.masterLab?.masterL || matchFpa.masterL || 42.00;
-      const mA = matchFpa.masterLab?.masterA || matchFpa.masterA || 54.00;
-      const mB = matchFpa.masterLab?.masterB || matchFpa.masterB || 28.00;
-      setMasterL(mL);
-      setMasterA(mA);
-      setMasterB(mB);
-
-      const fpaDelta = Number(matchFpa.deltaE || 0.38);
-      const baseL = Number(matchFpa.L || mL);
-      const baseA = Number(matchFpa.a || mA);
-      const baseB = Number(matchFpa.b || mB);
-
-      setSampleSpectro({
-        s1: { L: baseL, a: baseA, b: baseB, deltaE: fpaDelta },
-        s2: { L: Number((baseL + 0.03).toFixed(2)), a: Number((baseA + 0.02).toFixed(2)), b: Number((baseB + 0.02).toFixed(2)), deltaE: Number((fpaDelta + 0.02).toFixed(2)) },
-        s3: { L: Number((baseL - 0.03).toFixed(2)), a: Number((baseA - 0.03).toFixed(2)), b: Number((baseB - 0.02).toFixed(2)), deltaE: Number(Math.max(0.1, fpaDelta - 0.03).toFixed(2)) },
-        s4: { L: Number((baseL + 0.01).toFixed(2)), a: Number((baseA + 0.01).toFixed(2)), b: Number((baseB + 0.03).toFixed(2)), deltaE: Number((fpaDelta + 0.01).toFixed(2)) },
-        s5: { L: Number((baseL - 0.01).toFixed(2)), a: Number((baseA - 0.01).toFixed(2)), b: Number((baseB - 0.01).toFixed(2)), deltaE: Number(fpaDelta.toFixed(2)) }
-      });
+        setSampleSpectro({
+          s1: getSlot(0),
+          s2: getSlot(1),
+          s3: getSlot(2),
+          s4: getSlot(3),
+          s5: getSlot(4)
+        });
+      } else {
+        setIncludeDeltaReport(false);
+        setDeltaOrigin('None');
+      }
+    } else {
+      setIncludeDeltaReport(false);
+      setDeltaOrigin('None');
     }
-  }, [jobCard, fpaRecords, ipqcRecords]);
+  }, [jobCard, ipqcRecords]);
 
   if (!isOpen) return null;
 
@@ -221,13 +212,17 @@ export const OQCModal: React.FC<OQCModalProps> = ({
     const generatedTimestamp = `${formatDateDDMMYYYY(date)}, ${exactAuditTime}`;
 
     const passed = Math.max(0, offeredQty - rejectedQty);
-
-    // Calculate average or sample1 deltaE
-    const avgDelta = Number(sampleSpectro.s1.deltaE || 0.38);
+    const avgDelta = includeDeltaReport ? Number(sampleSpectro.s1.deltaE || 0) : 0;
+    const visualChecklistMap: Record<string, 'Pass' | 'Fail'> = {};
+    visualItems.forEach(item => {
+      const anyFail = item.s1 === 'Fail' || item.s2 === 'Fail' || item.s3 === 'Fail' || item.s4 === 'Fail' || item.s5 === 'Fail';
+      visualChecklistMap[item.name] = anyFail ? 'Fail' : 'Pass';
+    });
 
     const newRelease: FinalQualityRelease = {
       releaseId: reportNo,
       reportNo,
+      jobCardNo: jobCard?.jobCardNo,
       date,
       plant: activePlant,
       woNo,
@@ -242,21 +237,23 @@ export const OQCModal: React.FC<OQCModalProps> = ({
       rejectedQty,
       lotAcceptance,
       oqcStatus: lotAcceptance,
+      visualChecklist: visualChecklistMap,
+      deltaSource: includeDeltaReport ? (deltaOrigin === 'IPQC' ? 'IPQC' : 'Manual') : 'None',
       // Visual Checklist
       sample1: visualItems.every(i => i.s1 === 'Pass') ? 'Pass' : 'Fail',
       sample2: visualItems.every(i => i.s2 === 'Pass') ? 'Pass' : 'Fail',
       sample3: visualItems.every(i => i.s3 === 'Pass') ? 'Pass' : 'Fail',
       sample4: visualItems.every(i => i.s4 === 'Pass') ? 'Pass' : 'Fail',
       sample5: visualItems.every(i => i.s5 === 'Pass') ? 'Pass' : 'Fail',
-      // Delta-E / Spectrometer 5 Samples
-      masterL,
-      masterA,
-      masterB,
-      L: Number(sampleSpectro.s1.L),
-      a: Number(sampleSpectro.s1.a),
-      b: Number(sampleSpectro.s1.b),
+      // Delta-E / Spectrometer 5 Samples (Strictly Optional)
+      masterL: includeDeltaReport ? masterL : undefined,
+      masterA: includeDeltaReport ? masterA : undefined,
+      masterB: includeDeltaReport ? masterB : undefined,
+      L: includeDeltaReport ? Number(sampleSpectro.s1.L) : undefined,
+      a: includeDeltaReport ? Number(sampleSpectro.s1.a) : undefined,
+      b: includeDeltaReport ? Number(sampleSpectro.s1.b) : undefined,
       deltaE: avgDelta,
-      sampleSpectro,
+      sampleSpectro: includeDeltaReport ? sampleSpectro : undefined,
       // Signatures
       productionInchargeSign: acceptanceProductionIncharge,
       qualityEngineerSign: preparedBy,
@@ -511,23 +508,42 @@ export const OQCModal: React.FC<OQCModalProps> = ({
                   </div>
                 </div>
 
-                {/* 2. Delta Value Test (Spectrophotometer Readings for 5 Samples S1 - S5) */}
+                {/* 2. Delta Value Test (Optional — Auto-filled from IPQC or manual toggle) */}
                 <div className="p-4 rounded-[20px] bg-white border border-[#ececec] space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#f2f2f3]">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-xs text-[#17191c] uppercase tracking-wider">
-                        2. Delta Value Test (Spectrophotometer CIELAB Readings • 5 Samples)
+                        2. Delta Value Test (Optional)
                       </span>
-                    </div>
-                    <div className="flex items-center gap-2">
                       <span className="text-[10px] font-mono text-[#8a6521] bg-[#faf3e0] px-2.5 py-0.5 rounded-full border border-[#f4e5be] font-bold">
-                        Target &Delta;E &le; 0.70
+                        {includeDeltaReport ? (deltaOrigin === 'IPQC' ? 'Auto from IPQC' : 'Manual Entry') : 'Omitted (Not Logged)'}
                       </span>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIncludeDeltaReport(prev => {
+                          const next = !prev;
+                          if (next && deltaOrigin === 'None') setDeltaOrigin('Manual');
+                          return next;
+                        });
+                      }}
+                      className={`px-3 py-1 rounded-full text-[11px] font-bold border transition cursor-pointer ${
+                        includeDeltaReport
+                          ? 'bg-[#faf3e0] text-[#8a6521] border-[#c09748]'
+                          : 'bg-[#f2f2f3] text-[#17191c] border-[#dcdfe4]'
+                      }`}
+                    >
+                      {includeDeltaReport ? '✓ Delta Report Included (Click to Hide)' : '+ Add Manual Delta-E Report'}
+                    </button>
                   </div>
 
-                  {/* Spectrometer 5-Sample Table matching Excel layout */}
-                  <div className="overflow-x-auto rounded-[14px] border border-[#ececec]">
+                  {!includeDeltaReport ? (
+                    <div className="p-3 rounded-[14px] bg-[#fafafb] border border-dashed border-[#dcdfe4] text-xs text-[#777b86]">
+                      IPQC me Delta-E record nahi mila aur manual Delta bhi add nahi kiya gaya — isliye OQC PDF report me Delta section show nahi hoga. Zarurat ho toh upar button se manual add karein.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-[14px] border border-[#ececec]">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-[#fafafb] border-b border-[#ececec] text-[#777b86]">
@@ -661,7 +677,8 @@ export const OQCModal: React.FC<OQCModalProps> = ({
                         </tr>
                       </tbody>
                     </table>
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end pt-2">

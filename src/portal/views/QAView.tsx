@@ -118,15 +118,19 @@ export const QAView: React.FC = () => {
   const [oqcEdits, setOqcEdits] = useState<
     Record<string, { okQty: number; reworkQty: number; scrapQty: number; defectReason: string }>
   >({});
-  const [oqcVisualChecks, setOqcVisualChecks] = useState<
+  const [oqcVisualChecks, setOqcVisualChecks] = useState<Record<string, Record<string, 'Pass' | 'Fail'>>>({});
+  const [oqcManualDeltaByJc, setOqcManualDeltaByJc] = useState<
     Record<
       string,
       {
-        dustSpot: 'Pass' | 'Fail';
-        scratch: 'Pass' | 'Fail';
-        paintMissing: 'Pass' | 'Fail';
-        bubbleOverPaint: 'Pass' | 'Fail';
-        colourShade: 'Pass' | 'Fail';
+        enabled: boolean;
+        masterL: string;
+        masterA: string;
+        masterB: string;
+        L: string;
+        a: string;
+        b: string;
+        deltaE: string;
       }
     >
   >({});
@@ -239,6 +243,20 @@ export const QAView: React.FC = () => {
       return !isClosed;
     });
   }, [jobCards, activePlant]);
+
+  const OQC_VISUAL_PARAM_NAMES = [
+    'Damage',
+    'Scratch',
+    'Sink Mark',
+    'Short fill',
+    'Bubble',
+    'Pin Mark',
+    'Dust Spot',
+    'Over Paint',
+    'Paint Missing',
+    'Colour',
+    'Overall Finishing'
+  ] as const;
 
   const OQC_DEFECT_REASONS = [
     'Dust Spot / Air Lint',
@@ -3599,12 +3617,20 @@ export const QAView: React.FC = () => {
                   <div className="space-y-4">
                     {groupedReadyOqcByJobCard.map(group => {
                       const ipqcMatch = ipqcRecords.find(ip => ip.jobCardNo === group.jobCardNo || ip.woNo === group.woNo);
-                      const visual = oqcVisualChecks[group.jobCardNo] || {
-                        dustSpot: 'Pass' as const,
-                        scratch: 'Pass' as const,
-                        paintMissing: 'Pass' as const,
-                        bubbleOverPaint: 'Pass' as const,
-                        colourShade: 'Pass' as const
+                      const ipqcHasDelta = Boolean(ipqcMatch && Number(ipqcMatch.deltaE || 0) > 0);
+                      const defaultVisualMap: Record<string, 'Pass' | 'Fail'> = {};
+                      OQC_VISUAL_PARAM_NAMES.forEach(n => {
+                        defaultVisualMap[n] = oqcVisualChecks[group.jobCardNo]?.[n] || 'Pass';
+                      });
+                      const manualDeltaState = oqcManualDeltaByJc[group.jobCardNo] || {
+                        enabled: false,
+                        masterL: '42.00',
+                        masterA: '54.00',
+                        masterB: '28.00',
+                        L: '',
+                        a: '',
+                        b: '',
+                        deltaE: ''
                       };
 
                       const handleSubmitGroupOqc = () => {
@@ -3632,7 +3658,11 @@ export const QAView: React.FC = () => {
                           customer: group.customer,
                           plant: activePlant === 'ALL' ? 'Haridwar' : activePlant,
                           checkedBy: currentUser.name,
-                          visualChecks: visual,
+                          visualChecks: defaultVisualMap,
+                          manualDelta:
+                            manualDeltaState.enabled && manualDeltaState.deltaE.trim() !== ''
+                              ? manualDeltaState
+                              : undefined,
                           items
                         });
                         setOqcEdits(curr => {
@@ -3657,18 +3687,38 @@ export const QAView: React.FC = () => {
                               <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono text-[11px] font-bold">
                                 {group.rows.length} Model{group.rows.length > 1 ? 's' : ''} • {group.totalReady} Pcs From Production
                               </span>
-                              {ipqcMatch ? (
+                              {manualDeltaState.enabled && manualDeltaState.deltaE.trim() !== '' ? (
+                                <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-mono text-[10.5px] font-bold">
+                                  Manual ΔE {Number(manualDeltaState.deltaE).toFixed(2)}
+                                </span>
+                              ) : ipqcHasDelta ? (
                                 <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 font-mono text-[10.5px] font-bold">
-                                  IPQC ΔE {Number(ipqcMatch.deltaE || 0).toFixed(2)} Linked
+                                  Auto from IPQC (ΔE {Number(ipqcMatch?.deltaE || 0).toFixed(2)})
                                 </span>
                               ) : (
                                 <span className="px-2.5 py-0.5 rounded-full bg-white text-[#777b86] border border-[#ececec] font-mono text-[10.5px]">
-                                  Visual Sample Match
+                                  No Delta Data (Omitted from Report)
                                 </span>
                               )}
                             </div>
 
                             <div className="flex items-center gap-2 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setOqcManualDeltaByJc(prev => ({
+                                    ...prev,
+                                    [group.jobCardNo]: { ...manualDeltaState, enabled: !manualDeltaState.enabled }
+                                  }))
+                                }
+                                className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition cursor-pointer ${
+                                  manualDeltaState.enabled
+                                    ? 'bg-[#faf3e0] text-[#8a6521] border-[#c09748]'
+                                    : 'bg-white text-[#777b86] border-[#dcdfe4]'
+                                }`}
+                              >
+                                {manualDeltaState.enabled ? '✓ Manual Delta-E Open' : '+ Add Delta-E (Optional)'}
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => { setSelectedJcForOqc(group.jobCardRef); setShowOqcModal(true); }}
@@ -3687,41 +3737,71 @@ export const QAView: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* 5-Point Visual Check Toggles */}
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10.5px] font-mono font-bold uppercase text-[#8a6521] mr-1">OQC Visual:</span>
-                            {(
-                              [
-                                { key: 'dustSpot', label: 'Dust Free' },
-                                { key: 'scratch', label: 'Scratch Free' },
-                                { key: 'paintMissing', label: 'No Paint Missing' },
-                                { key: 'bubbleOverPaint', label: 'No Bubble / Run' },
-                                { key: 'colourShade', label: 'Shade OK' }
-                              ] as const
-                            ).map(chk => {
-                              const isPass = visual[chk.key] === 'Pass';
-                              return (
-                                <button
-                                  key={chk.key}
-                                  type="button"
-                                  onClick={() =>
-                                    setOqcVisualChecks(prev => ({
-                                      ...prev,
-                                      [group.jobCardNo]: {
-                                        ...visual,
-                                        [chk.key]: isPass ? 'Fail' : 'Pass'
-                                      }
-                                    }))
-                                  }
-                                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition cursor-pointer flex items-center gap-1 ${
-                                    isPass ? 'bg-white text-emerald-800 border-emerald-300' : 'bg-rose-50 text-rose-800 border-rose-300'
-                                  }`}
-                                >
-                                  {isPass ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                                  <span>{chk.label}</span>
-                                </button>
-                              );
-                            })}
+                          {/* Optional Manual Delta-E Input Drawer */}
+                          {manualDeltaState.enabled && (
+                            <div className="p-3 rounded-[14px] bg-white border border-[#f4e5be] grid grid-cols-2 sm:grid-cols-7 gap-2 items-end text-xs">
+                              <div>
+                                <span className="text-[9.5px] font-mono text-[#777b86] block">Master L</span>
+                                <input type="number" step="0.01" value={manualDeltaState.masterL} onChange={e => setOqcManualDeltaByJc(p => ({ ...p, [group.jobCardNo]: { ...manualDeltaState, masterL: e.target.value } }))} className="w-full px-2 py-1 rounded-[8px] border border-[#dcdfe4] font-mono text-xs" />
+                              </div>
+                              <div>
+                                <span className="text-[9.5px] font-mono text-[#777b86] block">Master a</span>
+                                <input type="number" step="0.01" value={manualDeltaState.masterA} onChange={e => setOqcManualDeltaByJc(p => ({ ...p, [group.jobCardNo]: { ...manualDeltaState, masterA: e.target.value } }))} className="w-full px-2 py-1 rounded-[8px] border border-[#dcdfe4] font-mono text-xs" />
+                              </div>
+                              <div>
+                                <span className="text-[9.5px] font-mono text-[#777b86] block">Master b</span>
+                                <input type="number" step="0.01" value={manualDeltaState.masterB} onChange={e => setOqcManualDeltaByJc(p => ({ ...p, [group.jobCardNo]: { ...manualDeltaState, masterB: e.target.value } }))} className="w-full px-2 py-1 rounded-[8px] border border-[#dcdfe4] font-mono text-xs" />
+                              </div>
+                              <div>
+                                <span className="text-[9.5px] font-mono text-[#777b86] block">Sample L</span>
+                                <input type="number" step="0.01" placeholder="42.15" value={manualDeltaState.L} onChange={e => setOqcManualDeltaByJc(p => ({ ...p, [group.jobCardNo]: { ...manualDeltaState, L: e.target.value } }))} className="w-full px-2 py-1 rounded-[8px] border border-[#dcdfe4] font-mono text-xs" />
+                              </div>
+                              <div>
+                                <span className="text-[9.5px] font-mono text-[#777b86] block">Sample a</span>
+                                <input type="number" step="0.01" placeholder="54.28" value={manualDeltaState.a} onChange={e => setOqcManualDeltaByJc(p => ({ ...p, [group.jobCardNo]: { ...manualDeltaState, a: e.target.value } }))} className="w-full px-2 py-1 rounded-[8px] border border-[#dcdfe4] font-mono text-xs" />
+                              </div>
+                              <div>
+                                <span className="text-[9.5px] font-mono text-[#777b86] block">Sample b</span>
+                                <input type="number" step="0.01" placeholder="28.12" value={manualDeltaState.b} onChange={e => setOqcManualDeltaByJc(p => ({ ...p, [group.jobCardNo]: { ...manualDeltaState, b: e.target.value } }))} className="w-full px-2 py-1 rounded-[8px] border border-[#dcdfe4] font-mono text-xs" />
+                              </div>
+                              <div>
+                                <span className="text-[9.5px] font-mono font-bold text-[#8a6521] block">Delta-E (ΔE) *</span>
+                                <input type="number" step="0.01" placeholder="0.38" value={manualDeltaState.deltaE} onChange={e => setOqcManualDeltaByJc(p => ({ ...p, [group.jobCardNo]: { ...manualDeltaState, deltaE: e.target.value } }))} className="w-full px-2 py-1 rounded-[8px] border border-[#c09748] font-mono text-xs font-bold" />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* All 11 Official Visual Check Parameters (A to K) */}
+                          <div className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-2">
+                            <span className="text-[10.5px] font-mono font-bold uppercase text-[#8a6521] block">
+                              OQC 11 Visual Parameters (Click to Flag Issue — Default OK):
+                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {OQC_VISUAL_PARAM_NAMES.map(paramName => {
+                                const isPass = defaultVisualMap[paramName] === 'Pass';
+                                return (
+                                  <button
+                                    key={paramName}
+                                    type="button"
+                                    onClick={() =>
+                                      setOqcVisualChecks(prev => ({
+                                        ...prev,
+                                        [group.jobCardNo]: {
+                                          ...defaultVisualMap,
+                                          [paramName]: isPass ? 'Fail' : 'Pass'
+                                        }
+                                      }))
+                                    }
+                                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition cursor-pointer flex items-center gap-1 ${
+                                      isPass ? 'bg-[#fafafb] text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-300'
+                                    }`}
+                                  >
+                                    {isPass ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                                    <span>{paramName}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
 
                           {/* Model Rows Table (Desktop) */}
@@ -3810,7 +3890,11 @@ export const QAView: React.FC = () => {
                                               customer: r.customer,
                                               plant: activePlant === 'ALL' ? 'Haridwar' : activePlant,
                                               checkedBy: currentUser.name,
-                                              visualChecks: visual,
+                                              visualChecks: defaultVisualMap,
+                                              manualDelta:
+                                                manualDeltaState.enabled && manualDeltaState.deltaE.trim() !== ''
+                                                  ? manualDeltaState
+                                                  : undefined,
                                               items: [
                                                 {
                                                   assignmentId: r.assignmentId,
@@ -3919,7 +4003,9 @@ export const QAView: React.FC = () => {
 
                       <div className="flex items-center justify-between pt-2 border-t border-[#ececec] gap-1.5 flex-wrap">
                         <span className="font-mono text-[11px] text-[#8a6521] bg-[#faf3e0] px-2 py-0.5 rounded-full border border-[#f4e5be]">
-                          {Number(rel.deltaE || 0) > 0 ? `ΔE ${Number(rel.deltaE).toFixed(2)}` : 'Visual OK'}
+                          {(rel.deltaSource === 'Manual' || rel.deltaSource === 'IPQC' || (Number(rel.deltaE || 0) > 0 && rel.deltaSource !== 'None' && rel.deltaSource !== 'Visual'))
+                            ? `ΔE ${Number(rel.deltaE).toFixed(2)}`
+                            : 'Visual Only'}
                         </span>
                         <div className="flex items-center gap-1.5">
                           {!isSigned && (
@@ -3992,7 +4078,9 @@ export const QAView: React.FC = () => {
                           </td>
                           <td className="py-2.5 px-3 text-center whitespace-nowrap">
                             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be]">
-                              {Number(rel.deltaE || 0) > 0 ? `ΔE ${Number(rel.deltaE).toFixed(2)}` : 'Visual OK'}
+                              {(rel.deltaSource === 'Manual' || rel.deltaSource === 'IPQC' || (Number(rel.deltaE || 0) > 0 && rel.deltaSource !== 'None' && rel.deltaSource !== 'Visual'))
+                                ? `ΔE ${Number(rel.deltaE).toFixed(2)}`
+                                : 'Visual Only'}
                             </span>
                           </td>
                           <td className="py-2.5 px-3 text-center whitespace-nowrap">
@@ -6671,49 +6759,76 @@ export const QAView: React.FC = () => {
               </div>
             </div>
 
-            {/* Visual Checklist & Spectrometer LAB */}
+            {/* Visual Checklist & Optional Spectrometer LAB */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2">
                 <span className="text-xs font-bold text-[#17191c] uppercase tracking-wider block">
                   11 Visual Coating Parameters (A to K)
                 </span>
                 <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                  {['Damage', 'Scratch', 'Sink Mark', 'Short Fill', 'Bubble', 'Pin Mark', 'Dust Spot', 'Over Paint', 'Paint Missing', 'Colour Match', 'Overall Finishing'].map(p => (
-                    <div key={p} className="p-1.5 rounded-[8px] bg-white border border-[#ececec] flex items-center justify-between">
-                      <span className="text-[#777b86]">{p}</span>
-                      <span className="text-emerald-700 font-bold">✓ Pass</span>
-                    </div>
-                  ))}
+                  {OQC_VISUAL_PARAM_NAMES.map(p => {
+                    const isFail = selectedOqcToView.visualChecklist?.[p] === 'Fail';
+                    return (
+                      <div key={p} className="p-1.5 rounded-[8px] bg-white border border-[#ececec] flex items-center justify-between">
+                        <span className="text-[#777b86]">{p}</span>
+                        <span className={isFail ? 'text-rose-700 font-bold' : 'text-emerald-700 font-bold'}>
+                          {isFail ? '✗ NOT OK' : '✓ OK'}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
               <div className="p-3.5 rounded-[16px] bg-[#fafafb] border border-[#ececec] space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#17191c] uppercase tracking-wider">
-                    CIELAB Spectrometer Test
-                  </span>
-                  <span className="text-[10px] font-mono text-[#777b86]">ΔE Spec: &le; 0.70</span>
-                </div>
-                <div className="grid grid-cols-4 gap-1.5 text-center">
-                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
-                    <span className="text-[9px] text-[#777b86] block">L*</span>
-                    <strong className="font-mono text-xs">{selectedOqcToView.L || 42.15}</strong>
-                  </div>
-                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
-                    <span className="text-[9px] text-[#777b86] block">a*</span>
-                    <strong className="font-mono text-xs">{selectedOqcToView.a || 54.28}</strong>
-                  </div>
-                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
-                    <span className="text-[9px] text-[#777b86] block">b*</span>
-                    <strong className="font-mono text-xs">{selectedOqcToView.b || 28.12}</strong>
-                  </div>
-                  <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
-                    <span className="text-[9px] text-[#777b86] block">ΔE</span>
-                    <strong className="font-mono text-xs text-emerald-700">
-                      {Number(selectedOqcToView.deltaE || 0) > 0 ? Number(selectedOqcToView.deltaE).toFixed(2) : 'Visual OK'}
-                    </strong>
-                  </div>
-                </div>
+                {(() => {
+                  const showDelta =
+                    selectedOqcToView.deltaSource === 'Manual' ||
+                    selectedOqcToView.deltaSource === 'IPQC' ||
+                    (Number(selectedOqcToView.deltaE || 0) > 0 && selectedOqcToView.deltaSource !== 'None' && selectedOqcToView.deltaSource !== 'Visual');
+                  if (!showDelta) {
+                    return (
+                      <div className="p-3 rounded-[12px] bg-white border border-dashed border-[#dcdfe4] text-center space-y-1">
+                        <span className="text-xs font-bold text-[#17191c] uppercase tracking-wider block">
+                          Delta Value Report (Optional)
+                        </span>
+                        <p className="text-[11px] text-[#777b86]">
+                          Delta-E na OQC me fill hua aur na IPQC me mila — isliye report me show nahi kiya gaya.
+                        </p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-[#17191c] uppercase tracking-wider">
+                          CIELAB Spectrometer Test {selectedOqcToView.deltaSource === 'IPQC' ? '(From IPQC)' : ''}
+                        </span>
+                        <span className="text-[10px] font-mono text-[#777b86]">ΔE Spec: &le; 0.70</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5 text-center">
+                        <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                          <span className="text-[9px] text-[#777b86] block">L*</span>
+                          <strong className="font-mono text-xs">{selectedOqcToView.L ?? '-'}</strong>
+                        </div>
+                        <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                          <span className="text-[9px] text-[#777b86] block">a*</span>
+                          <strong className="font-mono text-xs">{selectedOqcToView.a ?? '-'}</strong>
+                        </div>
+                        <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                          <span className="text-[9px] text-[#777b86] block">b*</span>
+                          <strong className="font-mono text-xs">{selectedOqcToView.b ?? '-'}</strong>
+                        </div>
+                        <div className="p-2 rounded-[10px] bg-white border border-[#ececec]">
+                          <span className="text-[9px] text-[#777b86] block">ΔE</span>
+                          <strong className="font-mono text-xs text-emerald-700">
+                            {Number(selectedOqcToView.deltaE || 0).toFixed(2)}
+                          </strong>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
 
                 <div className="mt-3 p-2.5 rounded-[10px] bg-white border border-[#ececec] space-y-1 text-[11px]">
                   <div className="flex justify-between"><span className="text-[#777b86]">Checked / Prepared By:</span><strong className="text-[#17191c]">{selectedOqcToView.qualityEngineerSign || selectedOqcToView.inspector || 'Packing & OQC Desk'}</strong></div>

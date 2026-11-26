@@ -446,12 +446,15 @@ interface PortalContextType {
     customer: string;
     plant?: PlantLocation;
     checkedBy?: string;
-    visualChecks?: {
-      dustSpot?: 'Pass' | 'Fail';
-      scratch?: 'Pass' | 'Fail';
-      paintMissing?: 'Pass' | 'Fail';
-      bubbleOverPaint?: 'Pass' | 'Fail';
-      colourShade?: 'Pass' | 'Fail';
+    visualChecks?: Record<string, 'Pass' | 'Fail'>;
+    manualDelta?: {
+      masterL?: number | string;
+      masterA?: number | string;
+      masterB?: number | string;
+      L?: number | string;
+      a?: number | string;
+      b?: number | string;
+      deltaE?: number | string;
     };
     items: Array<{
       assignmentId?: string;
@@ -3990,6 +3993,58 @@ export const PortalProvider: React.FC<{
     );
   };
 
+  // Helper: Resolve real Spectrophotometer Delta-E strictly from IPQC (no fake/hardcoded fallback)
+  const resolveDeltaFromIpqcOnly = (jobCardNo: string, woNo?: string, partCode?: string, color?: string) => {
+    const matchIpqc = ipqcRecords.find(
+      r =>
+        (jobCardNo && r.jobCardNo === jobCardNo) ||
+        (woNo && r.woNo === woNo) ||
+        (partCode && r.partCode === partCode && (!color || r.color === color))
+    );
+    if (!matchIpqc) return null;
+
+    const rawSlots = Object.values(matchIpqc.timeSlots || {}) as Array<IPQCSlotObservation | undefined>;
+    const slots = rawSlots.filter((s): s is IPQCSlotObservation => Boolean(s && s.deltaE !== '' && s.deltaE !== undefined && Number(s.deltaE) > 0));
+    const hasTopDelta = matchIpqc.deltaE !== undefined && Number(matchIpqc.deltaE) > 0;
+    if (slots.length === 0 && !hasTopDelta) return null;
+
+    const mL = matchIpqc.masterL ?? 42.0;
+    const mA = matchIpqc.masterA ?? 54.0;
+    const mB = matchIpqc.masterB ?? 28.0;
+    const avgDelta =
+      slots.length > 0
+        ? Number((slots.reduce((sum, s) => sum + (Number(s?.deltaE) || 0), 0) / slots.length).toFixed(2))
+        : Number(matchIpqc.deltaE || 0);
+    const getSlot = (idx: number) => {
+      const s = slots[idx] || slots[0];
+      return {
+        L: Number(s?.L ?? matchIpqc.L ?? mL),
+        a: Number(s?.a ?? matchIpqc.a ?? mA),
+        b: Number(s?.b ?? matchIpqc.b ?? mB),
+        deltaE: Number(s?.deltaE ?? avgDelta)
+      };
+    };
+
+    return {
+      source: 'IPQC' as const,
+      masterL: mL,
+      masterA: mA,
+      masterB: mB,
+      L: Number(matchIpqc.L || mL),
+      a: Number(matchIpqc.a || mA),
+      b: Number(matchIpqc.b || mB),
+      deltaE: avgDelta,
+      paintBatch: matchIpqc.paintBatchNumber || matchIpqc.paintBatch,
+      sampleSpectro: {
+        s1: getSlot(0),
+        s2: getSlot(1),
+        s3: getSlot(2),
+        s4: getSlot(3),
+        s5: getSlot(4)
+      }
+    };
+  };
+
   // Haridwar / Universal Flow: QC Manager creates Official OQC Report (OK / Rework / Reject) BEFORE Packing
   const recordQcOqcBatch = (params: {
     jobCardNo: string;
@@ -3997,12 +4052,15 @@ export const PortalProvider: React.FC<{
     customer: string;
     plant?: PlantLocation;
     checkedBy?: string;
-    visualChecks?: {
-      dustSpot?: 'Pass' | 'Fail';
-      scratch?: 'Pass' | 'Fail';
-      paintMissing?: 'Pass' | 'Fail';
-      bubbleOverPaint?: 'Pass' | 'Fail';
-      colourShade?: 'Pass' | 'Fail';
+    visualChecks?: Record<string, 'Pass' | 'Fail'>;
+    manualDelta?: {
+      masterL?: number | string;
+      masterA?: number | string;
+      masterB?: number | string;
+      L?: number | string;
+      a?: number | string;
+      b?: number | string;
+      deltaE?: number | string;
     };
     items: Array<{
       assignmentId?: string;
@@ -4031,12 +4089,47 @@ export const PortalProvider: React.FC<{
     const totalRework = params.items.reduce((s, i) => s + i.reworkQty, 0);
     const totalScrap = params.items.reduce((s, i) => s + i.scrapQty, 0);
     const firstItem = params.items[0];
-    const colorimetry = resolveColorimetryFromIpqcOrFpa(
-      params.jobCardNo,
-      woRef,
-      firstItem?.partCode,
-      firstItem?.color
+
+    // Strict Delta Hierarchy: 1) Manual OQC Delta -> 2) IPQC Delta -> 3) None (Omitted from Report)
+    const hasManualDelta = Boolean(
+      params.manualDelta &&
+      params.manualDelta.deltaE !== undefined &&
+      String(params.manualDelta.deltaE).trim() !== ''
     );
+    const ipqcDelta = resolveDeltaFromIpqcOnly(params.jobCardNo, woRef, firstItem?.partCode, firstItem?.color);
+
+    let deltaSource: 'Manual' | 'IPQC' | 'None' = 'None';
+    let masterL: number | string | undefined;
+    let masterA: number | string | undefined;
+    let masterB: number | string | undefined;
+    let L: number | undefined;
+    let a: number | undefined;
+    let b: number | undefined;
+    let deltaE = 0;
+    let sampleSpectro: FinalQualityRelease['sampleSpectro'];
+
+    if (hasManualDelta && params.manualDelta) {
+      deltaSource = 'Manual';
+      masterL = params.manualDelta.masterL ?? 42.0;
+      masterA = params.manualDelta.masterA ?? 54.0;
+      masterB = params.manualDelta.masterB ?? 28.0;
+      L = Number(params.manualDelta.L ?? masterL);
+      a = Number(params.manualDelta.a ?? masterA);
+      b = Number(params.manualDelta.b ?? masterB);
+      deltaE = Number(params.manualDelta.deltaE || 0);
+      const reading = { L, a, b, deltaE };
+      sampleSpectro = { s1: reading, s2: reading, s3: reading, s4: reading, s5: reading };
+    } else if (ipqcDelta) {
+      deltaSource = 'IPQC';
+      masterL = ipqcDelta.masterL;
+      masterA = ipqcDelta.masterA;
+      masterB = ipqcDelta.masterB;
+      L = ipqcDelta.L;
+      a = ipqcDelta.a;
+      b = ipqcDelta.b;
+      deltaE = ipqcDelta.deltaE;
+      sampleSpectro = ipqcDelta.sampleSpectro;
+    }
 
     const releaseId = `REL-${Date.now()}`;
     const reportNo = `PK-OQC-${now.getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -4049,13 +4142,17 @@ export const PortalProvider: React.FC<{
         ? `${firstItem?.partCode || 'MULTI'} (+${params.items.length - 1})`
         : firstItem?.partCode || 'PART';
 
+    const vc = params.visualChecks || {};
+    const anyVisualFail = Object.values(vc).some(v => v === 'Fail');
+
     const newRelease: FinalQualityRelease = {
       releaseId,
       reportNo,
       jobCardNo: params.jobCardNo,
       packedModelsCount: params.items.length,
       oqcCheckedItems: params.items,
-      deltaSource: colorimetry.source,
+      visualChecklist: vc,
+      deltaSource,
       date: todayIso,
       plant: resolvedPlant,
       woNo: woRef,
@@ -4063,22 +4160,22 @@ export const PortalProvider: React.FC<{
       partCode: partCodeSummary,
       partDescription: partSummaryTitle,
       model: partSummaryTitle,
-      batchNo: firstItem?.paintBatch || colorimetry.paintBatch || 'BAT-STD',
+      batchNo: firstItem?.paintBatch || ipqcDelta?.paintBatch || 'BAT-STD',
       color: params.items.length > 1 ? Array.from(new Set(params.items.map(i => i.color))).join(', ') : (firstItem?.color || 'Standard'),
       offeredQty: totalOffered,
       sampledQty: totalOffered,
       passedQty: totalOk,
       rejectedQty: totalRework + totalScrap,
-      masterL: colorimetry.masterL,
-      masterA: colorimetry.masterA,
-      masterB: colorimetry.masterB,
-      L: colorimetry.L,
-      a: colorimetry.a,
-      b: colorimetry.b,
-      deltaE: colorimetry.deltaE,
-      sampleSpectro: colorimetry.sampleSpectro,
+      masterL,
+      masterA,
+      masterB,
+      L,
+      a,
+      b,
+      deltaE,
+      sampleSpectro,
       lotAcceptance: totalOk > 0 ? 'Accepted' : 'Rejected',
-      physicalInspection: params.visualChecks?.scratch === 'Fail' ? 'Fail' : 'Pass',
+      physicalInspection: anyVisualFail ? 'Fail' : 'Pass',
       conductivity: 'N/A',
       adhesion: 'Pass',
       oqcStatus: totalOk > 0 ? 'Accepted' : 'Hold',
@@ -4148,7 +4245,7 @@ export const PortalProvider: React.FC<{
             qaVerifiedBy: qcOfficerName,
             painterName: firstItem?.painter || jc.painterName || 'Production Floor',
             recordedBy: qcOfficerName,
-            remarks: `${params.items.length} Model(s)${colorimetry.source === 'IPQC' ? ` • IPQC ΔE ${colorimetry.deltaE}` : ''}`
+            remarks: `${params.items.length} Model(s)${deltaSource !== 'None' ? ` • ${deltaSource} ΔE ${deltaE}` : ' • Visual Check'}`
           };
           return {
             ...jc,

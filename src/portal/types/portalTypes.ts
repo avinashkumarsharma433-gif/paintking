@@ -1337,7 +1337,8 @@ export interface FinalQualityRelease {
   jobCardNo?: string;
   packedModelsCount?: number;
   oqcCheckedItems?: OQCCheckedModelItem[];
-  deltaSource?: 'IPQC' | 'FPA' | 'Visual';
+  visualChecklist?: Record<string, 'Pass' | 'Fail'>;
+  deltaSource?: 'IPQC' | 'Manual' | 'FPA' | 'Visual' | 'None';
   date: string;
   plant: PlantLocation;
   woNo: string;

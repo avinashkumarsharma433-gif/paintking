@@ -4598,13 +4598,15 @@ export const downloadStandardOqcPdf = (release: FinalQualityRelease): void => {
     doc.text(vp.spec, MARGIN_X + colSrW + colParamW + colSpecW / 2, currentY + 3.1, { align: 'center' });
     doc.text(vp.tech, MARGIN_X + colSrW + colParamW + colSpecW + colTechW / 2, currentY + 3.1, { align: 'center' });
 
-    // S1 - S5 values (OK)
+    // S1 - S5 values from visualChecklist (OK / NOT OK)
+    const paramStatus = release.visualChecklist?.[vp.name];
+    const isFail = paramStatus === 'Fail';
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.0);
-    doc.setTextColor(16, 116, 55);
+    doc.setTextColor(isFail ? 185 : 16, isFail ? 28 : 116, isFail ? 28 : 55);
     for (let i = 1; i <= 5; i++) {
       const sX = MARGIN_X + leftMetaW + (i - 1) * singleSampleW;
-      doc.text('OK', sX + singleSampleW / 2, currentY + 3.1, { align: 'center' });
+      doc.text(isFail ? 'NOT OK' : 'OK', sX + singleSampleW / 2, currentY + 3.1, { align: 'center' });
     }
 
     currentY += rowH;
@@ -4621,136 +4623,146 @@ export const downloadStandardOqcPdf = (release: FinalQualityRelease): void => {
   }
 
   // -------------------------------------------------------------------------
-  // SECTION 2: DELTA VALUE TEST (SPECTROMETER CIELAB)
+  // SECTION 2: DELTA VALUE TEST (OPTIONAL — ONLY IF MANUAL OQC OR IPQC EXISTS)
   // -------------------------------------------------------------------------
-  currentY += 5.0;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.setTextColor(23, 25, 28);
-  doc.text('2. DELTA VALUE TEST & COLORIMETRY CONFORMANCE (CIELAB SPECTROMETER)', 14, currentY);
+  const hasDeltaData =
+    release.deltaSource === 'Manual' ||
+    release.deltaSource === 'IPQC' ||
+    (Number(release.deltaE || 0) > 0 && release.deltaSource !== 'None' && release.deltaSource !== 'Visual');
 
-  currentY += 4.5;
-  const deltaHeaderY = currentY;
+  if (hasDeltaData) {
+    currentY += 5.0;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(23, 25, 28);
+    const deltaSrcSuffix = release.deltaSource === 'IPQC' ? ' (FROM IPQC)' : '';
+    doc.text(`2. DELTA VALUE TEST & COLORIMETRY CONFORMANCE${deltaSrcSuffix}`, 14, currentY);
 
-  doc.setFillColor(242, 242, 243);
-  doc.rect(MARGIN_X, currentY, USABLE_W, compRowH, 'F');
-  doc.setDrawColor(...TABLE_BORDER_COLOR);
-  doc.setLineWidth(TABLE_LINE_WIDTH);
-  doc.rect(MARGIN_X, currentY, USABLE_W, compRowH, 'S');
+    currentY += 4.5;
+    const deltaHeaderY = currentY;
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(6.8);
-  doc.setTextColor(23, 25, 28);
-  doc.text('Sr.', MARGIN_X + colSrW / 2, currentY + 3.5, { align: 'center' });
-  doc.text('Colorimetric Parameters', MARGIN_X + colSrW + 2, currentY + 3.5);
-  doc.text('Master Target', MARGIN_X + colSrW + colParamW + colSpecW / 2, currentY + 3.5, { align: 'center' });
-  doc.text('Instrument', MARGIN_X + colSrW + colParamW + colSpecW + colTechW / 2, currentY + 3.5, { align: 'center' });
-
-  for (let i = 1; i <= 5; i++) {
-    const sX = MARGIN_X + leftMetaW + (i - 1) * singleSampleW;
-    doc.text(`S${i}`, sX + singleSampleW / 2, currentY + 3.5, { align: 'center' });
-  }
-
-  currentY += compRowH;
-
-  const masterL = release.masterL !== undefined ? Number(release.masterL).toFixed(2) : '42.00';
-  const masterA = release.masterA !== undefined ? Number(release.masterA).toFixed(2) : '54.00';
-  const masterB = release.masterB !== undefined ? Number(release.masterB).toFixed(2) : '28.00';
-
-  const spectro = release.sampleSpectro;
-
-  const deltaRows = [
-    { 
-      id: 'A', 
-      name: 'L (Luminance)', 
-      spec: masterL, 
-      vals: [
-        spectro?.s1?.L !== undefined ? String(spectro.s1.L) : (release.L !== undefined ? String(release.L) : '42.15'),
-        spectro?.s2?.L !== undefined ? String(spectro.s2.L) : '42.18',
-        spectro?.s3?.L !== undefined ? String(spectro.s3.L) : '42.12',
-        spectro?.s4?.L !== undefined ? String(spectro.s4.L) : '42.16',
-        spectro?.s5?.L !== undefined ? String(spectro.s5.L) : '42.14'
-      ]
-    },
-    { 
-      id: 'B', 
-      name: 'A (Green-Red)', 
-      spec: masterA, 
-      vals: [
-        spectro?.s1?.a !== undefined ? String(spectro.s1.a) : (release.a !== undefined ? String(release.a) : '54.28'),
-        spectro?.s2?.a !== undefined ? String(spectro.s2.a) : '54.30',
-        spectro?.s3?.a !== undefined ? String(spectro.s3.a) : '54.25',
-        spectro?.s4?.a !== undefined ? String(spectro.s4.a) : '54.29',
-        spectro?.s5?.a !== undefined ? String(spectro.s5.a) : '54.27'
-      ]
-    },
-    { 
-      id: 'C', 
-      name: 'B (Blue-Yellow)', 
-      spec: masterB, 
-      vals: [
-        spectro?.s1?.b !== undefined ? String(spectro.s1.b) : (release.b !== undefined ? String(release.b) : '28.12'),
-        spectro?.s2?.b !== undefined ? String(spectro.s2.b) : '28.14',
-        spectro?.s3?.b !== undefined ? String(spectro.s3.b) : '28.10',
-        spectro?.s4?.b !== undefined ? String(spectro.s4.b) : '28.15',
-        spectro?.s5?.b !== undefined ? String(spectro.s5.b) : '28.11'
-      ]
-    },
-    { 
-      id: 'D', 
-      name: 'DeltaE (Color Difference)', 
-      spec: '<= 0.70', 
-      vals: [
-        spectro?.s1?.deltaE !== undefined ? Number(spectro.s1.deltaE).toFixed(2) : (release.deltaE !== undefined ? Number(release.deltaE).toFixed(2) : '0.38'),
-        spectro?.s2?.deltaE !== undefined ? Number(spectro.s2.deltaE).toFixed(2) : '0.40',
-        spectro?.s3?.deltaE !== undefined ? Number(spectro.s3.deltaE).toFixed(2) : '0.35',
-        spectro?.s4?.deltaE !== undefined ? Number(spectro.s4.deltaE).toFixed(2) : '0.39',
-        spectro?.s5?.deltaE !== undefined ? Number(spectro.s5.deltaE).toFixed(2) : '0.36'
-      ]
-    }
-  ];
-
-  const deltaStartY = currentY;
-
-  deltaRows.forEach((dr, idx) => {
-    const isEven = idx % 2 === 0;
-    doc.setFillColor(isEven ? 255 : 250, isEven ? 255 : 250, isEven ? 255 : 251);
-    doc.rect(MARGIN_X, currentY, USABLE_W, rowH, 'F');
+    doc.setFillColor(242, 242, 243);
+    doc.rect(MARGIN_X, currentY, USABLE_W, compRowH, 'F');
     doc.setDrawColor(...TABLE_BORDER_COLOR);
     doc.setLineWidth(TABLE_LINE_WIDTH);
-    doc.rect(MARGIN_X, currentY, USABLE_W, rowH, 'S');
+    doc.rect(MARGIN_X, currentY, USABLE_W, compRowH, 'S');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.2);
+    doc.setFontSize(6.8);
     doc.setTextColor(23, 25, 28);
-    doc.text(dr.id, MARGIN_X + colSrW / 2, currentY + 3.1, { align: 'center' });
+    doc.text('Sr.', MARGIN_X + colSrW / 2, currentY + 3.5, { align: 'center' });
+    doc.text('Colorimetric Parameters', MARGIN_X + colSrW + 2, currentY + 3.5);
+    doc.text('Master Target', MARGIN_X + colSrW + colParamW + colSpecW / 2, currentY + 3.5, { align: 'center' });
+    doc.text('Instrument', MARGIN_X + colSrW + colParamW + colSpecW + colTechW / 2, currentY + 3.5, { align: 'center' });
 
-    doc.setFont('helvetica', 'normal');
-    doc.text(dr.name, MARGIN_X + colSrW + 2, currentY + 3.1);
-    doc.text(dr.spec, MARGIN_X + colSrW + colParamW + colSpecW / 2, currentY + 3.1, { align: 'center' });
-    doc.text('Spectrometer', MARGIN_X + colSrW + colParamW + colSpecW + colTechW / 2, currentY + 3.1, { align: 'center' });
-
-    // Measurements across S1 - S5 individual values
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.0);
-    doc.setTextColor(23, 25, 28);
     for (let i = 1; i <= 5; i++) {
       const sX = MARGIN_X + leftMetaW + (i - 1) * singleSampleW;
-      const sampleVal = dr.vals[i - 1];
-      doc.text(sampleVal, sX + singleSampleW / 2, currentY + 3.1, { align: 'center' });
+      doc.text(`S${i}`, sX + singleSampleW / 2, currentY + 3.5, { align: 'center' });
     }
 
-    currentY += rowH;
-  });
+    currentY += compRowH;
 
-  // Vertical dividers for Delta Table
-  doc.line(MARGIN_X + colSrW, deltaHeaderY, MARGIN_X + colSrW, currentY);
-  doc.line(MARGIN_X + colSrW + colParamW, deltaHeaderY, MARGIN_X + colSrW + colParamW, currentY);
-  doc.line(MARGIN_X + colSrW + colParamW + colSpecW, deltaHeaderY, MARGIN_X + colSrW + colParamW + colSpecW, currentY);
-  doc.line(MARGIN_X + leftMetaW, deltaHeaderY, MARGIN_X + leftMetaW, currentY);
-  for (let i = 1; i < 5; i++) {
-    const sLineX = MARGIN_X + leftMetaW + i * singleSampleW;
-    doc.line(sLineX, deltaHeaderY, sLineX, currentY);
+    const masterL = release.masterL !== undefined && release.masterL !== '-' ? Number(release.masterL).toFixed(2) : '-';
+    const masterA = release.masterA !== undefined && release.masterA !== '-' ? Number(release.masterA).toFixed(2) : '-';
+    const masterB = release.masterB !== undefined && release.masterB !== '-' ? Number(release.masterB).toFixed(2) : '-';
+    const spectro = release.sampleSpectro;
+
+    const formatReading = (val: number | string | undefined, fallback: number | undefined) => {
+      if (val !== undefined && val !== '') return String(val);
+      if (fallback !== undefined) return String(fallback);
+      return '-';
+    };
+
+    const deltaRows = [
+      {
+        id: 'A',
+        name: 'L (Luminance)',
+        spec: masterL,
+        vals: [
+          formatReading(spectro?.s1?.L, release.L),
+          formatReading(spectro?.s2?.L, release.L),
+          formatReading(spectro?.s3?.L, release.L),
+          formatReading(spectro?.s4?.L, release.L),
+          formatReading(spectro?.s5?.L, release.L)
+        ]
+      },
+      {
+        id: 'B',
+        name: 'A (Green-Red)',
+        spec: masterA,
+        vals: [
+          formatReading(spectro?.s1?.a, release.a),
+          formatReading(spectro?.s2?.a, release.a),
+          formatReading(spectro?.s3?.a, release.a),
+          formatReading(spectro?.s4?.a, release.a),
+          formatReading(spectro?.s5?.a, release.a)
+        ]
+      },
+      {
+        id: 'C',
+        name: 'B (Blue-Yellow)',
+        spec: masterB,
+        vals: [
+          formatReading(spectro?.s1?.b, release.b),
+          formatReading(spectro?.s2?.b, release.b),
+          formatReading(spectro?.s3?.b, release.b),
+          formatReading(spectro?.s4?.b, release.b),
+          formatReading(spectro?.s5?.b, release.b)
+        ]
+      },
+      {
+        id: 'D',
+        name: 'DeltaE (Color Difference)',
+        spec: '<= 0.70',
+        vals: [
+          spectro?.s1?.deltaE !== undefined ? Number(spectro.s1.deltaE).toFixed(2) : Number(release.deltaE || 0).toFixed(2),
+          spectro?.s2?.deltaE !== undefined ? Number(spectro.s2.deltaE).toFixed(2) : Number(release.deltaE || 0).toFixed(2),
+          spectro?.s3?.deltaE !== undefined ? Number(spectro.s3.deltaE).toFixed(2) : Number(release.deltaE || 0).toFixed(2),
+          spectro?.s4?.deltaE !== undefined ? Number(spectro.s4.deltaE).toFixed(2) : Number(release.deltaE || 0).toFixed(2),
+          spectro?.s5?.deltaE !== undefined ? Number(spectro.s5.deltaE).toFixed(2) : Number(release.deltaE || 0).toFixed(2)
+        ]
+      }
+    ];
+
+    deltaRows.forEach((dr, idx) => {
+      const isEven = idx % 2 === 0;
+      doc.setFillColor(isEven ? 255 : 250, isEven ? 255 : 250, isEven ? 255 : 251);
+      doc.rect(MARGIN_X, currentY, USABLE_W, rowH, 'F');
+      doc.setDrawColor(...TABLE_BORDER_COLOR);
+      doc.setLineWidth(TABLE_LINE_WIDTH);
+      doc.rect(MARGIN_X, currentY, USABLE_W, rowH, 'S');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.2);
+      doc.setTextColor(23, 25, 28);
+      doc.text(dr.id, MARGIN_X + colSrW / 2, currentY + 3.1, { align: 'center' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.text(dr.name, MARGIN_X + colSrW + 2, currentY + 3.1);
+      doc.text(dr.spec, MARGIN_X + colSrW + colParamW + colSpecW / 2, currentY + 3.1, { align: 'center' });
+      doc.text('Spectrometer', MARGIN_X + colSrW + colParamW + colSpecW + colTechW / 2, currentY + 3.1, { align: 'center' });
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.0);
+      doc.setTextColor(23, 25, 28);
+      for (let i = 1; i <= 5; i++) {
+        const sX = MARGIN_X + leftMetaW + (i - 1) * singleSampleW;
+        doc.text(dr.vals[i - 1], sX + singleSampleW / 2, currentY + 3.1, { align: 'center' });
+      }
+
+      currentY += rowH;
+    });
+
+    doc.line(MARGIN_X + colSrW, deltaHeaderY, MARGIN_X + colSrW, currentY);
+    doc.line(MARGIN_X + colSrW + colParamW, deltaHeaderY, MARGIN_X + colSrW + colParamW, currentY);
+    doc.line(MARGIN_X + colSrW + colParamW + colSpecW, deltaHeaderY, MARGIN_X + colSrW + colParamW + colSpecW, currentY);
+    doc.line(MARGIN_X + leftMetaW, deltaHeaderY, MARGIN_X + leftMetaW, currentY);
+    for (let i = 1; i < 5; i++) {
+      const sLineX = MARGIN_X + leftMetaW + i * singleSampleW;
+      doc.line(sLineX, deltaHeaderY, sLineX, currentY);
+    }
+  } else {
+    currentY += 4.0;
   }
 
   // -------------------------------------------------------------------------
