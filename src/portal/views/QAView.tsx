@@ -134,6 +134,7 @@ export const QAView: React.FC = () => {
       }
     >
   >({});
+  const [selectedOqcRowKeys, setSelectedOqcRowKeys] = useState<Record<string, boolean>>({});
   const [oqcToastMsg, setOqcToastMsg] = useState<string | null>(null);
 
   const [pdiViewTab, setPdiViewTab] = useState<'PENDING' | 'COMPLETED'>('PENDING');
@@ -3633,8 +3634,23 @@ export const QAView: React.FC = () => {
                         deltaE: ''
                       };
 
+                      const isRowSelected = (key: string) => selectedOqcRowKeys[key] !== false;
+                      const selectedRows = group.rows.filter(r => isRowSelected(r.rowKey));
+
+                      const handleToggleAllGroup = () => {
+                        const allSelected = selectedRows.length === group.rows.length;
+                        setSelectedOqcRowKeys(prev => {
+                          const next = { ...prev };
+                          group.rows.forEach(r => {
+                            next[r.rowKey] = !allSelected;
+                          });
+                          return next;
+                        });
+                      };
+
                       const handleSubmitGroupOqc = () => {
-                        const items = group.rows.map(r => {
+                        if (selectedRows.length === 0) return;
+                        const items = selectedRows.map(r => {
                           const v = getOqcRowEdit(r);
                           return {
                             assignmentId: r.assignmentId,
@@ -3667,11 +3683,11 @@ export const QAView: React.FC = () => {
                         });
                         setOqcEdits(curr => {
                           const next = { ...curr };
-                          group.rows.forEach(r => delete next[r.rowKey]);
+                          selectedRows.forEach(r => delete next[r.rowKey]);
                           return next;
                         });
                         setOqcToastMsg(
-                          `✓ OQC Report ${rel.reportNo} Created! ${rel.passedQty} Pcs OK Packing Team ko bheje gaye${rel.rejectedQty > 0 ? ` • ${rel.rejectedQty} Rework/Scrap Production ko wapas bheja gaya` : ''}.`
+                          `✓ OQC Report ${rel.reportNo} Created (${items.length} Model${items.length > 1 ? 's' : ''})! ${rel.passedQty} Pcs OK Packing Team ko bheje gaye${rel.rejectedQty > 0 ? ` • ${rel.rejectedQty} Rework/Scrap Production ko wapas bheja gaya` : ''}.`
                         );
                         setTimeout(() => setOqcToastMsg(null), 5000);
                       };
@@ -3728,11 +3744,19 @@ export const QAView: React.FC = () => {
                               </button>
                               <button
                                 type="button"
+                                onClick={handleToggleAllGroup}
+                                className="px-3 py-1.5 rounded-full bg-white hover:bg-[#f2f2f3] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold cursor-pointer"
+                              >
+                                {selectedRows.length === group.rows.length ? 'Unselect All' : 'Select All'}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={selectedRows.length === 0}
                                 onClick={handleSubmitGroupOqc}
-                                className="px-4 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+                                className="px-4 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] disabled:opacity-50 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Create 1 OQC Report ({group.rows.length} Model{group.rows.length > 1 ? 's' : ''})</span>
+                                <span>Create OQC Report ({selectedRows.length} Selected)</span>
                               </button>
                             </div>
                           </div>
@@ -3809,6 +3833,7 @@ export const QAView: React.FC = () => {
                             <table className="w-full text-left text-xs">
                               <thead>
                                 <tr className="border-b border-[#ececec] text-[10px] font-semibold uppercase text-[#777b86]">
+                                  <th className="py-2.5 px-3 w-10 text-center">Pick</th>
                                   <th className="py-2.5 px-3">Model &amp; Colour</th>
                                   <th className="py-2.5 px-3 text-center">From Prod</th>
                                   <th className="py-2.5 px-3 w-28">OQC Passed OK</th>
@@ -3822,8 +3847,23 @@ export const QAView: React.FC = () => {
                                 {group.rows.map(r => {
                                   const v = getOqcRowEdit(r);
                                   const hasDefects = v.reworkQty > 0 || v.scrapQty > 0;
+                                  const checked = isRowSelected(r.rowKey);
                                   return (
-                                    <tr key={r.rowKey} className="hover:bg-[#fafafb]">
+                                    <tr key={r.rowKey} className={checked ? 'hover:bg-[#fafafb] bg-[#faf7ed]/25' : 'opacity-65 hover:bg-[#fafafb]'}>
+                                      <td className="py-2.5 px-3 text-center">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setSelectedOqcRowKeys(prev => ({ ...prev, [r.rowKey]: !checked }))
+                                          }
+                                          className={`w-5 h-5 rounded-md border inline-flex items-center justify-center transition cursor-pointer ${
+                                            checked ? 'bg-[#c09748] border-[#c09748] text-white' : 'bg-white border-[#dcdfe4]'
+                                          }`}
+                                          title="Include model in combined Dispatch/OQC report"
+                                        >
+                                          {checked && <Check className="w-3.5 h-3.5" />}
+                                        </button>
+                                      </td>
                                       <td className="py-2.5 px-3">
                                         <div className="font-semibold text-[#17191c]">{r.partDescription}</div>
                                         <div className="text-[11px] text-[#777b86]">
@@ -3937,11 +3977,23 @@ export const QAView: React.FC = () => {
                           <div className="md:hidden space-y-2.5">
                             {group.rows.map(r => {
                               const v = getOqcRowEdit(r);
+                              const checked = isRowSelected(r.rowKey);
                               return (
                                 <div key={r.rowKey} className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-2 text-xs">
-                                  <div className="flex justify-between">
-                                    <strong>{r.partDescription} ({r.color})</strong>
-                                    <span className="font-mono font-bold text-emerald-800">{r.readyForOqcQty} Pcs</span>
+                                  <div className="flex justify-between items-center gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedOqcRowKeys(prev => ({ ...prev, [r.rowKey]: !checked }))}
+                                        className={`w-5 h-5 rounded-md border inline-flex items-center justify-center shrink-0 ${
+                                          checked ? 'bg-[#c09748] border-[#c09748] text-white' : 'bg-white border-[#dcdfe4]'
+                                        }`}
+                                      >
+                                        {checked && <Check className="w-3.5 h-3.5" />}
+                                      </button>
+                                      <strong>{r.partDescription} ({r.color})</strong>
+                                    </div>
+                                    <span className="font-mono font-bold text-emerald-800 shrink-0">{r.readyForOqcQty} Pcs</span>
                                   </div>
                                   <div className="grid grid-cols-3 gap-2">
                                     <input type="number" min={0} max={r.readyForOqcQty} value={v.okQty} onChange={e => updateOqcRowCounts(r, 'ok', Number(e.target.value))} className="px-2 py-1 rounded border border-emerald-300 font-mono text-xs font-bold" placeholder="OK" />

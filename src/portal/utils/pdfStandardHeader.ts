@@ -4436,6 +4436,138 @@ export const downloadStandardMINPdf = (mrn: MaterialRequisitionNote): void => {
 // - Standard 3-Row Metadata Box with rounded corners (roundedRect 3, 3 FD)
 // - Table headers with light-grey #f2f2f3
 // =============================================================================
+// Shared Page-2 Annexure Helper for Multi-Model Dispatch Lots (OQC & PDI PDFs)
+const drawCheckedModelsBreakdownPage = (
+  doc: jsPDF,
+  release: FinalQualityRelease,
+  sectionHeading: string,
+  footerLabel: string,
+  footerTimestamp: string
+): void => {
+  const items = release.oqcCheckedItems;
+  if (!items || items.length <= 1) return;
+
+  doc.addPage();
+  const MARGIN_X = 14;
+  const USABLE_W = 182;
+  const TABLE_BORDER_COLOR = [180, 185, 195] as const;
+  const TABLE_LINE_WIDTH = 0.45;
+
+  const startY = drawStandardPdfHeader(doc);
+  let y = startY + 6;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(23, 25, 28);
+  doc.text(sectionHeading, MARGIN_X, y);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(85, 90, 100);
+  doc.text(
+    `Party: ${release.customer || '-'}  |  Job Card / WO: ${release.jobCardNo || release.woNo || '-'}  |  Selected Dispatch Models: ${items.length}`,
+    MARGIN_X,
+    y + 4.8
+  );
+
+  y += 9;
+  const cols = [10, 62, 32, 20, 20, 19, 19]; // total = 182mm
+  const colX = [
+    MARGIN_X,
+    MARGIN_X + cols[0],
+    MARGIN_X + cols[0] + cols[1],
+    MARGIN_X + cols[0] + cols[1] + cols[2],
+    MARGIN_X + cols[0] + cols[1] + cols[2] + cols[3],
+    MARGIN_X + cols[0] + cols[1] + cols[2] + cols[3] + cols[4],
+    MARGIN_X + cols[0] + cols[1] + cols[2] + cols[3] + cols[4] + cols[5]
+  ];
+  const rowH = 6.0;
+
+  const drawTableHeader = (topY: number) => {
+    doc.setFillColor(242, 242, 243);
+    doc.rect(MARGIN_X, topY, USABLE_W, rowH, 'F');
+    doc.setDrawColor(...TABLE_BORDER_COLOR);
+    doc.setLineWidth(TABLE_LINE_WIDTH);
+    doc.rect(MARGIN_X, topY, USABLE_W, rowH, 'S');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.0);
+    doc.setTextColor(23, 25, 28);
+    doc.text('#', colX[0] + cols[0] / 2, topY + 4.1, { align: 'center' });
+    doc.text('Part Code & Model Description', colX[1] + 2, topY + 4.1);
+    doc.text('Colour / Shade', colX[2] + 2, topY + 4.1);
+    doc.text('Checked', colX[3] + cols[3] / 2, topY + 4.1, { align: 'center' });
+    doc.text('Passed OK', colX[4] + cols[4] / 2, topY + 4.1, { align: 'center' });
+    doc.text('Rework', colX[5] + cols[5] / 2, topY + 4.1, { align: 'center' });
+    doc.text('Reject', colX[6] + cols[6] / 2, topY + 4.1, { align: 'center' });
+    for (let c = 1; c < colX.length; c++) {
+      doc.line(colX[c], topY, colX[c], topY + rowH);
+    }
+  };
+
+  drawTableHeader(y);
+  y += rowH;
+
+  let sumOffer = 0;
+  let sumOk = 0;
+  let sumRw = 0;
+  let sumSc = 0;
+
+  items.forEach((it, idx) => {
+    sumOffer += it.offeredQty || 0;
+    sumOk += it.passedOkQty || 0;
+    sumRw += it.reworkQty || 0;
+    sumSc += it.scrapQty || 0;
+
+    const isEven = idx % 2 === 0;
+    doc.setFillColor(isEven ? 255 : 250, isEven ? 255 : 250, isEven ? 255 : 251);
+    doc.rect(MARGIN_X, y, USABLE_W, rowH, 'F');
+    doc.setDrawColor(...TABLE_BORDER_COLOR);
+    doc.setLineWidth(TABLE_LINE_WIDTH);
+    doc.rect(MARGIN_X, y, USABLE_W, rowH, 'S');
+    for (let c = 1; c < colX.length; c++) {
+      doc.line(colX[c], y, colX[c], y + rowH);
+    }
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.8);
+    doc.setTextColor(23, 25, 28);
+    doc.text(String(idx + 1), colX[0] + cols[0] / 2, y + 4.1, { align: 'center' });
+    const modelText = `${it.partDescription || it.partCode} (${it.partCode})`;
+    doc.text(modelText.slice(0, 38), colX[1] + 2, y + 4.1);
+    doc.text((it.color || '-').slice(0, 20), colX[2] + 2, y + 4.1);
+    doc.text(String(it.offeredQty || 0), colX[3] + cols[3] / 2, y + 4.1, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(16, 116, 55);
+    doc.text(String(it.passedOkQty || 0), colX[4] + cols[4] / 2, y + 4.1, { align: 'center' });
+    doc.setTextColor(it.reworkQty > 0 ? 180 : 85, it.reworkQty > 0 ? 83 : 90, it.reworkQty > 0 ? 9 : 100);
+    doc.text(String(it.reworkQty || 0), colX[5] + cols[5] / 2, y + 4.1, { align: 'center' });
+    doc.setTextColor(it.scrapQty > 0 ? 185 : 85, it.scrapQty > 0 ? 28 : 90, it.scrapQty > 0 ? 28 : 100);
+    doc.text(String(it.scrapQty || 0), colX[6] + cols[6] / 2, y + 4.1, { align: 'center' });
+    y += rowH;
+  });
+
+  // Summary Total Row
+  doc.setFillColor(242, 242, 243);
+  doc.rect(MARGIN_X, y, USABLE_W, rowH, 'F');
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.rect(MARGIN_X, y, USABLE_W, rowH, 'S');
+  for (let c = 3; c < colX.length; c++) {
+    doc.line(colX[c], y, colX[c], y + rowH);
+  }
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.2);
+  doc.setTextColor(23, 25, 28);
+  doc.text(`TOTAL (${items.length} MODELS)`, colX[0] + 3, y + 4.1);
+  doc.text(`${sumOffer} Pcs`, colX[3] + cols[3] / 2, y + 4.1, { align: 'center' });
+  doc.setTextColor(16, 116, 55);
+  doc.text(`${sumOk} OK`, colX[4] + cols[4] / 2, y + 4.1, { align: 'center' });
+  doc.setTextColor(23, 25, 28);
+  doc.text(String(sumRw), colX[5] + cols[5] / 2, y + 4.1, { align: 'center' });
+  doc.text(String(sumSc), colX[6] + cols[6] / 2, y + 4.1, { align: 'center' });
+
+  drawStandardPdfFooter(doc, 2, 2, footerLabel, footerTimestamp, false);
+};
+
 export const downloadStandardOqcPdf = (release: FinalQualityRelease): void => {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -4886,15 +5018,24 @@ export const downloadStandardOqcPdf = (release: FinalQualityRelease): void => {
   doc.setTextColor(119, 123, 134);
   doc.text('Head QA & Compliance Final Sign-off', sig3X, currentY + 14.5);
 
-  // ISO Certified Footer with exact creation timestamp
+  const hasMultiModelAnnexure = Boolean(release.oqcCheckedItems && release.oqcCheckedItems.length > 1);
   const footerTimestamp = release.generatedTimestamp || `${formatDateDDMMYYYY(release.date)}, 11:30 AM`;
+  const oqcFooterText = 'PAINTKING • Outgoing Quality Control Report (Doc: PK-QA-OQC-001 • Rev.00) • ISO 9001:2015 & IATF 16949 Certified';
   drawStandardPdfFooter(
     doc,
     1,
-    1,
-    'PAINTKING • Outgoing Quality Control Report (Doc: PK-QA-OQC-001 • Rev.00) • ISO 9001:2015 & IATF 16949 Certified',
+    hasMultiModelAnnexure ? 2 : 1,
+    oqcFooterText,
     footerTimestamp,
     false
+  );
+
+  drawCheckedModelsBreakdownPage(
+    doc,
+    release,
+    'ANNEXURE: SELECTED OQC & DISPATCH MODELS BREAKDOWN',
+    oqcFooterText,
+    footerTimestamp
   );
 
   doc.save(`PaintKing_OQC_Report_${release.reportNo || release.releaseId}.pdf`);
@@ -5397,15 +5538,24 @@ export const downloadStandardPdiPdf = (release: FinalQualityRelease): void => {
   doc.setTextColor(119, 123, 134);
   doc.text('Head QA & Compliance Final Sign-off', sig2X, currentY + 14.5);
 
-  // ISO Certified Footer with exact creation timestamp
+  const hasMultiModelPdiAnnexure = Boolean(release.oqcCheckedItems && release.oqcCheckedItems.length > 1);
   const footerTimestamp = release.generatedTimestamp || `${formatDateDDMMYYYY(release.date)}, 11:30 AM`;
+  const pdiFooterText = 'PAINTKING • Pre Dispatch Inspection Report (Doc: PK-QA-PDI-001 • Rev.00) • ISO 9001:2015 & IATF 16949 Certified';
   drawStandardPdfFooter(
     doc,
     1,
-    1,
-    'PAINTKING • Pre Dispatch Inspection Report (Doc: PK-QA-PDI-001 • Rev.00) • ISO 9001:2015 & IATF 16949 Certified',
+    hasMultiModelPdiAnnexure ? 2 : 1,
+    pdiFooterText,
     footerTimestamp,
     false
+  );
+
+  drawCheckedModelsBreakdownPage(
+    doc,
+    release,
+    'ANNEXURE: DISPATCHED MODELS BREAKDOWN (PDI LOT)',
+    pdiFooterText,
+    footerTimestamp
   );
 
   doc.save(`PaintKing_PDI_Report_${pdiRepNo}.pdf`);

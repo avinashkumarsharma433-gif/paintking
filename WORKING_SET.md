@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-26: Added Selective Multi-Model Dispatch Pick Checkboxes in OQC & Annexure Table in OQC/PDI PDFs (`QAView.tsx`, `pdfStandardHeader.ts`)
+  - Files touched:
+    - `src/portal/views/QAView.tsx`: Added per-model pick checkboxes (`selectedOqcRowKeys`) and `Select All / Unselect All` toggle in Gate 4 Tab 1 so QC Manager can select 1, 2, 3, or all models going in the dispatch lot (`Create OQC Report (X Selected)`).
+    - `src/portal/utils/pdfStandardHeader.ts`: Added shared `drawCheckedModelsBreakdownPage` annexure helper used by both `downloadStandardOqcPdf` and `downloadStandardPdiPdf` when multiple models are part of the dispatch lot.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-26: Enforced 11 Visual OQC Parameters & Optional Delta-E Hierarchy (Manual -> IPQC -> Omit) (`QAView.tsx`, `OQCModal.tsx`, `pdfStandardHeader.ts`, `PortalStoreContext.tsx`)
   - Files touched:
     - `src/portal/types/portalTypes.ts` & `src/portal/context/PortalStoreContext.tsx`: Added `visualChecklist` and strict `deltaSource: 'Manual' | 'IPQC' | 'None'` logic (`resolveDeltaFromIpqcOnly` — no hardcoded/fake fallback values).
