@@ -135,6 +135,7 @@ export const QAView: React.FC = () => {
     >
   >({});
   const [selectedOqcRowKeys, setSelectedOqcRowKeys] = useState<Record<string, boolean>>({});
+  const [expandedVisualJc, setExpandedVisualJc] = useState<Record<string, boolean>>({});
   const [oqcToastMsg, setOqcToastMsg] = useState<string | null>(null);
 
   const [pdiViewTab, setPdiViewTab] = useState<'PENDING' | 'COMPLETED'>('PENDING');
@@ -3693,15 +3694,16 @@ export const QAView: React.FC = () => {
                       };
 
                       return (
-                        <div key={group.jobCardNo} className="p-4 sm:p-5 rounded-[20px] bg-[#fafafb] border border-[#ececec] space-y-3">
-                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
+                        <div key={group.jobCardNo} className="p-5 rounded-[22px] bg-[#fafafb] border border-[#ececec] space-y-3.5">
+                          {/* Clean Single-Row Card Header */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-mono text-[11px] font-bold">
                                 {group.jobCardNo}
                               </span>
-                              <span className="font-serif text-base sm:text-lg text-[#17191c]">{group.customer}</span>
+                              <span className="font-serif text-lg text-[#17191c]">{group.customer}</span>
                               <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono text-[11px] font-bold">
-                                {group.rows.length} Model{group.rows.length > 1 ? 's' : ''} • {group.totalReady} Pcs From Production
+                                {group.rows.length} Model{group.rows.length > 1 ? 's' : ''} • {group.totalReady} Pcs Ready
                               </span>
                               {manualDeltaState.enabled && manualDeltaState.deltaE.trim() !== '' ? (
                                 <span className="px-2.5 py-0.5 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-mono text-[10.5px] font-bold">
@@ -3709,16 +3711,12 @@ export const QAView: React.FC = () => {
                                 </span>
                               ) : ipqcHasDelta ? (
                                 <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 font-mono text-[10.5px] font-bold">
-                                  Auto from IPQC (ΔE {Number(ipqcMatch?.deltaE || 0).toFixed(2)})
+                                  IPQC ΔE {Number(ipqcMatch?.deltaE || 0).toFixed(2)}
                                 </span>
-                              ) : (
-                                <span className="px-2.5 py-0.5 rounded-full bg-white text-[#777b86] border border-[#ececec] font-mono text-[10.5px]">
-                                  No Delta Data (Omitted from Report)
-                                </span>
-                              )}
+                              ) : null}
                             </div>
 
-                            <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 shrink-0 flex-wrap">
                               <button
                                 type="button"
                                 onClick={() =>
@@ -3727,36 +3725,20 @@ export const QAView: React.FC = () => {
                                     [group.jobCardNo]: { ...manualDeltaState, enabled: !manualDeltaState.enabled }
                                   }))
                                 }
-                                className={`px-3 py-1.5 rounded-full text-[11px] font-bold border transition cursor-pointer ${
+                                className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border transition cursor-pointer whitespace-nowrap ${
                                   manualDeltaState.enabled
                                     ? 'bg-[#faf3e0] text-[#8a6521] border-[#c09748]'
-                                    : 'bg-white text-[#777b86] border-[#dcdfe4]'
+                                    : 'bg-white text-[#777b86] hover:text-[#17191c] border-[#dcdfe4]'
                                 }`}
                               >
-                                {manualDeltaState.enabled ? '✓ Manual Delta-E Open' : '+ Add Delta-E (Optional)'}
+                                {manualDeltaState.enabled ? '✓ Delta-E Added' : '+ Delta-E (Optional)'}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => { setSelectedJcForOqc(group.jobCardRef); setShowOqcModal(true); }}
-                                className="px-3 py-1.5 rounded-full bg-white hover:bg-[#f2f2f3] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold cursor-pointer"
+                                className="px-3 py-1.5 rounded-full bg-white hover:bg-[#f2f2f3] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold cursor-pointer whitespace-nowrap"
                               >
                                 Full 11-Point Form
-                              </button>
-                              <button
-                                type="button"
-                                onClick={handleToggleAllGroup}
-                                className="px-3 py-1.5 rounded-full bg-white hover:bg-[#f2f2f3] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold cursor-pointer"
-                              >
-                                {selectedRows.length === group.rows.length ? 'Unselect All' : 'Select All'}
-                              </button>
-                              <button
-                                type="button"
-                                disabled={selectedRows.length === 0}
-                                onClick={handleSubmitGroupOqc}
-                                className="px-4 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] disabled:opacity-50 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Create OQC Report ({selectedRows.length} Selected)</span>
                               </button>
                             </div>
                           </div>
@@ -3795,45 +3777,87 @@ export const QAView: React.FC = () => {
                             </div>
                           )}
 
-                          {/* All 11 Official Visual Check Parameters (A to K) */}
-                          <div className="p-3 rounded-[14px] bg-white border border-[#ececec] space-y-2">
-                            <span className="text-[10.5px] font-mono font-bold uppercase text-[#8a6521] block">
-                              OQC 11 Visual Parameters (Click to Flag Issue — Default OK):
-                            </span>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              {OQC_VISUAL_PARAM_NAMES.map(paramName => {
-                                const isPass = defaultVisualMap[paramName] === 'Pass';
-                                return (
+                          {/* Compact 1-Line 11-Point Visual Inspection Bar (Expandable Grid on Click) */}
+                          {(() => {
+                            const failCount = OQC_VISUAL_PARAM_NAMES.filter(n => defaultVisualMap[n] === 'Fail').length;
+                            const isExpanded = Boolean(expandedVisualJc[group.jobCardNo]);
+                            return (
+                              <div className="px-3.5 py-2.5 rounded-[14px] bg-white border border-[#ececec] space-y-2.5">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
+                                      failCount === 0
+                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                        : 'bg-rose-50 text-rose-800 border-rose-200'
+                                    }`}>
+                                      {failCount === 0 ? '✓ 11/11 Visual Checks OK' : `${failCount} Visual Issue(s) Flagged`}
+                                    </span>
+                                    <span className="text-[11px] text-[#777b86] hidden sm:inline">
+                                      Damage, Scratch, Sink Mark, Short fill, Bubble, Pin Mark, Dust Spot, Over Paint, Paint Missing, Colour, Overall Finishing
+                                    </span>
+                                  </div>
                                   <button
-                                    key={paramName}
                                     type="button"
                                     onClick={() =>
-                                      setOqcVisualChecks(prev => ({
-                                        ...prev,
-                                        [group.jobCardNo]: {
-                                          ...defaultVisualMap,
-                                          [paramName]: isPass ? 'Fail' : 'Pass'
-                                        }
-                                      }))
+                                      setExpandedVisualJc(prev => ({ ...prev, [group.jobCardNo]: !isExpanded }))
                                     }
-                                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition cursor-pointer flex items-center gap-1 ${
-                                      isPass ? 'bg-[#fafafb] text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-300'
-                                    }`}
+                                    className="text-[11px] font-bold text-[#8a6521] hover:underline cursor-pointer shrink-0"
                                   >
-                                    {isPass ? <Check className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                                    <span>{paramName}</span>
+                                    {isExpanded ? 'Hide Checklist ▲' : 'Flag Visual Issue ▼'}
                                   </button>
-                                );
-                              })}
-                            </div>
-                          </div>
+                                </div>
+
+                                {isExpanded && (
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-1.5 pt-2 border-t border-[#f2f2f3]">
+                                    {OQC_VISUAL_PARAM_NAMES.map(paramName => {
+                                      const isPass = defaultVisualMap[paramName] === 'Pass';
+                                      return (
+                                        <button
+                                          key={paramName}
+                                          type="button"
+                                          onClick={() =>
+                                            setOqcVisualChecks(prev => ({
+                                              ...prev,
+                                              [group.jobCardNo]: {
+                                                ...defaultVisualMap,
+                                                [paramName]: isPass ? 'Fail' : 'Pass'
+                                              }
+                                            }))
+                                          }
+                                          className={`px-2.5 py-1.5 rounded-[10px] text-[11px] font-semibold border transition cursor-pointer flex items-center justify-between gap-1 ${
+                                            isPass ? 'bg-[#fafafb] text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-300'
+                                          }`}
+                                        >
+                                          <span className="truncate">{paramName}</span>
+                                          {isPass ? <Check className="w-3 h-3 shrink-0" /> : <AlertTriangle className="w-3 h-3 shrink-0" />}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {/* Model Rows Table (Desktop) */}
                           <div className="hidden md:block overflow-x-auto bg-white rounded-[16px] border border-[#ececec]">
                             <table className="w-full text-left text-xs">
                               <thead>
-                                <tr className="border-b border-[#ececec] text-[10px] font-semibold uppercase text-[#777b86]">
-                                  <th className="py-2.5 px-3 w-10 text-center">Pick</th>
+                                <tr className="border-b border-[#ececec] bg-[#fafafb] text-[10px] font-semibold uppercase text-[#777b86]">
+                                  <th className="py-2.5 px-3 w-10 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={handleToggleAllGroup}
+                                      className={`w-5 h-5 rounded-md border inline-flex items-center justify-center transition cursor-pointer ${
+                                        selectedRows.length === group.rows.length
+                                          ? 'bg-[#c09748] border-[#c09748] text-white'
+                                          : 'bg-white border-[#dcdfe4]'
+                                      }`}
+                                      title={selectedRows.length === group.rows.length ? 'Unselect All' : 'Select All'}
+                                    >
+                                      {selectedRows.length === group.rows.length && <Check className="w-3.5 h-3.5" />}
+                                    </button>
+                                  </th>
                                   <th className="py-2.5 px-3">Model &amp; Colour</th>
                                   <th className="py-2.5 px-3 text-center">From Prod</th>
                                   <th className="py-2.5 px-3 w-28">OQC Passed OK</th>
@@ -4004,6 +4028,35 @@ export const QAView: React.FC = () => {
                               );
                             })}
                           </div>
+
+                          {/* Clean Dedicated Bottom Summary & Primary Action Bar */}
+                          {(() => {
+                            const sumOk = selectedRows.reduce((s, r) => s + getOqcRowEdit(r).okQty, 0);
+                            const sumRw = selectedRows.reduce((s, r) => s + getOqcRowEdit(r).reworkQty, 0);
+                            const sumSc = selectedRows.reduce((s, r) => s + getOqcRowEdit(r).scrapQty, 0);
+                            return (
+                              <div className="p-3.5 rounded-[16px] bg-[#faf7ed] border border-[#f4e5be] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="flex items-center gap-2.5 flex-wrap text-xs">
+                                  <span className="font-semibold text-[#17191c]">
+                                    Selected: <strong className="font-mono text-[#8a6521]">{selectedRows.length} / {group.rows.length}</strong> Model{group.rows.length > 1 ? 's' : ''}
+                                  </span>
+                                  <span className="text-gray-300">•</span>
+                                  <span className="font-mono font-bold text-emerald-700">{sumOk} OK</span>
+                                  {sumRw > 0 && <span className="font-mono font-bold text-amber-800">• {sumRw} Rework</span>}
+                                  {sumSc > 0 && <span className="font-mono font-bold text-rose-700">• {sumSc} Reject</span>}
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={selectedRows.length === 0}
+                                  onClick={handleSubmitGroupOqc}
+                                  className="px-5 py-2.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] disabled:opacity-45 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 active:scale-95"
+                                >
+                                  <CheckCircle2 className="w-4 h-4" />
+                                  <span>Create OQC Report ({selectedRows.length} Selected)</span>
+                                </button>
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })}

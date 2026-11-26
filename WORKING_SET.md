@@ -1,5 +1,10 @@
 # WORKING SET
 
+- 2026-11-26: Cleaned Gate 4 OQC Card Layout (Header, Collapsible 11-Point Strip, Bottom Action Bar) (`QAView.tsx`)
+  - Files touched:
+    - `src/portal/views/QAView.tsx`: Decluttered Group Header (only 2 clean utility links on right), collapsed the 11-pill strip into a sleek 1-line `✓ 11/11 Visual Checks OK` bar (`Flag Visual Issue` expandable grid), put the master Select-All checkbox inside table `<th>`, and added a dedicated bottom summary & `Create OQC Report (X Selected)` CTA footer.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors).
+
 - 2026-11-26: Added Selective Multi-Model Dispatch Pick Checkboxes in OQC & Annexure Table in OQC/PDI PDFs (`QAView.tsx`, `pdfStandardHeader.ts`)
   - Files touched:
     - `src/portal/views/QAView.tsx`: Added per-model pick checkboxes (`selectedOqcRowKeys`) and `Select All / Unselect All` toggle in Gate 4 Tab 1 so QC Manager can select 1, 2, 3, or all models going in the dispatch lot (`Create OQC Report (X Selected)`).
