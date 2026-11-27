@@ -1,5 +1,11 @@
 # WORKING SET
 
+- 2026-11-27: Segregated FG Custody & Dispatch Permission to Stores Role (`PackingView.tsx`, `StoresView.tsx`)
+  - Files touched:
+    - `src/portal/views/PackingView.tsx`: Guarded `PDI` action (`canPerformPdi`: QA/Head/Admin only) and `Dispatch` action (`canDispatchFg`: `STORES`, `PLANT_HEAD`, `DIRECTOR`, `SUPER_ADMIN` only); Packing/Production see `With FG Store` pill after label printing.
+    - `src/portal/views/StoresView.tsx`: Added `FG Stock & Dispatch` tab (`activeTab === 'FG_DISPATCH'`) with 4 KPI cards, PDI/Invoice status badges, OQC/PDI PDF downloads, mobile cards, and Stores-controlled `Dispatch FG` action (`dispatchFgStockFromPacking`).
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`).
+
 - 2026-11-26: Cleaned Gate 4 OQC Card Layout (Header, Collapsible 11-Point Strip, Bottom Action Bar) (`QAView.tsx`)
   - Files touched:
     - `src/portal/views/QAView.tsx`: Decluttered Group Header (only 2 clean utility links on right), collapsed the 11-pill strip into a sleek 1-line `✓ 11/11 Visual Checks OK` bar (`Flag Visual Issue` expandable grid), put the master Select-All checkbox inside table `<th>`, and added a dedicated bottom summary & `Create OQC Report (X Selected)` CTA footer.

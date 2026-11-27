@@ -59,6 +59,23 @@ export const PackingView: React.FC = () => {
 
   const [activeSubTab, setActiveSubTab] = useState<'oqc_queue' | 'fg_labels'>('oqc_queue');
   const [partyFilter, setPartyFilter] = useState<string>('ALL');
+
+  // Strict Custody & Dispatch Role Segregation:
+  // Packing/Production can ONLY pack & print PK-BOX labels and handover to FG Store.
+  // PDI belongs to QA roles; Final FG Dispatch belongs exclusively to Stores / Plant Head / Admin.
+  const canPerformPdi =
+    currentUser.role === 'SUPER_ADMIN' ||
+    currentUser.role === 'DIRECTOR' ||
+    currentUser.role === 'PLANT_HEAD' ||
+    currentUser.role === 'MANAGER_QA' ||
+    currentUser.role === 'QA_QC' ||
+    currentUser.role === 'OQC_PDI_INSPECTOR';
+
+  const canDispatchFg =
+    currentUser.role === 'SUPER_ADMIN' ||
+    currentUser.role === 'DIRECTOR' ||
+    currentUser.role === 'PLANT_HEAD' ||
+    currentUser.role === 'STORES';
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [packQtyEdits, setPackQtyEdits] = useState<Record<string, number>>({});
   const [pcsPerBoxEdits, setPcsPerBoxEdits] = useState<Record<string, number>>({});
@@ -493,7 +510,7 @@ export const PackingView: React.FC = () => {
               OQC Cleared Packing Queue &amp; Box Labels
             </h1>
             <p className="text-xs text-[#777b86]">
-              Yahan sirf QC Manager se OQC-Passed clean pieces aate hain — Packing team bina check kiye sidha Pack karke Box Labels print karegi.
+              Yahan sirf QC Manager se OQC-Passed clean pieces aate hain — Packing team bina check kiye sidha Pack karke Box Labels print karegi aur boxes FG Store (Stores Incharge) ko handover karegi.
             </p>
           </div>
 
@@ -971,7 +988,7 @@ export const PackingView: React.FC = () => {
                                     <span>OQC</span>
                                   </button>
                                 )}
-                                {linkedRel && !pdiCleared && fgBal > 0 && (
+                                {canPerformPdi && linkedRel && !pdiCleared && fgBal > 0 && (
                                   <button
                                     type="button"
                                     onClick={() => setPdiModalRelease(linkedRel)}
@@ -991,7 +1008,7 @@ export const PackingView: React.FC = () => {
                                     <span>PDI</span>
                                   </button>
                                 )}
-                                {fgBal > 0 && (
+                                {canDispatchFg && fgBal > 0 && (
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -1003,6 +1020,11 @@ export const PackingView: React.FC = () => {
                                     <Truck size={12} className="text-[#c09748]" />
                                     <span>Dispatch</span>
                                   </button>
+                                )}
+                                {!canDispatchFg && fgBal > 0 && (
+                                  <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-semibold">
+                                    With FG Store
+                                  </span>
                                 )}
                               </div>
                             </td>
@@ -1041,14 +1063,22 @@ export const PackingView: React.FC = () => {
                           >
                             Reprint Labels
                           </button>
-                          {fgBal > 0 && (
+                          {canDispatchFg && fgBal > 0 && (
                             <button
                               type="button"
-                              onClick={() => dispatchFgStockFromPacking(slip.slipNo, fgBal)}
-                              className="px-2.5 py-1 rounded-full bg-[#f2f2f3] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold"
+                              onClick={() => {
+                                dispatchFgStockFromPacking(slip.slipNo, fgBal);
+                                showTimedToast(`✓ ${fgBal} Pcs FG Dispatched (${slip.model}).`);
+                              }}
+                              className="px-2.5 py-1 rounded-full bg-[#f2f2f3] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold cursor-pointer"
                             >
                               Dispatch
                             </button>
+                          )}
+                          {!canDispatchFg && fgBal > 0 && (
+                            <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-semibold">
+                              With FG Store
+                            </span>
                           )}
                         </div>
                       </div>

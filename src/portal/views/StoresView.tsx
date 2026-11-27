@@ -36,10 +36,11 @@ import {
   User,
   MapPin,
   RotateCcw,
-  Trash2
+  Trash2,
+  Truck
 } from 'lucide-react';
 import { CreateGRNModal } from '../components/CreateGRNModal';
-import { downloadStandardIQCPdf, downloadStandardGRNPdf, formatDateDDMMYYYY, downloadStandardMINPdf } from '../utils/pdfStandardHeader';
+import { downloadStandardIQCPdf, downloadStandardGRNPdf, formatDateDDMMYYYY, downloadStandardMINPdf, downloadStandardOqcPdf, downloadStandardPdiPdf } from '../utils/pdfStandardHeader';
 import { OfficialGRNDocument } from '../components/OfficialGRNDocument';
 import { BatchLedger } from '../components/BatchLedger';
 import { IssueWizardModal } from '../components/IssueWizardModal';
@@ -69,7 +70,11 @@ export const StoresView: React.FC = () => {
     executePlantClosingReconciliation,
     currentUser,
     activeSubTab,
-    setActiveSubTab
+    setActiveSubTab,
+    packingSlips,
+    qualityReleases,
+    billingInvoices,
+    dispatchFgStockFromPacking
   } = usePortalStore();
   const [showGRNModal, setShowGRNModal] = useState<boolean>(false);
   const [selectedPendingJobForGrn, setSelectedPendingJobForGrn] = useState<any | null>(null);
@@ -84,11 +89,23 @@ export const StoresView: React.FC = () => {
   // 5. PENDING: IQC Passed Inwards awaiting Store acceptance
   // 6. GRN_REGISTER: Official GRN Documents (DOC NO: 00) & PDF Prints
   // 7. FIFO_COMPLIANCE: Plant FIFO/FEFO Audit, Override Logs & Deviation Tracking
-  const [activeTab, setActiveTab] = useState<'TRACKER' | 'REQUISITIONS' | 'ISSUED_SLIPS' | 'RETURNS' | 'PENDING' | 'GRN_REGISTER' | 'FIFO_COMPLIANCE'>('TRACKER');
+  // 8. FG_DISPATCH: Packed FG Box Custody & Final Dispatch (Stores Incharge Control)
+  const [activeTab, setActiveTab] = useState<'TRACKER' | 'REQUISITIONS' | 'ISSUED_SLIPS' | 'RETURNS' | 'FG_DISPATCH' | 'PENDING' | 'GRN_REGISTER' | 'FIFO_COMPLIANCE'>('TRACKER');
 
   // Role Permissions
   const isStoreIncharge = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'STORES' || currentUser.role === 'PLANT_HEAD' || currentUser.role === 'DIRECTOR';
   const canViewCompliance = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'PLANT_HEAD' || currentUser.role === 'DIRECTOR' || currentUser.role === 'STORES';
+
+  const plantFgSlips = useMemo(() => {
+    return packingSlips.filter(s => matchesPlant(s.plant, activePlant));
+  }, [packingSlips, activePlant]);
+
+  const fgReadyCount = useMemo(() => {
+    return plantFgSlips.filter(s => {
+      const okQty = s.packedOkQty ?? s.packedQty ?? 0;
+      return Math.max(0, okQty - (s.dispatchedQty || 0)) > 0;
+    }).length;
+  }, [plantFgSlips]);
 
   // New Modals State
   const [showIssueWizard, setShowIssueWizard] = useState<boolean>(false);
@@ -99,7 +116,7 @@ export const StoresView: React.FC = () => {
 
   // Synchronize when sidebar sub-item is clicked
   useEffect(() => {
-    if (activeSubTab === 'TRACKER' || activeSubTab === 'REQUISITIONS' || activeSubTab === 'ISSUED_SLIPS' || activeSubTab === 'PENDING' || activeSubTab === 'GRN_REGISTER' || activeSubTab === 'RETURNS') {
+    if (activeSubTab === 'TRACKER' || activeSubTab === 'REQUISITIONS' || activeSubTab === 'ISSUED_SLIPS' || activeSubTab === 'PENDING' || activeSubTab === 'GRN_REGISTER' || activeSubTab === 'RETURNS' || activeSubTab === 'FG_DISPATCH') {
       setActiveTab(activeSubTab);
     }
   }, [activeSubTab]);
@@ -903,6 +920,25 @@ export const StoresView: React.FC = () => {
                 : 'bg-[#f2f2f3] text-[#777b86]'
             }`}>
               {plantBalanceReturnSlips.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('FG_DISPATCH')}
+            className={`px-3.5 sm:px-4 py-2 rounded-full text-[11px] sm:text-xs font-semibold cursor-pointer transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95 ${
+              activeTab === 'FG_DISPATCH'
+                ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold shadow-2xs'
+                : 'bg-[#fafafb] text-[#777b86] hover:text-[#17191c] border border-[#ececec]'
+            }`}
+          >
+            <Truck className={`w-3.5 h-3.5 ${activeTab === 'FG_DISPATCH' ? 'text-[#8a6521]' : 'text-[#777b86]'}`} />
+            <span>FG Stock &amp; Dispatch</span>
+            <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
+              fgReadyCount > 0
+                ? (activeTab === 'FG_DISPATCH' ? 'bg-[#f4e5be] text-[#8a6521]' : 'bg-emerald-100 text-emerald-900 border border-emerald-300')
+                : 'bg-[#f2f2f3] text-[#777b86]'
+            }`}>
+              {fgReadyCount}
             </span>
           </button>
 
@@ -2458,6 +2494,260 @@ export const StoresView: React.FC = () => {
       {activeTab === 'FIFO_COMPLIANCE' && (
         <FifoCompliancePanel />
       )}
+
+      {/* ====================================================================== */}
+      {/* TAB 9: FINISHED GOODS (FG) STORE CUSTODY & DISPATCH RELEASE            */}
+      {/* ====================================================================== */}
+      {activeTab === 'FG_DISPATCH' && (() => {
+        const q = searchQuery.trim().toLowerCase();
+        const filteredFgSlips = plantFgSlips.filter(s => {
+          if (!q) return true;
+          return (
+            s.customer.toLowerCase().includes(q) ||
+            (s.jobCardNo || s.woNo).toLowerCase().includes(q) ||
+            s.model.toLowerCase().includes(q) ||
+            s.color.toLowerCase().includes(q) ||
+            s.slipNo.toLowerCase().includes(q)
+          );
+        });
+        const totalFgPacked = plantFgSlips.reduce((acc, s) => acc + (s.packedOkQty ?? s.packedQty ?? 0), 0);
+        const totalFgDispatched = plantFgSlips.reduce((acc, s) => acc + (s.dispatchedQty || 0), 0);
+        const totalFgBalance = Math.max(0, totalFgPacked - totalFgDispatched);
+        const totalFgBoxes = plantFgSlips.reduce((acc, s) => acc + (s.totalBoxes || 0), 0);
+
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-white p-4 rounded-[20px] border border-[#ececec] shadow-2xs">
+                <span className="text-[10px] font-mono uppercase text-[#777b86] font-bold block">Total Packed From Packing</span>
+                <span className="font-serif text-2xl text-[#17191c] block mt-1">
+                  {totalFgPacked.toLocaleString('en-IN')} <span className="text-xs text-[#777b86]">Pcs</span>
+                </span>
+              </div>
+              <div className="bg-emerald-50/70 p-4 rounded-[20px] border border-emerald-200 shadow-2xs">
+                <span className="text-[10px] font-mono uppercase text-emerald-800 font-bold block">FG Balance In Store</span>
+                <span className="font-serif text-2xl text-emerald-700 block mt-1">
+                  {totalFgBalance.toLocaleString('en-IN')} <span className="text-xs text-emerald-800">Pcs</span>
+                </span>
+              </div>
+              <div className="bg-blue-50/70 p-4 rounded-[20px] border border-blue-200 shadow-2xs">
+                <span className="text-[10px] font-mono uppercase text-blue-800 font-bold block">Dispatched By Store</span>
+                <span className="font-serif text-2xl text-blue-800 block mt-1">
+                  {totalFgDispatched.toLocaleString('en-IN')} <span className="text-xs text-blue-700">Pcs</span>
+                </span>
+              </div>
+              <div className="bg-[#faf7ed] p-4 rounded-[20px] border border-[#f4e5be] shadow-2xs">
+                <span className="text-[10px] font-mono uppercase text-[#8a6521] font-bold block">FG Boxes Handed Over</span>
+                <span className="font-serif text-2xl text-[#8a6521] block mt-1">
+                  {totalFgBoxes.toLocaleString('en-IN')} <span className="text-xs text-[#8a6521]">Boxes</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-[24px] p-5 sm:p-6 border border-[#ececec] shadow-2xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#ececec]">
+                <div>
+                  <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-wider font-bold">
+                    FG STORE CUSTODY &amp; DISPATCH REGISTER
+                  </span>
+                  <p className="text-xs text-[#777b86] mt-1">
+                    Packing team boxes pack karke FG Store me handover karti hai — QC PDI &amp; Billing Invoice verify karke sirf Stores Incharge dispatch release karega.
+                  </p>
+                </div>
+              </div>
+
+              {filteredFgSlips.length === 0 ? (
+                <div className="p-10 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[18px] border border-dashed border-[#ececec] space-y-2">
+                  <Boxes className="w-8 h-8 text-[#979799] mx-auto" />
+                  <p className="font-serif text-base text-[#17191c]">FG Store me abhi koi packed boxes pending nahi hain</p>
+                  <p>Packing team jab OQC-passed pieces pack karke box labels print karegi, stock automatic yahan FG custody me aa jayega.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-[#ececec] text-[10px] font-semibold uppercase text-[#777b86]">
+                          <th className="py-3 px-3">Slip &amp; Job Card</th>
+                          <th className="py-3 px-3">Customer &amp; Model</th>
+                          <th className="py-3 px-3">FG Stock &amp; Boxes</th>
+                          <th className="py-3 px-3">PDI &amp; Invoice Status</th>
+                          <th className="py-3 px-3 text-right">Store Dispatch Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#ececec]/70">
+                        {filteredFgSlips.map(slip => {
+                          const okQty = slip.packedOkQty ?? slip.packedQty ?? 0;
+                          const dispQty = slip.dispatchedQty || 0;
+                          const fgBal = Math.max(0, okQty - dispQty);
+                          const linkedRel = qualityReleases.find(
+                            r =>
+                              (slip.oqcReleaseId && r.releaseId === slip.oqcReleaseId) ||
+                              (slip.jobCardNo && r.jobCardNo === slip.jobCardNo) ||
+                              r.woNo === slip.woNo
+                          );
+                          const pdiCleared = linkedRel?.pdiStatus === 'Cleared for Invoicing';
+                          const linkedInv = billingInvoices.find(
+                            inv => (slip.woNo && inv.woNo === slip.woNo) || (slip.jobCardNo && inv.woNo === slip.jobCardNo)
+                          );
+
+                          return (
+                            <tr key={slip.slipNo} className="hover:bg-[#fafafb]">
+                              <td className="py-3 px-3">
+                                <div className="font-mono font-bold text-[#8a6521]">{slip.slipNo}</div>
+                                <div className="text-[11px] text-[#777b86] font-mono">
+                                  {slip.date} • {slip.jobCardNo || slip.woNo}
+                                </div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="font-semibold text-[#17191c]">{slip.customer}</div>
+                                <div className="text-[11px] text-[#777b86]">
+                                  {slip.model || slip.partCode} ({slip.color})
+                                </div>
+                              </td>
+                              <td className="py-3 px-3 font-mono">
+                                <div className={`font-bold ${fgBal > 0 ? 'text-emerald-700' : 'text-[#777b86]'}`}>
+                                  {fgBal.toLocaleString('en-IN')} / {okQty.toLocaleString('en-IN')} Pcs FG
+                                </div>
+                                <div className="text-[11px] text-[#777b86]">
+                                  {slip.totalBoxes ? `${slip.totalBoxes} Boxes • ` : ''}
+                                  {slip.boxNo}
+                                </div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span
+                                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                      pdiCleared
+                                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                        : 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be]'
+                                    }`}
+                                  >
+                                    {pdiCleared ? 'PDI Cleared' : 'Awaiting PDI'}
+                                  </span>
+                                  {linkedInv ? (
+                                    <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-mono font-bold">
+                                      {linkedInv.invoiceNo}
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-full bg-[#f2f2f3] text-[#777b86] border border-[#dcdfe4] text-[10px] font-semibold">
+                                      Invoice Pending
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                  {linkedRel && (
+                                    <button
+                                      type="button"
+                                      onClick={() => downloadStandardOqcPdf(linkedRel)}
+                                      className="px-2.5 py-1 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold transition cursor-pointer inline-flex items-center gap-1"
+                                    >
+                                      <Download size={12} className="text-[#c09748]" />
+                                      <span>OQC</span>
+                                    </button>
+                                  )}
+                                  {linkedRel && pdiCleared && (
+                                    <button
+                                      type="button"
+                                      onClick={() => downloadStandardPdiPdf(linkedRel)}
+                                      className="px-2.5 py-1 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold transition cursor-pointer inline-flex items-center gap-1"
+                                    >
+                                      <Printer size={12} className="text-[#c09748]" />
+                                      <span>PDI</span>
+                                    </button>
+                                  )}
+                                  {fgBal > 0 ? (
+                                    isStoreIncharge ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          dispatchFgStockFromPacking(slip.slipNo, fgBal);
+                                          setEmailSentToast(`✓ ${fgBal} Pcs FG Dispatched by Store (${slip.model} • ${slip.slipNo}).`);
+                                          setTimeout(() => setEmailSentToast(null), 5000);
+                                        }}
+                                        className="px-3 py-1 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
+                                      >
+                                        <Truck size={12} />
+                                        <span>Dispatch FG</span>
+                                      </button>
+                                    ) : (
+                                      <span className="px-2.5 py-1 rounded-full bg-[#f2f2f3] text-[#777b86] border border-[#dcdfe4] text-[10px] font-semibold">
+                                        Store Custody Only
+                                      </span>
+                                    )
+                                  ) : (
+                                    <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold">
+                                      Dispatched ({dispQty} Pcs)
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Cards (<640px) */}
+                  <div className="sm:hidden space-y-3">
+                    {filteredFgSlips.map(slip => {
+                      const okQty = slip.packedOkQty ?? slip.packedQty ?? 0;
+                      const dispQty = slip.dispatchedQty || 0;
+                      const fgBal = Math.max(0, okQty - dispQty);
+                      const linkedRel = qualityReleases.find(
+                        r =>
+                          (slip.oqcReleaseId && r.releaseId === slip.oqcReleaseId) ||
+                          (slip.jobCardNo && r.jobCardNo === slip.jobCardNo) ||
+                          r.woNo === slip.woNo
+                      );
+                      const pdiCleared = linkedRel?.pdiStatus === 'Cleared for Invoicing';
+
+                      return (
+                        <div key={slip.slipNo} className="bg-[#fafafb] rounded-[18px] border border-[#ececec] p-3.5 space-y-2 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono font-bold text-[#8a6521]">{slip.slipNo}</span>
+                            <span className="font-mono font-bold text-emerald-700">{fgBal} / {okQty} Pcs FG</span>
+                          </div>
+                          <div>
+                            <div className="font-semibold text-[#17191c]">{slip.customer}</div>
+                            <div className="text-[11px] text-[#777b86]">{slip.model || slip.partCode} ({slip.color}) • {slip.boxNo}</div>
+                          </div>
+                          <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${pdiCleared ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be]'}`}>
+                              {pdiCleared ? 'PDI Cleared' : 'Awaiting PDI'}
+                            </span>
+                            {fgBal > 0 && isStoreIncharge ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  dispatchFgStockFromPacking(slip.slipNo, fgBal);
+                                  setEmailSentToast(`✓ ${fgBal} Pcs FG Dispatched by Store (${slip.model}).`);
+                                  setTimeout(() => setEmailSentToast(null), 5000);
+                                }}
+                                className="px-3 py-1 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
+                              >
+                                <Truck size={12} />
+                                <span>Dispatch FG</span>
+                              </button>
+                            ) : fgBal === 0 ? (
+                              <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold">
+                                Dispatched
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modals */}
       <CreateGRNModal
