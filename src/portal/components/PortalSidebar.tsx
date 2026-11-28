@@ -157,11 +157,11 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
     {
       id: 'billing',
       label: 'Billing & PO Rec',
-      subtitle: 'Commercial Invoicing & PO Balances',
+      subtitle: 'In Development — Tally Used Currently',
       docCode: 'PK-ACC-INV-001',
       icon: ReceiptText,
-      badge: 'Billed on Passed',
-      badgeColor: 'bg-emerald-50 border border-emerald-200 text-emerald-800',
+      badge: 'In Dev',
+      badgeColor: 'bg-[#f2f2f3] border border-[#dcdfe4] text-[#777b86]',
       roles: ['DIRECTOR', 'PLANT_HEAD', 'BILLING'],
       subItems: [
         { label: 'Tax Invoices (Section 31)', subTab: 'TAX_INVOICE' },
@@ -186,7 +186,8 @@ export const PortalSidebar: React.FC<PortalSidebarProps> = ({
         { label: '2. Production Demands (MRN)', subTab: 'REQUISITIONS' },
         { label: '3. Issued Slips (MIN History)', subTab: 'ISSUED_SLIPS' },
         { label: '4. Pending Inwards (Awaiting GRN)', subTab: 'PENDING' },
-        { label: '5. Floor Material Returns (RTN)', subTab: 'RETURNS' }
+        { label: '5. Floor Material Returns (RTN)', subTab: 'RETURNS' },
+        { label: '6. FG Stock & Billing Slips', subTab: 'FG_DISPATCH' }
       ]
     },
     {

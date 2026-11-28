@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { JobCard, BillingInvoice, MaterialInwardRecord, MaterialOutwardRecord, IQCInspectionRecord, GoodsReceiptNote, FPARecord, FPAVisualCheckRow, IPQCRecord, PreProductionInspectionRecord, MaterialRequisitionNote, FinalQualityRelease, ProductionOfferingReport } from '../types/portalTypes';
+import { JobCard, BillingInvoice, MaterialInwardRecord, MaterialOutwardRecord, IQCInspectionRecord, GoodsReceiptNote, FPARecord, FPAVisualCheckRow, IPQCRecord, PreProductionInspectionRecord, MaterialRequisitionNote, FinalQualityRelease, ProductionOfferingReport, PackingSlipRecord } from '../types/portalTypes';
 import { PAINTKING_LOGO_BASE64 } from './paintkingLogoBase64';
 
 export const TABLE_BORDER_COLOR = [180, 185, 195] as const;
@@ -5990,5 +5990,252 @@ export const downloadStandardProductionOfferingPdf = (
   );
 
   doc.save(`PaintKing_Production_Offering_${refNo}.pdf`);
+};
+
+export interface BillingInfoSlipParams {
+  slips: PackingSlipRecord[];
+  plant: string;
+  preparedBy?: string;
+  pdiRefs?: string[];
+  vehicleNo?: string;
+  remarks?: string;
+}
+
+/**
+ * Generates a compact Tally-ready Billing Information Slip PDF for Stores Dispatch -> Accounts.
+ * Matches PaintKing's Tally Tax Invoice inputs: Party, Order/JC Ref, No. & Kind of Pkgs, SAC 9989,
+ * model/design-wise Qty breakdown in NO, and Total Dispatched Qty.
+ */
+export const downloadStandardBillingInfoSlipPdf = (params: BillingInfoSlipParams): void => {
+  const { slips, plant, preparedBy, pdiRefs, vehicleNo, remarks } = params;
+  if (!slips || slips.length === 0) return;
+
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const primary = slips[0];
+  const uniqueParties = Array.from(new Set(slips.map(s => s.customer).filter(Boolean)));
+  const partyDisplay = uniqueParties.join(', ') || '-';
+  const uniqueOrders = Array.from(
+    new Set(slips.map(s => s.woNo || s.jobCardNo).filter(Boolean))
+  );
+  const orderDisplay = uniqueOrders.join(', ') || '-';
+  const uniqueSlips = Array.from(new Set(slips.map(s => s.slipNo).filter(Boolean)));
+  const totalBoxes = slips.reduce((sum, s) => sum + (s.totalBoxes || 1), 0);
+
+  const resolveSlipBillingQty = (s: PackingSlipRecord) => {
+    const disp = s.dispatchedQty || 0;
+    return disp > 0 ? disp : (s.packedOkQty ?? s.packedQty ?? 0);
+  };
+  const totalDispatchedQty = slips.reduce((sum, s) => sum + resolveSlipBillingQty(s), 0);
+
+  const now = new Date();
+  const dateDisplay = formatDateDDMMYYYY(now.toISOString().split('T')[0]);
+  const timeStr = now.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+  const docRefNo = `PK-BIS-${now.getFullYear()}-${String(Math.floor(1000 + Math.random() * 9000))}`;
+
+  let startY = drawStandardPdfHeader(doc);
+
+  // Document Title Bar
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(23, 25, 28);
+  doc.text('BILLING INFORMATION SLIP (FOR TALLY INVOICE)', 14, startY + 5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(192, 151, 72);
+  doc.text(`STORES ADVICE • ${docRefNo}`, 196, startY + 5, { align: 'right' });
+
+  // Section 1: Tally Entry Header Metadata Grid (3 Rows)
+  const metaY = startY + 8;
+  doc.setDrawColor(220, 222, 228);
+  doc.setFillColor(250, 250, 251);
+  doc.roundedRect(14, metaY, 182, 42, 3, 3, 'FD');
+
+  const drawField = (label: string, val: string, x: number, yLabel: number, maxW = 54) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(23, 25, 28);
+    doc.text(label, x, yLabel);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.8);
+    doc.setTextColor(80, 85, 95);
+    const wrapped: string[] = doc.splitTextToSize((val || '-').trim(), maxW);
+    doc.text(wrapped.slice(0, 2), x, yLabel + 4.0);
+  };
+
+  drawField('BUYER / PARTY (BILL TO):', partyDisplay, 19, metaY + 6.5, 56);
+  drawField('ORDER / WORK ORDER / JC NO:', orderDisplay, 79, metaY + 6.5, 55);
+  drawField('DISPATCH DATE & TIME:', `${dateDisplay} • ${timeStr}`, 139, metaY + 6.5, 52);
+
+  drawField('PLANT / DISPATCH UNIT:', `${plant || primary.plant || 'Haridwar'} Unit`, 19, metaY + 19.5, 56);
+  drawField('NO. & KIND OF PKGS:', `${totalBoxes} Box(es) (Packed Cartons)`, 79, metaY + 19.5, 55);
+  drawField('SUGGESTED HSN / SAC:', '9989 (Spray Painting Job-Work)', 139, metaY + 19.5, 52);
+
+  drawField('PACKING SLIP REF(S):', uniqueSlips.join(', '), 19, metaY + 32.5, 56);
+  drawField('PDI / VEHICLE REF:', `${pdiRefs && pdiRefs.length > 0 ? pdiRefs.join(', ') : 'PDI Cleared'}${vehicleNo ? ` • ${vehicleNo}` : ''}`, 79, metaY + 32.5, 55);
+  drawField('PREPARED BY (STORES):', preparedBy || 'Stores Incharge', 139, metaY + 32.5, 52);
+
+  // Section 2: Dispatched Model / Colour-wise Table
+  let currentY = metaY + 48;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text('DISPATCHED MODEL & QUANTITY BREAKDOWN (TALLY BILLING SUMMARY)', 14, currentY);
+
+  currentY += 3.5;
+  const colX = [14, 26, 118, 166, 196];
+  const drawTableHeader = (yPos: number) => {
+    doc.setFillColor(242, 242, 243);
+    doc.rect(14, yPos, 182, 7.5, 'F');
+    doc.setDrawColor(...TABLE_BORDER_COLOR);
+    doc.setLineWidth(TABLE_LINE_WIDTH);
+    doc.line(14, yPos, 196, yPos);
+    doc.line(14, yPos + 7.5, 196, yPos + 7.5);
+    colX.forEach(x => doc.line(x, yPos, x, yPos + 7.5));
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.2);
+    doc.setTextColor(23, 25, 28);
+    doc.text('SR', 20, yPos + 5, { align: 'center' });
+    doc.text('MODEL / DESIGN DESCRIPTION & COLOUR', 29, yPos + 5);
+    doc.text('NO. OF PKGS / BOX SERIALS', 142, yPos + 5, { align: 'center' });
+    doc.text('QTY (NO)', 181, yPos + 5, { align: 'center' });
+  };
+
+  drawTableHeader(currentY);
+  currentY += 7.5;
+
+  slips.forEach((slip, idx) => {
+    const qty = resolveSlipBillingQty(slip);
+    const modelLabel = `${slip.partDescription || slip.model || slip.partCode}${slip.color ? ` (${slip.color})` : ''}`;
+    const boxLabel = `${slip.totalBoxes || 1} Box • ${slip.boxNo || '-'}`;
+    const modelLines: string[] = doc.splitTextToSize(modelLabel, 88);
+    const boxLines: string[] = doc.splitTextToSize(boxLabel, 44);
+    const rowH = Math.max(8, Math.max(modelLines.length, boxLines.length) * 3.8 + 4);
+
+    if (currentY + rowH > 250) {
+      drawStandardPdfFooter(doc, 1, 2, 'PAINTKING • Stores Dispatch Billing Information Slip for Tally Invoicing');
+      doc.addPage();
+      startY = drawStandardPdfHeader(doc);
+      currentY = startY + 6;
+      drawTableHeader(currentY);
+      currentY += 7.5;
+    }
+
+    if (idx % 2 === 0) {
+      doc.setFillColor(255, 255, 255);
+    } else {
+      doc.setFillColor(250, 250, 251);
+    }
+    doc.rect(14, currentY, 182, rowH, 'F');
+    doc.setDrawColor(...TABLE_BORDER_COLOR);
+    doc.setLineWidth(TABLE_LINE_WIDTH);
+    doc.line(14, currentY + rowH, 196, currentY + rowH);
+    colX.forEach(x => doc.line(x, currentY, x, currentY + rowH));
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(23, 25, 28);
+    doc.text(String(idx + 1), 20, currentY + 5, { align: 'center' });
+    doc.text(modelLines, 29, currentY + 4.8);
+    doc.setTextColor(90, 95, 105);
+    doc.text(boxLines, 142, currentY + 4.8, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(23, 25, 28);
+    doc.text(`${qty.toLocaleString('en-IN')} NO`, 181, currentY + 5, { align: 'center' });
+
+    currentY += rowH;
+  });
+
+  // Total Row (Light Grey standard per AGENTS.md)
+  doc.setFillColor(242, 242, 243);
+  doc.rect(14, currentY, 182, 8, 'F');
+  doc.setDrawColor(...TABLE_BORDER_COLOR);
+  doc.setLineWidth(TABLE_LINE_WIDTH);
+  doc.line(14, currentY + 8, 196, currentY + 8);
+  colX.forEach(x => doc.line(x, currentY, x, currentY + 8));
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(23, 25, 28);
+  doc.text('TOTAL FOR TALLY INVOICE:', 29, currentY + 5.3);
+  doc.text(`${totalBoxes} Box(es)`, 142, currentY + 5.3, { align: 'center' });
+  doc.text(`${totalDispatchedQty.toLocaleString('en-IN')} NO`, 181, currentY + 5.3, { align: 'center' });
+
+  currentY += 13;
+
+  // Section 3: Tally Description Summary & Sign-Off
+  const narrationParts = slips.map(
+    s => `${s.partDescription || s.model || s.partCode}${s.color ? ` (${s.color})` : ''} - ${resolveSlipBillingQty(s)} Nos`
+  );
+  const narrationText =
+    `Terms: Job work charges for Spray Painting on Plastic parts supplied by customer. | Order/JC: ${orderDisplay} | ` +
+    narrationParts.join(', ') +
+    (remarks ? ` | Note: ${remarks}` : '');
+  const narrationLines: string[] = doc.splitTextToSize(narrationText, 172);
+  const noteBoxH = Math.max(18, narrationLines.length * 3.8 + 10);
+
+  doc.setDrawColor(220, 222, 228);
+  doc.setFillColor(250, 247, 237);
+  doc.roundedRect(14, currentY, 182, noteBoxH, 2.5, 2.5, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.0);
+  doc.setTextColor(138, 101, 33);
+  doc.text('TALLY DESCRIPTION / NARRATION FOR ACCOUNTS TEAM (SAC 9989):', 19, currentY + 5.2);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.4);
+  doc.setTextColor(23, 25, 28);
+  doc.text(narrationLines, 19, currentY + 9.8);
+
+  currentY += noteBoxH + 5;
+
+  // Sign-off Row
+  doc.setDrawColor(220, 222, 228);
+  doc.setFillColor(250, 250, 251);
+  doc.roundedRect(14, currentY, 182, 18, 2.5, 2.5, 'FD');
+  doc.line(105, currentY, 105, currentY + 18);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(119, 123, 134);
+  doc.text('STORES DISPATCH HANDOVER:', 19, currentY + 5.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.8);
+  doc.setTextColor(23, 25, 28);
+  doc.text(`${preparedBy || 'Stores Incharge'} (${dateDisplay})`, 19, currentY + 12.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.8);
+  doc.setTextColor(119, 123, 134);
+  doc.text('ACCOUNTS TALLY ENTRY REFERENCE:', 110, currentY + 5.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(119, 123, 134);
+  doc.text('Tally Invoice No: ___________________  Date: ___________', 110, currentY + 12.5);
+
+  const pageCount = doc.getNumberOfPages();
+  for (let p = 1; p <= pageCount; p++) {
+    doc.setPage(p);
+    drawStandardPdfFooter(
+      doc,
+      p,
+      pageCount,
+      'PAINTKING • Stores Dispatch Billing Information Slip (Tally e-Invoice Reference)'
+    );
+  }
+
+  const safeCustomer = (uniqueParties[0] || 'Party').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 24);
+  doc.save(`PaintKing_Billing_Info_Slip_${safeCustomer}_${docRefNo}.pdf`);
 };
 

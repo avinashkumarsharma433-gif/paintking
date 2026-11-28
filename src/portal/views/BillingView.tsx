@@ -369,6 +369,14 @@ export const BillingView: React.FC = () => {
         </div>
       </div>
 
+      {/* Accounts Parked in Development Notice */}
+      <div className="p-3.5 sm:p-4 rounded-[18px] bg-[#faf7ed] border border-[#f4e5be] flex items-start gap-2.5 text-xs text-[#8a6521]">
+        <AlertTriangle className="w-4 h-4 text-[#c09748] shrink-0 mt-0.5" />
+        <div>
+          <strong className="font-semibold text-[#17191c]">Accounts Module (In Development / Standby):</strong> Accounts team abhi Tally software me e-Invoice generate karti hai. Stores team dispatch ke baad <strong>Stores &rarr; FG Stock &amp; Billing Slips</strong> se <strong>Download Billing Information</strong> slip nikal kar Accounts ko degi.
+        </div>
+      </div>
+
       {/* Pending PDI Releases Queue Banner */}
       <div className="bg-white rounded-[20px] sm:rounded-[24px] p-4 sm:p-5 border border-[#ececec] shadow-xs space-y-3">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-[#f2f2f3] pb-3">

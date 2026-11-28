@@ -1,5 +1,12 @@
 # WORKING SET
 
+- 2026-11-28: Added Stores Billing Information Slip PDF (Tally Advice) & Parked Accounts in Development (`pdfStandardHeader.ts`, `StoresView.tsx`, `PortalSidebar.tsx`, `BillingView.tsx`)
+  - Files touched:
+    - `src/portal/utils/pdfStandardHeader.ts`: Added `downloadStandardBillingInfoSlipPdf` generating a compact Tally-ready Billing Information Slip PDF (Party, Order/JC No, No. & Kind of Pkgs, SAC 9989, Model/Colour Qty breakdown in `NO`, Total Pkgs & Total `NO`, and Tally description narration).
+    - `src/portal/views/StoresView.tsx`: Added post-dispatch `Download Billing Info` button (per row, instant post-dispatch banner, and multi-select consolidated download) plus `ALL / IN_FG / DISPATCHED` filters in `FG_DISPATCH` tab.
+    - `src/portal/components/PortalSidebar.tsx` & `src/portal/views/BillingView.tsx`: Marked `Billing & PO Rec` as `In Dev` (Tally Prime standby, code preserved without deletion) and added `6. FG Stock & Billing Slips` under `Stores`.
+  - Status: Verified with `npm run lint` (`tsc --noEmit`, 0 errors) and `npm run build` (`vite build`, 8.37s).
+
 - 2026-11-27: Segregated FG Custody & Dispatch Permission to Stores Role (`PackingView.tsx`, `StoresView.tsx`)
   - Files touched:
     - `src/portal/views/PackingView.tsx`: Guarded `PDI` action (`canPerformPdi`: QA/Head/Admin only) and `Dispatch` action (`canDispatchFg`: `STORES`, `PLANT_HEAD`, `DIRECTOR`, `SUPER_ADMIN` only); Packing/Production see `With FG Store` pill after label printing.

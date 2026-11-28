@@ -40,7 +40,7 @@ import {
   Truck
 } from 'lucide-react';
 import { CreateGRNModal } from '../components/CreateGRNModal';
-import { downloadStandardIQCPdf, downloadStandardGRNPdf, formatDateDDMMYYYY, downloadStandardMINPdf, downloadStandardOqcPdf, downloadStandardPdiPdf } from '../utils/pdfStandardHeader';
+import { downloadStandardIQCPdf, downloadStandardGRNPdf, formatDateDDMMYYYY, downloadStandardMINPdf, downloadStandardOqcPdf, downloadStandardPdiPdf, downloadStandardBillingInfoSlipPdf } from '../utils/pdfStandardHeader';
 import { OfficialGRNDocument } from '../components/OfficialGRNDocument';
 import { BatchLedger } from '../components/BatchLedger';
 import { IssueWizardModal } from '../components/IssueWizardModal';
@@ -95,6 +95,10 @@ export const StoresView: React.FC = () => {
   // Role Permissions
   const isStoreIncharge = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'STORES' || currentUser.role === 'PLANT_HEAD' || currentUser.role === 'DIRECTOR';
   const canViewCompliance = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'PLANT_HEAD' || currentUser.role === 'DIRECTOR' || currentUser.role === 'STORES';
+
+  const [fgStatusFilter, setFgStatusFilter] = useState<'ALL' | 'IN_FG' | 'DISPATCHED'>('ALL');
+  const [selectedFgSlips, setSelectedFgSlips] = useState<Record<string, boolean>>({});
+  const [lastDispatchedSlipNo, setLastDispatchedSlipNo] = useState<string | null>(null);
 
   const plantFgSlips = useMemo(() => {
     return packingSlips.filter(s => matchesPlant(s.plant, activePlant));
@@ -2501,6 +2505,11 @@ export const StoresView: React.FC = () => {
       {activeTab === 'FG_DISPATCH' && (() => {
         const q = searchQuery.trim().toLowerCase();
         const filteredFgSlips = plantFgSlips.filter(s => {
+          const okQty = s.packedOkQty ?? s.packedQty ?? 0;
+          const dispQty = s.dispatchedQty || 0;
+          const bal = Math.max(0, okQty - dispQty);
+          if (fgStatusFilter === 'IN_FG' && bal <= 0) return false;
+          if (fgStatusFilter === 'DISPATCHED' && dispQty <= 0) return false;
           if (!q) return true;
           return (
             s.customer.toLowerCase().includes(q) ||
@@ -2514,6 +2523,37 @@ export const StoresView: React.FC = () => {
         const totalFgDispatched = plantFgSlips.reduce((acc, s) => acc + (s.dispatchedQty || 0), 0);
         const totalFgBalance = Math.max(0, totalFgPacked - totalFgDispatched);
         const totalFgBoxes = plantFgSlips.reduce((acc, s) => acc + (s.totalBoxes || 0), 0);
+        const selectedSlipsList = filteredFgSlips.filter(s => Boolean(selectedFgSlips[s.slipNo]));
+        const allFilteredSelected =
+          filteredFgSlips.length > 0 && filteredFgSlips.every(s => Boolean(selectedFgSlips[s.slipNo]));
+        const lastDispatchedSlipObj = lastDispatchedSlipNo
+          ? plantFgSlips.find(s => s.slipNo === lastDispatchedSlipNo) || null
+          : null;
+
+        const triggerBillingInfoSlipDownload = (targetSlips: typeof plantFgSlips) => {
+          if (targetSlips.length === 0) return;
+          const pdiRefs: string[] = Array.from(
+            new Set<string>(
+              targetSlips
+                .map(sl => {
+                  const rel = qualityReleases.find(
+                    r =>
+                      (sl.oqcReleaseId && r.releaseId === sl.oqcReleaseId) ||
+                      (sl.jobCardNo && r.jobCardNo === sl.jobCardNo) ||
+                      r.woNo === sl.woNo
+                  );
+                  return rel?.pdiReportNo || rel?.releaseId || '';
+                })
+                .filter(v => v.length > 0)
+            )
+          );
+          downloadStandardBillingInfoSlipPdf({
+            slips: targetSlips,
+            plant: activePlant === 'ALL' ? (targetSlips[0]?.plant || 'Haridwar') : activePlant,
+            preparedBy: currentUser?.name || 'Stores Incharge',
+            pdiRefs
+          });
+        };
 
         return (
           <div className="space-y-4">
@@ -2544,22 +2584,75 @@ export const StoresView: React.FC = () => {
               </div>
             </div>
 
+            {lastDispatchedSlipObj && (
+              <div className="p-4 rounded-[18px] bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs text-emerald-900 font-semibold">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    Dispatch complete for <strong>{lastDispatchedSlipObj.customer}</strong> ({lastDispatchedSlipObj.model || lastDispatchedSlipObj.partCode}) — Accounts Tally me bill banane ke liye Billing Information Slip download karein.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => triggerBillingInfoSlipDownload([lastDispatchedSlipObj])}
+                  className="px-4 py-2 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-bold shadow-xs transition cursor-pointer inline-flex items-center gap-1.5 shrink-0 active:scale-95"
+                >
+                  <Download size={14} />
+                  <span>Download Billing Information</span>
+                </button>
+              </div>
+            )}
+
             <div className="bg-white rounded-[24px] p-5 sm:p-6 border border-[#ececec] shadow-2xs space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#ececec]">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-[#ececec]">
                 <div>
                   <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#faf3e0] border border-[#f4e5be] text-[#8a6521] text-[10px] font-mono uppercase tracking-wider font-bold">
-                    FG STORE CUSTODY &amp; DISPATCH REGISTER
+                    FG STORE CUSTODY, DISPATCH &amp; TALLY BILLING SLIPS
                   </span>
                   <p className="text-xs text-[#777b86] mt-1">
-                    Packing team boxes pack karke FG Store me handover karti hai — QC PDI &amp; Billing Invoice verify karke sirf Stores Incharge dispatch release karega.
+                    Stores Incharge dispatch ke baad 1 ya multi-model rows select karke Accounts ke liye Billing Information Slip download karega.
                   </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(
+                    [
+                      { key: 'ALL', label: 'All Lots' },
+                      { key: 'IN_FG', label: 'In FG Store' },
+                      { key: 'DISPATCHED', label: 'Dispatched' }
+                    ] as const
+                  ).map(tab => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setFgStatusFilter(tab.key)}
+                      className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition cursor-pointer ${
+                        fgStatusFilter === tab.key
+                          ? 'bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] font-bold'
+                          : 'bg-[#fafafb] text-[#777b86] border border-[#ececec] hover:text-[#17191c]'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+
+                  {selectedSlipsList.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => triggerBillingInfoSlipDownload(selectedSlipsList)}
+                      className="px-4 py-1.5 rounded-full bg-[#c09748] hover:bg-[#a97e35] text-[#17191c] text-xs font-bold shadow-xs transition cursor-pointer inline-flex items-center gap-1.5 active:scale-95"
+                    >
+                      <Download size={13} />
+                      <span>Download Billing Information ({selectedSlipsList.length})</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
               {filteredFgSlips.length === 0 ? (
                 <div className="p-10 text-center text-xs text-[#777b86] bg-[#fafafb] rounded-[18px] border border-dashed border-[#ececec] space-y-2">
                   <Boxes className="w-8 h-8 text-[#979799] mx-auto" />
-                  <p className="font-serif text-base text-[#17191c]">FG Store me abhi koi packed boxes pending nahi hain</p>
+                  <p className="font-serif text-base text-[#17191c]">Is filter me koi FG boxes record nahi hai</p>
                   <p>Packing team jab OQC-passed pieces pack karke box labels print karegi, stock automatic yahan FG custody me aa jayega.</p>
                 </div>
               ) : (
@@ -2568,11 +2661,29 @@ export const StoresView: React.FC = () => {
                     <table className="w-full text-left text-xs">
                       <thead>
                         <tr className="border-b border-[#ececec] text-[10px] font-semibold uppercase text-[#777b86]">
+                          <th className="py-3 px-2 w-9 text-center">
+                            <input
+                              type="checkbox"
+                              checked={allFilteredSelected}
+                              onChange={e => {
+                                const checked = e.target.checked;
+                                setSelectedFgSlips(prev => {
+                                  const next = { ...prev };
+                                  filteredFgSlips.forEach(s => {
+                                    next[s.slipNo] = checked;
+                                  });
+                                  return next;
+                                });
+                              }}
+                              title="Select all rows for consolidated Billing Information Slip"
+                              className="w-3.5 h-3.5 rounded accent-[#c09748] cursor-pointer"
+                            />
+                          </th>
                           <th className="py-3 px-3">Slip &amp; Job Card</th>
                           <th className="py-3 px-3">Customer &amp; Model</th>
                           <th className="py-3 px-3">FG Stock &amp; Boxes</th>
-                          <th className="py-3 px-3">PDI &amp; Invoice Status</th>
-                          <th className="py-3 px-3 text-right">Store Dispatch Action</th>
+                          <th className="py-3 px-3">PDI &amp; Tally Status</th>
+                          <th className="py-3 px-3 text-right">Dispatch / Billing Info</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#ececec]/70">
@@ -2592,7 +2703,20 @@ export const StoresView: React.FC = () => {
                           );
 
                           return (
-                            <tr key={slip.slipNo} className="hover:bg-[#fafafb]">
+                            <tr key={slip.slipNo} className={`hover:bg-[#fafafb] ${selectedFgSlips[slip.slipNo] ? 'bg-[#faf7ed]/60' : ''}`}>
+                              <td className="py-3 px-2 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(selectedFgSlips[slip.slipNo])}
+                                  onChange={e =>
+                                    setSelectedFgSlips(prev => ({
+                                      ...prev,
+                                      [slip.slipNo]: e.target.checked
+                                    }))
+                                  }
+                                  className="w-3.5 h-3.5 rounded accent-[#c09748] cursor-pointer"
+                                />
+                              </td>
                               <td className="py-3 px-3">
                                 <div className="font-mono font-bold text-[#8a6521]">{slip.slipNo}</div>
                                 <div className="text-[11px] text-[#777b86] font-mono">
@@ -2625,13 +2749,13 @@ export const StoresView: React.FC = () => {
                                   >
                                     {pdiCleared ? 'PDI Cleared' : 'Awaiting PDI'}
                                   </span>
-                                  {linkedInv ? (
-                                    <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-mono font-bold">
-                                      {linkedInv.invoiceNo}
+                                  {dispQty > 0 ? (
+                                    <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-semibold">
+                                      {linkedInv ? linkedInv.invoiceNo : 'Tally Slip Ready'}
                                     </span>
                                   ) : (
                                     <span className="px-2 py-0.5 rounded-full bg-[#f2f2f3] text-[#777b86] border border-[#dcdfe4] text-[10px] font-semibold">
-                                      Invoice Pending
+                                      In FG Store
                                     </span>
                                   )}
                                 </div>
@@ -2658,13 +2782,24 @@ export const StoresView: React.FC = () => {
                                       <span>PDI</span>
                                     </button>
                                   )}
+                                  {dispQty > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => triggerBillingInfoSlipDownload([slip])}
+                                      className="px-3 py-1 rounded-full bg-[#f2f2f3] hover:bg-[#e5e7eb] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
+                                    >
+                                      <FileText size={12} className="text-[#c09748]" />
+                                      <span>Download Billing Info</span>
+                                    </button>
+                                  )}
                                   {fgBal > 0 ? (
                                     isStoreIncharge ? (
                                       <button
                                         type="button"
                                         onClick={() => {
                                           dispatchFgStockFromPacking(slip.slipNo, fgBal);
-                                          setEmailSentToast(`✓ ${fgBal} Pcs FG Dispatched by Store (${slip.model} • ${slip.slipNo}).`);
+                                          setLastDispatchedSlipNo(slip.slipNo);
+                                          setEmailSentToast(`✓ ${fgBal} Pcs FG Dispatched (${slip.model}). Download Billing Info Slip for Accounts!`);
                                           setTimeout(() => setEmailSentToast(null), 5000);
                                         }}
                                         className="px-3 py-1 rounded-full bg-[#faf3e0] hover:bg-[#f4e5be] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1 active:scale-95"
@@ -2707,8 +2842,21 @@ export const StoresView: React.FC = () => {
 
                       return (
                         <div key={slip.slipNo} className="bg-[#fafafb] rounded-[18px] border border-[#ececec] p-3.5 space-y-2 text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono font-bold text-[#8a6521]">{slip.slipNo}</span>
+                          <div className="flex items-center justify-between gap-2">
+                            <label className="inline-flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(selectedFgSlips[slip.slipNo])}
+                                onChange={e =>
+                                  setSelectedFgSlips(prev => ({
+                                    ...prev,
+                                    [slip.slipNo]: e.target.checked
+                                  }))
+                                }
+                                className="w-3.5 h-3.5 rounded accent-[#c09748]"
+                              />
+                              <span className="font-mono font-bold text-[#8a6521]">{slip.slipNo}</span>
+                            </label>
                             <span className="font-mono font-bold text-emerald-700">{fgBal} / {okQty} Pcs FG</span>
                           </div>
                           <div>
@@ -2719,24 +2867,37 @@ export const StoresView: React.FC = () => {
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${pdiCleared ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-[#faf3e0] text-[#8a6521] border-[#f4e5be]'}`}>
                               {pdiCleared ? 'PDI Cleared' : 'Awaiting PDI'}
                             </span>
-                            {fgBal > 0 && isStoreIncharge ? (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  dispatchFgStockFromPacking(slip.slipNo, fgBal);
-                                  setEmailSentToast(`✓ ${fgBal} Pcs FG Dispatched by Store (${slip.model}).`);
-                                  setTimeout(() => setEmailSentToast(null), 5000);
-                                }}
-                                className="px-3 py-1 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
-                              >
-                                <Truck size={12} />
-                                <span>Dispatch FG</span>
-                              </button>
-                            ) : fgBal === 0 ? (
-                              <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold">
-                                Dispatched
-                              </span>
-                            ) : null}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {dispQty > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => triggerBillingInfoSlipDownload([slip])}
+                                  className="px-3 py-1 rounded-full bg-[#f2f2f3] text-[#17191c] border border-[#dcdfe4] text-[11px] font-semibold cursor-pointer inline-flex items-center gap-1"
+                                >
+                                  <FileText size={12} className="text-[#c09748]" />
+                                  <span>Billing Info</span>
+                                </button>
+                              )}
+                              {fgBal > 0 && isStoreIncharge ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    dispatchFgStockFromPacking(slip.slipNo, fgBal);
+                                    setLastDispatchedSlipNo(slip.slipNo);
+                                    setEmailSentToast(`✓ ${fgBal} Pcs FG Dispatched by Store (${slip.model}).`);
+                                    setTimeout(() => setEmailSentToast(null), 5000);
+                                  }}
+                                  className="px-3 py-1 rounded-full bg-[#faf3e0] text-[#8a6521] border border-[#f4e5be] text-[11px] font-bold cursor-pointer inline-flex items-center gap-1"
+                                >
+                                  <Truck size={12} />
+                                  <span>Dispatch FG</span>
+                                </button>
+                              ) : fgBal === 0 ? (
+                                <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold">
+                                  Dispatched
+                                </span>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
                       );
